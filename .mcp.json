@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "segundocerebro": {
+      "command": "py",
+      "args": ["-m", "segundocerebro.mcp.server"],
+      "env": {
+        "PYTHONPATH": "src",
+        "PYTHONIOENCODING": "utf-8"
+      }
+    }
+  }
+}

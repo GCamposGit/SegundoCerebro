@@ -1,0 +1,167 @@
+"""The only place in the system that opens a corpus file.
+
+Every parser receives bytes, never a path. That is deliberate: three hazards
+found in the real corpus have to be handled once, in one place, or they will be
+forgotten in the fifth parser someone adds.
+
+1. **Cloud placeholders.** On a synced OneDrive/SharePoint folder a file may not
+   be on disk. Opening it triggers a download. The check happens here, before
+   any read, and hydration only ever happens when explicitly allowed.
+2. **Paths over 260 characters.** 34 files in the corpus; the Windows API fails
+   with "file not found", which is the most misleading error possible.
+3. **Files locked by Word/Excel.** The corpus is a live working folder, so this
+   is routine. It gets a retry and then an explicit `travado` status — never a
+   crash, never a silent skip.
+"""
+
+from __future__ import annotations
+
+import hashlib
+import os
+import time
+
+from ..census import caminho_estendido, is_cloud_only
+from ..logger import get_logger
+from .document import ParsedDoc, ParseResult, ParseStatus
+from .natureza import EXTENSOES_DE_PLANILHA, detectar, mb_de_abas
+
+log = get_logger("ingest.reader")
+
+RETRIES_PADRAO = 2
+ESPERA_PADRAO = 1.0
+
+
+class CloudOnlyFile(OSError):
+    """The content is not on disk; reading it would pull it from the cloud."""
+
+
+class FileLocked(OSError):
+    """Another process holds the file — Word and Excel do this routinely."""
+
+
+def read_bytes(
+    path: str,
+    *,
+    allow_hydration: bool = False,
+    retries: int = RETRIES_PADRAO,
+    espera: float = ESPERA_PADRAO,
+) -> bytes:
+    """Read a corpus file, refusing to hydrate placeholders by default."""
+    alvo = caminho_estendido(path)
+
+    st = os.stat(alvo)
+    if is_cloud_only(getattr(st, "st_file_attributes", 0)) and not allow_hydration:
+        raise CloudOnlyFile(f"placeholder de nuvem, leitura recusada: {path}")
+
+    ultimo: OSError | None = None
+    for tentativa in range(retries + 1):
+        try:
+            with open(alvo, "rb") as fh:
+                return fh.read()
+        except PermissionError as exc:
+            ultimo = exc
+            if tentativa < retries:
+                log.debug("arquivo travado, nova tentativa em %.1fs: %s", espera, path)
+                time.sleep(espera)
+    raise FileLocked(f"arquivo em uso por outro processo: {path}") from ultimo
+
+
+def parse_file(
+    path: str,
+    *,
+    allow_hydration: bool = False,
+    retries: int = RETRIES_PADRAO,
+    espera: float = ESPERA_PADRAO,
+    limite_planilha_mb: float | None = None,
+) -> ParseResult:
+    """Read and parse one file, turning every failure into a recorded status.
+
+    `limite_planilha_mb` adia planilhas cujo XML de abas passe do limite. A
+    decisão mora aqui, e não no indexador, pelo mesmo motivo que a recusa de
+    placeholder de nuvem mora aqui: é uma decisão sobre **abrir ou não abrir o
+    conteúdo**, e ter dois lugares que decidem isso é como o portão único se
+    perde.
+    """
+    from .parsers import parser_for  # local import keeps the registry lazy
+
+    extensao = os.path.splitext(path)[1].lower()
+    parser = parser_for(extensao)
+    if parser is None:
+        return ParseResult(path=path, status=ParseStatus.UNSUPPORTED, detail=extensao)
+
+    try:
+        dados = read_bytes(path, allow_hydration=allow_hydration, retries=retries, espera=espera)
+    except CloudOnlyFile as exc:
+        return ParseResult(path=path, status=ParseStatus.CLOUD_ONLY, detail=str(exc))
+    except FileLocked as exc:
+        log.warning("travado, será reindexado na próxima passada: %s", path)
+        return ParseResult(path=path, status=ParseStatus.LOCKED, detail=str(exc))
+    except FileNotFoundError as exc:
+        # Enumerado e apagado antes de chegarmos nele — rotina num acervo que é
+        # pasta de trabalho viva, e não a mesma coisa que um parser quebrado.
+        log.info("sumiu entre a varredura e a leitura: %s", path)
+        return ParseResult(path=path, status=ParseStatus.GONE, detail=f"{type(exc).__name__}: {exc}")
+    except OSError as exc:
+        return ParseResult(path=path, status=ParseStatus.ERROR, detail=f"{type(exc).__name__}: {exc}")
+
+    sha = hashlib.sha256(dados).hexdigest()
+    nome = os.path.basename(path)
+
+    if limite_planilha_mb is not None and extensao in EXTENSOES_DE_PLANILHA:
+        mb = mb_de_abas(dados)
+        if mb is not None and mb > limite_planilha_mb:
+            log.info("adiada: %s tem %.0f MB de XML de abas (limite %.0f)", path, mb, limite_planilha_mb)
+            return ParseResult(
+                path=path,
+                status=ParseStatus.DEFERRED,
+                detail=f"{mb:.0f} MB de XML de abas, acima do limite de {limite_planilha_mb:.0f}",
+                sha256=sha,
+                natureza=detectar(path, dados),
+            )
+
+    try:
+        doc = parser(dados, nome)
+    except Exception as exc:  # a corrupt file must not stop the indexing run
+        natureza = detectar(path, dados)
+        if natureza.extensao_mente:
+            # Não é corrupção: é outro formato com a extensão errada. Dizer isso
+            # no `detalhe` poupa a investigação que este caso já custou uma vez.
+            log.warning(
+                "%s tem extensão %s mas conteúdo %s — não é corrupção",
+                path,
+                os.path.splitext(path)[1].lower(),
+                natureza.familia_real,
+            )
+            return ParseResult(
+                path=path,
+                status=ParseStatus.UNSUPPORTED,
+                detail=f"extensão mente: conteúdo é {natureza.familia_real}",
+                sha256=sha,
+                natureza=natureza,
+            )
+        log.warning("falha ao interpretar %s: %s", path, exc)
+        return ParseResult(
+            path=path,
+            status=ParseStatus.ERROR,
+            detail=f"{type(exc).__name__}: {exc}",
+            sha256=sha,
+            natureza=natureza,
+        )
+
+    natureza = detectar(path, dados, doc)
+    if not doc.blocks or not doc.total_chars:
+        detalhe = "digitalizado, sem camada de texto" if natureza.digitalizado else "nenhum texto extraível"
+        return ParseResult(
+            path=path,
+            status=ParseStatus.EMPTY,
+            doc=doc,
+            detail=detalhe,
+            sha256=sha,
+            natureza=natureza,
+        )
+
+    return ParseResult(path=path, status=ParseStatus.OK, doc=doc, sha256=sha, natureza=natureza)
+
+
+def empty_doc(nome: str, **meta: str) -> ParsedDoc:
+    return ParsedDoc(name=nome, blocks=(), meta=meta)

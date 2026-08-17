@@ -1,0 +1,606 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Segundo Cérebro — painel de ajuste</title>
+<style>
+:root {
+  --fundo: #fbfbfa; --painel: #fff; --borda: #e3e1dd; --texto: #26241f;
+  --suave: #6b665e; --acento: #2f6f4f; --acento-fraco: #e8f2ec;
+  --alerta: #8a4b2a; --alerta-fraco: #f8efe8; --sombra: 0 1px 2px rgba(0,0,0,.05);
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --fundo: #1a1917; --painel: #232220; --borda: #38352f; --texto: #e8e5df;
+    --suave: #9c968c; --acento: #6fbf8f; --acento-fraco: #1e2f26;
+    --alerta: #d29464; --alerta-fraco: #2e241c; --sombra: none;
+  }
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--fundo); color: var(--texto);
+  font: 15px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif;
+}
+.envelope { max-width: 940px; margin: 0 auto; padding: 28px 20px 80px; }
+h1 { font-size: 20px; margin: 0 0 2px; font-weight: 650; }
+h2 { font-size: 15px; margin: 32px 0 10px; font-weight: 620; }
+h2 .nota { font-weight: 400; color: var(--suave); font-size: 13px; margin-left: 8px; }
+p.sub { color: var(--suave); font-size: 13px; margin: 0 0 20px; }
+.cartao {
+  background: var(--painel); border: 1px solid var(--borda); border-radius: 10px;
+  padding: 14px 16px; box-shadow: var(--sombra);
+}
+.linha { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+select, input[type=text] {
+  font: inherit; padding: 7px 10px; border-radius: 7px;
+  border: 1px solid var(--borda); background: var(--painel); color: var(--texto);
+}
+input[type=text] { flex: 1; min-width: 220px; }
+button {
+  font: inherit; font-weight: 550; padding: 8px 15px; border-radius: 7px;
+  border: 1px solid var(--borda); background: var(--painel); color: var(--texto);
+  cursor: pointer;
+}
+button:hover:not(:disabled) { border-color: var(--suave); }
+button.primario { background: var(--acento); border-color: var(--acento); color: #fff; }
+button:disabled { opacity: .45; cursor: not-allowed; }
+.perfis { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(215px, 1fr)); }
+.perfil { text-align: left; padding: 13px 14px; display: block; }
+.perfil.ativo { border-color: var(--acento); background: var(--acento-fraco); }
+.perfil b { display: block; font-size: 14px; margin-bottom: 3px; }
+.perfil .pesos { font-variant-numeric: tabular-nums; color: var(--suave); font-size: 12px; }
+.perfil small { display: block; color: var(--suave); font-weight: 400; margin-top: 7px; font-size: 12px; }
+.perfil .custo { color: var(--alerta); }
+details { margin-top: 12px; }
+summary { cursor: pointer; color: var(--suave); font-size: 13px; }
+.slider { display: grid; grid-template-columns: 74px 1fr 46px; gap: 10px; align-items: center; margin-top: 11px; }
+.slider label { font-size: 13px; }
+.slider output { font-variant-numeric: tabular-nums; text-align: right; font-size: 13px; }
+input[type=range] { width: 100%; accent-color: var(--acento); }
+table { border-collapse: collapse; width: 100%; font-size: 13px; }
+th, td { text-align: left; padding: 6px 9px; border-bottom: 1px solid var(--borda); }
+td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; }
+.melhor { color: var(--acento); font-weight: 600; }
+.pior { color: var(--alerta); font-weight: 600; }
+.aviso { background: var(--alerta-fraco); color: var(--alerta); border-radius: 7px;
+         padding: 9px 12px; font-size: 13px; margin-top: 12px; }
+.ok { background: var(--acento-fraco); color: var(--acento); border-radius: 7px;
+      padding: 9px 12px; font-size: 13px; margin-top: 12px; }
+.oculto { display: none; }
+.rodape { color: var(--suave); font-size: 12px; margin-top: 40px;
+          border-top: 1px solid var(--borda); padding-top: 14px; }
+code { font-family: ui-monospace, "Cascadia Code", monospace; font-size: 12px; }
+.trecho { border-left: 2px solid var(--borda); padding: 3px 0 3px 11px; margin: 9px 0; }
+.via { color: var(--suave); font-size: 12px; }
+.barra { height: 9px; border-radius: 5px; background: var(--borda); overflow: hidden; }
+.barra > div { height: 100%; background: var(--acento); width: 0; transition: width .4s ease; }
+.barra.parada > div { background: var(--suave); }
+</style>
+</head>
+<body>
+<div class="envelope">
+  <h1>Painel de ajuste</h1>
+  <p class="sub">
+    Ajusta como a busca ordena resultados. Não indexa e não responde perguntas —
+    o servidor de busca funciona com esta tela fechada.
+  </p>
+
+  <div class="cartao linha">
+    <label for="base"><b>Base</b></label>
+    <select id="base"></select>
+    <span id="infoBase" class="sub" style="margin:0"></span>
+    <button id="abrirNova" style="margin-left:auto">Nova base</button>
+  </div>
+
+  <div id="nova" class="oculto">
+    <h2>Nova base <span class="nota">criar, ver o custo, indexar, conectar</span></h2>
+    <div class="cartao">
+      <div class="slider" style="grid-template-columns:110px 1fr">
+        <label for="nvId">Identificador</label>
+        <input type="text" id="nvId" placeholder="pessoal">
+        <label for="nvNome">Nome</label>
+        <input type="text" id="nvNome" placeholder="Documentos pessoais">
+        <label for="nvDesc">Descrição</label>
+        <input type="text" id="nvDesc"
+               placeholder="Finanças, saúde, casa — o que o assistente deve buscar aqui">
+        <label for="nvPastas">Pastas</label>
+        <input type="text" id="nvPastas" placeholder="C:\Users\você\Documentos  (separe por ;)">
+      </div>
+      <p class="sub" style="margin:12px 0 0">
+        A descrição não é enfeite: é o que o assistente lê para decidir se procura
+        nesta base. Com duas bases ligadas, é o único sinal que ele tem.
+      </p>
+      <div class="linha" style="margin-top:12px">
+        <button id="verCusto" class="primario">Ver o que tem nas pastas</button>
+        <button id="criarBase" disabled>Criar base</button>
+        <button id="indexarBase" disabled>Indexar</button>
+      </div>
+      <div id="saidaCenso"></div>
+    </div>
+  </div>
+
+  <div id="conectar" class="oculto">
+    <h2>Conectar <span class="nota">cole no .mcp.json do seu cliente</span></h2>
+    <div class="cartao">
+      <pre id="trechoMcp" style="overflow-x:auto;margin:0;font-size:12px"></pre>
+    </div>
+  </div>
+
+  <div id="indexacao" class="oculto">
+    <h2>Indexação <span class="nota">o indexador roda sozinho; esta tela só observa</span></h2>
+    <div class="cartao">
+      <div class="barra"><div id="barraCheia"></div></div>
+      <div class="linha" style="margin-top:10px;justify-content:space-between">
+        <span id="idxResumo" class="sub" style="margin:0"></span>
+        <span id="idxFalta" class="sub" style="margin:0;font-variant-numeric:tabular-nums"></span>
+      </div>
+      <div id="idxArquivo" class="via"></div>
+      <div id="idxAviso"></div>
+    </div>
+  </div>
+
+  <h2>Perfis <span class="nota">escolha um, meça, e só então salve</span></h2>
+  <div class="perfis" id="perfis"></div>
+
+  <details id="avancado">
+    <summary>Avançado — os pesos direto</summary>
+    <div class="cartao" style="margin-top:10px">
+      <div class="slider">
+        <label for="pDenso">Significado</label>
+        <input type="range" id="pDenso" min="0" max="2" step="0.05">
+        <output id="oDenso"></output>
+      </div>
+      <div class="slider">
+        <label for="pLexical">Termo exato</label>
+        <input type="range" id="pLexical" min="0" max="2" step="0.05">
+        <output id="oLexical"></output>
+      </div>
+      <div class="slider">
+        <label for="pNome">Nome do arquivo</label>
+        <input type="range" id="pNome" min="0" max="2" step="0.05">
+        <output id="oNome"></output>
+      </div>
+      <div class="slider" style="grid-template-columns:74px 1fr 46px;margin-top:16px">
+        <label for="pRerank">Releitura</label>
+        <input type="range" id="pRerank" min="0" max="1" step="0.05">
+        <output id="oRerank"></output>
+      </div>
+      <p class="sub" style="margin:6px 0 0">
+        Um segundo modelo relê os melhores candidatos e reordena com mais cuidado.
+        Medido aqui: <b>+3,4 pontos</b> de acerto em 1º lugar, e a busca passa de
+        <b>0,9 s para 6,3 s</b>. Zero desliga. O pico é 0,25 — mais voz que isso
+        piora, porque ele passa a descartar o consenso dos outros três.
+      </p>
+    </div>
+  </details>
+
+  <div class="linha" style="margin-top:16px">
+    <button id="medir" class="primario">Medir</button>
+    <button id="salvar" disabled>Salvar</button>
+    <span id="estadoMedicao" class="sub" style="margin:0"></span>
+  </div>
+  <div id="recado"></div>
+
+  <div id="resultado" class="oculto">
+    <h2>Resultado <span class="nota">sobre o conjunto dourado desta base</span></h2>
+    <div class="cartao"><table id="tabelaMetricas"></table></div>
+    <h2>Movimento por pergunta <span class="nota">a média esconde regressão</span></h2>
+    <div class="cartao" style="max-height:290px;overflow:auto">
+      <table id="tabelaPerguntas"></table>
+    </div>
+  </div>
+
+  <h2>Por que este resultado <span class="nota">e ensine o sistema quando errar</span></h2>
+  <div class="cartao">
+    <div class="linha">
+      <input type="text" id="consulta" placeholder="digite uma pergunta e veja quem achou o quê">
+      <button id="diagnosticar">Ver</button>
+    </div>
+    <div id="saidaDiagnostico"></div>
+    <div id="ensinar" class="oculto">
+      <p class="sub" style="margin:14px 0 8px">
+        Errou? Marque o arquivo certo acima, ou escreva o caminho dele. A pergunta
+        entra no conjunto que mede esta base — é o que faz os perfis serem medidos
+        contra o <b>seu</b> acervo e as <b>suas</b> perguntas.
+      </p>
+      <div class="linha">
+        <input type="text" id="fonteCerta" placeholder="caminho do arquivo que deveria ter vindo">
+        <select id="tipoPergunta">
+          <option value="semantica">de entendimento</option>
+          <option value="exato">de termo exato</option>
+          <option value="temporal">de data</option>
+          <option value="multihop">junta várias fontes</option>
+        </select>
+        <button id="salvarDourado">Ensinar</button>
+      </div>
+      <div id="recadoDourado"></div>
+    </div>
+  </div>
+
+  <h2>Máquina <span class="nota">velocidade, nunca conteúdo do índice</span></h2>
+  <div class="cartao">
+    <div class="linha">
+      <label for="perfilMaquina"><b>Esforço ao indexar</b></label>
+      <select id="perfilMaquina">
+        <option value="leve">Leve — dá para trabalhar ao mesmo tempo</option>
+        <option value="normal">Normal</option>
+        <option value="maximo">Máximo — deixa a máquina lenta</option>
+      </select>
+      <button id="salvarMaquina">Salvar</button>
+    </div>
+    <p class="sub" style="margin:10px 0 0">
+      Leve cede a vez ao que está em primeiro plano e recusa rodar na bateria.
+      Isto não passa pelo "medir antes de salvar": muda a velocidade da
+      indexação, nunca o que entra no índice.
+    </p>
+    <details style="margin-top:14px">
+      <summary>Pastas desta base — para quando o índice vier de outra máquina</summary>
+      <div class="linha" style="margin-top:10px">
+        <input type="text" id="raizesBase" placeholder="separe por ;">
+        <button id="salvarRaizes">Re-apontar</button>
+      </div>
+      <p class="sub" style="margin:8px 0 0">
+        Copiou a base de outro computador? Aponte para as pastas de cá. <b>Nada é
+        reindexado</b> — o índice existente continua valendo, e é isso que torna
+        útil re-apontar em vez de indexar de novo.
+      </p>
+      <div id="recadoRaizes"></div>
+    </details>
+  </div>
+
+  <div class="rodape">
+    Salvar exige ter medido, e a regra é do servidor, não desta tela.
+    Modelo de busca e tamanho de trecho não se ajustam aqui: mudá-los obriga a
+    reindexar o acervo inteiro.
+  </div>
+</div>
+
+<script>
+const token = new URLSearchParams(location.search).get("token") || "";
+const $ = (id) => document.getElementById(id);
+const MINIMO_DE_PERGUNTAS = 15;
+let bases = [], perfis = [], medicaoAtual = null, assinaturaMedida = null;
+
+async function api(rota, corpo) {
+  const opcoes = { headers: { "x-painel-token": token } };
+  if (corpo) {
+    opcoes.method = "POST";
+    opcoes.headers["content-type"] = "application/json";
+    opcoes.body = JSON.stringify(corpo);
+  }
+  const r = await fetch(rota, opcoes);
+  const dados = await r.json().catch(() => ({ erro: "resposta ilegível" }));
+  if (!r.ok) throw new Error(dados.erro || `erro ${r.status}`);
+  return dados;
+}
+
+const pesosAtuais = () => ({
+  denso: +$("pDenso").value, lexical: +$("pLexical").value, nome: +$("pNome").value,
+});
+// `rerank` é classe grátis — recarrega sem reindexar — então entra no ajuste
+// junto dos pesos, e por isso participa da assinatura que destrava o Salvar.
+const buscaAtual = () => ({ rerank: +$("pRerank").value || null });
+const ajusteAtual = () => ({ base: $("base").value, pesos: pesosAtuais(), busca: buscaAtual() });
+const assinatura = () =>
+  JSON.stringify(pesosAtuais()) + JSON.stringify(buscaAtual()) + "|" + $("base").value;
+const baseAtual = () => bases.find((b) => b.id === $("base").value);
+
+function recado(texto, tipo) {
+  $("recado").innerHTML = texto ? `<div class="${tipo || "aviso"}">${texto}</div>` : "";
+}
+
+function sincronizar() {
+  for (const id of ["Denso", "Lexical", "Nome", "Rerank"]) {
+    $("o" + id).textContent = (+$("p" + id).value).toFixed(2);
+  }
+  const p = pesosAtuais();
+  document.querySelectorAll(".perfil").forEach((el) => {
+    const alvo = perfis.find((x) => x.id === el.dataset.id).pesos;
+    el.classList.toggle("ativo",
+      Math.abs(alvo.denso - p.denso) < 0.001 && Math.abs(alvo.lexical - p.lexical) < 0.001
+      && Math.abs(alvo.nome - p.nome) < 0.001);
+  });
+  const medido = assinaturaMedida === assinatura();
+  $("salvar").disabled = !medido;
+  $("estadoMedicao").textContent = medido
+    ? "medido — pode salvar"
+    : "esta configuração ainda não foi medida";
+  $("resultado").classList.toggle("oculto", !medido);
+}
+
+function desenharPerfis() {
+  $("perfis").innerHTML = perfis.map((p) => `
+    <button class="cartao perfil" data-id="${p.id}">
+      <b>${p.nome}</b>
+      <span class="pesos">${p.pesos.denso} · ${p.pesos.lexical} · ${p.pesos.nome}</span>
+      <small>${p.para_quem}</small>
+      <small class="custo">Custo: ${p.custo}</small>
+    </button>`).join("");
+  document.querySelectorAll(".perfil").forEach((el) => {
+    el.onclick = () => {
+      const p = perfis.find((x) => x.id === el.dataset.id).pesos;
+      $("pDenso").value = p.denso; $("pLexical").value = p.lexical; $("pNome").value = p.nome;
+      sincronizar();
+    };
+  });
+}
+
+function desenharMetricas(m) {
+  const linhas = [
+    ["Achou em 1º lugar", "recall@1", true], ["Achou nos 10 primeiros", "recall@10", true],
+    ["Posição média (MRR)", "mrr@10", true], ["nDCG@10", "ndcg@10", true],
+  ];
+  let html = "<tr><th>Métrica</th><th class='num'>Valor</th></tr>";
+  for (const [rot, chave] of linhas) {
+    html += `<tr><td>${rot}</td><td class="num">${(m[chave] ?? 0).toFixed(3)}</td></tr>`;
+  }
+  html += `<tr><td>Casos-armadilha resolvidos</td><td class="num">${m.armadilhas}/${m.armadilhas_total}</td></tr>`;
+  html += `<tr><td>Multi-hop completos</td><td class="num">${m.multihop}/${m.multihop_total}</td></tr>`;
+  html += `<tr><td>Perguntas medidas</td><td class="num">${m.n}</td></tr>`;
+  $("tabelaMetricas").innerHTML = html;
+
+  const antes = medicaoAtual?.perguntas || [];
+  const porId = Object.fromEntries(antes.map((p) => [p.id, p.posicao]));
+  let ph = "<tr><th>Pergunta</th><th class='num'>Posição</th></tr>";
+  for (const p of m.perguntas) {
+    const pos = p.posicao === null ? "—" : p.posicao;
+    const anterior = porId[p.id];
+    let marca = "";
+    if (anterior !== undefined && anterior !== p.posicao) {
+      const melhorou = (p.posicao ?? 999) < (anterior ?? 999);
+      marca = ` <span class="${melhorou ? "melhor" : "pior"}">(era ${anterior ?? "—"})</span>`;
+    }
+    ph += `<tr><td>${p.armadilha ? "⚠ " : ""}${p.pergunta}</td><td class="num">${pos}${marca}</td></tr>`;
+  }
+  $("tabelaPerguntas").innerHTML = ph;
+}
+
+$("medir").onclick = async () => {
+  recado(""); $("medir").disabled = true; $("medir").textContent = "Medindo…";
+  try {
+    const r = await api("/api/medir", ajusteAtual());
+    desenharMetricas(r.medicao);
+    medicaoAtual = r.medicao;
+    assinaturaMedida = assinatura();
+    recado("Medição concluída.", "ok");
+  } catch (e) { recado(e.message); }
+  $("medir").disabled = false; $("medir").textContent = "Medir"; sincronizar();
+};
+
+$("salvar").onclick = async () => {
+  recado("");
+  try {
+    await api("/api/salvar", ajusteAtual());
+    recado("Salvo. A busca passa a usar esta configuração.", "ok");
+    await carregarEstado();
+  } catch (e) { recado(e.message); }
+};
+
+$("diagnosticar").onclick = async () => {
+  const consulta = $("consulta").value.trim();
+  if (!consulta) return;
+  $("saidaDiagnostico").innerHTML = '<p class="sub">consultando…</p>';
+  try {
+    const r = await api("/api/diagnostico", { ...ajusteAtual(), consulta });
+    const t = r.resultado.trechos || [];
+    $("saidaDiagnostico").innerHTML = t.length ? t.map((x, i) => `
+      <div class="trecho">
+        <b>${i + 1}. ${x.arquivo}</b>
+        <div class="via">achado por <b>${x.achado_por || "nome"}</b>${
+          x.secao ? " · " + x.secao : ""}${x.onde ? " · " + x.onde : ""}</div>
+        <div class="via">${(x.texto || "").slice(0, 220)}…</div>
+        <button class="marcarFonte" data-arquivo="${x.arquivo}"
+                style="padding:3px 9px;font-size:12px;margin-top:5px">era este</button>
+      </div>`).join("")
+      : '<p class="sub">nada encontrado</p>';
+    $("ensinar").classList.remove("oculto");
+    document.querySelectorAll(".marcarFonte").forEach((el) => {
+      el.onclick = () => { $("fonteCerta").value = el.dataset.arquivo; };
+    });
+  } catch (e) { $("saidaDiagnostico").innerHTML = `<div class="aviso">${e.message}</div>`; }
+};
+
+$("base").onchange = () => {
+  assinaturaMedida = null; medicaoAtual = null;
+  mostrarBase(); atualizarIndexacao(); mostrarRegistro();
+};
+
+function mostrarBase() {
+  const b = baseAtual();
+  if (!b) return;
+  $("pDenso").value = b.pesos.denso;
+  $("pLexical").value = b.pesos.lexical;
+  $("pNome").value = b.pesos.nome;
+  $("pRerank").value = b.busca.rerank || 0;
+  $("raizesBase").value = (b.raizes || []).join(" ; ");
+  // Quantas perguntas medem esta base. Abaixo de um mínimo o número é ruído, e a
+  // tela diz isso em vez de exibir três casas decimais sobre n = 4.
+  const dourado = b.dourado
+    ? ` · mede com ${b.dourado} pergunta${b.dourado === 1 ? "" : "s"}`
+      + (b.dourado < MINIMO_DE_PERGUNTAS ? " (poucas — o número ainda é ruído)" : "")
+    : " · nenhuma pergunta para medir";
+  $("infoBase").textContent = `${b.indexada ? "indexada" : "ainda não indexada"}`
+    + ` · modelo ${b.modelo}` + (b.indexando ? " · indexando agora" : "") + dourado;
+  sincronizar();
+}
+
+// --- estágio 0: criar, ver o custo, indexar, conectar ---
+
+const pastasDigitadas = () =>
+  $("nvPastas").value.split(";").map((p) => p.trim()).filter(Boolean);
+
+$("abrirNova").onclick = () => $("nova").classList.toggle("oculto");
+
+$("verCusto").onclick = async () => {
+  const raizes = pastasDigitadas();
+  if (!raizes.length) { $("saidaCenso").innerHTML = '<div class="aviso">Informe ao menos uma pasta.</div>'; return; }
+  $("saidaCenso").innerHTML = '<p class="sub">olhando as pastas (só metadados)…</p>';
+  try {
+    const c = await api("/api/censo", { raizes });
+    const gb = (c.bytes / 1e9).toFixed(2);
+    const formatos = c.formatos.map((f) =>
+      `<tr><td>${f.extensao}</td><td class="num">${f.arquivos.toLocaleString("pt-BR")}</td>
+       <td>${f.tem_parser ? "lê" : "<span class='pior'>sem leitor</span>"}</td></tr>`).join("");
+    const avisos = [];
+    if (c.raizes_ausentes.length) avisos.push(`Pasta não encontrada: ${c.raizes_ausentes.join(", ")}`);
+    if (c.placeholders) avisos.push(
+      `${c.placeholders} arquivos estão só na nuvem. Serão registrados e não baixados.`);
+    if (c.truncada) avisos.push("Muitos arquivos: a prévia parou no limite de segurança.");
+    $("saidaCenso").innerHTML = `
+      <table style="margin-top:12px">
+        <tr><td>Arquivos encontrados</td><td class="num">${c.arquivos.toLocaleString("pt-BR")}</td></tr>
+        <tr><td>Que o sistema consegue ler</td><td class="num">${c.legiveis.toLocaleString("pt-BR")}</td></tr>
+        <tr><td>Tamanho</td><td class="num">${gb} GB</td></tr>
+        <tr><td><b>Tempo de indexação</b></td><td class="num"><b>${c.estimativa}</b></td></tr>
+      </table>
+      <details style="margin-top:10px"><summary>Por formato</summary>
+        <table style="margin-top:8px">${formatos}</table></details>
+      ${avisos.map((a) => `<div class="aviso">${a}</div>`).join("")}
+      <p class="sub" style="margin-top:10px">
+        Estimativa de primeira vez, sem nenhuma medição desta máquina — por isso a
+        faixa é larga. Ela se corrige durante a indexação.</p>`;
+    $("criarBase").disabled = c.arquivos === 0;
+  } catch (e) { $("saidaCenso").innerHTML = `<div class="aviso">${e.message}</div>`; }
+};
+
+$("criarBase").onclick = async () => {
+  try {
+    const r = await api("/api/base", {
+      id: $("nvId").value.trim(), nome: $("nvNome").value.trim(),
+      descricao: $("nvDesc").value.trim(), raizes: pastasDigitadas(),
+    });
+    recado(`Base "${r.id}" criada. Índice em ${r.indice}.`, "ok");
+    await carregarEstado();
+    $("base").value = r.id;
+    mostrarBase();
+    $("indexarBase").disabled = false;
+    $("criarBase").disabled = true;
+    await mostrarRegistro();
+  } catch (e) { recado(e.message); }
+};
+
+$("indexarBase").onclick = async () => {
+  try {
+    const r = await api("/api/indexar", { base: $("base").value });
+    recado(`Indexação iniciada (processo ${r.pid}, perfil ${r.perfil}). `
+      + `Pode fechar esta página — ela não para a indexação.`, "ok");
+    $("indexarBase").disabled = true;
+    atualizarIndexacao();
+  } catch (e) { recado(e.message); }
+};
+
+// --- estágio 3: o conjunto dourado crescendo do uso real ---
+
+$("salvarDourado").onclick = async () => {
+  const pergunta = $("consulta").value.trim();
+  const fonte = $("fonteCerta").value.trim();
+  if (!pergunta || !fonte) {
+    $("recadoDourado").innerHTML = '<div class="aviso">Preciso da pergunta e do arquivo certo.</div>';
+    return;
+  }
+  try {
+    const r = await api("/api/dourado", {
+      base: $("base").value, pergunta, fontes: [fonte], tipo: $("tipoPergunta").value,
+    });
+    $("recadoDourado").innerHTML =
+      `<div class="ok">Guardada como ${r.id}. Esta base mede com ${r.total} pergunta(s) agora.</div>`;
+    $("fonteCerta").value = "";
+    await carregarEstado();
+    // A medição anterior valia para o conjunto anterior. Com pergunta nova, ela
+    // não vale mais — e deixar o Salvar destravado seria salvar contra um número
+    // que já não descreve nada.
+    assinaturaMedida = null;
+    sincronizar();
+  } catch (e) { $("recadoDourado").innerHTML = `<div class="aviso">${e.message}</div>`; }
+};
+
+// --- máquina e pastas ---
+
+$("salvarMaquina").onclick = async () => {
+  try {
+    await api("/api/maquina", { perfil: $("perfilMaquina").value });
+    recado("Esforço salvo. Vale para a próxima indexação.", "ok");
+  } catch (e) { recado(e.message); }
+};
+
+$("salvarRaizes").onclick = async () => {
+  const raizes = $("raizesBase").value.split(";").map((p) => p.trim()).filter(Boolean);
+  try {
+    const r = await api("/api/raizes", { base: $("base").value, raizes, confirmo: true });
+    $("recadoRaizes").innerHTML = `<div class="ok">${r.aviso}</div>`;
+    await carregarEstado();
+  } catch (e) { $("recadoRaizes").innerHTML = `<div class="aviso">${e.message}</div>`; }
+};
+
+async function mostrarRegistro() {
+  try {
+    const r = await api(`/api/registro?base=${encodeURIComponent($("base").value)}`);
+    $("trechoMcp").textContent = JSON.stringify(r.json, null, 2);
+    $("conectar").classList.remove("oculto");
+  } catch { $("conectar").classList.add("oculto"); }
+}
+
+const ROTULO_STATUS = {
+  preparando: "preparando", indexando: "indexando",
+  concluida: "concluída", interrompida: "interrompida", falhou: "falhou",
+};
+
+async function atualizarIndexacao() {
+  let dados;
+  try { dados = await api("/api/indexacao"); } catch { return; }
+  const desta = dados.bases?.[$("base").value];
+  const p = desta?.progresso;
+  if (!p) { $("indexacao").classList.add("oculto"); return; }
+  $("indexacao").classList.remove("oculto");
+
+  const rodando = p.status === "indexando" || p.status === "preparando";
+  const pct = Math.round((p.fracao || 0) * 100);
+  $("barraCheia").style.width = pct + "%";
+  $("barraCheia").parentElement.classList.toggle("parada", !rodando);
+
+  const d = p.documentos || {};
+  $("idxResumo").textContent =
+    `${ROTULO_STATUS[p.status] || p.status} · ${pct}% · ${d.feitos}/${d.totais} documentos`
+    + (p.chunks ? ` · ${p.chunks.toLocaleString("pt-BR")} trechos` : "");
+
+  // Tempo ativo e parado separados: somar os dois mente sobre a vazão.
+  const parado = p.parado_segundos > 60 ? ` (${Math.round(p.parado_segundos / 60)} min parada)` : "";
+  $("idxFalta").textContent = rodando ? `faltam ${p.restante}${parado}` : "";
+  $("idxArquivo").textContent = p.arquivo ? p.arquivo : (p.resumo || "");
+
+  // "Pedi leve e o sistema não deixou" em vez de fingir que está leve.
+  const e = p.esforco || {};
+  $("idxAviso").innerHTML = e.aviso
+    ? `<div class="aviso">Perfil <b>${e.perfil}</b> pedido, mas: ${e.aviso}</div>`
+    : "";
+}
+
+async function carregarEstado() {
+  const e = await api("/api/estado");
+  bases = e.bases;
+  if (e.maquina?.perfil) $("perfilMaquina").value = e.maquina.perfil;
+  const anterior = $("base").value;
+  $("base").innerHTML = bases.map((b) => `<option value="${b.id}">${b.nome}</option>`).join("");
+  if (anterior && bases.some((b) => b.id === anterior)) $("base").value = anterior;
+  mostrarBase();
+}
+
+(async () => {
+  for (const id of ["pDenso", "pLexical", "pNome", "pRerank"]) $(id).oninput = sincronizar;
+  try {
+    perfis = (await api("/api/perfis")).perfis;
+    desenharPerfis();
+    await carregarEstado();
+    await atualizarIndexacao();
+    // Sondagem de dois segundos, o mesmo intervalo com que o indexador publica.
+    // Mais rápido só gastaria leitura de arquivo sem mostrar nada novo.
+    setInterval(atualizarIndexacao, 2000);
+  } catch (e) {
+    recado("Não consegui carregar: " + e.message
+      + ". Se o token não veio na URL, reabra pelo endereço que o comando imprimiu.");
+  }
+})();
+</script>
+</body>
+</html>

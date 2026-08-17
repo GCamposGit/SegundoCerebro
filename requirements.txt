@@ -1,0 +1,46 @@
+# F0 — fundação mensurável. O censo usa somente a biblioteca padrão.
+pytest>=8.0
+
+# F1 — ingestão. Versões fixadas: uma troca de versão de embedding invalida o
+# índice inteiro sem avisar (o fastembed 0.8.0 mudou o pooling do e5-large de
+# CLS para média, o que muda todos os vetores).
+pymupdf==1.28.2
+pymupdf4llm==1.28.2      # motor 'layout', mantido só para a ablação da F2
+python-docx==1.2.0
+openpyxl==3.1.5
+python-pptx==1.0.2
+fastembed==0.8.0
+
+# Índice vetorial. **Estava comentado até 17/08/2026**, e funcionava só porque
+# alguém o instalou à mão nesta máquina: `pip install -r requirements.txt` num
+# ambiente limpo não abria o índice. Achado ao preparar o teste em outra máquina,
+# e é a razão de esta seção existir — dependência que entra por carona é
+# dependência que falta no dia em que o projeto sai daqui.
+lancedb==0.37.1
+
+# Vem por carona do fastembed, e é importada direto por `index/embeddings.py` e
+# `index/store.py`. Carona não é declaração.
+numpy>=2.0,<3
+
+# F2 e adiante
+mcp>=2.0,<3
+# watchdog
+
+# F3.5 — painel de ajuste. O painel não usa FastAPI porque `starlette` e
+# `uvicorn` já vêm com o `mcp`: validação por pydantic e OpenAPI não pagam dez
+# dependências transitivas numa tela local de um usuário só. Mas o painel os
+# **importa direto**, então eles são declarados aqui — a carona explica por que
+# não precisamos instalar mais nada, não dispensa dizer o que usamos.
+starlette>=1.0,<2
+uvicorn>=0.30
+
+# Escapar caminho do Windows à mão é onde escritor de TOML caseiro erra, e o erro
+# corromperia a configuração do usuário em silêncio.
+#
+# O painel continua opcional por construção (invariante 6): sem estas três linhas
+# o servidor MCP sobe e responde — só não dá para ajustar pela tela.
+tomli-w>=1.0
+
+# Cliente de teste do Starlette (`tests/test_painel.py`). Vem com o `mcp`, mas o
+# mesmo argumento se aplica: se um teste importa, o arquivo declara.
+httpx>=0.27

@@ -1,0 +1,108 @@
+# Copie para config.toml (ignorado pelo git — os caminhos reais não são
+# versionados) e ajuste. Sem config.toml, o sistema sintetiza uma base única a
+# partir do census.toml existente: nada quebra e nada precisa ser reindexado.
+#
+# Uma BASE é um acervo com raízes, índice e servidor MCP próprios. A separação é
+# física — dois diretórios, dois processos — e não um filtro de consulta. Ver
+# ARCHITECTURE.md §2 e a invariante 7 do CLAUDE.md.
+#
+# Controle de acesso na prática: registre no cliente MCP só a base que aquele
+# contexto deve alcançar. Registrar as duas e confiar que o modelo escolhe pela
+# descrição é conveniência, não fronteira.
+
+versao = 1
+
+# ---------------------------------------------------------------------------
+# Com quanta força executar. É propriedade DO COMPUTADOR, não do acervo — este
+# arquivo acompanha a base entre o notebook e o desktop, e cada máquina precisa
+# de valores diferentes sem editá-lo. Por isso tudo aqui aceita sobrescrita por
+# ambiente: SEGUNDOCEREBRO_PERFIL, _THREADS, _LOTE, _PROVIDER.
+#
+# Nada nesta seção muda o conteúdo do índice — só a velocidade com que ele é
+# produzido. Ver ARCHITECTURE.md §4, "hardware muda velocidade, nunca conteúdo".
+
+[maquina]
+perfil = "completo"    # leve | completo | gpu
+# threads = 10         # ausente: o perfil decide (leve = metade dos núcleos)
+lote = 32
+# provider = "cuda"    # exige onnxruntime-gpu; vazio deixa o runtime escolher
+
+# ---------------------------------------------------------------------------
+# Herdado por toda base, sobrescrevível dentro de cada uma.
+
+[padrao]
+modelo = "e5-large"    # minilm | mpnet | e5-large
+
+# Classe GRÁTIS: recarrega sem reindexar.
+[padrao.pesos]
+denso = 1.0            # sinal mais forte desde a correção de 13/08/2026
+lexical = 0.25         # bm25: casamento exato de sigla e código de contrato
+nome = 0.5             # nome do arquivo como terceiro ranqueador
+
+[padrao.busca]
+candidatos = 200       # por ranking, antes da fusão RRF
+k_rrf = 60
+k = 8                  # trechos devolvidos por `search`
+k_max = 50
+janela = 1             # vizinhos por lado em `read_note`
+janela_max = 5
+contexto = 1           # vizinhos anexados a cada acerto do `search`
+
+# Reranking por cross-encoder. Ganha 3,4 pontos de recall@1 (0,644 → 0,678) e
+# custa 6,8× no tempo: a consulta vai de 0,92 s para 6,28 s de mediana nesta
+# máquina. Por isso vem desligado — descomente para trocar tempo por precisão.
+# Numa máquina com GPU a conta inverte (ver F3.6 no ROADMAP).
+# rerank = 0.25
+# rerank_candidatos = 10
+
+# Classe CARA: mexer aqui muda todos os ids de chunk, obriga a reindexar
+# (~31 h a ~114 h no corpus real deste notebook, medido em 15/08/2026) e invalida
+# a comparação com qualquer medição anterior.
+[padrao.chunking]
+max_chars = 1800
+min_chars = 250
+overlap_chars = 200
+
+# Somadas às exclusões técnicas padrão (.git, node_modules, ~$*, *.tmp, ...),
+# nunca no lugar delas.
+[padrao.exclude]
+dirs = []
+globs = []
+
+# ---------------------------------------------------------------------------
+# As bases.
+
+[[base]]
+id = "trabalho"
+nome = "Acme Holding"
+# A descrição NÃO é enfeite: vira a `instructions` do servidor MCP e é o único
+# sinal pelo qual o modelo escolhe entre duas bases registradas no mesmo cliente.
+descricao = "Contratos, propostas, atas e planilhas da Acme Holding."
+indice = "index"       # o índice que já existe — sem reindexar
+raizes = [
+    { nome = "trabalho", caminho = 'C:\Users\SEU_USUARIO\EMPRESA\Biblioteca - Documentos\07. Acme Holding' },
+]
+
+# Acervo cheio de código de contrato e sigla: o casamento exato vale mais aqui.
+[base.pesos]
+lexical = 0.5
+
+[[base]]
+id = "pessoal"
+nome = "Base pessoal"
+descricao = "Documentos pessoais: finanças, saúde, casa, estudos."
+# Conjunto dourado próprio. Métrica é POR BASE — medir a recuperação de um acervo
+# contra as perguntas de outro dá um número que parece válido e não é. Duas bases
+# apontando para o mesmo arquivo param o carregamento.
+dourado = "eval/golden/pessoal.jsonl"
+# Irmão de 'index', não dentro dele: apagar o de fora levaria o de dentro junto,
+# e o carregador recusa índices aninhados. Numa instalação nova, onde nenhuma
+# base ocupa 'index' puro, o padrão 'index/<id>' vale e esta linha é dispensável.
+indice = "index-pessoal"
+modelo = "minilm"      # base pequena — o encoder pequeno indexa muito mais rápido
+raizes = [
+    { nome = "documentos", caminho = 'C:\Users\SEU_USUARIO\Documentos' },
+]
+
+[base.exclude]
+dirs = ["Backups"]

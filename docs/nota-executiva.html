@@ -1,0 +1,802 @@
+<title>Segundo Cérebro — nota técnica para decisão</title>
+
+<style>
+  /* ---------- tokens ---------- */
+  :root {
+    --paper:      #F4F4EE;
+    --surface:    #FBFAF6;
+    --ink:        #14201C;
+    --ink-2:      #3A4642;
+    --muted:      #6B7671;
+    --rule:       #D9D8CF;
+    --rule-strong:#B4B3A9;
+    --accent:     #9A6A08;
+    --accent-gfx: #C08812;
+    --good:       #2C6B4F;
+    --warn:       #A0472F;
+
+    --sans: "Segoe UI", system-ui, -apple-system, "Helvetica Neue", Arial, sans-serif;
+    --serif: Georgia, "Iowan Old Style", "Palatino Linotype", Palatino, "Times New Roman", serif;
+    --mono: "Cascadia Mono", Consolas, ui-monospace, "SF Mono", "Roboto Mono", monospace;
+
+    --measure: 68ch;
+    --rail: 92px;
+    --gap: 28px;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --paper:      #141614;
+      --surface:    #1B1F1C;
+      --ink:        #E9E8E1;
+      --ink-2:      #C6CAC5;
+      --muted:      #949B95;
+      --rule:       #2C312D;
+      --rule-strong:#454B45;
+      --accent:     #E9B455;
+      --accent-gfx: #E3A73B;
+      --good:       #6FBF95;
+      --warn:       #E08A6B;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --paper:      #141614;
+    --surface:    #1B1F1C;
+    --ink:        #E9E8E1;
+    --ink-2:      #C6CAC5;
+    --muted:      #949B95;
+    --rule:       #2C312D;
+    --rule-strong:#454B45;
+    --accent:     #E9B455;
+    --accent-gfx: #E3A73B;
+    --good:       #6FBF95;
+    --warn:       #E08A6B;
+  }
+
+  :root[data-theme="light"] {
+    --paper:      #F4F4EE;
+    --surface:    #FBFAF6;
+    --ink:        #14201C;
+    --ink-2:      #3A4642;
+    --muted:      #6B7671;
+    --rule:       #D9D8CF;
+    --rule-strong:#B4B3A9;
+    --accent:     #9A6A08;
+    --accent-gfx: #C08812;
+    --good:       #2C6B4F;
+    --warn:       #A0472F;
+  }
+
+  /* ---------- base ---------- */
+  body {
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--serif);
+    font-size: 17px;
+    line-height: 1.65;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .doc {
+    max-width: 1060px;
+    margin: 0 auto;
+    padding: clamp(28px, 5vw, 64px) clamp(18px, 4vw, 48px) 80px;
+    display: flex;
+    flex-direction: column;
+    gap: clamp(38px, 5vw, 56px);
+  }
+
+  p { margin: 0; max-width: var(--measure); }
+  .flow { display: flex; flex-direction: column; gap: 14px; }
+
+  a { color: var(--accent); text-underline-offset: 3px; }
+  a:focus-visible, summary:focus-visible {
+    outline: 2px solid var(--accent-gfx);
+    outline-offset: 3px;
+  }
+
+  strong { font-weight: 700; color: var(--ink); }
+
+  .lbl {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--muted);
+  }
+
+  /* ---------- cover ---------- */
+  .cover { display: flex; flex-direction: column; gap: 18px; }
+
+  .cover h1 {
+    font-family: var(--sans);
+    font-weight: 700;
+    font-size: clamp(30px, 5vw, 46px);
+    line-height: 1.08;
+    letter-spacing: -0.025em;
+    margin: 0;
+    max-width: 20ch;
+    text-wrap: balance;
+  }
+
+  .cover .lede {
+    font-size: clamp(18px, 2.2vw, 21px);
+    line-height: 1.5;
+    color: var(--ink-2);
+    max-width: 58ch;
+  }
+
+  .meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 22px;
+    padding-top: 16px;
+    border-top: 1px solid var(--rule);
+    font-family: var(--mono);
+    font-size: 12.5px;
+    color: var(--muted);
+  }
+  .meta b { color: var(--ink-2); font-weight: 400; }
+
+  /* ---------- abstract ---------- */
+  .abstract {
+    border-top: 2px solid var(--ink);
+    border-bottom: 1px solid var(--rule-strong);
+    padding: 22px 0 26px;
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .abstract ul { margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 13px; }
+  .abstract li { max-width: var(--measure); padding-left: 20px; position: relative; }
+  .abstract li::before {
+    content: "—";
+    position: absolute;
+    left: 0;
+    color: var(--accent);
+  }
+
+  /* ---------- sections ---------- */
+  .sec { display: grid; gap: 18px; }
+  .sec > .body { display: flex; flex-direction: column; gap: 18px; min-width: 0; }
+
+  @media (min-width: 940px) {
+    .sec { grid-template-columns: var(--rail) minmax(0, 1fr); gap: var(--gap); }
+    .sec > .rail { text-align: right; padding-top: 6px; }
+  }
+  .rail { font-family: var(--mono); font-size: 12.5px; color: var(--accent); letter-spacing: 0.04em; }
+
+  h2 {
+    font-family: var(--sans);
+    font-weight: 700;
+    font-size: clamp(21px, 2.8vw, 26px);
+    line-height: 1.2;
+    letter-spacing: -0.02em;
+    margin: 0;
+    max-width: 26ch;
+    text-wrap: balance;
+  }
+
+  h3 {
+    font-family: var(--sans);
+    font-weight: 600;
+    font-size: 17px;
+    letter-spacing: -0.01em;
+    margin: 0;
+    color: var(--ink);
+  }
+
+  /* ---------- tables ---------- */
+  .scroll { overflow-x: auto; }
+  table {
+    border-collapse: collapse;
+    width: 100%;
+    min-width: 560px;
+    font-family: var(--sans);
+    font-size: 15px;
+    font-variant-numeric: tabular-nums;
+  }
+  thead th {
+    font-family: var(--mono);
+    font-size: 11.5px;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--muted);
+    font-weight: 400;
+    text-align: left;
+    padding: 0 16px 9px 0;
+    border-bottom: 1px solid var(--rule-strong);
+  }
+  tbody td {
+    padding: 12px 16px 12px 0;
+    border-bottom: 1px solid var(--rule);
+    vertical-align: top;
+    color: var(--ink-2);
+    line-height: 1.5;
+  }
+  tbody td:first-child { color: var(--ink); font-weight: 600; width: 25%; }
+  tbody tr:last-child td { border-bottom: none; }
+  table.cmp tbody td:nth-child(2) { color: var(--muted); }
+  table.cmp tbody td:nth-child(3) { color: var(--ink-2); }
+
+  /* ---------- funnel ---------- */
+  .steps { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; }
+  .steps li {
+    display: grid;
+    grid-template-columns: 26px minmax(0, 1fr) auto;
+    gap: 16px;
+    align-items: baseline;
+    padding: 13px 0;
+    border-bottom: 1px solid var(--rule);
+  }
+  .steps li:last-child { border-bottom: none; }
+  .steps .n { font-family: var(--mono); font-size: 12.5px; color: var(--accent); }
+  .steps .what { font-family: var(--sans); font-size: 15px; line-height: 1.5; color: var(--ink-2); }
+  .steps .what b { color: var(--ink); font-weight: 600; }
+  .steps .qty {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--muted);
+    white-space: nowrap;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* ---------- stack list ---------- */
+  dl.stack { margin: 0; display: flex; flex-direction: column; }
+  dl.stack > div {
+    display: grid;
+    gap: 4px 24px;
+    padding: 15px 0;
+    border-bottom: 1px solid var(--rule);
+  }
+  dl.stack > div:last-child { border-bottom: none; }
+  @media (min-width: 720px) {
+    dl.stack > div { grid-template-columns: 190px minmax(0, 1fr); }
+  }
+  dl.stack dt { font-family: var(--sans); font-weight: 600; font-size: 15px; color: var(--ink); }
+  dl.stack dt span { display: block; font-family: var(--mono); font-size: 11.5px; font-weight: 400; color: var(--muted); letter-spacing: 0.04em; margin-top: 2px; }
+  dl.stack dd { margin: 0; font-size: 16px; line-height: 1.6; color: var(--ink-2); max-width: 62ch; }
+
+  /* ---------- panels ---------- */
+  .panel {
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+    padding: 20px 22px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .panel p { max-width: 62ch; }
+  .panel .lbl { color: var(--accent); }
+
+  .cols { display: grid; gap: 14px; }
+  @media (min-width: 780px) { .cols { grid-template-columns: 1fr 1fr; } }
+
+  .tag {
+    display: inline-block;
+    font-family: var(--mono);
+    font-size: 11px;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    padding: 2px 7px;
+    border: 1px solid currentColor;
+    border-radius: 2px;
+  }
+  .tag.ok { color: var(--good); }
+  .tag.no { color: var(--warn); }
+
+  /* ---------- diagram ---------- */
+  figure { margin: 0; display: flex; flex-direction: column; gap: 10px; }
+  figure svg { width: 100%; height: auto; display: block; }
+  figcaption { font-family: var(--sans); font-size: 13.5px; color: var(--muted); max-width: 62ch; }
+
+  svg .box { fill: var(--surface); stroke: var(--rule-strong); stroke-width: 1; }
+  svg .zone { fill: none; stroke: var(--rule-strong); stroke-width: 1; stroke-dasharray: 5 4; }
+  svg .t { font-family: var(--sans); fill: var(--ink); font-size: 14px; font-weight: 600; }
+  svg .s { font-family: var(--sans); fill: var(--ink-2); font-size: 12.5px; font-weight: 400; }
+  svg .k { font-family: var(--mono); fill: var(--muted); font-size: 11px; letter-spacing: 0.1em; }
+  svg .a { stroke: var(--accent-gfx); stroke-width: 1.6; fill: none; }
+  svg .ah { fill: var(--accent-gfx); }
+
+  /* ---------- close ---------- */
+  .ask { display: flex; flex-direction: column; gap: 0; }
+  .ask > div {
+    display: grid;
+    grid-template-columns: 22px minmax(0, 1fr);
+    gap: 14px;
+    padding: 14px 0;
+    border-bottom: 1px solid var(--rule);
+  }
+  .ask > div:last-child { border-bottom: none; }
+  .ask .n { font-family: var(--mono); font-size: 12.5px; color: var(--accent); }
+  .ask p { font-size: 16px; }
+
+  footer {
+    border-top: 1px solid var(--rule);
+    padding-top: 18px;
+    font-family: var(--sans);
+    font-size: 13px;
+    color: var(--muted);
+    max-width: var(--measure);
+  }
+
+  @media print {
+    body { background: #fff; color: #000; }
+    .doc { padding: 0; gap: 30px; }
+    .panel { background: #fff; }
+  }
+</style>
+
+<div class="doc">
+
+  <header class="cover">
+    <div class="lbl">Nota técnica · uso interno · v1</div>
+    <h1>Um buscador que entende perguntas, sobre os documentos que já temos</h1>
+    <p class="lede">
+      Proposta de arquitetura para recuperação de conhecimento em contratos, atas, relatórios e
+      planilhas — sem enviar documento nenhum para fora e sem conta que cresce com o uso.
+    </p>
+    <div class="meta">
+      <span><b>Projeto</b> Segundo Cérebro</span>
+      <span><b>Autor</b> Guilherme Campos</span>
+      <span><b>Data</b> 11/08/2026</span>
+      <span><b>Fase</b> F0 — fundação</span>
+    </div>
+  </header>
+
+  <section class="abstract">
+    <div class="lbl">Resumo para quem tem dois minutos</div>
+    <ul>
+      <li><strong>O problema.</strong> O que a empresa sabe está espalhado por milhares de PDFs, documentos Word, planilhas e apresentações. Quem já conhece o acervo encontra em minutos; quem não conhece refaz um trabalho que já existe.</li>
+      <li><strong>A proposta.</strong> Um serviço de busca que roda na própria máquina, entende a pergunta em linguagem natural e devolve <em>o trecho exato com a fonte</em> — arquivo e seção — para conferência imediata.</li>
+      <li><strong>A diferença central.</strong> Ele não escreve respostas. Ele abastece o assistente de IA que a pessoa já usa. Isso elimina o custo por consulta e evita a resposta bonita sem procedência.</li>
+      <li><strong>O custo.</strong> Zero por consulta. Os modelos de busca rodam localmente, sem serviço externo. O único custo recorrente é a assinatura que já existe hoje.</li>
+      <li><strong>O dado.</strong> Nenhum documento sai da máquina. O índice enxerga exatamente o que a pessoa que o construiu já podia ler — nem um arquivo a mais.</li>
+    </ul>
+  </section>
+
+  <section class="sec">
+    <div class="rail">§ 1</div>
+    <div class="body">
+      <h2>O problema que estamos resolvendo</h2>
+      <p>
+        Todo acervo corporativo tem a mesma característica: a informação existe, está correta, e
+        ninguém consegue encontrá-la sem saber de antemão onde ela está. A busca por nome de arquivo
+        só funciona para quem já sabe o nome. A busca por palavra dentro do documento não entende que
+        “prazo de vigência” e “vigência contratual” são a mesma coisa — e não entende nada dentro de
+        um PDF digitalizado.
+      </p>
+      <p>
+        A alternativa que apareceu nos últimos anos — jogar a pergunta em um assistente de IA genérico —
+        troca um problema por outro: o assistente não conhece nossos documentos, e responde com
+        confiança sobre o que não sabe.
+      </p>
+      <div class="panel">
+        <div class="lbl">Primeiro entregável, já pronto</div>
+        <p>
+          Antes de escrever qualquer busca, o sistema faz um <strong>censo do acervo</strong>: quantos
+          arquivos existem, de que tipo, de que ano, em que profundidade de pasta. É o que impede a
+          decisão no escuro — investir num leitor sofisticado de PDF é desperdício se o acervo for
+          majoritariamente planilha. O censo lê apenas as fichas dos arquivos, nunca o conteúdo.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec">
+    <div class="rail">§ 2</div>
+    <div class="body">
+      <h2>O que o sistema faz — e o que ele deliberadamente não faz</h2>
+      <div class="cols">
+        <div class="panel">
+          <span class="tag ok">Faz</span>
+          <p>
+            Encontra os trechos relevantes em linguagem natural, devolve a seção completa com o
+            caminho de títulos, cita arquivo e página, filtra por período e mostra documentos
+            relacionados — o outro contrato que cita o mesmo número, a ata seguinte, a versão anterior.
+          </p>
+        </div>
+        <div class="panel">
+          <span class="tag no">Não faz</span>
+          <p>
+            Não redige, não resume e não opina. Essa exclusão é uma decisão de projeto, não uma
+            limitação técnica: gerar texto é o que custa dinheiro por uso e o que amarra a empresa a um
+            fornecedor específico de IA. Quem escreve a resposta é o assistente que já usamos.
+          </p>
+        </div>
+      </div>
+      <p>
+        Na prática, a pessoa continua conversando com o mesmo assistente de sempre. A diferença é que,
+        no meio da conversa, ele passa a consultar o nosso acervo e a citar de onde tirou cada
+        afirmação.
+      </p>
+    </div>
+  </section>
+
+  <section class="sec">
+    <div class="rail">§ 3</div>
+    <div class="body">
+      <h2>Como funciona, sem jargão</h2>
+      <p>
+        O sistema tem três partes, e o mais importante é <em>onde cada uma roda</em>. O modelo de IA
+        fica do lado de fora, no programa que a pessoa já usa. A busca e os documentos ficam dentro da
+        máquina.
+      </p>
+
+      <figure>
+        <svg viewBox="0 0 880 400" role="img" aria-label="Diagrama: o modelo de IA fica no cliente já pago; ferramentas, recuperação, índice e documentos ficam dentro da máquina.">
+          <!-- zona local -->
+          <rect class="zone" x="300" y="24" width="564" height="352" rx="3"></rect>
+          <text class="k" x="316" y="52">TUDO ISTO DENTRO DA MÁQUINA</text>
+
+          <!-- cliente -->
+          <text class="k" x="16" y="52">CLIENTE DE IA · ASSENTO JÁ PAGO</text>
+          <rect class="box" x="16" y="96" width="200" height="120" rx="3"></rect>
+          <text class="t" x="36" y="128">Modelo de linguagem</text>
+          <text class="s" x="36" y="154">Entende a pergunta,</text>
+          <text class="s" x="36" y="175">decide o que buscar</text>
+          <text class="s" x="36" y="196">e escreve a resposta.</text>
+
+          <!-- servidor -->
+          <text class="k" x="320" y="80">SERVIDOR DE BUSCA · LOCAL</text>
+          <rect class="box" x="320" y="96" width="240" height="72" rx="3"></rect>
+          <text class="t" x="340" y="126">Ferramentas de consulta</text>
+          <text class="s" x="340" y="148">buscar · ler seção · relacionados</text>
+
+          <rect class="box" x="320" y="188" width="240" height="72" rx="3"></rect>
+          <text class="t" x="340" y="218">Recuperação</text>
+          <text class="s" x="340" y="240">busca dupla → segunda leitura</text>
+
+          <rect class="box" x="320" y="280" width="240" height="72" rx="3"></rect>
+          <text class="t" x="340" y="310">Índice</text>
+          <text class="s" x="340" y="332">significados + fichas</text>
+
+          <!-- fontes -->
+          <text class="k" x="608" y="80">DOCUMENTOS</text>
+          <rect class="box" x="608" y="96" width="240" height="72" rx="3"></rect>
+          <text class="t" x="628" y="126">Pastas em disco</text>
+          <text class="s" x="628" y="148">PDF · Word · Excel · PowerPoint</text>
+
+          <rect class="box" x="608" y="188" width="240" height="72" rx="3"></rect>
+          <text class="t" x="628" y="218">SharePoint</text>
+          <text class="s" x="628" y="240">pasta sincronizada, só leitura</text>
+
+          <!-- cliente <-> servidor -->
+          <path class="a" d="M216 132 H304"></path>
+          <polygon class="ah" points="320,132 304,126 304,138"></polygon>
+          <text class="k" x="224" y="116">PERGUNTA</text>
+
+          <path class="a" d="M320 148 H232"></path>
+          <polygon class="ah" points="216,148 232,142 232,154"></polygon>
+          <text class="k" x="224" y="172">TRECHOS</text>
+
+          <!-- documentos -> índice -->
+          <path class="a" d="M608 132 H584 V316 H576"></path>
+          <polygon class="ah" points="560,316 576,310 576,322"></polygon>
+          <path class="a" d="M608 224 H584"></path>
+          <text class="k" x="596" y="352">LEITURA LOCAL, NADA É ENVIADO</text>
+        </svg>
+        <figcaption>
+          Nada atravessa a linha tracejada. O modelo recebe trechos de texto quando pergunta por eles;
+          os arquivos permanecem onde estão.
+        </figcaption>
+      </figure>
+
+      <h3>O caminho de uma pergunta</h3>
+      <ol class="steps">
+        <li>
+          <span class="n">1</span>
+          <span class="what"><b>Duas buscas ao mesmo tempo.</b> Uma por significado (“prazo de vigência” encontra “vigência contratual”) e outra por termo exato (“4500123” encontra o contrato 4500123). As duas listas são combinadas.</span>
+          <span class="qty">milhares → 50</span>
+        </li>
+        <li>
+          <span class="n">2</span>
+          <span class="what"><b>Uma segunda leitura, mais cuidadosa.</b> Um segundo modelo relê cada um dos 50 candidatos <em>junto com a pergunta</em> e reordena. É a diferença entre “a resposta está em algum lugar da lista” e “a resposta está no topo”.</span>
+          <span class="qty">50 → 8</span>
+        </li>
+        <li>
+          <span class="n">3</span>
+          <span class="what"><b>Contexto em volta.</b> Em vez de um parágrafo solto, devolve a seção inteira e o que vem antes e depois — resolve o caso clássico em que a resposta estava na frase seguinte.</span>
+          <span class="qty">8 → seções</span>
+        </li>
+        <li>
+          <span class="n">4</span>
+          <span class="what"><b>Documentos vizinhos.</b> Se o trecho cita um número de contrato ou de processo, o sistema oferece os outros documentos que citam o mesmo número.</span>
+          <span class="qty">+ relacionados</span>
+        </li>
+        <li>
+          <span class="n">5</span>
+          <span class="what"><b>O assistente responde</b> usando esses trechos e citando cada fonte, para que qualquer afirmação possa ser conferida no documento original.</span>
+          <span class="qty">com procedência</span>
+        </li>
+      </ol>
+    </div>
+  </section>
+
+  <section class="sec">
+    <div class="rail">§ 4</div>
+    <div class="body">
+      <h2>Em que isso difere de um RAG comum</h2>
+      <p>
+        “RAG” é o nome técnico da ideia geral: buscar em documentos antes de responder. É o que
+        praticamente todo produto de IA corporativa faz hoje. As decisões abaixo são onde este projeto
+        se afasta da implementação convencional.
+      </p>
+
+      <div class="scroll">
+        <table class="cmp">
+          <thead>
+            <tr>
+              <th>Ponto</th>
+              <th>Implementação convencional</th>
+              <th>Aqui</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Quem raciocina</td>
+              <td>Um roteiro fixo no servidor: busca uma vez, monta a resposta.</td>
+              <td>O assistente que a pessoa já usa. Ele busca, lê, refina e busca de novo — quantas vezes a pergunta exigir.</td>
+            </tr>
+            <tr>
+              <td>Custo por consulta</td>
+              <td>Paga-se pela busca e pela geração, a cada pergunta, por usuário.</td>
+              <td>Zero. Tudo que é caro em volume roda localmente; a geração usa a assinatura já paga.</td>
+            </tr>
+            <tr>
+              <td>Tipo de busca</td>
+              <td>Só por significado — falha justamente em código de contrato, sigla e número de processo.</td>
+              <td>Significado <em>e</em> termo exato, no mesmo passo, com um único modelo.</td>
+            </tr>
+            <tr>
+              <td>Precisão</td>
+              <td>Entrega os primeiros resultados da busca.</td>
+              <td>Relê os 50 primeiros com um modelo especializado em julgar relevância e reordena.</td>
+            </tr>
+            <tr>
+              <td>O que devolve</td>
+              <td>Um pedaço de texto cortado por tamanho, sem saber de que seção veio.</td>
+              <td>A seção completa, com o caminho de títulos e a procedência anexada.</td>
+            </tr>
+            <tr>
+              <td>Dependência de fornecedor</td>
+              <td>Amarrada ao provedor de IA escolhido no início.</td>
+              <td>Trocar de assistente é trocar de programa. Nenhuma linha do servidor muda.</td>
+            </tr>
+            <tr>
+              <td>Como se sabe que funciona</td>
+              <td>“Testamos e pareceu bom.”</td>
+              <td>Conjunto de perguntas com resposta conhecida e métricas antes/depois de cada mudança.</td>
+            </tr>
+            <tr>
+              <td>Onde ficam os dados</td>
+              <td>Documentos enviados para o serviço do fornecedor para serem processados.</td>
+              <td>Na máquina. Nenhum arquivo é transmitido.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
+      <h3>As três que mais importam</h3>
+      <p>
+        <strong>Buscar por significado não encontra “contrato 4500123”.</strong> Modelos de busca
+        semântica transformam texto em coordenadas de sentido — e códigos, siglas e números não têm
+        sentido, têm identidade. É a falha mais previsível do RAG corporativo, e por isso a busca aqui
+        é dupla desde o primeiro dia.
+      </p>
+      <p>
+        <strong>A segunda leitura é a maior alavanca de precisão.</strong> A primeira busca é uma
+        triagem rápida por semelhança, como filtrar currículos por palavra-chave. A segunda etapa é a
+        entrevista: um modelo lê a pergunta e o documento juntos e julga se aquilo responde. Custa
+        alguns décimos de segundo e muda a lista de topo.
+      </p>
+      <p>
+        <strong>Não medir é decidir no escuro.</strong> Cada mudança em como os documentos são
+        fatiados ou ordenados é avaliada contra um conjunto de perguntas cuja resposta correta já
+        conhecemos. Se o número não melhorou, a mudança não entra. É o mesmo princípio de ensaio de
+        material em obra: não se aprova pelo aspecto.
+      </p>
+    </div>
+  </section>
+
+  <section class="sec">
+    <div class="rail">§ 5</div>
+    <div class="body">
+      <h2>Por que estas tecnologias</h2>
+      <p>
+        Toda escolha abaixo atende a uma das duas restrições que definem o projeto: não gerar custo
+        variável e não depender de um fornecedor.
+      </p>
+      <dl class="stack">
+        <div>
+          <dt>MCP <span>protocolo aberto</span></dt>
+          <dd>
+            O padrão pelo qual assistentes de IA conversam com ferramentas externas — hoje suportado
+            por praticamente todos os principais. Funciona como uma tomada padronizada: o dia em que
+            trocarmos de assistente, o servidor continua igual. É o que transforma “independência de
+            fornecedor” em fato, e não em promessa.
+          </dd>
+        </div>
+        <div>
+          <dt>BGE-M3 <span>modelo de busca, local</span></dt>
+          <dd>
+            Um único modelo que produz, na mesma passada, a busca por significado e a busca por termo
+            exato. Entende português entre mais de cem idiomas, aceita documentos longos e roda em
+            processador comum, sem placa de vídeo. É gratuito e fica na máquina.
+          </dd>
+        </div>
+        <div>
+          <dt>Reordenador <span>bge-reranker-v2-m3</span></dt>
+          <dd>
+            O modelo da “segunda leitura”. Também local e gratuito. É a etapa com melhor relação entre
+            ganho de precisão e esforço de implementação — por isso entra cedo no cronograma.
+          </dd>
+        </div>
+        <div>
+          <dt>LanceDB + SQLite <span>armazenamento</span></dt>
+          <dd>
+            Dois bancos que são apenas arquivos em disco: nada de servidor para instalar, licenciar ou
+            manter no ar. Um guarda os significados, o outro guarda as fichas dos documentos e as
+            ligações entre eles. Se o projeto crescer para muitos usuários, só o primeiro precisa ser
+            trocado — e isso está previsto.
+          </dd>
+        </div>
+        <div>
+          <dt>Python <span>linguagem</span></dt>
+          <dd>
+            É onde estão as bibliotecas maduras para ler PDF, Word, Excel e PowerPoint — que é
+            exatamente o formato do nosso acervo, e a parte mais trabalhosa do projeto.
+          </dd>
+        </div>
+      </dl>
+      <div class="panel">
+        <div class="lbl">Custo total</div>
+        <p>
+          Nenhuma licença. Nenhum servidor. Nenhuma cobrança por consulta, por usuário ou por volume
+          indexado. O investimento é o tempo de desenvolvimento e um download único de cerca de
+          2,5 GB de modelos, que passam a rodar na máquina. Ferramentas equivalentes de mercado cobram
+          por assento e por volume, e exigem que os documentos sejam enviados ao fornecedor.
+        </p>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec">
+    <div class="rail">§ 6</div>
+    <div class="body">
+      <h2>Governança, risco e limites conhecidos</h2>
+      <p>
+        A parte que costuma ser omitida nas propostas de IA — e que aqui está no documento de
+        arquitetura desde o início.
+      </p>
+      <div class="scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Ponto</th>
+              <th>Situação</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>Confidencialidade</td>
+              <td>Nenhum documento é enviado a fornecedor de IA. A busca roda na máquina; o assistente recebe apenas os trechos que ele mesmo solicitou durante a conversa.</td>
+            </tr>
+            <tr>
+              <td>Permissões</td>
+              <td>O índice é construído a partir do que o usuário já pode ler, e por isso não pode ser compartilhado com quem tem acesso menor. Enquanto for individual, isso é suficiente; para uso em equipe, o controle por documento é pré-requisito e está planejado.</td>
+            </tr>
+            <tr>
+              <td>LGPD</td>
+              <td>O índice recebe a mesma classificação dos documentos que indexa. A fase corporativa prevê trilha de auditoria e cifragem, reaproveitando o que já foi construído em outro projeto interno.</td>
+            </tr>
+            <tr>
+              <td>Risco operacional do SharePoint</td>
+              <td>Numa pasta sincronizada, boa parte dos arquivos não está de fato no disco. Um indexador ingênuo baixaria a biblioteca inteira — potencialmente centenas de gigabytes. O sistema verifica isso antes de tocar em qualquer arquivo, e a política é declarada explicitamente.</td>
+            </tr>
+            <tr>
+              <td>PDF digitalizado</td>
+              <td>Documento escaneado sem texto não é indexável sem reconhecimento óptico. O sistema identifica e marca esses casos em vez de indexar conteúdo vazio. Se o volume justificar, o reconhecimento entra como decisão à parte.</td>
+            </tr>
+            <tr>
+              <td>Perguntas panorâmicas</td>
+              <td>“Quais os temas recorrentes dos últimos seis meses?” não é uma pergunta de busca, e sim de síntese do acervo inteiro. Está deliberadamente fora do escopo inicial.</td>
+            </tr>
+            <tr>
+              <td>Interface</td>
+              <td>Não haverá tela própria: a interface é o assistente que a pessoa já usa. Ótimo para quem já trabalha assim; insuficiente se o público-alvo for outro.</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec">
+    <div class="rail">§ 7</div>
+    <div class="body">
+      <h2>Fases e critérios de aceite</h2>
+      <p>
+        Nenhuma fase começa antes de a anterior passar no seu critério — e todo critério é verificável,
+        não é impressão.
+      </p>
+      <div class="scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Fase</th>
+              <th>Entrega</th>
+              <th>Como se sabe que terminou</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td>F0 · fundação</td>
+              <td>Censo do acervo e régua de medição: 50 perguntas reais com resposta conhecida.</td>
+              <td>Existe um número de partida, medido com a busca mais simples possível.</td>
+            </tr>
+            <tr>
+              <td>F1 · leitura e busca</td>
+              <td>Leitura de PDF, Word, Excel e PowerPoint; índice construído; busca dupla no ar.</td>
+              <td>Acerto pelo menos <strong>2×</strong> melhor que o número de partida, e nenhum arquivo baixado por acidente.</td>
+            </tr>
+            <tr>
+              <td>F2 · precisão</td>
+              <td>Segunda leitura, contexto em volta e dicionário de siglas.</td>
+              <td>Tabela comparando cada configuração; vence a que tiver o melhor número, não a mais elegante.</td>
+            </tr>
+            <tr>
+              <td>F3 · integração</td>
+              <td>Conexão com o assistente de IA.</td>
+              <td>Uma pergunta real de vários passos respondida corretamente — e funcionando em dois assistentes diferentes, que é a prova de independência.</td>
+            </tr>
+            <tr>
+              <td>F4 · acervo completo</td>
+              <td>Ligações automáticas entre documentos, SharePoint e atualização contínua.</td>
+              <td>A precisão não cai com o acervo maior, e existe pergunta que só é respondível pelas ligações.</td>
+            </tr>
+            <tr>
+              <td>F5 · uso corporativo</td>
+              <td>Segunda porta de entrada, controle de acesso por documento, auditoria.</td>
+              <td>Dois usuários com permissões distintas, e teste provando que um não alcança documento do outro. <em>Só inicia quando houver um segundo usuário real.</em></td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </section>
+
+  <section class="sec">
+    <div class="rail">§ 8</div>
+    <div class="body">
+      <h2>O que precisa ser decidido</h2>
+      <div class="ask">
+        <div>
+          <span class="n">1</span>
+          <p><strong>Autorização para indexar a pasta corporativa sincronizada</strong>, em uso individual, restrita ao que o usuário já acessa hoje. É o que destrava as fases 1 a 4 sobre documentos reais.</p>
+        </div>
+        <div>
+          <span class="n">2</span>
+          <p><strong>Confirmação de que o índice permanece individual</strong> até a fase 5. Compartilhar antes do controle de acesso por documento seria vazar conteúdo por ranking de busca — o sistema é construído para impedir isso, mas a regra precisa ser explícita.</p>
+        </div>
+        <div>
+          <span class="n">3</span>
+          <p><strong>Um glossário inicial de siglas e códigos internos</strong> — vinte a trinta termos. É o insumo de maior retorno por esforço em todo o projeto: é o que faz a busca entender o vocabulário da casa.</p>
+        </div>
+        <div>
+          <span class="n">4</span>
+          <p><strong>Nada de orçamento novo neste momento.</strong> As fases 0 a 4 usam apenas software livre e a assinatura já existente. A conversa sobre investimento só faz sentido na fase 5, quando houver um segundo usuário e a necessidade de licenciamento comercial.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <footer>
+    Documento derivado das notas internas de arquitetura e do roadmap do projeto, escritos antes de
+    qualquer linha de código. Termos técnicos foram traduzidos para uso executivo; as decisões,
+    justificativas e critérios de aceite estão registrados na íntegra no repositório.
+  </footer>
+
+</div>

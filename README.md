@@ -1,0 +1,169 @@
+# Segundo Cérebro
+
+[![tests](https://github.com/GCamposGit/SegundoCerebro/actions/workflows/tests.yml/badge.svg)](https://github.com/GCamposGit/SegundoCerebro/actions/workflows/tests.yml)
+[![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![python](https://img.shields.io/badge/python-3.12-blue.svg)](pyproject.toml)
+
+Servidor **MCP** de recuperação de alta precisão sobre uma base de conhecimento
+pessoal e corporativa — pastas em disco e SharePoint, com PDF, Word, Excel e
+PowerPoint. Não gera texto e não tem interface própria: ele expõe ferramentas
+de busca, o modelo de linguagem vem do cliente MCP que você já usa.
+
+## A ideia em um parágrafo
+
+O gargalo de um RAG corporativo raramente é o modelo — é o custo por consulta e
+a dependência de fornecedor que ele cria. Este projeto inverte a arquitetura
+usual: em vez de um app que chama uma API de geração a cada pergunta, o
+**modelo vem do cliente MCP já pago por assento** (Claude Code, Claude Desktop,
+qualquer cliente MCP), e o servidor só recupera. Embeddings e reranking rodam
+localmente. Resultado: **custo marginal zero por consulta**, troca de modelo
+sem alterar uma linha de código, e raciocínio multi-hop nativo — porque o loop
+de agente é do cliente, não algo que o servidor precisa reimplementar.
+
+Nenhum documento sai da máquina. O servidor devolve trechos com procedência
+(arquivo, seção, id estável); quem escreve a resposta final é o assistente que
+o usuário já usa.
+
+## O que ele faz — e o que deliberadamente não faz
+
+| Faz | Não faz |
+|---|---|
+| Busca híbrida: denso (significado) + BM25 (termo exato) + nome de arquivo, fundidos por RRF ponderado | Gerar, resumir ou opinar sobre o conteúdo — isso é trabalho do cliente MCP |
+| Reranking opcional com cross-encoder como quarto ranqueador | Chamar qualquer API paga no caminho de consulta |
+| Expansão de contexto (parágrafo antes/depois) e vizinhos por identificador derivado | Orquestrar multi-hop — o loop de agente já faz isso |
+| Isolamento físico entre bases (índice + processo de servidor por base) | Misturar bases por filtro de metadado numa consulta compartilhada |
+| Painel local para ajustar pesos e medir, sem escrever código | Ficar no caminho de consulta — o servidor MCP funciona com o painel desinstalado |
+
+## Arquitetura em uma imagem
+
+```
+Cliente MCP (Claude Code, Claude Desktop, ...)
+  │  modelo de linguagem, loop de agente, geração — tudo aqui
+  ▼
+Servidor MCP (search · read_note · neighbors)
+  │  recuperação híbrida, reranking, expansão de contexto — tudo local
+  ▼
+Índice: LanceDB (vetores) + SQLite FTS5 (lexical, grafo, metadados)
+  │
+  ▼
+Documentos: pastas em disco + SharePoint sincronizado (PDF, DOCX, XLSX, PPTX, MD)
+```
+
+Decisões e justificativas completas em [ARCHITECTURE.md](ARCHITECTURE.md).
+
+## Invariantes de projeto
+
+Sete regras que qualquer mudança precisa respeitar — o motivo de cada uma está
+em [ARCHITECTURE.md](ARCHITECTURE.md):
+
+1. Nenhuma chamada a API paga no caminho de consulta.
+2. Nenhuma ferramenta que gere texto (`answer`, `summarize` não existem aqui).
+3. Multi-hop é do cliente — o servidor oferece primitivas componíveis.
+4. Toda mudança em chunking, embedding ou ranking passa pelo eval; sem número
+   antes/depois, a mudança não entra.
+5. Todo retorno de ferramenta carrega procedência e id estável.
+6. O painel de ajuste está fora do caminho de consulta — há teste provando que
+   o servidor MCP funciona com o painel desinstalado.
+7. Isolamento entre bases é físico (diretório de índice + processo de servidor
+   próprios), nunca um filtro sobre uma consulta compartilhada.
+
+## Resultados medidos
+
+Toda otimização de precisão neste projeto é validada contra um conjunto de
+perguntas com fonte conhecida, com métrica antes/depois (invariante 4). Na
+condição de medição mais recente (corpus completo, 92 mil chunks):
+
+| Configuração | recall@1 | MRR@10 |
+|---|---:|---:|
+| Baseline (busca por nome de arquivo) | 0,467 | 0,592 |
+| + recuperação híbrida (denso + BM25 + nome) | 0,600 | 0,736 |
+| + famílias de versão (F2) | 0,644 | — |
+| + reranking com cross-encoder (F2) | **0,678** | **0,785** |
+
+A lição que se repetiu duas vezes durante o projeto: **o consenso de
+ranqueadores independentes vale mais que qualquer juiz isolado** — aconteceu
+com o BM25 e de novo com o cross-encoder, que só melhora o resultado quando
+entra como um quarto voto na fusão, nunca como substituto da ordenação.
+
+480+ testes automatizados (`pytest`), rodando em CI a cada push.
+
+## Stack
+
+Python 3.12 · [`mcp`](https://modelcontextprotocol.io/) · `fastembed`
+(multilingual-e5-large / MiniLM) · `bge-reranker-v2-m3` · LanceDB · SQLite FTS5
+· `pymupdf4llm` · `python-docx` · `openpyxl` · `python-pptx` · Starlette +
+Uvicorn (painel) · `pytest`
+
+## Estrutura
+
+```
+src/segundocerebro/
+  ingest/      parsers PDF/DOCX/XLSX/PPTX/MD, chunking, natureza do documento
+  index/       LanceDB (vetores) + SQLite (registro, FTS5), estimativa e retomada
+  retrieve/    híbrido, RRF, famílias de versão, ranqueador de nome, reranking
+  mcp/         superfície de ferramentas MCP e geração de .mcp.json
+  painel/      tela local de ajuste (Starlette) — opcional, fora do caminho de consulta
+eval/
+  golden/      formato do conjunto dourado (o conteúdo real não é versionado — ver abaixo)
+  rodar.py, varredura.py, comparar.py, harness.py, metrics.py, baselines.py
+tests/         ~480 testes, isolados com tmp_path e monkeypatch
+docs/          decisões, ablações e métricas com número reprodutível
+```
+
+## Como rodar
+
+```bash
+pip install -r requirements.txt
+
+# 1. Censo do acervo — quantos arquivos, de que tipo, antes de indexar
+cp census.example.toml census.toml   # preencher com as raízes reais
+py -m segundocerebro.census --config census.toml --out docs/censo.md
+
+# 2. Indexar
+py -m segundocerebro.index.indexer
+
+# 3. Servir via MCP
+py -m segundocerebro.mcp.server
+
+# 4. (opcional) Painel local para ajustar pesos sem código
+py -m segundocerebro.painel
+```
+
+Múltiplas bases (pessoal, trabalho, ...) e pesos de recuperação são
+configurados em `config.toml` — ver [`config.example.toml`](config.example.toml)
+e a seção de bases em [ARCHITECTURE.md](ARCHITECTURE.md) §2.
+
+## Testes
+
+```bash
+py -m pytest tests/ eval/ -q        # suíte padrão (~480 testes, segundos)
+py -m pytest -m modelo              # com o encoder real — baixa ~2 GB na 1ª vez
+```
+
+## Documentação
+
+| Arquivo | Conteúdo |
+|---|---|
+| [ARCHITECTURE.md](ARCHITECTURE.md) | Decisões de projeto e justificativas |
+| [ROADMAP.md](ROADMAP.md) | Fases com critérios de saída verificáveis |
+| [CLAUDE.md](CLAUDE.md) | Guia de desenvolvimento e estado atual, fase a fase |
+| [docs/arquitetura-tecnica.md](docs/arquitetura-tecnica.md) | Substituições de catálogo, por que FTS5 e não BM25 vetorial |
+| [docs/painel-de-ajuste.md](docs/painel-de-ajuste.md) | Proposta e regras do painel local |
+| [docs/estimativa-de-indexacao.md](docs/estimativa-de-indexacao.md) | Método de estimativa de tempo/esforço de indexação |
+| [docs/usar-o-mcp.md](docs/usar-o-mcp.md) | Como registrar e usar o servidor num cliente MCP |
+| [docs/truncagem-silenciosa.md](docs/truncagem-silenciosa.md) | Post-mortem de um defeito que custou 80% do texto indexado |
+
+### Sobre o conjunto de avaliação
+
+O conjunto dourado (`eval/golden/perguntas.jsonl`) e os relatórios de ablação
+que o citam por conteúdo **não estão neste repositório** — ver
+[`eval/golden/README.md`](eval/golden/README.md). Eles reproduzem nome de
+fornecedor, código de contrato e trecho de documento do acervo corporativo real
+usado para desenvolver e medir o projeto, e são inúteis fora dessa máquina de
+qualquer forma. O formato e as regras de escrita continuam documentados; o
+checkpoint sobre como isso deve funcionar para quem instalar o sistema do zero
+está no [ROADMAP.md](ROADMAP.md).
+
+## Licença
+
+[MIT](LICENSE).

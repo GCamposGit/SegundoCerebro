@@ -1,0 +1,219 @@
+"""Run a retriever over the golden set and write the report.
+
+    py -m eval.rodar --out docs/metricas-f0.md                 # baseline por nome
+    py -m eval.rodar --retriever hibrido --out docs/metricas-f1.md
+    py -m eval.rodar --retriever denso                          # ablação
+    py -m eval.rodar --retriever bm25
+
+Every configuration lands in the same table because they all implement the same
+`Retriever` protocol. That comparability across phases is the reason the harness
+was built before any retrieval existed.
+
+Comparability has two conditions that the flags exist to enforce:
+
+- **Mesmo universo de documentos.** `--prefixo` recorta o baseline para a mesma
+  subárvore que o índice cobre. Sem ele o baseline enumera a raiz inteira do
+  `census.toml` e a comparação mistura qualidade de ranqueamento com escala.
+- **Mesmas perguntas.** O relatório separa o subconjunto no escopo da fase das
+  perguntas cuja fonte nenhum recuperador desta fase consegue ler, e mostra os
+  dois números.
+"""
+
+from __future__ import annotations
+
+import argparse
+import sys
+from pathlib import Path
+
+from segundocerebro.config import ErroDeConfig, carregar
+from segundocerebro.logger import get_logger
+from segundocerebro.retrieve.hybrid import BuscaHibrida
+from segundocerebro.retrieve.rerank import CANDIDATOS_PARA_RERANK
+
+from .baselines import BuscaPorNomeDeArquivo
+from .harness import avaliar, carregar_perguntas, conferir_base, render_markdown, verificar_escopo
+
+log = get_logger("eval")
+
+REPO = Path(__file__).resolve().parent.parent
+GOLDEN = REPO / "eval" / "golden" / "perguntas.jsonl"
+
+PESO_RERANK_DA_FLAG = 0.25
+"""Voz usada quando `--rerank` é pedido numa base que não configura o peso.
+
+O valor medido em 16/08/2026 (`docs/ablacao-rerank.md`): o pico da grade."""
+
+
+def _montar(args, cfg):  # noqa: ANN001
+    """Build the retriever, its document universe, and the line describing it."""
+    if args.retriever == "baseline":
+        retriever = BuscaPorNomeDeArquivo.a_partir_de(cfg.roots, cfg, prefixo=args.prefixo)
+        recorte = f", recorte `{args.prefixo}`" if args.prefixo else ""
+        contexto = (
+            f"Corpus de {len(retriever.documentos)} documentos{recorte}.\n"
+            "O baseline lê apenas nome de arquivo e caminho de pastas — nenhum conteúdo."
+        )
+        return retriever, "Métricas F0 — baseline", contexto, None, retriever.universo
+
+    from segundocerebro.index.embeddings import Embedder
+    from segundocerebro.index.store import Store
+
+    indice = args.indice or args.base_cfg.indice
+    embedder = Embedder(args.modelo or args.base_cfg.modelo, threads=args.threads)
+    store = Store(indice, embedder.dim)
+    estat = store.estatisticas()
+    if not estat["chunks"]:
+        log.error("índice vazio em %s — rodar o indexador primeiro", indice)
+        raise SystemExit(2)
+
+    # Pesos e reranker vêm da base quando a flag não os fixa, e é isso que faz o
+    # número medido aqui ser o número que o servidor MCP roda.
+    #
+    # Até 17/08/2026 o reranker era exceção: só existia se `--rerank` fosse
+    # passado. O efeito foi o defeito que o bloco A da F3.5 existe para impedir —
+    # uma medição de confirmação rodou sem rerank contra uma configuração que o
+    # tinha ligado, e os números batiam com a referência **errada**. A flag agora
+    # sobrepõe o número de candidatos; ela não é mais a porta de entrada.
+    reranker = BuscaHibrida.reranker_de(args.base_cfg)
+    if args.sem_rerank:
+        reranker = None
+    elif args.rerank:
+        from segundocerebro.retrieve.rerank import Reranker
+
+        peso = args.base_cfg.busca.rerank or PESO_RERANK_DA_FLAG
+        reranker = Reranker(candidatos=int(args.rerank), peso=peso, threads=args.threads)
+
+    pesos = args.base_cfg.pesos
+    # Uma variável só, porque o relatório também a imprime: em 16/08/2026 o
+    # relatório da condição C saiu dizendo "None candidatos" enquanto a busca
+    # rodava com 200. Número de configuração que aparece no relatório tem que ser
+    # o mesmo objeto que foi para o recuperador, ou o documento mente sobre o
+    # experimento que descreve.
+    candidatos = args.candidatos if args.candidatos is not None else args.base_cfg.busca.candidatos
+    retriever = BuscaHibrida(
+        store,
+        embedder,
+        candidatos=candidatos,
+        k_rrf=args.base_cfg.busca.k_rrf,
+        usar_denso=args.retriever in ("hibrido", "denso"),
+        usar_lexical=args.retriever in ("hibrido", "bm25"),
+        usar_nome=not args.sem_nome and bool(pesos.nome),
+        peso_denso=args.peso_denso if args.peso_denso is not None else pesos.denso,
+        peso_lexical=pesos.lexical,
+        peso_nome=args.peso_nome if args.peso_nome is not None else pesos.nome,
+        reranker=reranker,
+    )
+    universo = store.paths_com_chunks()
+    contexto = (
+        f"Índice com {estat['documentos']} documentos e {estat['chunks']} chunks, "
+        f"{len(universo)} documentos alcançáveis pela busca, "
+        f"modelo `{embedder.model_id}`, {candidatos} candidatos por ranking antes da fusão.\n"
+        # O relatório tem que descrever o experimento que descreve. Um documento
+        # que omite o reranker é indistinguível de um medido sem ele — foi assim
+        # que uma medição de 17/08 passou por confirmação sem confirmar nada.
+        f"Reranking: {reranker.id if reranker else '**desligado**'}.\n"
+        "As métricas são no nível de **documento**: o conjunto dourado aponta arquivos, "
+        "e cada documento é ranqueado pelo seu melhor trecho."
+    )
+    return retriever, f"Métricas F1 — {retriever.nome}", contexto, store, set(universo)
+
+
+def main(argv: list[str] | None = None) -> int:
+    parser = argparse.ArgumentParser(prog="eval.rodar", description="Avalia um recuperador sobre o conjunto dourado")
+    parser.add_argument("--base", help="qual base avaliar (ver config.toml)")
+    parser.add_argument("--config", type=Path, help="arquivo de configuração; aceita o census.toml legado")
+    parser.add_argument("--golden", type=Path, help="sobrepõe o conjunto dourado da base")
+    parser.add_argument("--out", type=Path, help="grava o relatório markdown")
+    parser.add_argument(
+        "--retriever",
+        default="baseline",
+        choices=("baseline", "hibrido", "denso", "bm25"),
+        help="baseline por nome de arquivo, ou busca sobre o índice",
+    )
+    # Sobreposições com default None: `None` é "a base decide". Um default
+    # concreto aqui venceria o config.toml em silêncio, e o eval passaria a medir
+    # uma configuração que o servidor não roda — que é justamente o que este
+    # acoplamento existe para impedir.
+    parser.add_argument("--indice", type=Path, help="sobrepõe o índice da base")
+    parser.add_argument("--modelo", help="sobrepõe o modelo da base")
+    parser.add_argument("--threads", type=int, default=10)
+    parser.add_argument("--candidatos", type=int, help="sobrepõe os candidatos da base")
+    parser.add_argument("--peso-denso", type=float, help="sobrepõe o peso denso da base")
+    parser.add_argument(
+        "--peso-nome",
+        type=float,
+        help="peso do ranqueador de nome na fusão — reproduz um ponto de `eval.varredura`",
+    )
+    parser.add_argument(
+        "--rerank",
+        nargs="?",
+        const=str(CANDIDATOS_PARA_RERANK),
+        metavar="N",
+        help="sobrepõe o número de candidatos reranqueados (padrão %(const)s). "
+        "Sem a flag, vale o que a base configurar",
+    )
+    parser.add_argument(
+        "--sem-rerank",
+        action="store_true",
+        help="desliga o reranking mesmo que a base o configure — é o braço de ablação",
+    )
+    parser.add_argument(
+        "--sem-nome",
+        action="store_true",
+        help="desliga o ranqueador por nome de arquivo, deixando só o sinal de conteúdo — "
+        "é o braço que mostra quanto do resultado vem do índice e quanto vem do nome",
+    )
+    parser.add_argument(
+        "--prefixo",
+        help="restringe o baseline à mesma subárvore que o índice — sem isso, os dois "
+        "ranqueiam universos de tamanho diferente e a comparação mistura escala com qualidade",
+    )
+    args = parser.parse_args(argv)
+
+    try:
+        conf = carregar(args.config, raiz=REPO)
+        args.base_cfg = conf.base(args.base)
+    except ErroDeConfig as erro:
+        log.error("%s", erro)
+        return 2
+
+    cfg = args.base_cfg.censo()
+    dourado = args.golden or args.base_cfg.dourado or GOLDEN
+    perguntas = carregar_perguntas(dourado)
+    try:
+        conferir_base(perguntas, args.base_cfg.id)
+    except ValueError as erro:
+        log.error("%s", erro)
+        return 2
+    retriever, titulo, contexto, store, universo = _montar(args, cfg)
+
+    no_escopo = [p for p in perguntas if p.no_escopo]
+    log.info(
+        "recuperador: %s | %d perguntas no escopo, de %d",
+        retriever.nome,
+        len(no_escopo),
+        len(perguntas),
+    )
+    for d in verificar_escopo(perguntas, universo, universo_de_conteudo=store is not None):
+        nivel = log.error if d.especie == "silenciosa" else log.warning
+        nivel("escopo/%s: %s — %s", d.especie, d.id, d.detalhe)
+
+    try:
+        resultado = avaliar(retriever, perguntas)
+    finally:
+        if store is not None:
+            store.fechar()
+
+    relatorio = render_markdown(resultado, titulo, contexto)
+
+    if args.out:
+        args.out.parent.mkdir(parents=True, exist_ok=True)
+        args.out.write_text(relatorio, encoding="utf-8")
+        log.info("relatório gravado em %s", args.out)
+    else:
+        sys.stdout.write(relatorio + "\n")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

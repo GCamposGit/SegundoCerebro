@@ -1,0 +1,29 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "segundocerebro"
+version = "0.0.1"
+description = "Servidor MCP de recuperação sobre base de conhecimento pessoal e corporativa"
+requires-python = ">=3.12"
+dependencies = []
+
+[project.scripts]
+segundocerebro-censo = "segundocerebro.census:main"
+segundocerebro-mcp = "segundocerebro.mcp.server:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src", "."]
+testpaths = ["tests", "eval"]
+addopts = "-ra -m 'not modelo'"
+markers = [
+  # Carregam o encoder de verdade: ~2 GB de download na primeira vez e dezenas de
+  # segundos por rodada. Ficam fora do padrão, mas são obrigatórios antes de
+  # qualquer indexação — é a classe de teste que teria pego a truncagem silenciosa.
+  #     py -m pytest -m modelo
+  "modelo: exige baixar e carregar o modelo de embedding real",
+]

@@ -1,0 +1,76 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+*.egg-info/
+.pytest_cache/
+.ruff_cache/
+
+# Pesos de modelo (BGE-M3, reranker) — baixados, nunca versionados
+models/*
+!models/.gitkeep
+
+# Índice local (LanceDB + SQLite) — só na raiz; src/segundocerebro/index/ é código
+/index/
+*.lance/
+*.db
+*.sqlite3
+
+# Saídas do censo (podem conter nomes de arquivo corporativos)
+census-*.json
+census-*.md
+docs/censo*.md
+docs/censo*.json
+
+# Configuração local com caminhos reais
+census.toml
+config.toml
+config.local.*
+
+# Índices de bases além da padrão (/index/ já está coberto acima)
+/index-*/
+
+# Sistema
+Thumbs.db
+desktop.ini
+.DS_Store
+
+# Índice local gerado — só na raiz. Sem a barra inicial, este padrão também
+# casaria src/segundocerebro/index/ e deixaria o pacote fora do repositório,
+# que foi exatamente o que aconteceu entre os commits ac36dc9 e 8b042d1.
+/index/
+
+# Conjunto dourado real e relatórios derivados de avaliação sobre o corpus real.
+# Cada um destes reproduz nome de fornecedor, código de contrato, valor
+# financeiro ou trecho de documento do acervo corporativo real que gerou este
+# projeto — nunca são genéricos o bastante para publicar, e são inúteis na
+# máquina de outro usuário (a base deles não existe fora deste computador). Ver
+# o checkpoint no ROADMAP.md sobre como isso deve funcionar para quem instalar
+# o sistema.
+eval/golden/perguntas.jsonl
+docs/ablacao-bm25-com-nome.md
+docs/ablacao-bm25-sem-nome.md
+docs/ablacao-denso-com-nome.md
+docs/ablacao-denso-sem-nome.md
+docs/ablacao-hibrido-sem-nome.md
+docs/ablacao-familias.md
+docs/ablacao-rerank.md
+docs/estado-f1.md
+docs/ingestao-f1.md
+docs/escala-f0.md
+docs/metricas-baseline-condicao-c.md
+docs/metricas-baseline-dev.md
+docs/metricas-baseline-raiz.md
+docs/metricas-f0.md
+docs/metricas-f0-corpus-ampliado.md
+docs/metricas-f1.md
+docs/metricas-f1-bm25.md
+docs/metricas-f1-condicao-c.md
+docs/metricas-f1-denso.md
+docs/metricas-f1-hibrido.md
+docs/metricas-f2-rerank-ligado.md
+docs/metricas-f2-sem-rerank.md
+docs/portas-f1-condicao-c.md
+docs/regressao-f1.md
+docs/traco-f3-uso-real.md

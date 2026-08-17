@@ -1,0 +1,17 @@
+# Copie para census.toml (ignorado pelo git — os caminhos reais não são versionados)
+# e rode:  py -m segundocerebro.census --config census.toml --out docs/censo.md
+
+top = 20
+
+[[roots]]
+name = "pessoal"
+path = 'C:\Users\SEU_USUARIO\Documentos'
+
+[[roots]]
+name = "sharepoint"
+path = 'C:\Users\SEU_USUARIO\NOME_DA_EMPRESA\Nome da Biblioteca - Documentos'
+
+# Somadas às exclusões técnicas padrão (.git, node_modules, ~$*, *.tmp, ...).
+[exclude]
+dirs = []
+globs = []
