@@ -5,19 +5,19 @@
 [![python](https://img.shields.io/badge/python-3.12-blue.svg)](pyproject.toml)
 
 Servidor **MCP** de recuperação de alta precisão sobre uma base de conhecimento
-pessoal e corporativa — pastas em disco e SharePoint, com PDF, Word, Excel e
+pessoal e corporativa. Pastas em disco e SharePoint, com PDF, Word, Excel e
 PowerPoint. Não gera texto e não tem interface própria: ele expõe ferramentas
 de busca, o modelo de linguagem vem do cliente MCP que você já usa.
 
 ## A ideia em um parágrafo
 
-O gargalo de um RAG corporativo raramente é o modelo — é o custo por consulta e
+O gargalo de um RAG corporativo raramente é o modelo, é o custo por consulta e
 a dependência de fornecedor que ele cria. Este projeto inverte a arquitetura
 usual: em vez de um app que chama uma API de geração a cada pergunta, o
 **modelo vem do cliente MCP já pago por assento** (Claude Code, Claude Desktop,
 qualquer cliente MCP), e o servidor só recupera. Embeddings e reranking rodam
 localmente. Resultado: **custo marginal zero por consulta**, troca de modelo
-sem alterar uma linha de código, e raciocínio multi-hop nativo — porque o loop
+sem alterar uma linha de código, e raciocínio multi-hop nativo porque o loop
 de agente é do cliente, não algo que o servidor precisa reimplementar.
 
 Nenhum documento sai da máquina. O servidor devolve trechos com procedência
