@@ -12,7 +12,7 @@ decisões e [ROADMAP.md](ROADMAP.md) para as fases.
 
 ## Estado atual
 
-**F1 medida, F3 iniciada.** Ler `docs/estado-f1.md` primeiro — é o retomador de
+**F1 fechada, F2 em curso, F3.5 concluída.** Ler `docs/estado-f1.md` primeiro — é o retomador de
 contexto: o que está pronto, os números medidos, as decisões com motivo e as
 armadilhas já encontradas. Para usar o sistema, `docs/usar-o-mcp.md`.
 
@@ -97,13 +97,16 @@ documentos processados (o conjunto filtrado que `iter_files` enumera, **não** o
 com texto, **92.125 chunks**, zero fantasmas, reconciliação feita. 64 h de parede
 desde 13/08, das quais ~39 h de trabalho efetivo.
 
-**F1 medida na condição C em 16/08/2026 — a fase NÃO fecha.** Ler
-`docs/portas-f1-condicao-c.md`. Portas 1, 2 e 5 passam com folga (recall@1 0,600
-contra 0,467 do baseline; MRR 0,736 contra 0,592); portas 3 e 4 reprovam (4 de 6
-armadilhas, exige 5; 1 de 5 multi-hop, exige 3). As duas armadilhas que falham
-falham **também no baseline** e são F2 por descrição — família de versão e
-discriminação entre documentos irmãos. **O gargalo é precisão**, que era
-exatamente a pergunta que a inversão F2/F3 deixou em aberto.
+**F1 FECHADA em 17/08/2026 — as cinco portas passam.** Ler
+`docs/fechamento-f1.md`. recall@1 **0,678** contra 0,467 do baseline, MRR
+**0,785** contra 0,592, armadilhas **5 de 6**, multi-hop com ≥1 fonte **5 de 5**,
+e uma única queda do 1º lugar (não-crítica; o teto era 3).
+
+Duas coisas que valem para as fases seguintes. A porta 3 fechou com **metadado**
+(famílias de versão), não com peso de fusão — o gargalo que a inversão F2/F3
+identificou era precisão, e parte dela não estava no conteúdo. E o fechamento
+**não depende do reranking**: com ele desligado as portas 1 a 4 também passam, o
+que importa porque ele custa 6,8× no tempo de consulta.
 
 **F3.5 bloco D em curso desde 16/08/2026** — controle de indexação. Método e
 coeficientes em `docs/estimativa-de-indexacao.md`.

@@ -186,7 +186,28 @@ parênteses):
 Mais: tempo de parede da indexação completa documentado, e nenhum placeholder
 hidratado sem intenção (censo antes e depois com a mesma contagem).
 
-#### Medido na condição C em 16/08/2026 — **a fase não fecha**
+#### ✅ Fechada em 17/08/2026 — as cinco portas passam
+
+`docs/fechamento-f1.md`. Condição C, índice completo (1.601 documentos, 92.137
+chunks), 45 perguntas, baseline remedido no mesmo run:
+
+| # | Porta | Medido | Alvo | Baseline |
+|---|---|---:|---:|---:|
+| 1 | recall@1 ≥ baseline + 0,10 | **0,678** | 0,567 | 0,467 |
+| 2 | MRR@10 ≥ baseline + 0,08 | **0,785** | 0,672 | 0,592 |
+| 3 | ≥ 5 de 6 armadilhas | **5 de 6** | 5 | 3 de 6 |
+| 4 | multi-hop: ≥ 1 fonte, por caso | **5 de 5** | 5 | 2 de 5 |
+| 5 | ≤ 3 quedas do 1º, nenhuma crítica | **1, nenhuma crítica** | 3 / 0 | — |
+
+As duas portas que reprovavam em 16/08 não foram afrouxadas: a 3 fechou com
+famílias de versão (metadado, que nenhum peso de fusão alcança) e a 4 foi
+reescrita por argumento de categoria, com a exigência dura migrando para F3 e F4.
+
+**O fechamento não depende do reranking.** Com ele desligado as portas 1 a 4
+também passam (0,644 e 0,762 contra alvos de 0,567 e 0,672), e ele custa 6,8× no
+tempo de consulta.
+
+#### Histórico — a medição de 16/08/2026, quando a fase não fechava
 
 Índice completo (1.601 documentos, 92.125 chunks), baseline e busca remedidos
 juntos no mesmo universo e nas mesmas 45 perguntas. Análise caso a caso em
