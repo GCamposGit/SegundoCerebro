@@ -256,6 +256,21 @@ code { font-family: ui-monospace, "Cascadia Code", monospace; font-size: 12px; }
       Isto não passa pelo "medir antes de salvar": muda a velocidade da
       indexação, nunca o que entra no índice.
     </p>
+    <div class="linha" style="margin-top:16px;padding-top:16px;border-top:1px solid var(--borda)">
+      <!-- Sem `for`: o controle é um botão, e `for` apontando para id inexistente
+           é pior que rótulo nenhum — o leitor de tela anuncia campo que não há. -->
+      <span><b>Retomar sozinho depois de reiniciar</b></span>
+      <button id="retomadaBotao" aria-describedby="retomadaEstado">Ligar</button>
+      <span id="retomadaEstado" class="sub" style="margin:0"></span>
+    </div>
+    <p class="sub" style="margin:10px 0 0">
+      Indexar este acervo levou dias de máquina ligada. Se o computador reiniciar
+      no meio, a indexação continua de onde parou — mas só se alguém mandar. Com
+      isto ligado, ela recomeça no próximo logon, sozinha e no esforço leve.
+      <b>Não reindexa nada</b> que já esteja pronto.
+    </p>
+    <div id="recadoRetomada"></div>
+
     <details style="margin-top:14px">
       <summary>Pastas desta base — para quando o índice vier de outra máquina</summary>
       <div class="linha" style="margin-top:10px">
@@ -582,6 +597,50 @@ $("salvarMaquina").onclick = async () => {
   } catch (e) { recado(e.message); }
 };
 
+// A tela guarda o último estado lido para decidir o que o botão faz. Sem isso o
+// clique teria que adivinhar, e adivinhar erraria justamente no caso "não sei".
+let retomadaInstalada = null;
+
+async function carregarRetomada() {
+  let dados;
+  // Sem corpo o helper faz GET — é o que mantém a leitura incapaz de instalar.
+  try { dados = await api("/api/retomada"); } catch { return; }
+  retomadaInstalada = dados.instalada;
+  const botao = $("retomadaBotao"), estado = $("retomadaEstado");
+  if (dados.instalada === true) {
+    botao.textContent = "Desligar";
+    estado.textContent = "Ligado.";
+  } else if (dados.instalada === false) {
+    botao.textContent = "Ligar";
+    estado.textContent = "Desligado.";
+  } else {
+    // Terceiro estado: não afirmar "desligado" quando o Windows não respondeu.
+    botao.textContent = "Ligar";
+    estado.textContent = "Não foi possível conferir com o Windows.";
+  }
+  if (dados.aguardando && dados.aguardando.length) {
+    $("recadoRetomada").innerHTML =
+      `<div class="aviso">Há indexação parada pela metade: ${dados.aguardando.join(", ")}.` +
+      (dados.instalada === true ? " Recomeça no próximo logon." : " Ligue para retomar sozinho.") +
+      `</div>`;
+  } else {
+    $("recadoRetomada").innerHTML = "";
+  }
+}
+
+$("retomadaBotao").onclick = async () => {
+  const ligar = retomadaInstalada !== true;
+  try {
+    await api("/api/retomada", { ligar });
+    await carregarRetomada();
+    $("recadoRetomada").innerHTML = `<div class="ok">${
+      ligar
+        ? "Ligado. Vale para este usuário do Windows, e você pode desligar aqui ou apagando o atalho da pasta de inicialização."
+        : "Desligado. A indexação continua podendo ser retomada à mão."
+    }</div>`;
+  } catch (e) { $("recadoRetomada").innerHTML = `<div class="aviso">${e.message}</div>`; }
+};
+
 $("salvarRaizes").onclick = async () => {
   const raizes = $("raizesBase").value.split(";").map((p) => p.trim()).filter(Boolean);
   try {
@@ -651,6 +710,7 @@ async function carregarEstado() {
     desenharPerfis();
     await carregarEstado();
     await carregarSiglas();
+    await carregarRetomada();
     await atualizarIndexacao();
     // Sondagem de dois segundos, o mesmo intervalo com que o indexador publica.
     // Mais rápido só gastaria leitura de arquivo sem mostrar nada novo.

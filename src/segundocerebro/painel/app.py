@@ -370,6 +370,64 @@ def criar_app(
             }
         )
 
+    async def retomada(request: Request) -> JSONResponse:
+        """Retomada automática depois de reinício — estado (GET) e liga/desliga (POST).
+
+        Uma indexação deste acervo levou 39 h de trabalho efetivo e 64 h de parede.
+        Nesse intervalo a máquina reinicia, e sem esta tarefa a retomada depende de
+        alguém lembrar de digitar um comando — que é exatamente o que o usuário
+        não-técnico deste painel não vai fazer.
+
+        **Aqui o painel comanda, e é a única exceção da tela.** O endpoint
+        `indexacao` acima só lê, de propósito. A diferença é que instalar a tarefa
+        é ato de configuração, não de recuperação: acontece uma vez, fora do
+        caminho de consulta, e o que ele agenda é o indexador — que segue processo
+        independente. A invariante 6 continua de pé, e desinstalar a tarefa é um
+        `schtasks /Delete` que não precisa deste painel.
+
+        Mexe no agendador do Windows, então **nunca acontece por efeito colateral**:
+        só em POST com `ligar` explícito no corpo.
+        """
+        if not autorizado(request):
+            return JSONResponse({"erro": "token inválido"}, status_code=403)
+        from ..index.retomada import NOME_DA_TAREFA, instalada, pendentes
+
+        if request.method == "POST":
+            corpo = await request.json()
+            ligar = corpo.get("ligar")
+            if not isinstance(ligar, bool):
+                return JSONResponse({"erro": "'ligar' precisa ser true ou false"}, status_code=400)
+            from ..index.retomada import agendar
+
+            if agendar(instalar=ligar) != 0:
+                from ..index.retomada import caminho_do_gatilho
+
+                # Dizer **qual arquivo** falhou é o que torna o erro acionável: o
+                # gatilho é um `.cmd` na pasta de inicialização, e o usuário pode
+                # criá-lo ou apagá-lo à mão se o painel não conseguir.
+                return JSONResponse(
+                    {
+                        "erro": "não consegui escrever na pasta de inicialização do "
+                        f"Windows ({caminho_do_gatilho().parent}). Verifique se ela "
+                        "existe e se o antivírus não está bloqueando."
+                    },
+                    status_code=500,
+                )
+
+        try:
+            conf = _config()
+            aguardando = [b.id for b, _ in pendentes(conf)]
+        except ErroDeConfig as erro:
+            return JSONResponse({"erro": str(erro)}, status_code=400)
+
+        return JSONResponse(
+            {
+                "instalada": instalada(),
+                "tarefa": NOME_DA_TAREFA,
+                "aguardando": aguardando,
+            }
+        )
+
     async def maquina(request: Request) -> JSONResponse:
         """Perfil de esforço e threads — grava direto, sem exigir medição.
 
@@ -590,6 +648,7 @@ def criar_app(
             Route("/api/estado", estado),
             Route("/api/perfis", perfis),
             Route("/api/indexacao", indexacao),
+            Route("/api/retomada", retomada, methods=["GET", "POST"]),
             Route("/api/maquina", maquina, methods=["POST"]),
             Route("/api/raizes", raizes, methods=["POST"]),
             Route("/api/censo", censo, methods=["POST"]),

@@ -124,9 +124,22 @@ de custo, indexar, conectar), perfis, pesos e releitura, diagnóstico de consult
 usa o mesmo `iter_files` do indexador, e separa "arquivos" de "legíveis" — contar
 tudo daria estimativa maior que a verdade.
 
-Falta da F3.5-D: **retomada automática depois de reinício** (marcador + tarefa
-agendada no logon). A base já está pronta — commit por documento, WAL, e trava
-que sobrevive a reuso de PID.
+**F3.5-D fechada em 19/08/2026 — retomada automática depois de reinício.**
+`index/retomada.py` já existia com 13 testes; o que faltava era o controle no
+painel e a verificação contra o Windows real. Botão liga/desliga em Máquina,
+e nenhum marcador novo — o `progresso.json` é o marcador, porque um segundo
+arquivo criaria duas fontes de verdade.
+
+O mecanismo **não** é a tarefa agendada que o plano previa. `schtasks /SC ONLOGON`
+e o `Register-ScheduledTask` do PowerShell dão "acesso negado" sem elevação nesta
+máquina; criar tarefa `ONCE` no mesmo shell funciona, o que localiza o
+impedimento no **gatilho de logon** e não no agendador. O gatilho passou a ser um
+`.cmd` na pasta de inicialização do usuário — dispensa elevação e é um arquivo
+visível que se apaga à mão. Verificado rodando de `C:\Windows\System32`.
+
+Lição para a F4 e a F5: **mock de utilitário do sistema não prova permissão.** Os
+13 testes com `schtasks` simulado passavam verdes contra um comando que a máquina
+recusa. O que pegou foi rodar de verdade.
 
 ```bash
 py -m segundocerebro.index.indexer --perfil leve   # cede a vez, recusa bateria

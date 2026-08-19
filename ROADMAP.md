@@ -587,10 +587,20 @@ processo morto. Uma queda custa **no máximo um documento**. Falta fechar:
   `os.kill(pid, 0)` num PID reciclado responde "vivo" — o usuário levaria um
   "outro indexador está escrevendo" falso, sem outro indexador nenhum. A trava
   passa a guardar PID **e** horário de criação do processo (`psutil`)
-- **Marcador de retomada**: gravado no início, removido no fim limpo. Presente na
-  partida, o run continua de onde parou, dizendo isso
-- **Reinício automático depois de desligar**: tarefa agendada do Windows no
-  logon, opcional e desligável, que retoma se o marcador estiver lá
+- ✅ **Marcador de retomada — entregue.** Não há marcador novo: o
+  `progresso.json` já é ele. Um run que morreu sem encerrar deixa `indexando`
+  gravado, e `index/retomada.py` lê isso. Um segundo arquivo criaria duas fontes
+  de verdade, e a que discorda aparece no pior momento
+- ✅ **Reinício automático depois de desligar — entregue em 19/08/2026**, com o
+  mecanismo trocado e o motivo medido. O plano dizia *tarefa agendada no logon*;
+  tentado nesta máquina, `schtasks /SC ONLOGON` e o `Register-ScheduledTask` do
+  PowerShell **negam sem elevação** (Windows 11 Enterprise com política
+  corporativa), enquanto criar tarefa `ONCE` no mesmo shell funciona — o
+  impedimento é o gatilho de logon, não o agendador. Exigir administrador para
+  ligar uma conveniência derrubaria o público do painel, então o gatilho é um
+  `.cmd` na **pasta de inicialização do usuário**: dispensa elevação, e é um
+  arquivo visível que o usuário apaga à mão. Verificado de ponta a ponta rodando
+  a partir de `C:\Windows\System32`. Botão liga/desliga em Máquina, no painel
 - **Suspensão e hibernação**: o processo sobrevive; o que quebra é a estimativa.
   Detectar o salto de relógio, descontá-lo do tempo ativo e registrar "retomado
   após suspensão" em vez de contabilizar como lentidão

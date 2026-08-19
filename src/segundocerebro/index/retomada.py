@@ -2,7 +2,7 @@
 
     py -m segundocerebro.index.retomada            # retoma o que ficou pela metade
     py -m segundocerebro.index.retomada --listar   # só diz o que retomaria
-    py -m segundocerebro.index.retomada --instalar  # tarefa agendada no logon
+    py -m segundocerebro.index.retomada --instalar  # liga a retomada no logon
 
 Uma indexação de 39 h atravessa reinício, hibernação e queda de energia. O
 ROADMAP promete que isso é previsto: *"registrar status e reindexar na próxima
@@ -21,13 +21,14 @@ módulo sai sem fazer nada. Duas passadas simultâneas duplicariam cada vetor.
 from __future__ import annotations
 
 import argparse
+import os
 import subprocess
 import sys
 from pathlib import Path
 
 from ..config import ErroDeConfig, carregar
 from ..logger import get_logger
-from .indexer import NOME_DA_TRAVA, TravaDeIndice
+from .indexer import TravaDeIndice
 from .progresso import ler
 
 log = get_logger("index.retomada")
@@ -70,15 +71,81 @@ def comando_de_retomada(base, caminho_config: Path | None, perfil: str) -> list[
 
 
 def linha_da_tarefa(raiz: Path) -> str:
-    """O comando que a tarefa agendada roda no logon.
+    """O conteúdo do `.cmd` que roda no logon.
 
-    `cmd /c` com `cd` porque a tarefa nasce em `C:\\Windows\\system32`, e o
+    `cd /d` porque o processo de logon nasce em `C:\\Windows\\system32`, e o
     `PYTHONPATH` relativo do projeto não significa nada de lá.
+
+    `start "" /min` em vez de chamar o Python direto: a retomada pode levar horas,
+    e uma janela de console no meio da tela ao ligar o computador seria lida como
+    defeito. Minimizada e não oculta de propósito — processo de horas que não
+    aparece em lugar nenhum é pior que janela indesejada, porque o usuário não tem
+    como parar o que não vê. O primeiro `""` é o título da janela, e omiti-lo faria
+    o `start` tratar o caminho do Python como título.
+    """
+    # Sem acento de propósito: `.cmd` é lido na codepage OEM do console (cp850
+    # aqui), então UTF-8 sairia como mojibake e `errors="replace"` trocaria o
+    # acento por `?`. Escrever o aviso em ASCII puro é o que faz o arquivo dizer o
+    # que quer dizer — e ele existe justamente para o usuário que o encontrar
+    # sozinho na pasta de inicialização saber o que é e como desligar.
+    return (
+        "@echo off\r\n"
+        "rem Criado pelo Segundo Cerebro. Apagar este arquivo desliga a retomada\r\n"
+        "rem automatica da indexacao. Nada e reindexado do zero.\r\n"
+        f'cd /d "{raiz}"\r\n'
+        "set PYTHONPATH=src\r\n"
+        f'start "" /min "{sys.executable}" -m segundocerebro.index.retomada\r\n'
+    )
+
+
+def caminho_do_gatilho() -> Path:
+    """Onde o `.cmd` de logon mora.
+
+    **Pasta de inicialização e não tarefa agendada.** O ROADMAP pedia
+    `schtasks /SC ONLOGON`, e isso foi tentado nesta máquina em 19/08/2026:
+    negado, tanto pelo `schtasks` quanto pelo `Register-ScheduledTask` do
+    PowerShell, porque gatilho de logon exige elevação num Windows 11 Enterprise
+    com política corporativa. Criar tarefa de outro tipo — `ONCE`, `DAILY` — é
+    permitido, o que confirma que o impedimento é o gatilho e não o agendador.
+
+    Exigir administrador para ligar uma conveniência derrubaria o público desta
+    tela. A pasta de inicialização é de usuário, dispensa elevação, e tem a
+    propriedade que um mecanismo de horas mais precisa: **é um arquivo visível que
+    o usuário apaga à mão** se quiser desligar sem abrir o painel.
+
+    Um só mecanismo, não dois com preferência: o mesmo argumento pelo qual este
+    módulo recusa um segundo marcador ao lado do `progresso.json` — duas fontes de
+    verdade discordam, e a que discorda aparece no pior momento.
     """
     return (
-        f'cmd /c "cd /d "{raiz}" && set PYTHONPATH=src && '
-        f'"{sys.executable}" -m segundocerebro.index.retomada"'
+        Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming"))
+        / "Microsoft"
+        / "Windows"
+        / "Start Menu"
+        / "Programs"
+        / "Startup"
+        / f"{NOME_DA_TAREFA}.cmd"
     )
+
+
+def instalada() -> bool | None:
+    """O gatilho de logon existe? `None` quando não há como saber.
+
+    Três respostas e não duas, porque "não sei" e "não está instalado" levam a
+    telas diferentes: a primeira pede que o usuário confira à mão, a segunda
+    oferece o botão de ligar. Colapsar as duas em `False` mostraria "desligado"
+    numa máquina onde o gatilho pode estar ligado, e o usuário ligaria de novo.
+
+    Aqui "não sei" é a pasta de inicialização não existir ou não ser legível — o
+    caso de outro sistema operacional, e o de perfil de usuário sem ela.
+    """
+    alvo = caminho_do_gatilho()
+    try:
+        if not alvo.parent.is_dir():
+            return None
+        return alvo.is_file()
+    except OSError:
+        return None
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -91,13 +158,13 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--perfil", default="leve", help="esforço da retomada (padrão: leve)")
     parser.add_argument("--listar", action="store_true", help="diz o que faria e sai")
     parser.add_argument(
-        "--instalar", action="store_true", help="cria a tarefa agendada do Windows no logon"
+        "--instalar", action="store_true", help="liga a retomada automática no logon"
     )
-    parser.add_argument("--desinstalar", action="store_true", help="remove a tarefa agendada")
+    parser.add_argument("--desinstalar", action="store_true", help="desliga a retomada no logon")
     args = parser.parse_args(argv)
 
     if args.instalar or args.desinstalar:
-        return _agendar(instalar=args.instalar)
+        return agendar(instalar=args.instalar)
 
     try:
         conf = carregar(args.config)
@@ -138,29 +205,32 @@ def main(argv: list[str] | None = None) -> int:
     return 0
 
 
-def _agendar(*, instalar: bool) -> int:
-    """Cria ou remove a tarefa de logon, via `schtasks`.
+def agendar(*, instalar: bool) -> int:
+    """Liga ou desliga o gatilho de logon, escrevendo ou apagando um `.cmd`.
 
-    Mexer no agendador do sistema é mudança que sobrevive à sessão, então mora
-    atrás de uma flag explícita — nunca acontece porque alguém rodou a retomada.
+    Mudança que sobrevive à sessão mora atrás de uma flag explícita — nunca
+    acontece porque alguém rodou a retomada.
+
+    Desligar o que já está desligado é sucesso, não erro: o usuário pediu um
+    estado e o estado é esse. Devolver falha aqui faria o painel mostrar erro
+    vermelho para quem clicou em "Desligar" duas vezes.
     """
     raiz = Path(__file__).resolve().parent.parent.parent.parent
-    if instalar:
-        comando = [
-            "schtasks", "/Create", "/F",
-            "/TN", NOME_DA_TAREFA,
-            "/TR", linha_da_tarefa(raiz),
-            "/SC", "ONLOGON",
-            "/RL", "LIMITED",
-        ]
-    else:
-        comando = ["schtasks", "/Delete", "/F", "/TN", NOME_DA_TAREFA]
-
-    resultado = subprocess.run(comando, check=False, capture_output=True, text=True)  # noqa: S603
-    if resultado.returncode != 0:
-        log.error("schtasks falhou: %s", (resultado.stderr or resultado.stdout).strip())
+    alvo = caminho_do_gatilho()
+    try:
+        if instalar:
+            alvo.parent.mkdir(parents=True, exist_ok=True)
+            # `newline=""` porque a linha já traz `\r\n`: sem isso o Python
+            # traduziria de novo e o `.cmd` sairia com `\r\r\n`, que o `cmd`
+            # interpreta mal.
+            with alvo.open("w", encoding="ascii", errors="replace", newline="") as saida:
+                saida.write(linha_da_tarefa(raiz))
+        else:
+            alvo.unlink(missing_ok=True)
+    except OSError as erro:
+        log.error("não consegui %s '%s': %s", "criar" if instalar else "remover", alvo, erro)
         return 2
-    log.info("tarefa '%s' %s", NOME_DA_TAREFA, "criada" if instalar else "removida")
+    log.info("retomada no logon %s (%s)", "ligada" if instalar else "desligada", alvo)
     return 0
 
 

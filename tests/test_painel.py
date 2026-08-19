@@ -772,3 +772,68 @@ class _BloqueiaPainel:
         if nome.startswith("segundocerebro.painel"):
             raise ImportError(f"painel desinstalado: {nome}")
         return None
+
+
+# --- retomada automática depois de reinício ----------------------------------
+# O que estes guardam é o modo de falha, não o JSON: `schtasks` é mudança que
+# sobrevive à sessão, e o painel é a única tela do projeto que comanda algo.
+
+
+def test_retomada_get_nao_mexe_no_agendador(cliente, monkeypatch) -> None:
+    """Ler o estado nunca instala nada.
+
+    É o defeito que mais assustaria: abrir a tela e ganhar uma tarefa agendada
+    que ninguém pediu.
+    """
+    chamadas = []
+    monkeypatch.setattr(
+        "segundocerebro.index.retomada.agendar",
+        lambda *, instalar: chamadas.append(instalar) or 0,
+    )
+    # `instalada` roda `schtasks` de verdade; fixá-la é o que faz este teste medir
+    # a regra em vez do estado da máquina de quem roda a suíte.
+    monkeypatch.setattr("segundocerebro.index.retomada.instalada", lambda: False)
+    resposta = cliente.get("/api/retomada", params={"token": TOKEN})
+    assert resposta.status_code == 200
+    assert chamadas == []
+    assert resposta.json()["instalada"] is False
+
+
+def test_retomada_liga_e_desliga(cliente, monkeypatch) -> None:
+    chamadas = []
+    monkeypatch.setattr(
+        "segundocerebro.index.retomada.agendar",
+        lambda *, instalar: chamadas.append(instalar) or 0,
+    )
+    assert cliente.post("/api/retomada", json={"ligar": True}, params={"token": TOKEN}).status_code == 200
+    assert cliente.post("/api/retomada", json={"ligar": False}, params={"token": TOKEN}).status_code == 200
+    assert chamadas == [True, False]
+
+
+def test_retomada_recusa_ligar_ausente_ou_nao_booleano(cliente, monkeypatch) -> None:
+    """Corpo sem `ligar` explícito não vira instalação por omissão.
+
+    `{"ligar": "sim"}` é o caso que um front mal escrito produz, e um `if
+    corpo.get("ligar")` ingênuo trataria como verdadeiro.
+    """
+    chamadas = []
+    monkeypatch.setattr(
+        "segundocerebro.index.retomada.agendar",
+        lambda *, instalar: chamadas.append(instalar) or 0,
+    )
+    for corpo in ({}, {"ligar": "sim"}, {"ligar": 1}, {"ligar": None}):
+        resposta = cliente.post("/api/retomada", json=corpo, params={"token": TOKEN})
+        assert resposta.status_code == 400, corpo
+    assert chamadas == []
+
+
+def test_retomada_relata_falha_do_agendador_com_causa(cliente, monkeypatch) -> None:
+    monkeypatch.setattr("segundocerebro.index.retomada.agendar", lambda *, instalar: 2)
+    resposta = cliente.post("/api/retomada", json={"ligar": True}, params={"token": TOKEN})
+    assert resposta.status_code == 500
+    assert "inicialização" in resposta.json()["erro"]
+
+
+def test_retomada_exige_token(cliente) -> None:
+    assert cliente.get("/api/retomada").status_code == 403
+    assert cliente.post("/api/retomada", json={"ligar": True}).status_code == 403
