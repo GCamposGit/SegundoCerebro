@@ -360,6 +360,23 @@ final é a que ganhou, não a que pareceu elegante.
 
 ## F3 — Superfície MCP (destrava R1 e R4)
 
+> **FECHADA em 20/08/2026 — a saída foi cumprida.** O ato humano que faltava
+> aconteceu: mesma pergunta multi-hop perguntada no Claude Code e no Claude
+> Desktop contra o mesmo índice, as duas respostas corretas.
+>
+> O achado que vale mais que "funcionou nos dois": **os dois clientes
+> decompuseram a pergunta de formas diferentes**, e cada um buscou um conjunto
+> de documentos diferente antes de sintetizar. Uma das respostas era estritamente
+> mais completa que a outra, e verificar fato a fato contra o que `search`
+> devolve confirmou que nada foi inventado — a resposta mais rica só chegou lá
+> porque **buscou mais**, não porque preencheu lacuna com o próprio
+> conhecimento. É a invariante 3 se provando na prática: o servidor oferece
+> primitivas componíveis, e quem compõe é o loop do agente, não o servidor. Duas
+> composições diferentes chegando a respostas fundamentadas é evidência mais
+> forte de R1 ("model agnostic depois de construído") do que a mesma composição
+> repetida duas vezes seria. Traço completo, com a conferência fato a fato,
+> em `docs/traco-f3-uso-real.md` (gitignorado — cita conteúdo do acervo real).
+>
 > **Ordem invertida em 13/08/2026, por decisão do usuário.** A F3 passou na
 > frente da F2. O argumento é o mesmo que o ROADMAP já usava para pôr a F4
 > depois da F3 — "só com o traço real de uso fica claro quais arestas o modelo
