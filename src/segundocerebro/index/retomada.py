@@ -21,6 +21,7 @@ módulo sai sem fazer nada. Duas passadas simultâneas duplicariam cada vetor.
 from __future__ import annotations
 
 import argparse
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -32,7 +33,7 @@ from .progresso import ler
 
 log = get_logger("index.retomada")
 
-INACABADOS = frozenset({"preparando", "indexando", "interrompida"})
+INACABADOS = frozenset({"preparando", "indexando", "interrompida", "pausada"})
 """Status que significam "não terminou".
 
 `indexando` gravado num arquivo em repouso é o mais informativo dos três: quer
@@ -73,12 +74,58 @@ def linha_da_tarefa(raiz: Path) -> str:
     """O comando que a tarefa agendada roda no logon.
 
     `cmd /c` com `cd` porque a tarefa nasce em `C:\\Windows\\system32`, e o
-    `PYTHONPATH` relativo do projeto não significa nada de lá.
+    `PYTHONPATH` relativo do projeto não significa nada de lá. O `src` sai
+    absoluto pela mesma razão. `SEGUNDOCEREBRO_PROVIDER` é copiado do ambiente
+    de quem instalou — neste desktop, `cuda` — para a retomada não cair na CPU
+    depois do reinício.
     """
-    return (
-        f'cmd /c "cd /d "{raiz}" && set PYTHONPATH=src && '
-        f'"{sys.executable}" -m segundocerebro.index.retomada"'
-    )
+    src = raiz / "src"
+    partes = [f'cd /d "{raiz}"', f'set PYTHONPATH={src}']
+    provider = os.environ.get("SEGUNDOCEREBRO_PROVIDER", "").strip()
+    if provider:
+        partes.append(f"set SEGUNDOCEREBRO_PROVIDER={provider}")
+    partes.append(f'"{sys.executable}" -m segundocerebro.index.retomada')
+    return "cmd /c \"" + " && ".join(partes) + "\""
+
+
+def tarefa_instalada() -> bool:
+    """A tarefa de logon existe? `schtasks` ausente (não-Windows) é 'não'."""
+    try:
+        bruto = subprocess.run(
+            ["schtasks", "/Query", "/TN", NOME_DA_TAREFA],
+            check=False,
+            capture_output=True,
+        )
+    except FileNotFoundError:
+        return False
+    return bruto.returncode == 0
+
+
+def agendar(*, instalar: bool) -> int:
+    """Cria ou remove a tarefa de logon, via `schtasks`.
+
+    Mexer no agendador do sistema é mudança que sobrevive à sessão, então mora
+    atrás de uma flag explícita — nunca acontece porque alguém rodou a retomada.
+    """
+    raiz = Path(__file__).resolve().parent.parent.parent.parent
+    if instalar:
+        comando = [
+            "schtasks", "/Create", "/F",
+            "/TN", NOME_DA_TAREFA,
+            "/TR", linha_da_tarefa(raiz),
+            "/SC", "ONLOGON",
+            "/RL", "LIMITED",
+        ]
+    else:
+        comando = ["schtasks", "/Delete", "/F", "/TN", NOME_DA_TAREFA]
+
+    resultado = subprocess.run(comando, check=False, capture_output=True)  # noqa: S603
+    if resultado.returncode != 0:
+        detalhe = (resultado.stderr or resultado.stdout).decode("oem", errors="replace").strip()
+        log.error("schtasks falhou: %s", detalhe)
+        return 2
+    log.info("tarefa '%s' %s", NOME_DA_TAREFA, "criada" if instalar else "removida")
+    return 0
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -97,7 +144,7 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     if args.instalar or args.desinstalar:
-        return _agendar(instalar=args.instalar)
+        return agendar(instalar=args.instalar)
 
     try:
         conf = carregar(args.config)
@@ -135,32 +182,6 @@ def main(argv: list[str] | None = None) -> int:
         resultado = subprocess.run(comando, check=False)  # noqa: S603
         if resultado.returncode != 0:
             log.warning("retomada da base '%s' saiu com código %s", base.id, resultado.returncode)
-    return 0
-
-
-def _agendar(*, instalar: bool) -> int:
-    """Cria ou remove a tarefa de logon, via `schtasks`.
-
-    Mexer no agendador do sistema é mudança que sobrevive à sessão, então mora
-    atrás de uma flag explícita — nunca acontece porque alguém rodou a retomada.
-    """
-    raiz = Path(__file__).resolve().parent.parent.parent.parent
-    if instalar:
-        comando = [
-            "schtasks", "/Create", "/F",
-            "/TN", NOME_DA_TAREFA,
-            "/TR", linha_da_tarefa(raiz),
-            "/SC", "ONLOGON",
-            "/RL", "LIMITED",
-        ]
-    else:
-        comando = ["schtasks", "/Delete", "/F", "/TN", NOME_DA_TAREFA]
-
-    resultado = subprocess.run(comando, check=False, capture_output=True, text=True)  # noqa: S603
-    if resultado.returncode != 0:
-        log.error("schtasks falhou: %s", (resultado.stderr or resultado.stdout).strip())
-        return 2
-    log.info("tarefa '%s' %s", NOME_DA_TAREFA, "criada" if instalar else "removida")
     return 0
 
 

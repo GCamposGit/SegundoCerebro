@@ -2,6 +2,13 @@
 
 Guia de desenvolvimento para o Claude Code neste projeto.
 
+Há um segundo setup (desktop com duas 980 Ti, corpus novo, Grok Build). Antes
+de qualquer trabalho neste notebook: ler
+[`docs/colaboracao.md`](docs/colaboracao.md) e a skill
+[`.claude/skills/segundo-cerebro-notebook/SKILL.md`](.claude/skills/segundo-cerebro-notebook/SKILL.md).
+Não editar o laço do indexador nem `embeddings.py` enquanto a F3.6 estiver
+aberta no desktop.
+
 ---
 
 ## O que é este projeto

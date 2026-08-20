@@ -33,12 +33,20 @@ from pathlib import Path
 from segundocerebro.logger import get_logger
 from segundocerebro.retrieve.hybrid import BuscaHibrida
 
-from .harness import K_MRR, Resultado, avaliar, carregar_perguntas, conferir_base, verificar_escopo
+from .harness import (
+    GOLDEN,
+    K_MRR,
+    Resultado,
+    avaliar,
+    carregar_perguntas,
+    conferir_base,
+    resolver_dourado,
+    verificar_escopo,
+)
 
 log = get_logger("eval.varredura")
 
 REPO = Path(__file__).resolve().parent.parent
-GOLDEN = REPO / "eval" / "golden" / "perguntas.jsonl"
 
 PESOS = (0.0, 0.25, 0.5, 1.0)
 """Valores testados para cada um dos três ranqueadores.
@@ -251,7 +259,15 @@ def main(argv: list[str] | None = None) -> int:
         log.error("índice vazio em %s", indice)
         return 2
 
-    perguntas = carregar_perguntas(args.golden or base.dourado or GOLDEN)
+    implicito = args.golden is None and base.dourado is None
+    try:
+        dourado, aviso = resolver_dourado(args.golden or base.dourado or GOLDEN, implicito=implicito)
+    except FileNotFoundError as erro:
+        log.error("%s", erro)
+        return 2
+    if aviso:
+        log.warning("%s", aviso)
+    perguntas = carregar_perguntas(dourado)
     try:
         conferir_base(perguntas, base.id)
     except ValueError as erro:

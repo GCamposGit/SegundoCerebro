@@ -49,6 +49,7 @@ desktop.ini
 # o checkpoint no ROADMAP.md sobre como isso deve funcionar para quem instalar
 # o sistema.
 eval/golden/perguntas.jsonl
+eval/golden/empresas.jsonl
 docs/ablacao-bm25-com-nome.md
 docs/ablacao-bm25-sem-nome.md
 docs/ablacao-denso-com-nome.md

@@ -137,6 +137,11 @@ code { font-family: ui-monospace, "Cascadia Code", monospace; font-size: 12px; }
       </div>
       <div id="idxArquivo" class="via"></div>
       <div id="idxAviso"></div>
+      <div class="linha" id="idxControles" style="margin-top:12px">
+        <button id="idxPausar">Pausar</button>
+        <button id="idxContinuar" class="oculto">Continuar</button>
+        <button id="idxCancelar">Cancelar</button>
+      </div>
     </div>
   </div>
 
@@ -233,6 +238,16 @@ code { font-family: ui-monospace, "Cascadia Code", monospace; font-size: 12px; }
       Leve cede a vez ao que está em primeiro plano e recusa rodar na bateria.
       Isto não passa pelo "medir antes de salvar": muda a velocidade da
       indexação, nunca o que entra no índice.
+    </p>
+    <div class="linha" style="margin-top:14px">
+      <label>
+        <input type="checkbox" id="retomadaLogon">
+        Retomar indexação ao ligar o computador
+      </label>
+    </div>
+    <p class="sub" style="margin:8px 0 0">
+      Tarefa opcional no logon. Se um run ficou pela metade, continua sozinho
+      no perfil leve. Não cria um segundo indexador se já houver um vivo.
     </p>
     <details style="margin-top:14px">
       <summary>Pastas desta base — para quando o índice vier de outra máquina</summary>
@@ -520,6 +535,7 @@ $("salvarDourado").onclick = async () => {
 $("salvarMaquina").onclick = async () => {
   try {
     await api("/api/maquina", { perfil: $("perfilMaquina").value });
+    await api("/api/retomada", { instalar: $("retomadaLogon").checked });
     recado("Esforço salvo. Vale para a próxima indexação.", "ok");
   } catch (e) { recado(e.message); }
 };
@@ -542,8 +558,22 @@ async function mostrarRegistro() {
 }
 
 const ROTULO_STATUS = {
-  preparando: "preparando", indexando: "indexando",
+  preparando: "preparando", indexando: "indexando", pausada: "pausada",
   concluida: "concluída", interrompida: "interrompida", falhou: "falhou",
+};
+
+async function pedirComando(acao) {
+  try {
+    await api("/api/comando", { base: $("base").value, acao });
+    await atualizarIndexacao();
+  } catch (e) { recado(e.message); }
+}
+$("idxPausar").onclick = () => pedirComando("pausar");
+$("idxContinuar").onclick = () => pedirComando("retomar");
+$("idxCancelar").onclick = () => {
+  if (confirm("Cancelar a indexação? O documento em andamento termina e o resto espera a próxima passada.")) {
+    pedirComando("cancelar");
+  }
 };
 
 async function atualizarIndexacao() {
@@ -555,6 +585,10 @@ async function atualizarIndexacao() {
   $("indexacao").classList.remove("oculto");
 
   const rodando = p.status === "indexando" || p.status === "preparando";
+  const pausada = p.status === "pausada";
+  $("idxPausar").classList.toggle("oculto", !rodando);
+  $("idxContinuar").classList.toggle("oculto", !pausada);
+  $("idxCancelar").classList.toggle("oculto", !(rodando || pausada));
   const pct = Math.round((p.fracao || 0) * 100);
   $("barraCheia").style.width = pct + "%";
   $("barraCheia").parentElement.classList.toggle("parada", !rodando);
@@ -580,6 +614,7 @@ async function carregarEstado() {
   const e = await api("/api/estado");
   bases = e.bases;
   if (e.maquina?.perfil) $("perfilMaquina").value = e.maquina.perfil;
+  if (typeof e.retomada_logon === "boolean") $("retomadaLogon").checked = e.retomada_logon;
   const anterior = $("base").value;
   $("base").innerHTML = bases.map((b) => `<option value="${b.id}">${b.nome}</option>`).join("");
   if (anterior && bases.some((b) => b.id === anterior)) $("base").value = anterior;

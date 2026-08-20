@@ -27,16 +27,22 @@ from pathlib import Path
 
 from segundocerebro.config import ErroDeConfig, carregar
 from segundocerebro.logger import get_logger
-from segundocerebro.retrieve.hybrid import BuscaHibrida
 from segundocerebro.retrieve.rerank import CANDIDATOS_PARA_RERANK
 
 from .baselines import BuscaPorNomeDeArquivo
-from .harness import avaliar, carregar_perguntas, conferir_base, render_markdown, verificar_escopo
+from .harness import (
+    GOLDEN,
+    avaliar,
+    carregar_perguntas,
+    conferir_base,
+    render_markdown,
+    resolver_dourado,
+    verificar_escopo,
+)
 
 log = get_logger("eval")
 
 REPO = Path(__file__).resolve().parent.parent
-GOLDEN = REPO / "eval" / "golden" / "perguntas.jsonl"
 
 PESO_RERANK_DA_FLAG = 0.25
 """Voz usada quando `--rerank` é pedido numa base que não configura o peso.
@@ -57,6 +63,7 @@ def _montar(args, cfg):  # noqa: ANN001
 
     from segundocerebro.index.embeddings import Embedder
     from segundocerebro.index.store import Store
+    from segundocerebro.retrieve.hybrid import BuscaHibrida
 
     indice = args.indice or args.base_cfg.indice
     embedder = Embedder(args.modelo or args.base_cfg.modelo, threads=args.threads)
@@ -178,7 +185,14 @@ def main(argv: list[str] | None = None) -> int:
         return 2
 
     cfg = args.base_cfg.censo()
-    dourado = args.golden or args.base_cfg.dourado or GOLDEN
+    implicito = args.golden is None and args.base_cfg.dourado is None
+    try:
+        dourado, aviso = resolver_dourado(args.golden or args.base_cfg.dourado or GOLDEN, implicito=implicito)
+    except FileNotFoundError as erro:
+        log.error("%s", erro)
+        return 2
+    if aviso:
+        log.warning("%s", aviso)
     perguntas = carregar_perguntas(dourado)
     try:
         conferir_base(perguntas, args.base_cfg.id)

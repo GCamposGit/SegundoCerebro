@@ -170,6 +170,7 @@ def test_base_declarada_e_igual_passa(tmp_path: Path) -> None:
     conferir_base(carregar_perguntas(alvo), "trabalho")
 
 
+@pytest.mark.skipif(not GOLDEN.exists(), reason="perguntas.jsonl não é versionado")
 def test_o_conjunto_real_carrega_com_o_campo_novo() -> None:
     """O campo é opcional — as 51 perguntas existentes não mudam."""
     from .harness import carregar_perguntas

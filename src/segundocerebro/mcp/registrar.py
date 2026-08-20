@@ -54,7 +54,13 @@ subiria com `ModuleNotFoundError: segundocerebro`, que o cliente mostra como
 "servidor não conecta": silencioso quanto à causa, que é o pior modo de falha."""
 
 
-def entrada_de(base, *, nomear: bool = True, absoluto: bool = False) -> dict[str, Any]:  # noqa: ANN001
+def entrada_de(
+    base,  # noqa: ANN001
+    *,
+    nomear: bool = True,
+    absoluto: bool = False,
+    python: str = "py",
+) -> dict[str, Any]:
     """`nomear=False` omite `--base`, para a base sintetizada do `census.toml`.
 
     O id sintético (`padrao`) não é escolha de ninguém: some no dia em que o
@@ -65,12 +71,21 @@ def entrada_de(base, *, nomear: bool = True, absoluto: bool = False) -> dict[str
 
     `absoluto=True` fixa `PYTHONPATH`, `--config` e o diretório de trabalho, para
     cliente que não abre na pasta do projeto.
+
+    `python` é o executável. Neste desktop o `py` do PATH é o 3.11 do sistema;
+    o pacote mora no `.venv` 3.12 — sem apontar o venv o cliente sobe um
+    interpretador sem as dependências e o handshake falha em silêncio.
     """
     args = ["-m", "segundocerebro.mcp.server"]
     if nomear:
         args += ["--base", base.id]
     ambiente = dict(AMBIENTE)
-    entrada: dict[str, Any] = {"command": "py", "args": args, "env": ambiente}
+    comando = python
+    if absoluto:
+        candidato = Path(python)
+        if candidato.exists():
+            comando = str(candidato.resolve())
+    entrada: dict[str, Any] = {"command": comando, "args": args, "env": ambiente}
     if absoluto:
         ambiente["PYTHONPATH"] = str(RAIZ / "src")
         args += ["--config", str(RAIZ / "config.toml")]
@@ -80,9 +95,18 @@ def entrada_de(base, *, nomear: bool = True, absoluto: bool = False) -> dict[str
     return entrada
 
 
-def trecho(bases, *, nomear: bool = True, absoluto: bool = False) -> dict[str, Any]:  # noqa: ANN001
+def trecho(
+    bases,  # noqa: ANN001
+    *,
+    nomear: bool = True,
+    absoluto: bool = False,
+    python: str = "py",
+) -> dict[str, Any]:
     return {
-        CHAVE: {b.servidor: entrada_de(b, nomear=nomear, absoluto=absoluto) for b in bases}
+        CHAVE: {
+            b.servidor: entrada_de(b, nomear=nomear, absoluto=absoluto, python=python)
+            for b in bases
+        }
     }
 
 
@@ -122,6 +146,12 @@ def main(argv: list[str] | None = None) -> int:
         help="para quem é o trecho. Fora do claude-code os caminhos saem absolutos, "
         "porque o cliente não abre na pasta do projeto",
     )
+    parser.add_argument(
+        "--python",
+        default="py",
+        help="executável do servidor. Passe o python do .venv quando o `py` do "
+        "PATH não for o da instalação (caso deste desktop: sistema 3.11, venv 3.12)",
+    )
     args = parser.parse_args(argv)
 
     try:
@@ -136,6 +166,7 @@ def main(argv: list[str] | None = None) -> int:
         bases,
         nomear=conf.caminho is not None or len(conf.bases) > 1,
         absoluto=args.cliente not in RELATIVO,
+        python=args.python,
     )
     if args.cliente not in RELATIVO:
         log.info("cole em: %s", CLIENTES[args.cliente])

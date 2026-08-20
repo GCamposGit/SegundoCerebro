@@ -1,0 +1,28 @@
+# Base de colaboração — corpus fictício versionado.
+# Não substitui config.toml (caminhos reais, não versionado).
+#
+#   py -m segundocerebro.index.indexer --config config.sintetico.toml --base sintetico
+#   py -m eval.rodar --config config.sintetico.toml --base sintetico --retriever baseline
+#
+# Neste desktop (980 Ti): MiniLM quantizado produz NaN no CUDA. Use e5-large:
+#   set SEGUNDOCEREBRO_PROVIDER=cuda
+#   .\.venv\Scripts\python.exe -m segundocerebro.index.indexer --config config.sintetico.toml --base sintetico --modelo e5-large
+
+versao = 1
+
+[maquina]
+perfil = "completo"
+
+[padrao]
+modelo = "minilm"
+
+[[base]]
+id = "sintetico"
+nome = "Várzea Clara Energia (sintético)"
+descricao = "Corpus fictício de colaboração. Não é o acervo corporativo nem o acervo privado do desktop."
+indice = "index-sintetico"
+dourado = "eval/golden/perguntas.example.jsonl"
+modelo = "minilm"
+raizes = [
+    { nome = "sintetico", caminho = "eval/sintetico/corpus" },
+]

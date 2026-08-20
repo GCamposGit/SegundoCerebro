@@ -141,10 +141,13 @@ def criar_app(
             # Configuração ilegível é erro do usuário, não defeito do servidor:
             # devolver 500 esconderia a mensagem que diz como consertar.
             return JSONResponse({"erro": str(erro), "bases": []}, status_code=400)
+        from ..index.retomada import tarefa_instalada
+
         return JSONResponse(
             {
                 "config": str(caminho_config),
                 "maquina": dict(conf.maquina.__dict__),
+                "retomada_logon": tarefa_instalada(),
                 "bases": [
                     {
                         "id": b.id,
@@ -452,6 +455,67 @@ def criar_app(
         log.info("base '%s' criada em %s", id_, caminho_config)
         return JSONResponse({"id": id_, "indice": str(nova.indice)})
 
+    async def retomada(request: Request) -> JSONResponse:
+        """Liga ou desliga a tarefa de logon. Nunca instala sozinha.
+
+        A invariante 6 continua: o painel não indexa daqui. Só grava no
+        agendador o mesmo comando de `py -m segundocerebro.index.retomada
+        --instalar`. Sem esta rota a F3.5-D ficava atrás de um flag de CLI
+        que quem não programa não acha.
+        """
+        if not autorizado(request):
+            return JSONResponse({"erro": "token inválido"}, status_code=403)
+        from ..index.retomada import agendar, tarefa_instalada
+
+        if request.method == "GET":
+            return JSONResponse({"instalada": tarefa_instalada()})
+        corpo = await request.json()
+        if "instalar" not in corpo:
+            return JSONResponse({"erro": "informe instalar true ou false"}, status_code=400)
+        codigo = agendar(instalar=bool(corpo["instalar"]))
+        if codigo != 0:
+            return JSONResponse(
+                {"erro": "o agendador do Windows recusou a tarefa"}, status_code=500
+            )
+        return JSONResponse({"instalada": bool(corpo["instalar"])})
+
+    async def comando(request: Request) -> JSONResponse:
+        """Pausa, continua ou cancela. Só grava um arquivo; o indexador obedece.
+
+        O painel não mata o processo. Matar perderia o documento em voo; o
+        pedido deixa o commit do atual terminar. Sem indexação viva, recusa —
+        um `comando.txt` órfão na próxima largada seria apagado de qualquer jeito.
+        """
+        if not autorizado(request):
+            return JSONResponse({"erro": "token inválido"}, status_code=403)
+        corpo = await request.json()
+        acao = (corpo.get("acao") or "").strip()
+        try:
+            conf = _config()
+            base = _base(conf, corpo)
+        except ErroDeConfig as erro:
+            return JSONResponse({"erro": str(erro)}, status_code=400)
+
+        from ..index.comando import CANCELAR, PAUSAR, ler, limpar, pedir
+
+        viva = (base.indice / NOME_DA_TRAVA).exists()
+        if acao in {PAUSAR, CANCELAR} and not viva:
+            return JSONResponse(
+                {"erro": f"a base '{base.id}' não está sendo indexada"}, status_code=409
+            )
+        if acao == PAUSAR:
+            pedir(base.indice, PAUSAR)
+        elif acao == CANCELAR:
+            pedir(base.indice, CANCELAR)
+        elif acao == "retomar":
+            if ler(base.indice) == PAUSAR:
+                limpar(base.indice)
+        else:
+            return JSONResponse(
+                {"erro": "acao deve ser pausar, retomar ou cancelar"}, status_code=400
+            )
+        return JSONResponse({"base": base.id, "acao": acao, "comando": ler(base.indice)})
+
     async def indexar(request: Request) -> JSONResponse:
         """Dispara o indexador como processo **independente**.
 
@@ -534,6 +598,8 @@ def criar_app(
             Route("/api/censo", censo, methods=["POST"]),
             Route("/api/base", criar_base, methods=["POST"]),
             Route("/api/indexar", indexar, methods=["POST"]),
+            Route("/api/comando", comando, methods=["POST"]),
+            Route("/api/retomada", retomada, methods=["GET", "POST"]),
             Route("/api/registro", registro),
             Route("/api/medir", medir, methods=["POST"]),
             Route("/api/salvar", salvar, methods=["POST"]),

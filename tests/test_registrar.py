@@ -168,3 +168,13 @@ def test_o_json_gerado_e_valido_e_completo(tmp_path, capsys, monkeypatch, base_i
     entrada = json.loads(capsys.readouterr().out)[CHAVE][f"segundocerebro-{base_id}"]
     assert entrada["command"] == "py"
     assert base_id in entrada["args"]
+
+
+def test_python_do_venv_entra_no_comando(tmp_path, capsys, monkeypatch):
+    monkeypatch.delenv("SEGUNDOCEREBRO_BASE", raising=False)
+    cfg = escrever_config(tmp_path, DUAS_BASES)
+    exe = tmp_path / "python.exe"
+    exe.write_text("", encoding="utf-8")
+    main(["--config", str(cfg), "--base", "trabalho", "--python", str(exe)])
+    entrada = json.loads(capsys.readouterr().out)[CHAVE]["segundocerebro-trabalho"]
+    assert entrada["command"] == str(exe)

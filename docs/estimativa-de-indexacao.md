@@ -102,6 +102,15 @@ qualquer um dos três invalida a tabela. Por isso ela é **semente**, não verda
 o estimador recalibra por formato com média móvel exponencial sobre os
 documentos do próprio run, e a tabela só governa os primeiros minutos.
 
+### Semente em GPU (desktop, 19/08/2026)
+
+A tabela é do notebook (i7-1355U, 15 W, CPU). No desktop, a mesma semente
+abriu a barra da base empresas em **5–11 h**; o run real levou **637 s
+ativos** (7.873 chunks, e5-large, uma 980 Ti, parse em threads). Razão
+medida: **~28×**. Com `SEGUNDOCEREBRO_PROVIDER=cuda` o estimador divide a
+semente por `FATOR_GPU = 28` e deixa a média móvel tomar conta depois. Não
+entra em `model_id`.
+
 Amortecer é requisito, não refinamento: estimativa que salta a cada documento é
 lida como "o programa não sabe", e o usuário perde a confiança que a barra
 existia para criar.

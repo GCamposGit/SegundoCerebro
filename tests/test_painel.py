@@ -41,7 +41,7 @@ def medicoes_feitas() -> list:
 
 
 @pytest.fixture
-def cliente(caminho: Path, medicoes_feitas: list):
+def cliente(caminho: Path, medicoes_feitas: list, monkeypatch: pytest.MonkeyPatch):
     from starlette.testclient import TestClient
 
     def medidor(base, pesos, busca):  # noqa: ANN001, ANN202
@@ -50,6 +50,8 @@ def cliente(caminho: Path, medicoes_feitas: list):
 
     def diagnosticador(base, pesos, busca, consulta):  # noqa: ANN001, ANN202
         return {"trechos": [{"arquivo": "a.pdf", "texto": consulta, "achado_por": "denso"}]}
+
+    monkeypatch.setattr("segundocerebro.index.retomada.tarefa_instalada", lambda: False)
 
     return TestClient(
         criar_app(caminho, medidor=medidor, diagnosticador=diagnosticador, token=TOKEN)
@@ -522,6 +524,38 @@ def test_registro_devolve_o_trecho_de_mcp_json(cliente) -> None:
     assert servidores["segundocerebro-trabalho"]["command"] == "py"
 
 
+def test_comando_exige_token(cliente) -> None:
+    assert cliente.post("/api/comando", json={"acao": "pausar"}).status_code == 403
+
+
+def test_comando_recusa_sem_indexacao_viva(cliente) -> None:
+    r = cliente.post(
+        "/api/comando", json={"base": "trabalho", "acao": "pausar"}, headers=cabecalho()
+    )
+    assert r.status_code == 409
+    assert "não está sendo indexada" in r.json()["erro"]
+
+
+def test_comando_grava_o_arquivo_ao_lado_do_indice(cliente, caminho: Path) -> None:
+    from segundocerebro.index.comando import ler
+
+    indice = caminho.parent / "it"
+    indice.mkdir(exist_ok=True)
+    (indice / "indexacao.lock").write_text("1", encoding="utf-8")
+
+    r = cliente.post(
+        "/api/comando", json={"base": "trabalho", "acao": "pausar"}, headers=cabecalho()
+    )
+    assert r.status_code == 200
+    assert ler(indice) == "pausar"
+
+    r = cliente.post(
+        "/api/comando", json={"base": "trabalho", "acao": "retomar"}, headers=cabecalho()
+    )
+    assert r.status_code == 200
+    assert ler(indice) is None
+
+
 def test_indexar_recusa_base_ja_indexando(cliente, caminho: Path) -> None:
     """A trava é do indexador; o painel só não deve pedir o que vai falhar."""
     (caminho.parent / "it").mkdir(exist_ok=True)
@@ -538,6 +572,34 @@ def test_estagio_zero_exige_token(cliente, rota: str) -> None:
 
 def test_registro_exige_token(cliente) -> None:
     assert cliente.get("/api/registro").status_code == 403
+
+
+def test_retomada_exige_token(cliente) -> None:
+    assert cliente.get("/api/retomada").status_code == 403
+    assert cliente.post("/api/retomada", json={"instalar": True}).status_code == 403
+
+
+def test_retomada_instala_via_modulo_nao_sozinha(cliente, monkeypatch) -> None:
+    """O painel não cria a tarefa no GET. POST explícito chama agendar."""
+    chamadas = []
+    monkeypatch.setattr(
+        "segundocerebro.index.retomada.agendar",
+        lambda *, instalar: chamadas.append(instalar) or 0,
+    )
+    monkeypatch.setattr("segundocerebro.index.retomada.tarefa_instalada", lambda: False)
+
+    assert cliente.get("/api/retomada", headers=cabecalho()).json() == {"instalada": False}
+    assert chamadas == []
+
+    r = cliente.post("/api/retomada", json={"instalar": True}, headers=cabecalho())
+    assert r.status_code == 200 and r.json()["instalada"] is True
+    assert chamadas == [True]
+
+
+def test_estado_diz_se_a_retomada_de_logon_esta_ligada(cliente, monkeypatch) -> None:
+    monkeypatch.setattr("segundocerebro.index.retomada.tarefa_instalada", lambda: True)
+    dados = cliente.get("/api/estado", headers=cabecalho()).json()
+    assert dados["retomada_logon"] is True
 
 
 # --- conjunto dourado crescendo do uso real -----------------------------------

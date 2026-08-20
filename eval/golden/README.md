@@ -60,5 +60,35 @@ não existe lá. O mesmo vale para os relatórios de ablação e métricas em `d
 que citam essas perguntas por conteúdo.
 
 Isso deixa uma pendência para quem for instalar o sistema do zero: como validar
-que a recuperação funciona sem um conjunto dourado pronto? Ver o checkpoint
-correspondente no `ROADMAP.md`.
+que a recuperação funciona sem um conjunto dourado pronto? Resolvida em
+19/08/2026 — ver abaixo.
+
+## Clone fresco — o exemplo sintético
+
+`perguntas.example.jsonl` + `eval/sintetico/corpus/` + `config.sintetico.toml`.
+Empresa fictícia (Várzea Clara Energia). Não mede o acervo de ninguém; demonstra
+o formato e dá uma régua ao CI. Regras e fronteira em
+[`docs/colaboracao.md`](../../docs/colaboracao.md) §5.
+
+```bash
+py -m eval.sintetico.gerar          # regenera os arquivos, se precisar
+py -m eval.rodar --config config.sintetico.toml --base sintetico
+```
+
+`eval.rodar` sem `perguntas.jsonl` e sem `--golden` **avisa** e cai no exemplo.
+Um caminho explícito que não existe continua sendo erro — substituir em
+silêncio mediria o corpus errado.
+
+## Escreva as primeiras 10 perguntas do *seu* acervo
+
+O exemplo não substitui isto. Um conjunto dourado só funciona sobre os
+arquivos de quem o escreveu.
+
+1. Dez perguntas que você faria de verdade, não que soam bem.
+2. Abra a fonte e confirme. Palpite a partir do nome entra como `"validada": false`.
+3. Cubra os quatro tipos: uns 3 `exato` (código, sigla), 4 `semantica`
+   (vocabulário diferente), 2 `temporal` / armadilha de versão, 1 `multihop`.
+4. Grave em `eval/golden/perguntas.jsonl` (ou no `dourado` da base). Esse
+   arquivo não se publica — já está no `.gitignore`.
+5. Meça: `py -m eval.rodar --base SUA_BASE --retriever baseline`, depois
+   `--retriever hibrido`. Sem os dois números, a mudança não entra.

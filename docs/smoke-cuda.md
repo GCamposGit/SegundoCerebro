@@ -1,0 +1,91 @@
+# Smoke CUDA — 19/08/2026
+
+Comando, neste desktop, **pelo venv**:
+
+```bash
+.\.venv\Scripts\python.exe -m segundocerebro.index.smoke_cuda --embed
+# padrão: e5-large. MiniLM quantizado devolve NaN neste hardware.
+```
+
+## O que não se mexeu
+
+| | |
+|---|---|
+| Driver | **582.28** (antes e depois) |
+| `python` no PATH | 3.11.9 |
+| Toolkit NVIDIA de sistema | não instalado |
+| `winget Nvidia.CUDA` | **não** — hoje é 13.3 |
+
+Python 3.12.10 entrou ao lado, sem prepend no PATH. O `py` launcher passou a
+apontar 3.12 por ser o mais novo; outros projetos que usam `python` continuam
+no 3.11. Este repo usa `.venv`.
+
+Disco C: 16,7 GB livres → 9,4 GB. Os pacotes nvidia-* ficam no `.venv`.
+
+## Resultado que vale
+
+`onnxruntime-gpu==1.18.0` + CUDA 11.8 + cuDNN 8.9.5, vendidos por pip.
+
+```
+session providers ['CUDAExecutionProvider', 'CPUExecutionProvider']
+e5-large: 2 vetores, dim 1024, finitos
+```
+
+O MiniLM multilíngue do `fastembed` é **quantizado** (`onnx-Q`). No Maxwell o
+forward passa sem exceção e devolve **NaN** — o smoke antigo olhava só a
+dimensão e dava ok. `embed_passagens` agora recusa NaN.
+
+`e5-large` usa `model.onnx` cheio: 11 documentos sintéticos, 18 chunks,
+`model_id = e5-large:1024:fastembed0.8.0` (sem `cuda`). Hybrid no conjunto
+sintético: recall@1 **0,850** / recall@10 **1,000** (n=10, `corpus=sintetico`
+— não é a condição C).
+
+Pipeline (19/08): parse em N threads. Com uma placa, embed+commit na
+principal. Com duas, `EmbedFila` sobe um processo por GPU
+(`CUDA_VISIBLE_DEVICES`) e a principal **não** carrega o encoder — e5-large
+já enche uma 980 Ti de 6 GB.
+
+```
+.\.venv\Scripts\python.exe -m segundocerebro.index.smoke_cuda --pool
+# pool ok: 2 GPUs, 2 vetores, dim 1024, finitos
+# model_id = e5-large:1024:fastembed0.8.0  (sem cuda)
+```
+
+Indexador no sintético, duas placas, `--modelo e5-large` (o MiniLM da
+`config.sintetico.toml` continua NaN no Maxwell — recusado, não gravado):
+11 documentos, 18 chunks, 7 s. `model_id` idêntico ao da CPU.
+
+`Embedder` e o indexador recusam MiniLM com `PROVIDER=cuda` **antes** de
+abrir a sessão: o forward pass sem exceção era o modo de falha pior.
+
+ORT coloca ops de *shape* na CPU de propósito. A lista do `TextEmbedding` no
+smoke é **só** `CUDAExecutionProvider`.
+
+## O que falhou, e por quê
+
+| Tentativa | O que aconteceu |
+|-----------|-----------------|
+| MiniLM quantizado (`onnx-Q`) no CUDA | Forward sem exceção, **todos** os vetores NaN. LanceDB recusa gravar. |
+| ORT 1.26.0 + CUDA 12.8 + cuDNN 9 | EP aparece. `ReduceSum` morre: `CUDNN_STATUS_EXECUTION_FAILED_CUDART`. cuDNN 9 largou Maxwell. |
+| ORT 1.18.0 + CUDA 12.9/cuDNN 8 pip | `LoadLibrary` 126 em `onnxruntime_providers_cuda.dll`. O 1.18.0 do PyPI é **CUDA 11**, não 12. |
+| ORT ≥ 1.27 | CUDA 13. `sm_52` saiu. Nem tentar. |
+| `nvidia-smi` “CUDA Version: 13.0” | Teto do **driver**, não toolkit instalado. Não autoriza instalar CUDA 13. |
+
+## Pin
+
+`requirements-gpu.txt`. Depois de `pip install -r requirements.txt`:
+
+```
+pip uninstall -y onnxruntime
+pip install -r requirements-gpu.txt
+```
+
+`fastembed` puxa o `onnxruntime` CPU (1.29 em 19/08) e tapa o GPU.
+
+Para indexar neste desktop:
+
+```
+set SEGUNDOCEREBRO_PROVIDER=cuda
+```
+
+`model_id` não muda.

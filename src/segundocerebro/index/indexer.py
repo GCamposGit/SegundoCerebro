@@ -1,4 +1,10 @@
-"""Indexing: walk, parse, chunk, embed, store — resumable per document.
+"""Indexing: walk, parse (pipeline), chunk, embed, store — resumable per document.
+
+Parse workers feed a queue. On CPU, embed and commit stay on the main thread
+so a crash still loses at most one document. With SEGUNDOCEREBRO_PROVIDER=cuda
+and ≥2 GPUs, each card gets its own process (ONNX will not split a session)
+and the main process never loads the encoder — e5-large already fills one
+6 GB 980 Ti.
 
     py -m segundocerebro.index.indexer --config census.toml --modelo minilm
 
@@ -24,17 +30,21 @@ import os
 import signal
 import sys
 import time
+from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from ..census import Config, iter_files
 from ..config import ErroDeConfig, carregar
 from ..ingest.chunking import CHUNKER_VERSION, ChunkConfig, chunk_document
-from ..ingest.document import ParseStatus
+from ..ingest.document import ParseResult, ParseStatus
 from ..ingest.reader import parse_file
 from ..logger import get_logger
 from .embeddings import MODELOS, Embedder
+from .gpu_pool import EmbedFila, contar_gpus
 from .esforco import PERFIS_DE_ESFORCO
+from .comando import aguardar as aguardar_comando
+from .comando import limpar as limpar_comando
 from .esforco import aplicar as aplicar_esforco
 from .esforco import na_bateria
 from .estimativa import Estimador, Relogio, faixa_humana
@@ -211,6 +221,20 @@ class _Interrupcao:
             signal.signal(signal.SIGINT, self._anterior)
 
 
+class _FecharFila:
+    """Always join GPU embed workers, including when a job raises."""
+
+    def __init__(self, fila: EmbedFila | None) -> None:
+        self.fila = fila
+
+    def __enter__(self) -> EmbedFila | None:
+        return self.fila
+
+    def __exit__(self, *exc) -> None:  # noqa: ANN002
+        if self.fila is not None:
+            self.fila.fechar()
+
+
 STATUS_PARA_REPESCAR = frozenset(
     {
         ParseStatus.LOCKED.value,
@@ -253,6 +277,24 @@ def _precisa_indexar(estado, arquivo, model_id: str) -> bool:  # noqa: ANN001
     return False
 
 
+def _parse_workers_padrao() -> int:
+    """CUDA: parse while the GPU embeds. CPU: keep the old sequential loop.
+
+    The encoder must not load in a parse worker — on this desktop that would
+    put CUDA into a thread that never uses it and can NaN MiniLM-Q. Workers
+    only call `parse_file`. Chunk + embed stay on the main thread.
+    """
+    if os.environ.get("SEGUNDOCEREBRO_PROVIDER", "").lower() == "cuda":
+        n = os.cpu_count() or 4
+        return max(2, min(8, n // 2))
+    return 1
+
+
+def _parsear_um(path: str, limite_planilha_mb: float | None):
+    """Top-level so ThreadPoolExecutor can pickle it on Windows spawn later."""
+    return parse_file(path, retries=1, espera=0.5, limite_planilha_mb=limite_planilha_mb)
+
+
 def indexar(
     cfg: Config,
     store: Store,
@@ -267,6 +309,7 @@ def indexar(
     limite_planilha_mb: float | None = None,
     publicar: bool = True,
     esforco: dict[str, object] | None = None,
+    parse_workers: int | None = None,
 ) -> Progresso:
     """Index the corpus. `prefixo` restricts to a subtree by **filtering**.
 
@@ -323,14 +366,37 @@ def indexar(
         faixa_humana(estimador.restante()),
     )
 
-    with trava, _Interrupcao() as interrupcao:
+    workers = parse_workers if parse_workers is not None else _parse_workers_padrao()
+    workers = max(1, int(workers))
+    fila: EmbedFila | None = None
+    n_gpus = 0
+    if os.environ.get("SEGUNDOCEREBRO_PROVIDER", "").lower() == "cuda":
+        if getattr(embedder.spec, "id", None) == "minilm":
+            raise RuntimeError(
+                "MiniLM quantizado (onnx-Q) devolve NaN no CUDA deste hardware. "
+                "Use --modelo e5-large; o provider não entra em model_id"
+            )
+        n_gpus = contar_gpus()
+    if n_gpus >= 2:
+        # Main must not load the encoder: e5-large already fills one 6 GB card.
+        cache = getattr(embedder, "_cache_dir", Path("models"))
+        fila = EmbedFila(n_gpus, modelo=embedder.spec.id, cache=cache)
+        chunk_cfg = replace(chunk_cfg, contar_tokens=None)
+        log.info("pipeline: %d parse worker(s) · %d GPUs de embed", workers, n_gpus)
+    else:
+        log.info("pipeline: %d parse worker(s) · embed na thread principal", workers)
+
+    pend_embed: dict = {}
+
+    with (
+        _FecharFila(fila),
+        trava,
+        _Interrupcao() as interrupcao,
+        ThreadPoolExecutor(max_workers=workers) as pool,
+    ):
+        pendentes: list[tuple] = []
         for root, arquivos in trabalho:
             for arquivo in arquivos:
-                relogio.tique()
-                if interrupcao.pedida or (limite is not None and progresso.indexados >= limite):
-                    progresso.interrompido = interrupcao.pedida
-                    break
-
                 # Registrado antes de qualquer decisão de pular: a reconciliação
                 # pergunta "este caminho existe em disco?", e a resposta é sim
                 # mesmo quando o documento já estava indexado e íntegro.
@@ -346,81 +412,127 @@ def indexar(
                     if publicador is not None:
                         publicador.publicar()
                     continue
+                pendentes.append((root, arquivo, estado))
 
+        inflight: dict = {}
+        proximo = 0
+        teto_fila = max(workers * 2, 2)
+
+        def gravar_ok(root, arquivo, estado, resultado, chunks, vetores, comeco) -> None:  # noqa: ANN001
+            store.remover_documento(arquivo.rel)
+            store.gravar_chunks(chunks, vetores, arquivo.mtime, embedder.model_id)
+            store.registrar_documento(
+                path=arquivo.rel,
+                raiz=root.name,
+                tamanho=arquivo.size,
+                mtime=arquivo.mtime,
+                sha256=resultado.sha256,
+                status=ParseStatus.OK.value,
+                n_chunks=len(chunks),
+                model_id=embedder.model_id,
+                chunker=CHUNKER_VERSION,
+                natureza=resultado.natureza,
+            )
+            store.commit()
+            progresso.indexados += 1
+            progresso.chunks += len(chunks)
+            estimador.registrar(arquivo.rel, arquivo.size, time.perf_counter() - comeco)
+            if publicador is not None:
+                publicador.anotar(chunks=progresso.chunks)
+                publicador.publicar()
+            if progresso.indexados % INTERVALO_LOG == 0:
+                decorrido = time.perf_counter() - inicio
+                ritmo = progresso.chunks / decorrido if decorrido else 0
+                log.info(
+                    "%d documentos, %d chunks, %.1f chunks/s · faltam %s",
+                    progresso.indexados,
+                    progresso.chunks,
+                    ritmo,
+                    faixa_humana(estimador.restante()),
+                )
+
+        def fechar_um_embed(*, block: bool) -> bool:
+            if fila is None or not pend_embed:
+                return False
+            got = fila.receber(timeout=None if block else 0.05)
+            if got is None:
+                return False
+            jid, vetores = got
+            root, arquivo, estado, resultado, chunks, comeco = pend_embed.pop(jid)
+            gravar_ok(root, arquivo, estado, resultado, chunks, vetores, comeco)
+            return True
+
+        def honrar_comando() -> None:
+            if aguardar_comando(
+                store.diretorio,
+                relogio=relogio,
+                publicar=(
+                    (lambda s: publicador.publicar(s, forcar=True)) if publicador is not None else None
+                ),
+            ):
+                interrupcao.pedida = True
+
+        def preencher() -> None:
+            nonlocal proximo
+            honrar_comando()
+            while (
+                proximo < len(pendentes)
+                and len(inflight) < teto_fila
+                and not interrupcao.pedida
+                and (limite is None or progresso.indexados < limite)
+            ):
+                root, arquivo, estado = pendentes[proximo]
+                proximo += 1
                 if publicador is not None:
                     publicador.anotar(arquivo=arquivo.rel)
                     publicador.publicar()
-                comeco_do_documento = time.perf_counter()
+                fut = pool.submit(_parsear_um, str(arquivo.path), limite_planilha_mb)
+                inflight[fut] = (root, arquivo, estado, time.perf_counter())
 
-                resultado = parse_file(
-                    arquivo.path, retries=1, espera=0.5, limite_planilha_mb=limite_planilha_mb
-                )
+        def cancelar_resto() -> None:
+            for fut in list(inflight):
+                fut.cancel()
+            inflight.clear()
 
-                if resultado.status is not ParseStatus.OK or resultado.doc is None:
-                    store.remover_documento(arquivo.rel)
-                    store.registrar_documento(
-                        path=arquivo.rel,
-                        raiz=root.name,
-                        tamanho=arquivo.size,
-                        mtime=arquivo.mtime,
-                        sha256=resultado.sha256,
-                        status=resultado.status.value,
-                        detalhe=resultado.detail[:500],
-                        model_id=embedder.model_id,
-                        chunker=CHUNKER_VERSION,
-                        natureza=resultado.natureza,
-                    )
-                    store.commit()
-                    progresso.registrar_falha(resultado.status.value)
-                    # Documento que falhou custou tempo e **tem** que sair do
-                    # restante. Sem isto a barra trava perto do fim e nunca
-                    # fecha: no corpus real 143 dos 1.601 acabam aqui —
-                    # `sem_parser`, `vazio`, `travado`, `adiado`.
-                    estimador.registrar(
-                        arquivo.rel, arquivo.size, time.perf_counter() - comeco_do_documento
-                    )
-                    if publicador is not None:
-                        publicador.publicar()
-                    continue
-
-                # conteúdo idêntico com mtime novo (sincronização, restauração,
-                # cópia de volta): reembeddar seria pagar o caro por nada
-                if (
-                    estado is not None
-                    and estado.sha256
-                    and estado.sha256 == resultado.sha256
-                    and estado.status == ParseStatus.OK.value
-                    and estado.model_id == embedder.model_id
-                    and estado.chunker == CHUNKER_VERSION
-                ):
-                    store.registrar_documento(
-                        path=arquivo.rel,
-                        raiz=root.name,
-                        tamanho=arquivo.size,
-                        mtime=arquivo.mtime,
-                        sha256=resultado.sha256,
-                        status=ParseStatus.OK.value,
-                        n_chunks=estado.n_chunks,
-                        model_id=embedder.model_id,
-                        chunker=CHUNKER_VERSION,
-                        natureza=resultado.natureza,
-                    )
-                    store.commit()
-                    progresso.inalterados += 1
-                    estimador.registrar(
-                        arquivo.rel, arquivo.size, time.perf_counter() - comeco_do_documento
-                    )
-                    if publicador is not None:
-                        publicador.publicar()
-                    continue
-
-                chunks = chunk_document(resultado.doc, arquivo.rel, chunk_cfg)
-                vetores = embedder.embed_passagens([c.embedding_text for c in chunks], batch_size=lote)
-
-                # ordem importa: limpar o que havia antes de inserir mantém a
-                # reindexação idempotente mesmo se cair no meio
+        def aplicar(root, arquivo, estado, resultado, comeco) -> None:  # noqa: ANN001
+            relogio.tique()
+            if resultado.status is not ParseStatus.OK or resultado.doc is None:
                 store.remover_documento(arquivo.rel)
-                store.gravar_chunks(chunks, vetores, arquivo.mtime, embedder.model_id)
+                store.registrar_documento(
+                    path=arquivo.rel,
+                    raiz=root.name,
+                    tamanho=arquivo.size,
+                    mtime=arquivo.mtime,
+                    sha256=resultado.sha256,
+                    status=resultado.status.value,
+                    detalhe=resultado.detail[:500],
+                    model_id=embedder.model_id,
+                    chunker=CHUNKER_VERSION,
+                    natureza=resultado.natureza,
+                )
+                store.commit()
+                progresso.registrar_falha(resultado.status.value)
+                # Documento que falhou custou tempo e **tem** que sair do
+                # restante. Sem isto a barra trava perto do fim e nunca
+                # fecha: no corpus real 143 dos 1.601 acabam aqui —
+                # `sem_parser`, `vazio`, `travado`, `adiado`.
+                estimador.registrar(
+                    arquivo.rel, arquivo.size, time.perf_counter() - comeco
+                )
+                if publicador is not None:
+                    publicador.publicar()
+                return
+
+            # conteúdo idêntico com mtime novo (sincronização, restauração,
+            # cópia de volta): reembeddar seria pagar o caro por nada
+            if (
+                estado is not None
+                and estado.sha256
+                and estado.sha256 == resultado.sha256
+                and estado.status == ParseStatus.OK.value
+                and estado.model_id == embedder.model_id
+                and estado.chunker == CHUNKER_VERSION
+            ):
                 store.registrar_documento(
                     path=arquivo.rel,
                     raiz=root.name,
@@ -428,35 +540,64 @@ def indexar(
                     mtime=arquivo.mtime,
                     sha256=resultado.sha256,
                     status=ParseStatus.OK.value,
-                    n_chunks=len(chunks),
+                    n_chunks=estado.n_chunks,
                     model_id=embedder.model_id,
                     chunker=CHUNKER_VERSION,
                     natureza=resultado.natureza,
                 )
                 store.commit()
-
-                progresso.indexados += 1
-                progresso.chunks += len(chunks)
-                # Só documento realmente processado calibra a estimativa.
+                progresso.inalterados += 1
                 estimador.registrar(
-                    arquivo.rel, arquivo.size, time.perf_counter() - comeco_do_documento
+                    arquivo.rel, arquivo.size, time.perf_counter() - comeco
                 )
                 if publicador is not None:
-                    publicador.anotar(chunks=progresso.chunks)
                     publicador.publicar()
+                return
 
-                if progresso.indexados % INTERVALO_LOG == 0:
-                    decorrido = time.perf_counter() - inicio
-                    ritmo = progresso.chunks / decorrido if decorrido else 0
-                    log.info(
-                        "%d documentos, %d chunks, %.1f chunks/s · faltam %s",
-                        progresso.indexados,
-                        progresso.chunks,
-                        ritmo,
-                        faixa_humana(estimador.restante()),
+            chunks = chunk_document(resultado.doc, arquivo.rel, chunk_cfg)
+            if fila is not None:
+                while len(pend_embed) >= n_gpus:
+                    fechar_um_embed(block=True)
+                jid = fila.submit([c.embedding_text for c in chunks], lote)
+                pend_embed[jid] = (root, arquivo, estado, resultado, chunks, comeco)
+                return
+            vetores = embedder.embed_passagens(
+                [c.embedding_text for c in chunks], batch_size=lote
+            )
+            gravar_ok(root, arquivo, estado, resultado, chunks, vetores, comeco)
+
+        limpar_comando(store.diretorio)
+        preencher()
+        while inflight:
+            concluidos, _ = wait(inflight, return_when=FIRST_COMPLETED)
+            for fut in concluidos:
+                root, arquivo, estado, comeco = inflight.pop(fut)
+                try:
+                    resultado = fut.result()
+                except Exception as erro:  # noqa: BLE001
+                    log.error("parse falhou em %s: %s", arquivo.rel, erro)
+                    resultado = ParseResult(
+                        path=str(arquivo.path),
+                        status=ParseStatus.ERROR,
+                        detail=str(erro)[:500],
                     )
-            if interrupcao.pedida:
+                aplicar(root, arquivo, estado, resultado, comeco)
+                fechar_um_embed(block=False)
+                honrar_comando()
+                if limite is not None and progresso.indexados >= limite:
+                    cancelar_resto()
+                    break
+                if interrupcao.pedida:
+                    progresso.interrompido = True
+                    cancelar_resto()
+                    break
+            if interrupcao.pedida or (limite is not None and progresso.indexados >= limite):
                 break
+            preencher()
+        if interrupcao.pedida:
+            progresso.interrompido = True
+        while pend_embed:
+            fechar_um_embed(block=True)
 
     # A passada só vale para reconciliar se percorreu o escopo inteiro. Com
     # `--limite` ou interrupção, um caminho ausente de `vistos` significa "não
@@ -515,6 +656,14 @@ def main(argv: list[str] | None = None) -> int:
         choices=PERFIS_DE_ESFORCO,
         help="nível de esforço; sobrepõe o [maquina] perfil. 'leve' cede a vez ao "
         "que está em primeiro plano e recusa rodar na bateria",
+    )
+    parser.add_argument(
+        "--parse-workers",
+        type=int,
+        dest="parse_workers",
+        help="threads de parse. Padrão: 1 na CPU, metade dos núcleos (2–8) com "
+        "SEGUNDOCEREBRO_PROVIDER=cuda. Com 2+ GPUs o embed sai da principal "
+        "(um processo por placa); senão fica na thread principal",
     )
     parser.add_argument("--prefixo", help="indexa só caminhos que começam com este prefixo")
     parser.add_argument(
@@ -590,6 +739,7 @@ def main(argv: list[str] | None = None) -> int:
             esforco=esforco,
             reconciliar_ao_fim=not args.sem_reconciliar,
             forcar_reconciliacao=args.forcar_reconciliacao,
+            parse_workers=args.parse_workers,
         )
     finally:
         estat = store.estatisticas()

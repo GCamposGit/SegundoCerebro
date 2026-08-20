@@ -19,6 +19,7 @@ spec, not to the call site.
 
 from __future__ import annotations
 
+import os
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -161,9 +162,26 @@ class Embedder:
             from fastembed import TextEmbedding
 
             log.info("carregando %s (%d dim)", self.spec.nome, self.spec.dim)
-            self._modelo = TextEmbedding(
-                self.spec.nome, cache_dir=str(self._cache_dir), threads=self._threads
-            )
+            kwargs: dict = {
+                "cache_dir": str(self._cache_dir),
+                "threads": self._threads,
+            }
+            # Hardware does not enter model_id. CUDA is a process choice.
+            if os.environ.get("SEGUNDOCEREBRO_PROVIDER", "").lower() == "cuda":
+                if self.spec.id == "minilm":
+                    # Medido nas 980 Ti (sm_52): o MiniLM do fastembed é onnx-Q e
+                    # o forward passa sem exceção devolvendo NaN. Recusar aqui
+                    # impede gravar vetores podres e impede subir 2 workers GPU
+                    # para descobrir isso no meio da passada.
+                    raise RuntimeError(
+                        "MiniLM quantizado (onnx-Q) devolve NaN no CUDA deste "
+                        "hardware. Use e5-large — o provider não entra em model_id"
+                    )
+                from .cuda_runtime import preparar
+
+                preparar()
+                kwargs["providers"] = ["CUDAExecutionProvider"]
+            self._modelo = TextEmbedding(self.spec.nome, **kwargs)
         return self._modelo
 
     @property
@@ -226,7 +244,14 @@ class Embedder:
             return []
         prefixados = [self.spec.prefixo_passagem + t for t in textos]
         modelo = self._carregar()
-        return [normalizar(np.asarray(v, dtype=np.float32)) for v in modelo.embed(prefixados, batch_size=batch_size)]
+        vetores = [np.asarray(v, dtype=np.float32) for v in modelo.embed(prefixados, batch_size=batch_size)]
+        ruins = sum(1 for v in vetores if not np.isfinite(v).all())
+        if ruins:
+            raise RuntimeError(
+                f"{ruins}/{len(vetores)} vetores com NaN/Inf — no Maxwell o MiniLM "
+                "quantizado (onnx-Q) faz isso no CUDA; e5-large (model.onnx) é o teste que vale"
+            )
+        return [normalizar(v) for v in vetores]
 
     def embed_consulta(self, texto: str) -> np.ndarray:
         """Embed one query. Asymmetric: uses the query prefix, not the passage one."""
