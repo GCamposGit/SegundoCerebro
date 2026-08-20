@@ -754,6 +754,21 @@ com o traço real de uso fica claro quais arestas o modelo aproveita.
 > (recall@1 0,667, MRR 0,787, nDCG@5 0,793) e o caso plano → norma respondível só
 > pela aresta. Falta desta fase: SharePoint, watcher, MSG/EML e legado.
 >
+> **O "só" foi verificado, não presumido.** A norma não aparece em `search` com
+> k=10, nem k=20, nem quando a consulta nomeia a norma. A razão é estrutural:
+> `search` devolve trechos, e um documento sem texto extraível não tem trecho —
+> nenhum ranqueador da pilha pode devolvê-lo, nem o de nome, que é construído
+> sobre `paths_com_chunks()`. `neighbors` opera em nível de **documento**. O grafo
+> não é ranking melhor: é **granularidade diferente**, cobrindo um ponto cego que
+> nenhum peso alcançaria.
+>
+> **E há número.** `eval.rodar --com-grafo` compõe busca + um salto e mede: uma
+> única pergunta muda em recall@10, a `g048`, de **0,50 para 1,00** — exigia todas
+> as fontes e ficava travada porque a segunda era inalcançável. No conjunto
+> completo, recall@10 0,840 → 0,850. Custo: duas perguntas descem de 5→8 e 8→10
+> dentro do top-10, −0,018 de recall@5. Por isso o salto **não é padrão**: a troca
+> é do cliente, que sabe se a pergunta dele precisa de duas fontes.
+>
 > Três decisões que valem para o resto da fase:
 >
 > **Passada separada do indexador.** O grafo é derivado do índice, não do disco:

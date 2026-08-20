@@ -260,7 +260,13 @@ F4: SharePoint, watcher, MSG/EML e legado DOC/XLS.
 ```bash
 py -m segundocerebro.retrieve.grafo --base padrao            # constrói, ~30 s
 py -m segundocerebro.retrieve.grafo --base padrao --estado   # só relata
+py -m eval.rodar --retriever hibrido --com-grafo --out docs/metricas-f4-com-grafo.md
 ```
+
+**O ganho medido é de uma pergunta só, e é a certa.** `g048` (multi-hop) vai de
+recall@10 **0,50 → 1,00**: exigia todas as fontes e ficava travada porque a
+segunda era inalcançável por qualquer busca. Custo: duas perguntas descem de 5→8 e
+8→10, −0,018 de recall@5. O salto **não é padrão** — a troca é do cliente.
 
 Quatro coisas da F4 que valem para as fases seguintes:
 
