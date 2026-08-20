@@ -126,6 +126,25 @@ def _montar(args, cfg):  # noqa: ANN001
         "As métricas são no nível de **documento**: o conjunto dourado aponta arquivos, "
         "e cada documento é ranqueado pelo seu melhor trecho."
     )
+    if getattr(args, "com_grafo", False):
+        from .com_grafo import ComSaltoNoGrafo
+
+        estado = store.estatisticas_do_grafo()
+        if not estado["mencoes"]:
+            # Falhar alto em vez de medir zero: um grafo vazio produziria
+            # exatamente os mesmos números do recuperador sem salto, e o relatório
+            # diria "o grafo não acrescenta nada" quando o que houve foi não ter
+            # grafo. É o modo de falha que mais engana num relatório de ablação.
+            raise SystemExit(
+                "--com-grafo pedido, mas o grafo desta base está vazio. "
+                "Rode `py -m segundocerebro.retrieve.grafo --base <id>` antes."
+            )
+        retriever = ComSaltoNoGrafo(interno=retriever, store=store)
+        contexto += (
+            f"\nSalto no grafo: **ligado** — {estado['mencoes']} menções, "
+            f"{estado['identificadores']} identificadores em {estado['documentos']} documentos."
+        )
+
     return retriever, f"Métricas F1 — {retriever.nome}", contexto, store, set(universo)
 
 
@@ -167,6 +186,11 @@ def main(argv: list[str] | None = None) -> int:
         "--sem-rerank",
         action="store_true",
         help="desliga o reranking mesmo que a base o configure — é o braço de ablação",
+    )
+    parser.add_argument(
+        "--com-grafo",
+        action="store_true",
+        help="acrescenta um salto de `neighbors` depois da busca — mede o alcance do grafo (F4)",
     )
     parser.add_argument(
         "--sem-nome",
