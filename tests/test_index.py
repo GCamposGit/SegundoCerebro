@@ -35,6 +35,7 @@ class EmbedderFalso:
         self.spec = type("Spec", (), {"id": "falso", "dim": dim})()
         self.dim = dim
         self.chamadas = 0
+        self._cache_dir = Path("models")
 
     @property
     def model_id(self) -> str:
@@ -156,6 +157,17 @@ def test_busca_densa_devolve_o_mais_proximo(store: Store) -> None:
     assert acertos[0].score > acertos[-1].score
 
 
+def test_vetores_por_id_devolve_o_que_gravou(store: Store) -> None:
+    emb = EmbedderFalso()
+    chunks = [chunk("c1", "a.md", 0, "conteúdo")]
+    v = emb.embed_passagens(["conteúdo"])
+    store.gravar_chunks(chunks, v, mtime=1.0)
+    store.commit()
+    lido = store.vetores_por_id()
+    assert set(lido) == {"c1"}
+    assert np.allclose(lido["c1"], v[0])
+
+
 # --- registro e idempotência ------------------------------------------------
 
 
@@ -186,6 +198,77 @@ def test_vizinhos_pega_chunks_adjacentes(store: Store) -> None:
 
 
 # --- indexador --------------------------------------------------------------
+
+
+def test_indexar_recusa_minilm_no_cuda(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SEGUNDOCEREBRO_PROVIDER", "cuda")
+    emb = EmbedderFalso()
+    emb.spec = type("Spec", (), {"id": "minilm", "dim": DIM})()
+    store = Store(tmp_path / "indice", DIM)
+    with pytest.raises(RuntimeError, match="NaN"):
+        indexar(corpus(tmp_path / "raiz"), store, emb, parse_workers=1)
+    store.fechar()
+
+
+def test_pipeline_duas_gpus_grava_via_fila(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """The GPU pool is a transport. Vectors that land in the store must match."""
+
+    class FilaFalsa:
+        def __init__(self, n: int, *, modelo: str, cache: Path) -> None:  # noqa: ARG002
+            self._jobs: dict[int, list[str]] = {}
+            self._ordem: list[int] = []
+            self._n = 0
+            self.fechou = False
+
+        def submit(self, textos: list[str], batch_size: int = 32) -> int:  # noqa: ARG002
+            self._n += 1
+            self._jobs[self._n] = list(textos)
+            self._ordem.append(self._n)
+            return self._n
+
+        def receber(self, timeout: float | None = None) -> tuple[int, list] | None:  # noqa: ARG002
+            if not self._ordem:
+                return None
+            jid = self._ordem.pop(0)
+            n = len(self._jobs.pop(jid))
+            v = np.ones(DIM, dtype=np.float32) / np.sqrt(DIM)
+            return jid, [v] * n
+
+        def fechar(self) -> None:
+            self.fechou = True
+
+    vistas: list[FilaFalsa] = []
+
+    def fabricar(n: int, *, modelo: str, cache: Path) -> FilaFalsa:
+        f = FilaFalsa(n, modelo=modelo, cache=cache)
+        vistas.append(f)
+        return f
+
+    monkeypatch.setenv("SEGUNDOCEREBRO_PROVIDER", "cuda")
+    monkeypatch.setattr("segundocerebro.index.indexer.contar_gpus", lambda: 2)
+    monkeypatch.setattr("segundocerebro.index.indexer.EmbedFila", fabricar)
+
+    cfg = corpus(tmp_path / "raiz")
+    store = Store(tmp_path / "indice", DIM)
+    progresso = indexar(cfg, store, EmbedderFalso(), parse_workers=2)
+
+    assert vistas and vistas[0].fechou
+    assert progresso.indexados == 2
+    assert store.estatisticas()["por_status"] == {"ok": 2, "vazio": 1}
+    store.fechar()
+
+
+def test_pipeline_com_varios_workers_bate_o_sequencial(tmp_path: Path) -> None:
+    """Parse paralelo não pode mudar o que entra no índice, só o relógio."""
+    cfg = corpus(tmp_path / "raiz")
+    um = Store(tmp_path / "i1", DIM)
+    varios = Store(tmp_path / "i4", DIM)
+    a = indexar(cfg, um, EmbedderFalso(), parse_workers=1)
+    b = indexar(cfg, varios, EmbedderFalso(), parse_workers=4)
+    assert (a.indexados, a.falhas, a.pulados) == (b.indexados, b.falhas, b.pulados)
+    assert sorted(um.paths_indexados()) == sorted(varios.paths_indexados())
+    um.fechar()
+    varios.fechar()
 
 
 def test_indexa_e_registra_status_por_documento(tmp_path: Path) -> None:

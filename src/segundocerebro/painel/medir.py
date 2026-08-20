@@ -46,9 +46,12 @@ class Medidor:
         return self._abertos[base.id]
 
     def __call__(self, base, pesos: Pesos, busca: Busca) -> dict[str, Any]:  # noqa: ANN001
-        from eval.harness import avaliar, carregar_perguntas, conferir_base
+        from eval.harness import avaliar, carregar_perguntas, conferir_base, resolver_dourado
 
-        perguntas = carregar_perguntas(base.dourado or self.golden_padrao)
+        # Explícito mesmo quando cai no padrão: o painel não mede o exemplo
+        # sintético contra o índice de outra base.
+        alvo, _ = resolver_dourado(base.dourado or self.golden_padrao, implicito=False)
+        perguntas = carregar_perguntas(alvo)
         conferir_base(perguntas, base.id)
         return resumir(avaliar(self._busca(base, pesos, busca), perguntas).restrito_ao_escopo())
 

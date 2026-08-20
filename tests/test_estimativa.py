@@ -9,6 +9,7 @@ from __future__ import annotations
 import pytest
 
 from segundocerebro.index.estimativa import (
+    FATOR_GPU,
     LIMIAR_DE_SUSPENSAO,
     SEGUNDOS_POR_MB,
     Estimador,
@@ -23,6 +24,16 @@ MB = 1_000_000
 
 
 # --- erro 2: documentos não custam o mesmo -----------------------------------
+
+
+def test_semente_cuda_nao_muda_a_tabela_cpu(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Hardware acelera a barra, não o coeficiente versionado da CPU."""
+    monkeypatch.delenv("SEGUNDOCEREBRO_PROVIDER", raising=False)
+    cpu = peso_de("a.pdf", MB)
+    monkeypatch.setenv("SEGUNDOCEREBRO_PROVIDER", "cuda")
+    gpu = peso_de("a.pdf", MB)
+    assert gpu < cpu
+    assert cpu / gpu == pytest.approx(FATOR_GPU)
 
 
 def test_formato_muda_o_peso_do_byte() -> None:

@@ -26,6 +26,7 @@ indexar.
 
 from __future__ import annotations
 
+import os
 import time
 from bisect import insort
 from dataclasses import dataclass, field
@@ -48,6 +49,16 @@ estimador recalibra sozinho durante o run."""
 
 SEGUNDOS_POR_MB_PADRAO = 50.0
 """Para extensão sem coeficiente medido. Perto do PDF, que é metade do acervo."""
+
+FATOR_GPU = 28.0
+"""Semente CPU ÷ tempo medido neste desktop, 19/08/2026.
+
+Base empresas, e5-large, uma 980 Ti, parse em threads: 7.873 chunks em 637 s
+ativos. A semente de CPU (notebook, 15 W) previa ~5 h no p50 — 28× a mais.
+Com duas placas o estimador recalibra sozinho depois dos primeiros documentos;
+esta constante só impede a barra de abrir em '5–11 h' de novo.
+
+Não entra em `model_id`. Só vale com SEGUNDOCEREBRO_PROVIDER=cuda."""
 
 MEIA_VIDA = 20
 """Documentos até um coeficiente novo valer metade do peso total.
@@ -90,15 +101,30 @@ class Relogio:
                 self._ativo += max(passou, 0.0)
         self._ultimo = agora
 
+    def contar_parado(self, segundos: float, agora: float | None = None) -> None:
+        """Pausa pedida pelo usuário: sai do tempo ativo sem virar suspensão.
+
+        Hibernação incrementa `suspensoes`. Isto não — alguém apertou Pausar.
+        """
+        self.parado += max(segundos, 0.0)
+        self._ultimo = time.monotonic() if agora is None else agora
+
     @property
     def ativo(self) -> float:
         return self._ativo
 
 
+def _semente(extensao: str) -> float:
+    bruto = SEGUNDOS_POR_MB.get(extensao, SEGUNDOS_POR_MB_PADRAO)
+    if os.environ.get("SEGUNDOCEREBRO_PROVIDER", "").lower() == "cuda":
+        return bruto / FATOR_GPU
+    return bruto
+
+
 def peso_de(rel: str, tamanho: int) -> float:
     """Trabalho estimado de um arquivo, em segundos."""
     extensao = rel.rsplit(".", 1)[-1].lower() if "." in rel else ""
-    return SEGUNDOS_POR_MB.get(extensao, SEGUNDOS_POR_MB_PADRAO) * (tamanho / 1e6)
+    return _semente(extensao) * (tamanho / 1e6)
 
 
 @dataclass(frozen=True)

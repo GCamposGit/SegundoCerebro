@@ -28,6 +28,36 @@ harness existir antes dos recuperadores."""
 K_NDCG = KS_NDCG[-1]
 """Corte histórico, mantido para quem chama `ndcg()` sem dizer qual."""
 
+REPO = Path(__file__).resolve().parent.parent
+GOLDEN = REPO / "eval" / "golden" / "perguntas.jsonl"
+GOLDEN_EXEMPLO = REPO / "eval" / "golden" / "perguntas.example.jsonl"
+
+
+def resolver_dourado(caminho: Path, *, implicito: bool) -> tuple[Path, str | None]:
+    """Which golden file to load, and an optional warning.
+
+    An explicit path that is missing is an error: substituting the example
+    would measure the wrong corpus and look valid. The implicit default
+    (`perguntas.jsonl`) may fall back to the committed example so a fresh
+    clone still has a ruler.
+    """
+    if caminho.exists():
+        return caminho, None
+    # Só o default canônico cai no exemplo. Qualquer outro caminho ausente —
+    # `--golden`, `dourado` da base — é erro: substituir mediria o acervo errado.
+    if implicito and caminho.resolve() == GOLDEN.resolve() and GOLDEN_EXEMPLO.exists():
+        return GOLDEN_EXEMPLO, (
+            f"{caminho} ausente — medindo o conjunto sintético de exemplo "
+            f"({GOLDEN_EXEMPLO.as_posix()}). Isso não avalia o acervo real. "
+            "Ver eval/golden/README.md."
+        )
+    raise FileNotFoundError(
+        f"conjunto dourado não encontrado: {caminho}. "
+        "Sem perguntas não há régua (invariante 4). "
+        "Escreva o arquivo no formato de eval/golden/README.md, "
+        "ou meça o exemplo: --config config.sintetico.toml --base sintetico."
+    )
+
 
 @dataclass(frozen=True)
 class Hit:

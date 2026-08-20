@@ -437,6 +437,23 @@ class Store:
     def commit(self) -> None:
         self.con.commit()
 
+    def vetores_por_id(self) -> dict[str, np.ndarray]:
+        """Every dense vector, keyed by chunk id. Used to compare two indices.
+
+        `to_arrow` and not `to_pandas`: pandas não é dependência. `to_list` no
+        LanceTable desta versão do lancedb não existe — só no resultado de
+        `search`.
+        """
+        try:
+            tabela = self.tabela.to_arrow()
+        except Exception:  # noqa: BLE001 — tabela vazia
+            return {}
+        ids = tabela.column("id").to_pylist()
+        vetores = tabela.column("vetor").to_pylist()
+        return {
+            i: np.asarray(v, dtype=np.float32) for i, v in zip(ids, vetores)
+        }
+
     # --- execuções --------------------------------------------------------
 
     def iniciar_execucao(self, model_id: str, chunker: str, config: dict) -> int:

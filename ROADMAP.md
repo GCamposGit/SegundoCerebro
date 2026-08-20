@@ -673,31 +673,26 @@ mesmo vale depois de hibernar a máquina.
 Nenhum parâmetro da classe "cara" aplica sem confirmação que declare a
 estimativa em horas.
 
-### Checkpoint — conjunto dourado para quem instala do zero *(aberto em 17/08/2026)*
+### Checkpoint — conjunto dourado para quem instala do zero *(fechado em 19/08/2026)*
 
-> Decisão do mesmo dia: o repositório foi publicado como portfólio público, e
+> Decisão de 17/08/2026: o repositório foi publicado como portfólio público, e
 > `eval/golden/perguntas.jsonl` — junto com os relatórios de ablação e métricas
 > que citam essas perguntas por conteúdo — ficou de fora (`.gitignore`), porque
 > reproduz nome de fornecedor, código de contrato e trecho de documento real da
 > base corporativa que gerou este projeto. Ver o aviso em
 > [`eval/golden/README.md`](eval/golden/README.md).
 
-Consequência não resolvida: quem instalar o sistema do zero, sem essa base,
-chega a um `eval/` sem nenhuma pergunta — invariante 4 (nenhuma mudança de
-ranking sem número antes e depois) fica sem régua até a pessoa escrever seu
-próprio conjunto. Falta decidir:
+Entregue, com a decisão que estava em aberto:
 
-- Um `perguntas.example.jsonl` sintético (documentos e perguntas fictícios, no
-  estilo `census.example.toml`) que baste para os testes automatizados
-  passarem e para demonstrar o formato, sem prometer medir recuperação de
-  verdade — um conjunto dourado só funciona sobre o acervo de quem o escreve
-- Um tutorial curto de "escreva suas primeiras 10 perguntas" derivado das
-  regras que já existem em `eval/golden/README.md`
-- Se o harness (`eval/rodar.py`, `eval/varredura.py`) deve degradar de forma
-  legível (aviso, não erro) quando `perguntas.jsonl` não existe, em vez de
-  falhar sem explicação
-
-Não é código a escrever ainda — é decidir o escopo antes de escrever.
+- `eval/golden/perguntas.example.jsonl` + `eval/sintetico/corpus/` +
+  `config.sintetico.toml`. Empresa fictícia (Várzea Clara Energia). Demonstra
+  o formato e dá régua ao CI; **não** mede recuperação de um acervo real.
+  Também é o corpus compartilhado da F3.6 (índice feito no desktop, consulta
+  no notebook, sem reembeddar) — ver [`docs/colaboracao.md`](docs/colaboracao.md)
+- Tutorial das primeiras 10 perguntas em `eval/golden/README.md`
+- `eval.rodar` / `eval.varredura`: caminho **implícito** ausente cai no exemplo
+  com aviso; caminho **explícito** ausente continua sendo erro. Substituir um
+  `--golden` que não existe mediria o corpus errado e pareceria válido
 
 ---
 
@@ -714,7 +709,13 @@ notebook sem reprocessar nada.
 
 - **Smoke test primeiro.** `sm_52` saiu do CUDA 13 e o ramo 580 do driver foi
   anunciado como o último a cobrir Maxwell. Descobrir que `onnxruntime-gpu` não
-  roda nas 980 Ti **depois** de escrever o pipeline seria a ordem errada
+  roda nas 980 Ti **depois** de escrever o pipeline seria a ordem errada.
+  **Passou em 19/08/2026** (`docs/smoke-cuda.md`): `onnxruntime-gpu==1.18.0` +
+  CUDA 11.8 + cuDNN 8, vendidos por pip, sem toolkit de sistema e sem mexer
+  no driver 582.28. `e5-large` (`model.onnx`) devolve vetores finitos; o MiniLM
+  quantizado do fastembed devolve NaN. ORT ≥ 1.19 (cuDNN 9) morre no `ReduceSum`.
+  ORT ≥ 1.27 é CUDA 13. Pin em `requirements-gpu.txt`.
+  Comando: `.\.venv\Scripts\python.exe -m segundocerebro.index.smoke_cuda --embed`
 - **Pipeline de indexação**: workers de parse alimentando uma fila de embedding.
   Hoje o laço é sequencial por documento e o encoder fica parado durante o
   parse — medido em 24% do tempo, o que põe o teto de Amdahl em 4,2× por mais
@@ -728,12 +729,17 @@ notebook sem reprocessar nada.
 - **Quantização int8 na CPU**, se o eval não mostrar perda: é alavanca deste
   notebook (AVX-VNNI), não das 980 Ti — Maxwell não tem DP4A nem tensor cores
 
-**Saída:** o mesmo acervo indexado nas duas máquinas produz índices que
-recuperam igual (comparação de vetor com similaridade > 0,9999 e as métricas do
-conjunto dourado dentro do ruído), o índice construído no desktop responde
-consultas no notebook **sem reembeddar**, e o ganho medido de ponta a ponta está
-documentado em `docs/` ao lado da projeção — que erra, e o interessante é
-quanto.
+**Saída — cumprida em 20/08/2026**, `corpus=sintetico`, n=10. Não é a condição C.
+
+| Critério | Resultado |
+|----------|-----------|
+| Similaridade de vetor > 0,9999 | **1,0000** (desktop: GPU × rebuild CPU, 18 chunks) |
+| Métricas do dourado dentro do ruído | Idênticas nos dois lados: recall@1 **0,850**, recall@10 **1,000** |
+| Índice do desktop no notebook **sem reembeddar** | Confirmado: `verificar.py` sem carregar o encoder; `eval.rodar --modelo e5-large` contra o índice feito nas 980 Ti |
+
+Ganho de parede no sintético (inclui carga do encoder): **7 s** dual-GPU vs **23 s** CPU. No corpus empresas, uma 980 Ti fez 637 s ativos contra semente CPU de 5–11 h (fator 28). Detalhe em [`docs/portabilidade-f36.md`](docs/portabilidade-f36.md) e [`docs/smoke-cuda.md`](docs/smoke-cuda.md).
+
+Int8 na CPU continua sendo alavanca do notebook, não desta fase.
 
 ---
 

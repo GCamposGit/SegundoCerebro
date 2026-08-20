@@ -130,12 +130,19 @@ def test_config_invalida_falha_claro(tmp_path: Path) -> None:
 
 
 def test_linha_da_tarefa_entra_na_pasta_do_projeto() -> None:
-    """A tarefa nasce em system32; `PYTHONPATH=src` relativo não vale nada de lá."""
+    """O `.cmd` nasce em system32; `cd /d` e `PYTHONPATH=src` resolvem a raiz."""
     linha = linha_da_tarefa(Path(r"C:\Projeto"))
 
     assert "cd /d" in linha and r"C:\Projeto" in linha
     assert "PYTHONPATH=src" in linha
     assert "segundocerebro.index.retomada" in linha
+
+
+def test_linha_da_tarefa_leva_o_provider_de_quem_instalou(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Sem isto a retomada no logon cai na CPU neste desktop."""
+    monkeypatch.setenv("SEGUNDOCEREBRO_PROVIDER", "cuda")
+    linha = linha_da_tarefa(Path(r"C:\Projeto"))
+    assert "SEGUNDOCEREBRO_PROVIDER=cuda" in linha
 
 
 # --- o gatilho de logon: arquivo na pasta de inicialização --------------------

@@ -152,17 +152,19 @@ py -m pytest -m modelo              # com o encoder real — baixa ~2 GB na 1ª 
 | [docs/estimativa-de-indexacao.md](docs/estimativa-de-indexacao.md) | Método de estimativa de tempo/esforço de indexação |
 | [docs/usar-o-mcp.md](docs/usar-o-mcp.md) | Como registrar e usar o servidor num cliente MCP |
 | [docs/truncagem-silenciosa.md](docs/truncagem-silenciosa.md) | Post-mortem de um defeito que custou 80% do texto indexado |
+| [docs/colaboracao.md](docs/colaboracao.md) | Dois setups (desktop GPU + notebook): donos, branches, o que não commitar |
+| [docs/smoke-cuda.md](docs/smoke-cuda.md) | F3.6: smoke CUDA nas 980 Ti, pin ORT 1.18, MiniLM=NaN |
+| [docs/portabilidade-f36.md](docs/portabilidade-f36.md) | Índice sintético feito no desktop, consulta no notebook sem reembeddar |
 
 ### Sobre o conjunto de avaliação
 
-O conjunto dourado (`eval/golden/perguntas.jsonl`) e os relatórios de ablação
-que o citam por conteúdo **não estão neste repositório** — ver
-[`eval/golden/README.md`](eval/golden/README.md). Eles reproduzem nome de
-fornecedor, código de contrato e trecho de documento do acervo corporativo real
-usado para desenvolver e medir o projeto, e são inúteis fora dessa máquina de
-qualquer forma. O formato e as regras de escrita continuam documentados; o
-checkpoint sobre como isso deve funcionar para quem instalar o sistema do zero
-está no [ROADMAP.md](ROADMAP.md).
+O conjunto dourado real (`eval/golden/perguntas.jsonl`) e os relatórios de
+ablação que o citam por conteúdo **não estão neste repositório** — ver
+[`eval/golden/README.md`](eval/golden/README.md).
+
+Um clone fresco usa o exemplo sintético (`eval/golden/perguntas.example.jsonl`
++ `eval/sintetico/corpus/` + `config.sintetico.toml`). Ele demonstra o formato
+e alimenta o CI; não mede o acervo de ninguém.
 
 ## Licença
 

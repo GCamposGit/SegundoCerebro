@@ -2,6 +2,9 @@
 # versionados) e ajuste. Sem config.toml, o sistema sintetiza uma base única a
 # partir do census.toml existente: nada quebra e nada precisa ser reindexado.
 #
+# Para o corpus sintético versionado (CI, clone fresco, prova F3.6):
+#   config.sintetico.toml  —  --config config.sintetico.toml --base sintetico
+#
 # Uma BASE é um acervo com raízes, índice e servidor MCP próprios. A separação é
 # física — dois diretórios, dois processos — e não um filtro de consulta. Ver
 # ARCHITECTURE.md §2 e a invariante 7 do CLAUDE.md.

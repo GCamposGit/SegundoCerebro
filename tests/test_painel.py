@@ -41,7 +41,7 @@ def medicoes_feitas() -> list:
 
 
 @pytest.fixture
-def cliente(caminho: Path, medicoes_feitas: list):
+def cliente(caminho: Path, medicoes_feitas: list, monkeypatch: pytest.MonkeyPatch):
     from starlette.testclient import TestClient
 
     def medidor(base, pesos, busca):  # noqa: ANN001, ANN202
@@ -50,6 +50,8 @@ def cliente(caminho: Path, medicoes_feitas: list):
 
     def diagnosticador(base, pesos, busca, consulta):  # noqa: ANN001, ANN202
         return {"trechos": [{"arquivo": "a.pdf", "texto": consulta, "achado_por": "denso"}]}
+
+    monkeypatch.setattr("segundocerebro.index.retomada.instalada", lambda: False)
 
     return TestClient(
         criar_app(caminho, medidor=medidor, diagnosticador=diagnosticador, token=TOKEN)
@@ -522,6 +524,38 @@ def test_registro_devolve_o_trecho_de_mcp_json(cliente) -> None:
     assert servidores["segundocerebro-trabalho"]["command"] == "py"
 
 
+def test_comando_exige_token(cliente) -> None:
+    assert cliente.post("/api/comando", json={"acao": "pausar"}).status_code == 403
+
+
+def test_comando_recusa_sem_indexacao_viva(cliente) -> None:
+    r = cliente.post(
+        "/api/comando", json={"base": "trabalho", "acao": "pausar"}, headers=cabecalho()
+    )
+    assert r.status_code == 409
+    assert "não está sendo indexada" in r.json()["erro"]
+
+
+def test_comando_grava_o_arquivo_ao_lado_do_indice(cliente, caminho: Path) -> None:
+    from segundocerebro.index.comando import ler
+
+    indice = caminho.parent / "it"
+    indice.mkdir(exist_ok=True)
+    (indice / "indexacao.lock").write_text("1", encoding="utf-8")
+
+    r = cliente.post(
+        "/api/comando", json={"base": "trabalho", "acao": "pausar"}, headers=cabecalho()
+    )
+    assert r.status_code == 200
+    assert ler(indice) == "pausar"
+
+    r = cliente.post(
+        "/api/comando", json={"base": "trabalho", "acao": "retomar"}, headers=cabecalho()
+    )
+    assert r.status_code == 200
+    assert ler(indice) is None
+
+
 def test_indexar_recusa_base_ja_indexando(cliente, caminho: Path) -> None:
     """A trava é do indexador; o painel só não deve pedir o que vai falhar."""
     (caminho.parent / "it").mkdir(exist_ok=True)
@@ -775,7 +809,7 @@ class _BloqueiaPainel:
 
 
 # --- retomada automática depois de reinício ----------------------------------
-# O que estes guardam é o modo de falha, não o JSON: `schtasks` é mudança que
+# O que estes guardam é o modo de falha, não o JSON: o `.cmd` de inicialização
 # sobrevive à sessão, e o painel é a única tela do projeto que comanda algo.
 
 
@@ -790,8 +824,8 @@ def test_retomada_get_nao_mexe_no_agendador(cliente, monkeypatch) -> None:
         "segundocerebro.index.retomada.agendar",
         lambda *, instalar: chamadas.append(instalar) or 0,
     )
-    # `instalada` roda `schtasks` de verdade; fixá-la é o que faz este teste medir
-    # a regra em vez do estado da máquina de quem roda a suíte.
+    # `instalada` olha a pasta de inicialização real; fixá-la é o que faz este
+    # teste medir a regra em vez do estado da máquina de quem roda a suíte.
     monkeypatch.setattr("segundocerebro.index.retomada.instalada", lambda: False)
     resposta = cliente.get("/api/retomada", params={"token": TOKEN})
     assert resposta.status_code == 200

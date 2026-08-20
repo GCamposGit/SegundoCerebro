@@ -44,6 +44,32 @@ def test_orcamento_desconta_a_margem() -> None:
         assert e.orcamento_tokens > 0, f"{spec.id}: margem maior que a janela"
 
 
+def test_minilm_no_cuda_recusa_antes_de_carregar(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Maxwell + MiniLM-Q = NaN. Falhar na carga, não na hora de gravar o índice."""
+    monkeypatch.setenv("SEGUNDOCEREBRO_PROVIDER", "cuda")
+
+    def nao_devia(*_a, **_k):  # noqa: ANN002, ANN003
+        raise AssertionError("TextEmbedding não deveria ser chamado")
+
+    monkeypatch.setattr("fastembed.TextEmbedding", nao_devia, raising=False)
+    with pytest.raises(RuntimeError, match="NaN"):
+        Embedder("minilm", lazy=False)
+
+
+def test_e5_no_cuda_nao_e_recusado_na_carga(monkeypatch: pytest.MonkeyPatch) -> None:
+    """e5-large (model.onnx) é o que vale neste desktop. A recusa é só do MiniLM."""
+    monkeypatch.setenv("SEGUNDOCEREBRO_PROVIDER", "cuda")
+    e = Embedder("e5-large")
+    assert e.spec.id == "e5-large"
+
+
+def test_provider_cpu_nao_recusa_minilm_na_construcao(monkeypatch: pytest.MonkeyPatch) -> None:
+    """CPU é o notebook. MiniLM no CUDA é que NaN; na CPU o lazy constrói."""
+    monkeypatch.setenv("SEGUNDOCEREBRO_PROVIDER", "cpu")
+    e = Embedder("minilm")
+    assert e.spec.id == "minilm"
+
+
 def test_estimativa_de_emergencia_quando_nao_ha_tokenizador(monkeypatch: pytest.MonkeyPatch) -> None:
     """Sem tokenizador, estima por caractere — mas nunca satura em silêncio."""
     e = Embedder("minilm")

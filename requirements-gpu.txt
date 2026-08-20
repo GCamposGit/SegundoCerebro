@@ -1,0 +1,24 @@
+# Desktop only — never on the notebook.
+# Working stack on two GTX 980 Ti (sm_52), measured 19/08/2026.
+# See docs/smoke-cuda.md.
+#
+# In a Python 3.12 venv:
+#   pip install -r requirements.txt
+#   pip uninstall -y onnxruntime
+#   pip install -r requirements-gpu.txt
+#
+# Do NOT install:
+#   onnxruntime-gpu >= 1.19  (cuDNN 9: CUDA EP loads, ReduceSum dies on Maxwell)
+#   onnxruntime-gpu >= 1.27  (CUDA 13: sm_52 gone from the toolkit)
+#   winget Nvidia.CUDA       (currently 13.3, and it can touch the driver)
+#
+# PyPI 1.18.0 is CUDA 11.8 + cuDNN 8. numpy<2 because that wheel was built
+# against NumPy 1.x. Do not put numpy<2 in requirements.txt — that file is shared.
+onnxruntime-gpu==1.18.0
+nvidia-cuda-runtime-cu11==11.8.89
+nvidia-cublas-cu11==11.11.3.6
+nvidia-cudnn-cu11==8.9.5.29
+nvidia-cuda-nvrtc-cu11==11.8.89
+nvidia-cufft-cu11==10.9.0.58
+nvidia-curand-cu11==10.3.0.86
+numpy>=1.26,<2

@@ -382,11 +382,12 @@ def criar_app(
         `indexacao` acima só lê, de propósito. A diferença é que instalar a tarefa
         é ato de configuração, não de recuperação: acontece uma vez, fora do
         caminho de consulta, e o que ele agenda é o indexador — que segue processo
-        independente. A invariante 6 continua de pé, e desinstalar a tarefa é um
-        `schtasks /Delete` que não precisa deste painel.
+        independente. A invariante 6 continua de pé, e desligar é apagar o
+        `.cmd` da pasta de inicialização — o `schtasks /SC ONLOGON` exige
+        elevação neste Windows e foi recusado.
 
-        Mexe no agendador do Windows, então **nunca acontece por efeito colateral**:
-        só em POST com `ligar` explícito no corpo.
+        **Nunca acontece por efeito colateral:** só em POST com `ligar`
+        explícito no corpo.
         """
         if not autorizado(request):
             return JSONResponse({"erro": "token inválido"}, status_code=403)
@@ -571,6 +572,43 @@ def criar_app(
         log.info("base '%s' criada em %s", id_, caminho_config)
         return JSONResponse({"id": id_, "indice": str(nova.indice)})
 
+    async def comando(request: Request) -> JSONResponse:
+        """Pausa, continua ou cancela. Só grava um arquivo; o indexador obedece.
+
+        O painel não mata o processo. Matar perderia o documento em voo; o
+        pedido deixa o commit do atual terminar. Sem indexação viva, recusa —
+        um `comando.txt` órfão na próxima largada seria apagado de qualquer jeito.
+        """
+        if not autorizado(request):
+            return JSONResponse({"erro": "token inválido"}, status_code=403)
+        corpo = await request.json()
+        acao = (corpo.get("acao") or "").strip()
+        try:
+            conf = _config()
+            base = _base(conf, corpo)
+        except ErroDeConfig as erro:
+            return JSONResponse({"erro": str(erro)}, status_code=400)
+
+        from ..index.comando import CANCELAR, PAUSAR, ler, limpar, pedir
+
+        viva = (base.indice / NOME_DA_TRAVA).exists()
+        if acao in {PAUSAR, CANCELAR} and not viva:
+            return JSONResponse(
+                {"erro": f"a base '{base.id}' não está sendo indexada"}, status_code=409
+            )
+        if acao == PAUSAR:
+            pedir(base.indice, PAUSAR)
+        elif acao == CANCELAR:
+            pedir(base.indice, CANCELAR)
+        elif acao == "retomar":
+            if ler(base.indice) == PAUSAR:
+                limpar(base.indice)
+        else:
+            return JSONResponse(
+                {"erro": "acao deve ser pausar, retomar ou cancelar"}, status_code=400
+            )
+        return JSONResponse({"base": base.id, "acao": acao, "comando": ler(base.indice)})
+
     async def indexar(request: Request) -> JSONResponse:
         """Dispara o indexador como processo **independente**.
 
@@ -654,6 +692,7 @@ def criar_app(
             Route("/api/censo", censo, methods=["POST"]),
             Route("/api/base", criar_base, methods=["POST"]),
             Route("/api/indexar", indexar, methods=["POST"]),
+            Route("/api/comando", comando, methods=["POST"]),
             Route("/api/registro", registro),
             Route("/api/medir", medir, methods=["POST"]),
             Route("/api/salvar", salvar, methods=["POST"]),

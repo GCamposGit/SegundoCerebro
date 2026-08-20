@@ -137,6 +137,11 @@ code { font-family: ui-monospace, "Cascadia Code", monospace; font-size: 12px; }
       </div>
       <div id="idxArquivo" class="via"></div>
       <div id="idxAviso"></div>
+      <div class="linha" id="idxControles" style="margin-top:12px">
+        <button id="idxPausar">Pausar</button>
+        <button id="idxContinuar" class="oculto">Continuar</button>
+        <button id="idxCancelar">Cancelar</button>
+      </div>
     </div>
   </div>
 
@@ -267,7 +272,9 @@ code { font-family: ui-monospace, "Cascadia Code", monospace; font-size: 12px; }
       Indexar este acervo levou dias de máquina ligada. Se o computador reiniciar
       no meio, a indexação continua de onde parou — mas só se alguém mandar. Com
       isto ligado, ela recomeça no próximo logon, sozinha e no esforço leve.
-      <b>Não reindexa nada</b> que já esteja pronto.
+      <b>Não reindexa nada</b> que já esteja pronto. O gatilho é um `.cmd` na
+      pasta de inicialização — `schtasks /SC ONLOGON` exige elevação neste
+      Windows e foi recusado.
     </p>
     <div id="recadoRetomada"></div>
 
@@ -659,8 +666,22 @@ async function mostrarRegistro() {
 }
 
 const ROTULO_STATUS = {
-  preparando: "preparando", indexando: "indexando",
+  preparando: "preparando", indexando: "indexando", pausada: "pausada",
   concluida: "concluída", interrompida: "interrompida", falhou: "falhou",
+};
+
+async function pedirComando(acao) {
+  try {
+    await api("/api/comando", { base: $("base").value, acao });
+    await atualizarIndexacao();
+  } catch (e) { recado(e.message); }
+}
+$("idxPausar").onclick = () => pedirComando("pausar");
+$("idxContinuar").onclick = () => pedirComando("retomar");
+$("idxCancelar").onclick = () => {
+  if (confirm("Cancelar a indexação? O documento em andamento termina e o resto espera a próxima passada.")) {
+    pedirComando("cancelar");
+  }
 };
 
 async function atualizarIndexacao() {
@@ -672,6 +693,10 @@ async function atualizarIndexacao() {
   $("indexacao").classList.remove("oculto");
 
   const rodando = p.status === "indexando" || p.status === "preparando";
+  const pausada = p.status === "pausada";
+  $("idxPausar").classList.toggle("oculto", !rodando);
+  $("idxContinuar").classList.toggle("oculto", !pausada);
+  $("idxCancelar").classList.toggle("oculto", !(rodando || pausada));
   const pct = Math.round((p.fracao || 0) * 100);
   $("barraCheia").style.width = pct + "%";
   $("barraCheia").parentElement.classList.toggle("parada", !rodando);

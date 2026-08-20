@@ -49,6 +49,7 @@ desktop.ini
 # o checkpoint no ROADMAP.md sobre como isso deve funcionar para quem instalar
 # o sistema.
 eval/golden/perguntas.jsonl
+eval/golden/empresas.jsonl
 
 # Relatório por pergunta **sempre** cita nome de arquivo do acervo — é o que ele
 # é. Por isso `docs/metricas-*.md` é padrão e não lista: lista por nome falha em
@@ -69,6 +70,7 @@ eval/glossario-*.toml
 # leitura agregada costuma ser publicável (`ablacao-f1.md`, `ablacao-f2.md`) e o
 # relatório que cita arquivo, não.
 docs/ablacao-glossario.md
+>>>>>>> origin/main
 docs/ablacao-bm25-com-nome.md
 docs/ablacao-bm25-sem-nome.md
 docs/ablacao-denso-com-nome.md
