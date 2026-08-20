@@ -18,7 +18,15 @@ from .metrics import MODO_QUALQUER, MODO_TODAS, media, ndcg_at_k, recall_at_k, r
 
 KS_PADRAO = (1, 3, 5, 10, 20)
 K_MRR = 10
-K_NDCG = 10
+KS_NDCG = (5, 10)
+"""nDCG em dois cortes, e os dois são declarados em algum critério de saída.
+
+O @5 é o que a F2 pede (`ROADMAP.md`, saída da fase); o @10 é o que toda a
+medição anterior usou, e tirá-lo tornaria as tabelas da F0 e da F1
+incomparáveis com as de agora. Comparabilidade entre fases é a razão de o
+harness existir antes dos recuperadores."""
+K_NDCG = KS_NDCG[-1]
+"""Corte histórico, mantido para quem chama `ndcg()` sem dizer qual."""
 
 REPO = Path(__file__).resolve().parent.parent
 GOLDEN = REPO / "eval" / "golden" / "perguntas.jsonl"
@@ -163,7 +171,7 @@ class ResultadoPergunta:
     posicao_primeiro_acerto: int | None
     recall: dict[int, float]
     mrr: float
-    ndcg: float
+    ndcg: dict[int, float]
 
 
 @dataclass
@@ -178,8 +186,8 @@ class Resultado:
     def mrr(self, tipo: str | None = None) -> float:
         return self.mrr_de(self._filtrar(tipo))
 
-    def ndcg(self, tipo: str | None = None) -> float:
-        return self.ndcg_de(self._filtrar(tipo))
+    def ndcg(self, tipo: str | None = None, k: int = K_NDCG) -> float:
+        return self.ndcg_de(self._filtrar(tipo), k)
 
     def _filtrar(self, tipo: str | None) -> list[ResultadoPergunta]:
         return [i for i in self.itens if tipo is None or i.pergunta.tipo == tipo]
@@ -196,8 +204,8 @@ class Resultado:
         return media(i.mrr for i in itens)
 
     @staticmethod
-    def ndcg_de(itens: Sequence[ResultadoPergunta]) -> float:
-        return media(i.ndcg for i in itens)
+    def ndcg_de(itens: Sequence[ResultadoPergunta], k: int = K_NDCG) -> float:
+        return media(i.ndcg[k] for i in itens)
 
     def subgrupo(self, autoria: str | None = None, armadilha: bool | None = None) -> list[ResultadoPergunta]:
         return [
@@ -233,7 +241,7 @@ class Resultado:
 
 
 def avaliar(retriever: Retriever, perguntas: Sequence[Pergunta], ks: tuple[int, ...] = KS_PADRAO) -> Resultado:
-    k_max = max(max(ks), K_MRR, K_NDCG)
+    k_max = max(max(ks), K_MRR, *KS_NDCG)
     resultado = Resultado(retriever=retriever.nome, ks=ks)
 
     for p in perguntas:
@@ -247,7 +255,7 @@ def avaliar(retriever: Retriever, perguntas: Sequence[Pergunta], ks: tuple[int, 
                 posicao_primeiro_acerto=posicao,
                 recall={k: recall_at_k(recuperados, p.fontes, k, p.modo) for k in ks},
                 mrr=reciprocal_rank(recuperados, p.fontes, K_MRR),
-                ndcg=ndcg_at_k(recuperados, p.fontes, K_NDCG),
+                ndcg={k: ndcg_at_k(recuperados, p.fontes, k) for k in KS_NDCG},
             )
         )
     return resultado
@@ -317,6 +325,14 @@ def verificar_escopo(
 # --- relatório -------------------------------------------------------------
 
 
+CABECALHO_NDCG = " | ".join(f"nDCG@{k}" for k in KS_NDCG)
+
+
+def _alinhamento(ks: tuple[int, ...]) -> str:
+    """Uma coluna por recall, uma de MRR e uma por corte de nDCG."""
+    return "|---|---:|" + "---:|" * (len(ks) + 1 + len(KS_NDCG))
+
+
 def render_markdown(resultado: Resultado, titulo: str, contexto: str = "") -> str:
     linhas: list[str] = []
     add = linhas.append
@@ -331,7 +347,7 @@ def render_markdown(resultado: Resultado, titulo: str, contexto: str = "") -> st
         add("")
     add(f"- Recuperador: **{resultado.retriever}**")
     add(f"- Perguntas: **{len(no_escopo.itens)} no escopo**, de {len(resultado.itens)} no conjunto dourado")
-    add(f"- MRR@{K_MRR} e nDCG@{K_NDCG}; recall com `qualquer` para pergunta comum e `todas` para multi-hop")
+    add(f"- MRR@{K_MRR} e {CABECALHO_NDCG}; recall com `qualquer` para pergunta comum e `todas` para multi-hop")
     add("")
 
     add("## Geral")
@@ -341,11 +357,12 @@ def render_markdown(resultado: Resultado, titulo: str, contexto: str = "") -> st
     add("o subconjunto no escopo.")
     add("")
     cabecalho = " | ".join(f"recall@{k}" for k in resultado.ks)
-    add(f"| Conjunto | n | {cabecalho} | MRR@{K_MRR} | nDCG@{K_NDCG} |")
-    add("|---|---:|" + "---:|" * (len(resultado.ks) + 2))
+    add(f"| Conjunto | n | {cabecalho} | MRR@{K_MRR} | {CABECALHO_NDCG} |")
+    add(_alinhamento(resultado.ks))
     for rotulo, r in (("**no escopo da fase**", no_escopo), ("conjunto completo", resultado)):
         vals = " | ".join(f"{r.recall(k):.3f}" for k in r.ks)
-        add(f"| {rotulo} | {len(r.itens)} | {vals} | {r.mrr():.3f} | {r.ndcg():.3f} |")
+        ndcgs = " | ".join(f"{r.ndcg(k=k):.3f}" for k in KS_NDCG)
+        add(f"| {rotulo} | {len(r.itens)} | {vals} | {r.mrr():.3f} | {ndcgs} |")
     add("")
 
     add(f"## Fora de escopo — {len(excluidas)} de {len(resultado.itens)}")
@@ -369,12 +386,13 @@ def render_markdown(resultado: Resultado, titulo: str, contexto: str = "") -> st
 
     add("## Por tipo de pergunta")
     add("")
-    add("| Tipo | n | " + " | ".join(f"recall@{k}" for k in no_escopo.ks) + f" | MRR@{K_MRR} | nDCG@{K_NDCG} |")
-    add("|---|---:|" + "---:|" * (len(no_escopo.ks) + 2))
+    add("| Tipo | n | " + " | ".join(f"recall@{k}" for k in no_escopo.ks) + f" | MRR@{K_MRR} | {CABECALHO_NDCG} |")
+    add(_alinhamento(no_escopo.ks))
     for tipo in no_escopo.tipos:
         n = len(no_escopo._filtrar(tipo))
         vals = " | ".join(f"{no_escopo.recall(k, tipo):.3f}" for k in no_escopo.ks)
-        add(f"| {tipo} | {n} | {vals} | {no_escopo.mrr(tipo):.3f} | {no_escopo.ndcg(tipo):.3f} |")
+        ndcgs = " | ".join(f"{no_escopo.ndcg(tipo, k=k):.3f}" for k in KS_NDCG)
+        add(f"| {tipo} | {n} | {vals} | {no_escopo.mrr(tipo):.3f} | {ndcgs} |")
     add("")
 
     add("## Por origem da pergunta")
@@ -389,13 +407,14 @@ def render_markdown(resultado: Resultado, titulo: str, contexto: str = "") -> st
         ("casos-armadilha", no_escopo.subgrupo(armadilha=True)),
         ("sem armadilha", no_escopo.subgrupo(armadilha=False)),
     ]
-    add("| Origem | n | " + " | ".join(f"recall@{k}" for k in no_escopo.ks) + f" | MRR@{K_MRR} | nDCG@{K_NDCG} |")
-    add("|---|---:|" + "---:|" * (len(no_escopo.ks) + 2))
+    add("| Origem | n | " + " | ".join(f"recall@{k}" for k in no_escopo.ks) + f" | MRR@{K_MRR} | {CABECALHO_NDCG} |")
+    add(_alinhamento(no_escopo.ks))
     for rotulo, itens in grupos:
         if not itens:
             continue
         vals = " | ".join(f"{Resultado.recall_de(itens, k):.3f}" for k in no_escopo.ks)
-        add(f"| {rotulo} | {len(itens)} | {vals} | {Resultado.mrr_de(itens):.3f} | {Resultado.ndcg_de(itens):.3f} |")
+        ndcgs = " | ".join(f"{Resultado.ndcg_de(itens, k):.3f}" for k in KS_NDCG)
+        add(f"| {rotulo} | {len(itens)} | {vals} | {Resultado.mrr_de(itens):.3f} | {ndcgs} |")
     add("")
 
     falhas = no_escopo.sem_nenhum_acerto

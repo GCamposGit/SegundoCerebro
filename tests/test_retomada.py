@@ -17,6 +17,7 @@ from segundocerebro.config import Base
 from segundocerebro.index.indexer import NOME_DA_TRAVA
 from segundocerebro.index.progresso import NOME, caminho_de
 from segundocerebro.index.retomada import INACABADOS, linha_da_tarefa, main, pendente
+from segundocerebro.index import retomada
 
 
 def base_com_progresso(tmp_path: Path, status: str, **extra) -> Base:  # noqa: ANN003
@@ -129,11 +130,11 @@ def test_config_invalida_falha_claro(tmp_path: Path) -> None:
 
 
 def test_linha_da_tarefa_entra_na_pasta_do_projeto() -> None:
-    """A tarefa nasce em system32; `PYTHONPATH=src` relativo não vale nada de lá."""
+    """O `.cmd` nasce em system32; `cd /d` e `PYTHONPATH=src` resolvem a raiz."""
     linha = linha_da_tarefa(Path(r"C:\Projeto"))
 
     assert "cd /d" in linha and r"C:\Projeto" in linha
-    assert r"PYTHONPATH=C:\Projeto\src" in linha
+    assert "PYTHONPATH=src" in linha
     assert "segundocerebro.index.retomada" in linha
 
 
@@ -142,3 +143,75 @@ def test_linha_da_tarefa_leva_o_provider_de_quem_instalou(monkeypatch: pytest.Mo
     monkeypatch.setenv("SEGUNDOCEREBRO_PROVIDER", "cuda")
     linha = linha_da_tarefa(Path(r"C:\Projeto"))
     assert "SEGUNDOCEREBRO_PROVIDER=cuda" in linha
+
+
+# --- o gatilho de logon: arquivo na pasta de inicialização --------------------
+# Era `schtasks /SC ONLOGON` no ROADMAP. Tentado nesta máquina em 19/08/2026 e
+# **negado sem elevação**, por `schtasks` e por `Register-ScheduledTask`; criar
+# tarefa `ONCE` no mesmo shell funciona, o que localiza o impedimento no gatilho
+# de logon e não no agendador. Exigir administrador para ligar uma conveniência
+# derrubaria o público do painel, então o mecanismo é um `.cmd` de usuário.
+
+
+@pytest.fixture
+def inicializacao(tmp_path: Path, monkeypatch) -> Path:
+    """Redireciona a pasta de inicialização — nenhum teste toca a real."""
+    pasta = tmp_path / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "Startup"
+    pasta.mkdir(parents=True)
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    return pasta
+
+
+def test_ligar_escreve_o_cmd_e_desligar_apaga(inicializacao: Path) -> None:
+    assert retomada.instalada() is False
+    assert retomada.agendar(instalar=True) == 0
+    assert retomada.instalada() is True
+
+    alvo = retomada.caminho_do_gatilho()
+    assert alvo.parent == inicializacao
+    conteudo = alvo.read_text(encoding="ascii")
+    assert "segundocerebro.index.retomada" in conteudo
+    assert "PYTHONPATH=src" in conteudo
+
+    assert retomada.agendar(instalar=False) == 0
+    assert retomada.instalada() is False
+
+
+def test_desligar_o_que_ja_esta_desligado_e_sucesso(inicializacao: Path) -> None:
+    """Clicar "Desligar" duas vezes não é erro.
+
+    O usuário pediu um estado, e o estado é esse. Falhar aqui pintaria de vermelho
+    uma tela que fez exatamente o que foi pedido.
+    """
+    assert retomada.agendar(instalar=False) == 0
+    assert retomada.instalada() is False
+
+
+def test_ligar_duas_vezes_nao_duplica(inicializacao: Path) -> None:
+    retomada.agendar(instalar=True)
+    primeiro = retomada.caminho_do_gatilho().read_text(encoding="ascii")
+    retomada.agendar(instalar=True)
+    assert retomada.caminho_do_gatilho().read_text(encoding="ascii") == primeiro
+    assert len(list(inicializacao.iterdir())) == 1
+
+
+def test_cmd_nao_sai_com_quebra_dupla(inicializacao: Path) -> None:
+    """`\r\r\n` é o defeito clássico de escrever `\r\n` sem `newline=""`.
+
+    O `cmd` engole algumas linhas assim e falha noutras, o que produz um gatilho
+    que às vezes funciona — o pior modo de falha para algo que roda no logon.
+    """
+    retomada.agendar(instalar=True)
+    bruto = retomada.caminho_do_gatilho().read_bytes()
+    assert b"\r\r\n" not in bruto
+    assert bruto.count(b"\r\n") >= 4
+
+
+def test_sem_pasta_de_inicializacao_responde_nao_sei(tmp_path: Path, monkeypatch) -> None:
+    """Fora do Windows não existe pasta de inicialização.
+
+    "Não sei" e "desligado" levam a telas diferentes: a segunda oferece o botão de
+    ligar, e oferecer isso onde o mecanismo não existe é prometer o que não há.
+    """
+    monkeypatch.setenv("APPDATA", str(tmp_path / "nao-existe"))
+    assert retomada.instalada() is None

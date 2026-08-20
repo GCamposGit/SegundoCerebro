@@ -157,8 +157,9 @@ do indexador.
 2. Pipeline: parse em threads + `EmbedFila` (um processo por GPU).
 3. Corpus sintético versionado + `perguntas.example.jsonl`.
 4. Estimativa com semente GPU (`FATOR_GPU = 28`, medido).
-5. Painel: checkbox de retomada no logon; Pausar / Continuar / Cancelar
-   (arquivo `comando.txt` ao lado do índice, sem IPC).
+5. Painel: retomada no logon via `.cmd` na pasta de inicialização (`schtasks
+   /SC ONLOGON` exige elevação e foi recusado no notebook); Pausar /
+   Continuar / Cancelar (`comando.txt` ao lado do índice, sem IPC).
 6. Pacote de portabilidade: `docs/portabilidade-f36.md`. O zip do índice
    **não** vai no Git (é `index-*/`); viaja por `E:\SegundoCerebro\portabilidade-f36.zip`.
 
@@ -176,7 +177,7 @@ do indexador.
 
 **Nenhum dos dois, daqui**
 
-F4 (`neighbors`, grafo, MSG/OCR), F5, glossário de siglas corporativas,
+F4 (`neighbors`, grafo, MSG/OCR), F5,
 segundo ataque isolado à `g036`, ligar rerank por padrão no notebook.
 
 ---

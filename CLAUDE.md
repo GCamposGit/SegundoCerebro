@@ -2,12 +2,33 @@
 
 Guia de desenvolvimento para o Claude Code neste projeto.
 
-Há um segundo setup (desktop com duas 980 Ti, corpus novo, Grok Build). Antes
-de qualquer trabalho neste notebook: ler
-[`docs/colaboracao.md`](docs/colaboracao.md) e a skill
+## Dois setups desde 20/08/2026 — ler antes de tocar em qualquer coisa
+
+Há um segundo computador (desktop, duas GTX 980 Ti, corpus novo, Grok Build).
+As regras são de [`docs/colaboracao.md`](docs/colaboracao.md), que é a **única**
+fonte, mais a skill
 [`.claude/skills/segundo-cerebro-notebook/SKILL.md`](.claude/skills/segundo-cerebro-notebook/SKILL.md).
-Não editar o laço do indexador nem `embeddings.py` enquanto a F3.6 estiver
-aberta no desktop.
+Este notebook é o lado do **acervo corporativo e do conjunto dourado real**.
+
+Ninguém commita em `main`; cada lado trabalha na sua branch e entra por PR.
+
+**Nenhum dado do acervo real vai para o Git, e o repositório é público.** O que
+a auditoria de 20/08 mostrou, e que vale como regra e não como episódio:
+
+- A lista por nome no `.gitignore` **falha em silêncio** no arquivo seguinte.
+  Quatro `metricas-f2-*` foram commitados localmente sem cair em nenhuma regra.
+  Por isso `docs/metricas-*.md` virou padrão. Relatório por pergunta **sempre**
+  cita nome de arquivo do acervo — é o que ele é.
+- **Vocabulário de teste vem da VCE**, a empresa fictícia de `eval/sintetico/`.
+  Sigla real em teste ou docstring é vazamento com aparência de código. O
+  dicionário publicável é `eval/glossario.example.toml`.
+- Ao sanear, `\bSIGLA\b` **não** casa dentro de literal como `'\nRDE = ...'`: o
+  caractere antes do `R` é o `n` da escapada, que é caractere de palavra. Auditar
+  com o padrão e com o caso escapado.
+- Dado real que **já estava público** antes desta auditoria, e que segue lá:
+  `retrieve/familias.py`, `tests/test_familias.py` (nome de arquivo real) e
+  `docs/arquitetura-tecnica.md` (sigla interna). Tratar quando houver uma branch
+  que toque esses arquivos por outro motivo.
 
 ---
 
@@ -19,7 +40,8 @@ decisões e [ROADMAP.md](ROADMAP.md) para as fases.
 
 ## Estado atual
 
-**F1 medida, F3 iniciada.** Ler `docs/estado-f1.md` primeiro — é o retomador de
+**F1 fechada, F2 fechada em 18/08/2026, F3.5 concluída. Da F3 falta só um ato
+humano.** Ler `docs/estado-f1.md` primeiro — é o retomador de
 contexto: o que está pronto, os números medidos, as decisões com motivo e as
 armadilhas já encontradas. Para usar o sistema, `docs/usar-o-mcp.md`.
 
@@ -104,13 +126,16 @@ documentos processados (o conjunto filtrado que `iter_files` enumera, **não** o
 com texto, **92.125 chunks**, zero fantasmas, reconciliação feita. 64 h de parede
 desde 13/08, das quais ~39 h de trabalho efetivo.
 
-**F1 medida na condição C em 16/08/2026 — a fase NÃO fecha.** Ler
-`docs/portas-f1-condicao-c.md`. Portas 1, 2 e 5 passam com folga (recall@1 0,600
-contra 0,467 do baseline; MRR 0,736 contra 0,592); portas 3 e 4 reprovam (4 de 6
-armadilhas, exige 5; 1 de 5 multi-hop, exige 3). As duas armadilhas que falham
-falham **também no baseline** e são F2 por descrição — família de versão e
-discriminação entre documentos irmãos. **O gargalo é precisão**, que era
-exatamente a pergunta que a inversão F2/F3 deixou em aberto.
+**F1 FECHADA em 17/08/2026 — as cinco portas passam.** Ler
+`docs/fechamento-f1.md`. recall@1 **0,678** contra 0,467 do baseline, MRR
+**0,785** contra 0,592, armadilhas **5 de 6**, multi-hop com ≥1 fonte **5 de 5**,
+e uma única queda do 1º lugar (não-crítica; o teto era 3).
+
+Duas coisas que valem para as fases seguintes. A porta 3 fechou com **metadado**
+(famílias de versão), não com peso de fusão — o gargalo que a inversão F2/F3
+identificou era precisão, e parte dela não estava no conteúdo. E o fechamento
+**não depende do reranking**: com ele desligado as portas 1 a 4 também passam, o
+que importa porque ele custa 6,8× no tempo de consulta.
 
 **F3.5 bloco D em curso desde 16/08/2026** — controle de indexação. Método e
 coeficientes em `docs/estimativa-de-indexacao.md`.
@@ -127,16 +152,32 @@ de custo, indexar, conectar), perfis, pesos e releitura, diagnóstico de consult
 usa o mesmo `iter_files` do indexador, e separa "arquivos" de "legíveis" — contar
 tudo daria estimativa maior que a verdade.
 
-Falta da F3.5-D: **retomada automática depois de reinício** (marcador + tarefa
-agendada no logon). A base já está pronta — commit por documento, WAL, e trava
-que sobrevive a reuso de PID.
+**F3.5-D fechada em 19/08/2026 — retomada automática depois de reinício.**
+`index/retomada.py` já existia com 13 testes; o que faltava era o controle no
+painel e a verificação contra o Windows real. Botão liga/desliga em Máquina,
+e nenhum marcador novo — o `progresso.json` é o marcador, porque um segundo
+arquivo criaria duas fontes de verdade.
+
+O mecanismo **não** é a tarefa agendada que o plano previa. `schtasks /SC ONLOGON`
+e o `Register-ScheduledTask` do PowerShell dão "acesso negado" sem elevação nesta
+máquina; criar tarefa `ONCE` no mesmo shell funciona, o que localiza o
+impedimento no **gatilho de logon** e não no agendador. O gatilho passou a ser um
+`.cmd` na pasta de inicialização do usuário — dispensa elevação e é um arquivo
+visível que se apaga à mão. Verificado rodando de `C:\Windows\System32`.
+
+Lição para a F4 e a F5: **mock de utilitário do sistema não prova permissão.** Os
+13 testes com `schtasks` simulado passavam verdes contra um comando que a máquina
+recusa. O que pegou foi rodar de verdade.
 
 ```bash
 py -m segundocerebro.index.indexer --perfil leve   # cede a vez, recusa bateria
 ```
 
-**F2 em curso desde 16/08/2026 — três entregas medidas.** recall@1 saiu de 0,600
-para **0,678** e MRR de 0,736 para **0,785** na condição C:
+**F2 fechada em 18/08/2026 — critério de saída cumprido.** A tabela consolidada
+está em `docs/ablacao-f2.md` (leitura) e `docs/ablacao-f2-tabela.md` (evidência
+regenerável). Sem reranking, a configuração entregue mede recall@1 **0,667**, MRR
+**0,787** e nDCG@5 **0,793**; com reranking ligado, recall@1 **0,678**. As
+entregas medidas, na ordem em que entraram:
 
 - **Famílias de versão** (`docs/ablacao-familias.md`): 0,600 → 0,644, armadilhas
   4 → **5 de 6**, zero regressões. **A porta 3 passa.** Custo zero por consulta.
@@ -148,11 +189,41 @@ para **0,678** e MRR de 0,736 para **0,785** na condição C:
 - **Expansão de contexto**: `search` anexa vizinhos em `antes`/`depois`, fora de
   `texto` para não contaminar procedência. Entra por argumento — o conjunto
   dourado não mede "a resposta estava no parágrafo seguinte".
+- **Glossário de siglas** (`docs/ablacao-glossario.md`): 0,644 → **0,667** de
+  recall@1, nDCG@5 0,760 → **0,793**, zero regressões, **custo zero por consulta**.
+  Nessa métrica vale mais que o reranking, que custa 6,9× no tempo.
 
-**A lição que se repetiu duas vezes:** neste acervo o consenso de ranqueadores
-independentes vale mais que qualquer juiz isolado. Aconteceu com o bm25 (13/08) e
-com o cross-encoder (16/08). Desconfiar de mecanismo que proponha reordenar
+  O achado que decide o produto: o dicionário de teste foi medido dividido, e o
+  grupo **genérico** (mês abreviado, serviria a qualquer acervo) deu **zero**
+  enquanto o **específico da empresa** deu o ganho inteiro. Logo dicionário
+  embutido é peso morto, e o mecanismo de o usuário construir o dele **é** a
+  feature — endpoint `/api/glossario` e tela no painel, arquivo por base.
+- **Tabela consolidada da F2** (`docs/ablacao-f2.md`, gerada por
+  `eval.ablacao_f2`): nove braços numa passada. O harness passou a emitir
+  nDCG@**5** e @10 — o @5 porque a saída da fase pede, o @10 para não perder
+  comparabilidade com F0 e F1.
+
+**A lição que se repetiu três vezes:** neste acervo o consenso de ranqueadores
+independentes vale mais que qualquer juiz isolado. Aconteceu com o bm25 (13/08),
+com o cross-encoder (16/08) e na tabela consolidada de 18/08 — nenhum ranqueador
+isolado chega perto da fusão. Desconfiar de mecanismo que proponha reordenar
 sozinho.
+
+E a lição inversa, que a tabela deu de graça: o pior par de dois sinais é
+`bm25 + nome` (nDCG@5 0,647), e é o par que lê **forma de superfície**. O que soma
+é sinal de natureza diferente, não sinal a mais.
+
+**Onde o bm25 se paga, e é só ali.** `denso + nome + famílias` tem o maior nDCG@5
+da tabela (0,789), acima do reranking, a um oitavo do custo — e faz **3 de 6
+armadilhas** contra 5 do padrão. Isso também mata a explicação de que as famílias
+teriam tornado o bm25 redundante: sem ele, com famílias ligadas, as armadilhas
+caem para 3. Os dois resolvem casos diferentes. O padrão não muda porque a regra
+foi declarada antes; fica registrado como candidato se a porta 3 for renegociada.
+
+**Metadado antes de modelo, confirmado duas vezes.** Famílias de versão e
+glossário custam zero por consulta e valem +0,044 e +0,033; o reranking custa
+6,9× e vale +0,011 de nDCG@5. Dois dos três maiores ganhos da fase não vieram de
+modelo nenhum.
 
 Armadilha do catálogo, repetida: o `bge-reranker-v2-m3` que o ROADMAP nomeava
 **não existe no `fastembed`**, igual ao BGE-M3 denso. Conferir catálogo antes de
@@ -162,11 +233,26 @@ escrever o nome de um modelo no plano.
 Starlette, sem npm e sem nada vindo de fora. Perfis com o custo de cada um à
 mostra, diagnóstico de consulta e conjunto dourado crescendo do uso real.
 
-378 testes.
+**Segundo cliente instalado por um comando, desde 18/08/2026.**
 
-**Próximo passo:** medir a F1 na condição C, agora que o índice está completo. Em
-paralelo, a tela do painel — perfis medidos, diagnóstico de consulta e o conjunto
-dourado crescendo do uso real.
+```bash
+py -m segundocerebro.mcp.registrar --cliente claude-desktop --instalar
+```
+
+Resolve `%APPDATA%\Claude\claude_desktop_config.json`, mescla preservando os outros
+servidores MCP e as preferências do app, e **recusa gravar** se o cliente não
+estiver na máquina — criar a pasta deixaria configuração órfã sem ninguém avisar.
+O teste `test_bloco_do_claude_desktop_sobe_de_um_cwd_neutro` (marcado `modelo`)
+sobe o servidor **de `C:\Windows\system32`** com o bloco exato e responde a
+consulta do traço da F3 contra o índice real. Da F3 falta só o ato humano: abrir o
+Claude Desktop e fazer a pergunta lá.
+
+515 testes.
+
+**Próximo passo:** a F2 fechou o critério de saída (tabela consolidada com
+nDCG@5). O que resta é a decisão sobre a porta 3 — ver "onde o bm25 se paga" — e a
+F4, cujo grafo derivado é a única rota para o multi-hop completo, travado em 1 de 5
+por razão estrutural e não de peso.
 
 O que o corpus real ensinou e que não estava no plano — tratar na F1:
 famílias de versão (`_v6` não é o vigente), caminhos acima de 260 caracteres

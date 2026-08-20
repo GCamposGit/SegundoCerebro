@@ -50,6 +50,27 @@ desktop.ini
 # o sistema.
 eval/golden/perguntas.jsonl
 eval/golden/empresas.jsonl
+
+# Relatório por pergunta **sempre** cita nome de arquivo do acervo — é o que ele
+# é. Por isso `docs/metricas-*.md` é padrão e não lista: lista por nome falha em
+# silêncio no arquivo seguinte, e foi o que aconteceu em 19/08/2026, quando
+# quatro `metricas-f2-*glossario*` foram commitados sem cair em nenhuma regra.
+# Se algum dia um relatório de métrica for genérico o bastante para publicar,
+# ele entra por exceção explícita (`!docs/metricas-nome.md`), com o motivo.
+docs/metricas-*.md
+
+# Dicionário de siglas do acervo real: um mapa curado do vocabulário interno da
+# empresa, que é mais sensível que qualquer relatório derivado dele. O exemplo
+# publicável é `eval/glossario.example.toml`, com a empresa fictícia da VCE.
+eval/glossario-teste*.toml
+eval/glossario-*.toml
+!eval/glossario.example.toml
+
+# Ablação continua sendo lista, e não padrão, porque aqui é caso a caso: a
+# leitura agregada costuma ser publicável (`ablacao-f1.md`, `ablacao-f2.md`) e o
+# relatório que cita arquivo, não.
+docs/ablacao-glossario.md
+>>>>>>> origin/main
 docs/ablacao-bm25-com-nome.md
 docs/ablacao-bm25-sem-nome.md
 docs/ablacao-denso-com-nome.md

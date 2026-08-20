@@ -1,0 +1,57 @@
+# Glossário de siglas — EXEMPLO, com a empresa fictícia do corpus sintético.
+#
+# O produto nasce **sem** glossário. Este arquivo existe por duas razões:
+#
+# 1. Mostrar o formato, para quem instala do zero saber o que escrever — igual ao
+#    que `eval/golden/perguntas.example.jsonl` faz pelo conjunto dourado.
+# 2. Reproduzir a **forma** da ablação de 19/08/2026 sem o vocabulário de
+#    ninguém: dois grupos de propósito diferente, medidos separados.
+#
+# Empresa: Várzea Clara Energia (VCE), a mesma de `eval/sintetico/`. Nenhuma
+# sigla real de acervo nenhum.
+#
+# O resultado que decidiu o desenho do produto, medido no acervo corporativo
+# (relatório gitignorado, ver `docs/ablacao-f2.md` para a leitura agregada):
+# **o grupo genérico deu zero e o específico deu o ganho inteiro.** Logo um
+# dicionário embutido seria peso morto, e o mecanismo de o usuário construir o
+# dele é a feature — `/api/glossario` e a tela "Siglas da sua casa" no painel.
+
+[termos]
+
+# --- GENÉRICO: serviria a qualquer acervo -------------------------------------
+# Mês abreviado no nome de arquivo existe em qualquer pasta de qualquer pessoa.
+# Parecia o ganho universal e **mediu zero**: as perguntas que ele alcançava já
+# eram encontradas pelos outros ranqueadores. Achar o descasamento não é achar o
+# gargalo — fica aqui como o resultado negativo que ele é, não como recomendação.
+Jan = ["janeiro", "January"]
+Fev = ["fevereiro"]
+Feb = ["fevereiro", "February"]
+Mar = ["março", "March"]
+Abr = ["abril"]
+Apr = ["abril", "April"]
+Mai = ["maio"]
+May = ["maio"]
+Jun = ["junho", "June"]
+Jul = ["julho", "July"]
+Ago = ["agosto"]
+Aug = ["agosto", "August"]
+Set = ["setembro"]
+Sep = ["setembro", "September"]
+Out = ["outubro"]
+Oct = ["outubro", "October"]
+Nov = ["novembro", "November"]
+Dez = ["dezembro"]
+Dec = ["dezembro", "December"]
+
+# --- ESPECÍFICO: só vale para quem tem este acervo ----------------------------
+# É daqui que veio o ganho inteiro, e é o que um terceiro **não** herda: ele
+# herda o mecanismo, e o dicionário dele começa vazio.
+#
+# `PO-VCE-007` e `CT-VCE-2024-0142` estão aqui de propósito: sigla com hífen
+# tokeniza em partes (`po`, `vce`, `007`), e é a forma que quebrava a busca antes
+# de a comparação passar a ser por sequência contígua de tokens. Se o mecanismo
+# regredir, é por estas duas linhas que se percebe.
+VCE = ["Várzea Clara Energia"]
+"PO-VCE-007" = ["Política de Inteligência Artificial", "política de IA"]
+"CT-VCE-2024-0142" = ["contrato de serviços de consultoria"]
+PGI = ["Programa de Governança de IA", "governança de IA"]

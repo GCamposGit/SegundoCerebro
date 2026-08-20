@@ -26,6 +26,7 @@ from ..index.embeddings import Embedder
 from ..index.store import Store
 from ..logger import get_logger
 from .familias import chave_de_familia, colapsar
+from .glossario import Glossario
 from .rerank import texto_para_rerank
 from .nomes import RanqueadorDeNome
 
@@ -151,6 +152,7 @@ class BuscaHibrida:
         peso_lexical: float = PESO_LEXICAL,
         peso_nome: float = PESO_NOME,
         agrupar_familias: bool = AGRUPAR_FAMILIAS,
+        glossario: Glossario | None = None,
         reranker=None,  # noqa: ANN001 — `rerank.Reranker`, opcional
     ) -> None:
         if not (usar_denso or usar_lexical or usar_nome):
@@ -166,6 +168,11 @@ class BuscaHibrida:
         self.peso_lexical = peso_lexical
         self.peso_nome = peso_nome
         self.agrupar_familias = agrupar_familias
+        # O denso **não** recebe a expansão de propósito: acrescentar sinônimo ao
+        # texto move o vetor da consulta para a média dos termos, e o embedding
+        # assimétrico do e5 já resolve sinônimo sozinho. Quem precisa da expansão
+        # é quem casa termo com termo — o bm25 e o nome de arquivo.
+        self.glossario = glossario or Glossario.vazio()
         self.reranker = reranker
         self._ranqueador_nome: RanqueadorDeNome | None = None
         self._mtimes: dict[str, float] | None = None
@@ -205,8 +212,19 @@ class BuscaHibrida:
             peso_lexical=base.pesos.lexical,
             peso_nome=base.pesos.nome,
             agrupar_familias=getattr(base, "agrupar_familias", AGRUPAR_FAMILIAS),
+            glossario=cls.glossario_de(base),
             reranker=cls.reranker_de(base),
         )
+
+    @staticmethod
+    def glossario_de(base) -> Glossario:  # noqa: ANN001
+        """Glossário da base, ou vazio quando ela não aponta nenhum.
+
+        Ler aqui e não no servidor é o que faz o eval medir o que o servidor
+        entrega — a mesma razão pela qual `reranker_de` mora nesta classe.
+        """
+        caminho = getattr(base, "glossario", None)
+        return Glossario.de_arquivo(caminho) if caminho else Glossario.vazio()
 
     @staticmethod
     def reranker_de(base):  # noqa: ANN001, ANN205
@@ -258,7 +276,7 @@ class BuscaHibrida:
             de_denso = {a.id for a in acertos}
 
         if self.usar_lexical:
-            acertos = self.store.buscar_lexical(consulta, self.candidatos)
+            acertos = self.store.buscar_lexical(self.glossario.expandir(consulta), self.candidatos)
             rankings.append([a.id for a in acertos])
             pesos.append(self.peso_lexical)
             de_lexical = {a.id for a in acertos}
@@ -396,7 +414,8 @@ class BuscaHibrida:
             pesos_doc.append(peso)
 
         if self.usar_nome and self.peso_nome:
-            por_nome = [rel for rel, _ in self.ranqueador_nome.ranquear(consulta, self.candidatos)]
+            expandida = self.glossario.expandir(consulta)
+            por_nome = [rel for rel, _ in self.ranqueador_nome.ranquear(expandida, self.candidatos)]
             rankings_doc.append(por_nome)
             pesos_doc.append(self.peso_nome)
 
