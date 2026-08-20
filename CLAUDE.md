@@ -2,6 +2,34 @@
 
 Guia de desenvolvimento para o Claude Code neste projeto.
 
+## Dois setups desde 20/08/2026 — ler antes de tocar em qualquer coisa
+
+Há um segundo computador (desktop, duas GTX 980 Ti, corpus novo, Grok Build).
+As regras são de [`docs/colaboracao.md`](docs/colaboracao.md), que é a **única**
+fonte, mais a skill
+[`.claude/skills/segundo-cerebro-notebook/SKILL.md`](.claude/skills/segundo-cerebro-notebook/SKILL.md).
+Este notebook é o lado do **acervo corporativo e do conjunto dourado real**.
+
+Ninguém commita em `main`; cada lado trabalha na sua branch e entra por PR.
+
+**Nenhum dado do acervo real vai para o Git, e o repositório é público.** O que
+a auditoria de 20/08 mostrou, e que vale como regra e não como episódio:
+
+- A lista por nome no `.gitignore` **falha em silêncio** no arquivo seguinte.
+  Quatro `metricas-f2-*` foram commitados localmente sem cair em nenhuma regra.
+  Por isso `docs/metricas-*.md` virou padrão. Relatório por pergunta **sempre**
+  cita nome de arquivo do acervo — é o que ele é.
+- **Vocabulário de teste vem da VCE**, a empresa fictícia de `eval/sintetico/`.
+  Sigla real em teste ou docstring é vazamento com aparência de código. O
+  dicionário publicável é `eval/glossario.example.toml`.
+- Ao sanear, `\bSIGLA\b` **não** casa dentro de literal como `'\nRDE = ...'`: o
+  caractere antes do `R` é o `n` da escapada, que é caractere de palavra. Auditar
+  com o padrão e com o caso escapado.
+- Dado real que **já estava público** antes desta auditoria, e que segue lá:
+  `retrieve/familias.py`, `tests/test_familias.py` (nome de arquivo real) e
+  `docs/arquitetura-tecnica.md` (sigla interna). Tratar quando houver uma branch
+  que toque esses arquivos por outro motivo.
+
 ---
 
 ## O que é este projeto
