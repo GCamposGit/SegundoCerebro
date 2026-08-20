@@ -112,10 +112,11 @@ def caminho_do_gatilho() -> Path:
 
     **Pasta de inicialização e não tarefa agendada.** O ROADMAP pedia
     `schtasks /SC ONLOGON`, e isso foi tentado no notebook em 19/08/2026:
-    negado, tanto pelo `schtasks` quanto pelo `Register-ScheduledTask` do
-    PowerShell, porque gatilho de logon exige elevação num Windows 11 Enterprise
-    com política corporativa. Criar tarefa de outro tipo — `ONCE`, `DAILY` — é
-    permitido, o que confirma que o impedimento é o gatilho e não o agendador.
+    **Acesso negado** sem elevação, tanto por `schtasks /SC ONLOGON` quanto por
+    `Register-ScheduledTask -AtLogOn`, num Windows 11 Enterprise com política
+    corporativa. Criar tarefa `ONCE` no mesmo shell funciona — o impedimento é
+    o gatilho de logon, não o agendador. O `.cmd` foi conferido rodando a
+    partir de `C:\\Windows\\System32`, que é de onde o processo de logon nasce.
 
     Exigir administrador para ligar uma conveniência derrubaria o público desta
     tela. A pasta de inicialização é de usuário, dispensa elevação, e tem a
