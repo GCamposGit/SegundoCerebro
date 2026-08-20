@@ -21,7 +21,7 @@ O outro lado é Claude Code no notebook, dono dos números corporativos.
 
 ## Você pode
 
-- F3.6: smoke CUDA primeiro (`py -m segundocerebro.index.smoke_cuda`). Pipeline só depois de passar.
+- Hardware e revisão de PRs da F4. F3.6 já fechou no sintético.
 - Corpus sintético, `perguntas.example.jsonl`, `config.sintetico.toml`.
 - Uma `[[base]]` nova para o acervo **privado deste computador**. Não mexa em `[padrao]`.
 - Recalibrar estimativa de indexação em GPU.

@@ -15,11 +15,12 @@ Você está no **notebook**. Acervo corporativo e conjunto dourado real.
 O outro lado é Grok Build no desktop (duas 980 Ti, corpus novo, **sem** estes documentos).
 
 1. Leia `docs/colaboracao.md` inteiro. É a fonte. Não resuma regras de memória.
-2. `git fetch origin && git checkout onboarding-golden && git pull`. Esta branch
-   é a entrega do desktop (F3.6 + sintético + skills). **Não** edite
-   `index/indexer.py`, `index/embeddings.py`, `index/gpu_pool.py` nem
-   `index/smoke_cuda.py` até ela estar em `main`.
-3. Depois de `colaboracao.md`: `docs/portabilidade-f36.md` e `docs/smoke-cuda.md`.
+2. `git pull origin main`. Depois do merge de `onboarding-golden`, trabalhe
+   numa branch `f4-*`, nunca em `main`. **Não** edite `index/indexer.py`,
+   `index/embeddings.py`, `index/gpu_pool.py` nem `index/smoke_cuda.py`
+   sem acordo — hardware é do desktop.
+3. Depois de `colaboracao.md`: `docs/portabilidade-f36.md` se for índice
+   sintético; senão o `ROADMAP.md` da F4.
 4. Declare na primeira resposta: setup=notebook, branch, fase, o que não vai tocar.
 
 ## O que o desktop já fez (20/08/2026) — não refazer
@@ -34,16 +35,15 @@ O outro lado é Grok Build no desktop (duas 980 Ti, corpus novo, **sem** estes d
 
 ## Sua vez
 
-- Fechar a F3: uma pergunta multi-hop real, traço gitignorado em
-  `docs/traco-f3-uso-real.md`.
-- Revisar esta branch pela tabela de donos (seção 1 de `colaboracao.md`).
+- F4: `neighbors`, grafo, MSG/OCR, watcher — com número no dourado corporativo.
+  Parser ou laço do indexador = dois PRs (seção 1 de `colaboracao.md`).
 - Ranking só com número antes/depois no dourado **corporativo**.
   Métrica do sintético (`corpus=sintetico`) não substitui a condição C.
 
 ## Você pode
 
 - Medir e mudar ranking (`retrieve/*`, pesos da base corporativa) **com** número antes/depois no dourado real.
-- Fechar a F3: uma pergunta multi-hop real, traço em `docs/traco-f3-uso-real.md` (gitignorado).
+- F4 no acervo corporativo, com número antes/depois.
 - Revisar PRs do desktop: tabela da seção 1 e regras 2 e 4 de `docs/colaboracao.md`.
 - Editar `CLAUDE.md` — é o seu retomador. Não apague o ponteiro para `docs/colaboracao.md`.
 
@@ -53,7 +53,8 @@ O outro lado é Grok Build no desktop (duas 980 Ti, corpus novo, **sem** estes d
 - Mudar `model_id`, `max_chars` ou o modelo padrão sem acordo explícito com o desktop — rebuilda o índice.
 - Tratar métrica do corpus sintético como se fosse a condição C.
 - Commitar `perguntas.jsonl`, relatórios de ablação com nome real, `config.toml` ou o índice.
-- Começar F4/F5 daqui enquanto a F3 não tem traço e a F3.6 não tem smoke.
+- Começar F5 daqui. F4 sim, depois de `onboarding-golden` em `main`.
+  Parser/indexador da F4 em PR separado do ranking.
 
 ## PR do desktop
 

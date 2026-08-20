@@ -144,12 +144,14 @@ em [`docs/portabilidade-f36.md`](portabilidade-f36.md).
 
 ## 6. O que cada lado faz nesta fase
 
-**Estado em 20/08/2026, branch `onboarding-golden`.** F3.6 **fechada** no
+**Estado em 20/08/2026.** F1, F2, F3 e F3.5-D em `main`. F3.6 **fechada** no
 sintético (vetor 1,0000; métricas idênticas nos dois lados; índice do desktop
-consultado no notebook sem reembeddar). O notebook segue no traço multi-hop
-da F3. Não reabrir o laço do indexador.
+consultado no notebook sem reembeddar). F3 **fechada** no corporativo
+(`ba73da2`): a mesma pergunta multi-hop verificada no Claude Code e no
+Claude Desktop, decomposições diferentes, nenhum fato sem fonte no acervo.
+O traço em si continua gitignorado.
 
-**Desktop — feito nesta branch**
+**Desktop — feito em `onboarding-golden`**
 
 1. Smoke CUDA nas 980 Ti (`docs/smoke-cuda.md`). Pin `onnxruntime-gpu==1.18.0`
    + CUDA 11.8 + cuDNN 8. MiniLM quantizado = NaN; e5-large finito.
@@ -161,20 +163,24 @@ da F3. Não reabrir o laço do indexador.
    /SC ONLOGON` exige elevação e foi recusado no notebook); Pausar /
    Continuar / Cancelar (`comando.txt` ao lado do índice, sem IPC).
 6. Pacote de portabilidade: `docs/portabilidade-f36.md`. O zip do índice
-   **não** vai no Git (é `index-*/`); viaja por `E:\SegundoCerebro\portabilidade-f36.zip`.
+   **não** vai no Git.
 
 **Notebook — agora**
 
-1. Traço multi-hop no acervo corporativo (`docs/traco-f3-uso-real.md`,
-   gitignorado) — fecha a F3.
-2. **Não** editar `index/indexer.py`, `index/embeddings.py`, `gpu_pool.py`,
-   `smoke_cuda.py` enquanto `onboarding-golden` não estiver em `main`.
-3. Revisar o PR desta branch: tabela da seção 1 e regras 2 e 4.
+F4 (`neighbors`, grafo, MSG/OCR, watcher). Precisa do conjunto dourado
+corporativo para medir, e é adjacente a `retrieve/*`. Parser novo ou laço do
+indexador = **dois PRs**, não um (seção 1). `mcp/server.py` e `ROADMAP.md`
+continuam "um de cada vez".
+
+**Desktop — agora**
+
+Hardware e revisão: não reabre o laço do indexador sem necessidade; revisa
+PRs da F4 pela tabela da seção 1.
 
 **Nenhum dos dois, daqui**
 
-F4 (`neighbors`, grafo, MSG/OCR), F5,
-segundo ataque isolado à `g036`, ligar rerank por padrão no notebook.
+F5 (segundo usuário real), segundo ataque isolado à `g036`, ligar rerank
+por padrão no notebook.
 
 ---
 
