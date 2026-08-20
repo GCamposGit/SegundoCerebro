@@ -26,6 +26,33 @@ por melhor que seja: o que faltava não era precisão, era uma aresta.
 A ausência de regressão era esperada — o grafo não entra no caminho de consulta —
 mas a regra do projeto é medir, não presumir. Ficou medida.
 
+## A prova do "só", e ela é mais forte que ranking
+
+O critério pede uma pergunta multi-hop que **só** é respondível via `neighbors`.
+"Só" é palavra forte, e foi verificada em vez de presumida — o resultado surpreende
+para melhor:
+
+| Tentativa | A norma aparece? |
+|---|---|
+| `search` com a pergunta, k=10 | não |
+| `search` com a pergunta, k=20 | não |
+| `search` por "ISO 42001 requisitos sistema de gestão de IA" | **não** |
+| `search` → `neighbors` | **1º lugar** |
+
+Nem nomeando a norma explicitamente a busca a alcança. E a razão não é ranking
+ruim — é **estrutural**:
+
+`search` devolve *trechos*. Um documento sem texto extraível não tem trecho
+nenhum, então nenhum ranqueador da pilha pode devolvê-lo: nem o denso, nem o
+bm25, nem o de nome de arquivo. O ranqueador de nome é construído sobre
+`paths_com_chunks()` justamente porque "é o que a busca consegue devolver" — a
+restrição está documentada no código e é correta, não um descuido.
+
+`neighbors` opera em nível de **documento**, e é por isso que alcança. A conclusão
+que importa para o desenho: **o grafo não é ranking melhor, é granularidade
+diferente**, e cobre um ponto cego que nenhum ajuste de peso alcançaria. Num
+acervo com 208 PDFs, alguns digitalizados, esse ponto cego não é exótico.
+
 ## O que a passada separada compra
 
 O grafo é derivado do índice, não do disco: `retrieve.grafo` lê os chunks que já
