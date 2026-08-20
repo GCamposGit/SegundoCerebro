@@ -748,8 +748,35 @@ Int8 na CPU continua sendo alavanca do notebook, não desta fase.
 O que dá profundidade ao multi-hop. Deliberadamente **depois** da F3, porque só
 com o traço real de uso fica claro quais arestas o modelo aproveita.
 
-- Extração de identificadores (contrato, projeto, processo, siglas) e entidades
-- Grafo em SQLite; ferramenta `neighbors` passa a andar por ele
+> **Grafo e `neighbors` entregues em 20/08/2026** —
+> [`docs/ablacao-f4-grafo.md`](docs/ablacao-f4-grafo.md). As duas metades do
+> critério de saída estão cumpridas para esta parte: métricas da F2 **idênticas**
+> (recall@1 0,667, MRR 0,787, nDCG@5 0,793) e o caso plano → norma respondível só
+> pela aresta. Falta desta fase: SharePoint, watcher, MSG/EML e legado.
+>
+> Três decisões que valem para o resto da fase:
+>
+> **Passada separada do indexador.** O grafo é derivado do índice, não do disco:
+> reconstruí-lo inteiro custa **30 s** contra 39 h de reindexação. Numa fase cujo
+> trabalho é refinar regras de extração, isso é a diferença entre cinco iterações
+> e nenhuma — e foram cinco. De brinde, o laço de `indexer.py` não foi tocado,
+> que é dono do outro setup em `docs/colaboracao.md`.
+>
+> **Menção, não aresta.** Guardar as N² arestas entre documentos que citam o mesmo
+> identificador envelheceria na primeira reindexação; a aresta é derivada por
+> junção na consulta, como `familias.py` já fazia e pelo mesmo motivo.
+>
+> **Nome de arquivo é fonte de identificador.** O documento que a pergunta
+> multi-hop precisa é um PDF digitalizado — 61 páginas, zero texto extraível. Só o
+> nome o resgata, e daí saiu o desempate que decide a ordem: identificador no nome
+> significa que o documento **é** o assunto; no corpo, que ele **fala sobre**.
+
+- ✅ Extração de identificadores — norma, lei, código estruturado, CNPJ, processo.
+  Entidade por NER ficou **fora**, com motivo: exigiria modelo no caminho de
+  indexação, e a fonte de entidade que paga é o glossário que o usuário já
+  constrói (medido na F2)
+- ✅ Grafo em SQLite (tabela `mencoes`); ferramenta `neighbors` andando por ele,
+  com o **motivo** de cada ligação e peso por raridade do identificador
 - SharePoint corporativo via pasta sincronizada, com a política de placeholders
   da F1 aplicada
 - Watcher para reindexação automática
