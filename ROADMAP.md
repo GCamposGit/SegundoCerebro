@@ -712,12 +712,17 @@ notebook sem reprocessar nada.
 - **Quantização int8 na CPU**, se o eval não mostrar perda: é alavanca deste
   notebook (AVX-VNNI), não das 980 Ti — Maxwell não tem DP4A nem tensor cores
 
-**Saída:** o mesmo acervo indexado nas duas máquinas produz índices que
-recuperam igual (comparação de vetor com similaridade > 0,9999 e as métricas do
-conjunto dourado dentro do ruído), o índice construído no desktop responde
-consultas no notebook **sem reembeddar**, e o ganho medido de ponta a ponta está
-documentado em `docs/` ao lado da projeção — que erra, e o interessante é
-quanto.
+**Saída — cumprida em 20/08/2026**, `corpus=sintetico`, n=10. Não é a condição C.
+
+| Critério | Resultado |
+|----------|-----------|
+| Similaridade de vetor > 0,9999 | **1,0000** (desktop: GPU × rebuild CPU, 18 chunks) |
+| Métricas do dourado dentro do ruído | Idênticas nos dois lados: recall@1 **0,850**, recall@10 **1,000** |
+| Índice do desktop no notebook **sem reembeddar** | Confirmado: `verificar.py` sem carregar o encoder; `eval.rodar --modelo e5-large` contra o índice feito nas 980 Ti |
+
+Ganho de parede no sintético (inclui carga do encoder): **7 s** dual-GPU vs **23 s** CPU. No corpus empresas, uma 980 Ti fez 637 s ativos contra semente CPU de 5–11 h (fator 28). Detalhe em [`docs/portabilidade-f36.md`](docs/portabilidade-f36.md) e [`docs/smoke-cuda.md`](docs/smoke-cuda.md).
+
+Int8 na CPU continua sendo alavanca do notebook, não desta fase.
 
 ---
 

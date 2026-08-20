@@ -166,8 +166,9 @@ class Embedder:
                 "cache_dir": str(self._cache_dir),
                 "threads": self._threads,
             }
-            # Hardware does not enter model_id. CUDA is a process choice.
-            if os.environ.get("SEGUNDOCEREBRO_PROVIDER", "").lower() == "cuda":
+            # Hardware does not enter model_id. CUDA/CPU is a process choice.
+            provider = os.environ.get("SEGUNDOCEREBRO_PROVIDER", "").lower()
+            if provider == "cuda":
                 if self.spec.id == "minilm":
                     # Medido nas 980 Ti (sm_52): o MiniLM do fastembed é onnx-Q e
                     # o forward passa sem exceção devolvendo NaN. Recusar aqui
@@ -181,6 +182,10 @@ class Embedder:
 
                 preparar()
                 kwargs["providers"] = ["CUDAExecutionProvider"]
+            elif provider == "cpu":
+                # Sem isto o ORT com o wheel GPU ainda escolhe CUDA. A prova
+                # F3.6 (mesmo vetor em CPU e GPU) precisa forçar o EP.
+                kwargs["providers"] = ["CPUExecutionProvider"]
             self._modelo = TextEmbedding(self.spec.nome, **kwargs)
         return self._modelo
 

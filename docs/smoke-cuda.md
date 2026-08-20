@@ -53,7 +53,13 @@ já enche uma 980 Ti de 6 GB.
 
 Indexador no sintético, duas placas, `--modelo e5-large` (o MiniLM da
 `config.sintetico.toml` continua NaN no Maxwell — recusado, não gravado):
-11 documentos, 18 chunks, 7 s. `model_id` idêntico ao da CPU.
+11 documentos, 18 chunks, **7 s**. O mesmo corpus na CPU (`PROVIDER=cpu`):
+**23 s**. `eval.sintetico.comparar`: 18 chunks, cosseno mínimo **1,000000**,
+`model_id` idêntico. Hardware não mudou o vetor.
+
+Notebook, 20/08/2026: o mesmo índice consultado **sem reembeddar**; híbrido
+recall@1 0,850 / recall@10 1,000 — idêntico ao desktop. F3.6 fechada no
+sintético. Não é a condição C.
 
 `Embedder` e o indexador recusam MiniLM com `PROVIDER=cuda` **antes** de
 abrir a sessão: o forward pass sem exceção era o modo de falha pior.

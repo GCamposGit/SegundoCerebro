@@ -157,6 +157,17 @@ def test_busca_densa_devolve_o_mais_proximo(store: Store) -> None:
     assert acertos[0].score > acertos[-1].score
 
 
+def test_vetores_por_id_devolve_o_que_gravou(store: Store) -> None:
+    emb = EmbedderFalso()
+    chunks = [chunk("c1", "a.md", 0, "conteúdo")]
+    v = emb.embed_passagens(["conteúdo"])
+    store.gravar_chunks(chunks, v, mtime=1.0)
+    store.commit()
+    lido = store.vetores_por_id()
+    assert set(lido) == {"c1"}
+    assert np.allclose(lido["c1"], v[0])
+
+
 # --- registro e idempotência ------------------------------------------------
 
 

@@ -28,9 +28,9 @@ O outro lado é Grok Build no desktop (duas 980 Ti, corpus novo, **sem** estes d
 - Pipeline: parse em threads + um processo de embed por GPU.
 - Corpus sintético + `perguntas.example.jsonl` + `config.sintetico.toml`.
 - Painel: retomada no logon (checkbox), Pausar/Continuar/Cancelar.
-- Índice sintético GPU **não** está no Git. Pacote em
-  `E:\SegundoCerebro\portabilidade-f36.zip` no desktop. Prova no notebook:
-  `docs/portabilidade-f36.md`. Sem `--modelo e5-large` a medição é mentira.
+- Índice sintético GPU **não** está no Git. F3.6 **fechada** em 20/08: vetor
+  1,0000; recall@1 0,850 / recall@10 1,000 idênticos nos dois lados; consulta
+  no notebook sem reembeddar. Ver `docs/portabilidade-f36.md`.
 
 ## Sua vez
 

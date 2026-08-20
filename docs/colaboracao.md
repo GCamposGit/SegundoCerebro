@@ -137,17 +137,17 @@ py -m eval.rodar --config config.sintetico.toml --base sintetico --retriever bas
 
 Copiar o índice sintético entre máquinas é o experimento conjunto da F3.6.
 Copiar o índice **corporativo** para o desktop é proibido: o desktop não pode
-tê-lo. Protocolo, pacote e o `eval.sintetico.verificar` estão em
-[`docs/portabilidade-f36.md`](portabilidade-f36.md).
+tê-lo. Protocolo, `verificar`, `comparar` (cosseno > 0,9999) e o pacote estão
+em [`docs/portabilidade-f36.md`](portabilidade-f36.md).
 
 ---
 
 ## 6. O que cada lado faz nesta fase
 
-**Estado em 20/08/2026, branch `onboarding-golden`.** O desktop já entregou o
-bloco abaixo. O notebook puxa esta branch, lê este arquivo e a skill em
-`.claude/skills/segundo-cerebro-notebook/SKILL.md`, e **não** reabre o laço
-do indexador.
+**Estado em 20/08/2026, branch `onboarding-golden`.** F3.6 **fechada** no
+sintético (vetor 1,0000; métricas idênticas nos dois lados; índice do desktop
+consultado no notebook sem reembeddar). O notebook segue no traço multi-hop
+da F3. Não reabrir o laço do indexador.
 
 **Desktop — feito nesta branch**
 
@@ -165,15 +165,11 @@ do indexador.
 
 **Notebook — agora**
 
-1. `git fetch && git checkout onboarding-golden && git pull`.
+1. Traço multi-hop no acervo corporativo (`docs/traco-f3-uso-real.md`,
+   gitignorado) — fecha a F3.
 2. **Não** editar `index/indexer.py`, `index/embeddings.py`, `gpu_pool.py`,
-   `smoke_cuda.py` enquanto esta branch não estiver em `main`.
-3. Usar o sistema no acervo corporativo. Traço multi-hop em
-   `docs/traco-f3-uso-real.md` (gitignorado) — fecha a F3.
-4. Opcional, prova F3.6: copiar o índice sintético GPU e medir **sem**
-   reembeddar — `docs/portabilidade-f36.md`.
-5. Revisar o PR: tabela da seção 1 e regras 2 e 4. Primeira pergunta:
-   viola a tabela de donos?
+   `smoke_cuda.py` enquanto `onboarding-golden` não estiver em `main`.
+3. Revisar o PR desta branch: tabela da seção 1 e regras 2 e 4.
 
 **Nenhum dos dois, daqui**
 
