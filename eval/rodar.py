@@ -27,6 +27,7 @@ from pathlib import Path
 
 from segundocerebro.config import ErroDeConfig, carregar
 from segundocerebro.logger import get_logger
+from segundocerebro.retrieve.glossario import Glossario
 from segundocerebro.retrieve.hybrid import BuscaHibrida
 from segundocerebro.retrieve.rerank import CANDIDATOS_PARA_RERANK
 
@@ -101,6 +102,7 @@ def _montar(args, cfg):  # noqa: ANN001
         peso_denso=args.peso_denso if args.peso_denso is not None else pesos.denso,
         peso_lexical=pesos.lexical,
         peso_nome=args.peso_nome if args.peso_nome is not None else pesos.nome,
+        glossario=Glossario.de_arquivo(args.glossario) if args.glossario else None,
         reranker=reranker,
     )
     universo = store.paths_com_chunks()
@@ -112,6 +114,7 @@ def _montar(args, cfg):  # noqa: ANN001
         # que omite o reranker é indistinguível de um medido sem ele — foi assim
         # que uma medição de 17/08 passou por confirmação sem confirmar nada.
         f"Reranking: {reranker.id if reranker else '**desligado**'}.\n"
+        f"Glossário de siglas: {args.glossario if args.glossario else '**nenhum**'}.\n"
         "As métricas são no nível de **documento**: o conjunto dourado aponta arquivos, "
         "e cada documento é ranqueado pelo seu melhor trecho."
     )
@@ -162,6 +165,12 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="desliga o ranqueador por nome de arquivo, deixando só o sinal de conteúdo — "
         "é o braço que mostra quanto do resultado vem do índice e quanto vem do nome",
+    )
+    parser.add_argument(
+        "--glossario",
+        type=Path,
+        help="expande a consulta por um glossário de siglas antes do bm25 e do ranqueador "
+        "de nome — o denso não recebe a expansão, ver `retrieve.glossario`",
     )
     parser.add_argument(
         "--prefixo",

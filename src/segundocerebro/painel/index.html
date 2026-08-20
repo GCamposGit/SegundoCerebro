@@ -218,6 +218,28 @@ code { font-family: ui-monospace, "Cascadia Code", monospace; font-size: 12px; }
     </div>
   </div>
 
+  <h2>Siglas da sua casa <span class="nota">o que o sistema não tem como adivinhar</span></h2>
+  <div class="cartao">
+    <p class="sub" style="margin:0 0 10px">
+      Quando você pergunta "o acordo de proteção de dados" e o documento diz "DPA",
+      nada liga as duas formas — e o contrário também: você escreve a sigla e o
+      contrato escreve por extenso. Ensine o par aqui e as buscas passam a achar os
+      dois jeitos, sem custo nenhum no tempo de resposta.
+    </p>
+    <p class="sub" style="margin:0 0 12px">
+      Este dicionário começa <b>vazio</b> porque só você sabe as siglas do seu
+      acervo. Medimos: as siglas genéricas não ajudaram em nada, e as da casa
+      valeram mais que o reranking — que custa oito vezes mais tempo.
+    </p>
+    <div class="linha">
+      <input type="text" id="sigla" placeholder="sigla, como aparece nos arquivos (ex.: DPA)">
+      <input type="text" id="formas" placeholder="o que ela significa; separe por ; se tiver mais de um">
+      <button id="salvarSigla">Ensinar</button>
+    </div>
+    <div id="recadoSigla"></div>
+    <table id="tabelaSiglas"></table>
+  </div>
+
   <h2>Máquina <span class="nota">velocidade, nunca conteúdo do índice</span></h2>
   <div class="cartao">
     <div class="linha">
@@ -274,6 +296,11 @@ async function api(rota, corpo) {
   if (!r.ok) throw new Error(dados.erro || `erro ${r.status}`);
   return dados;
 }
+
+// O que o usuário digita volta para a tela; `<` numa forma por extenso não pode
+// virar marcação.
+const esc = (t) => String(t).replace(/[&<>"]/g, (c) =>
+  ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]);
 
 const pesosAtuais = () => ({
   denso: +$("pDenso").value, lexical: +$("pLexical").value, nome: +$("pNome").value,
@@ -403,7 +430,7 @@ $("diagnosticar").onclick = async () => {
 
 $("base").onchange = () => {
   assinaturaMedida = null; medicaoAtual = null;
-  mostrarBase(); atualizarIndexacao(); mostrarRegistro();
+  mostrarBase(); atualizarIndexacao(); mostrarRegistro(); carregarSiglas();
 };
 
 function mostrarBase() {
@@ -515,6 +542,37 @@ $("salvarDourado").onclick = async () => {
   } catch (e) { $("recadoDourado").innerHTML = `<div class="aviso">${e.message}</div>`; }
 };
 
+// --- siglas: o dicionário que só o dono do acervo tem ---
+
+async function carregarSiglas() {
+  const tabela = $("tabelaSiglas");
+  try {
+    const r = await api(`/api/glossario?base=${encodeURIComponent($("base").value)}`);
+    const linhas = Object.entries(r.termos || {});
+    tabela.innerHTML = linhas.length
+      ? "<tr><th>Sigla</th><th>Significa</th></tr>"
+        + linhas.map(([s, f]) => `<tr><td><b>${esc(s)}</b></td><td>${f.map(esc).join(" · ")}</td></tr>`).join("")
+      : "";
+  } catch { tabela.innerHTML = ""; }
+}
+
+$("salvarSigla").onclick = async () => {
+  const sigla = $("sigla").value.trim();
+  const formas = $("formas").value.split(";").map((f) => f.trim()).filter(Boolean);
+  if (!sigla || !formas.length) {
+    $("recadoSigla").innerHTML = '<div class="aviso">Preciso da sigla e do que ela significa.</div>';
+    return;
+  }
+  try {
+    const r = await api("/api/glossario", { base: $("base").value, sigla, formas });
+    $("recadoSigla").innerHTML =
+      `<div class="ok">Guardada. Este acervo conhece ${r.total} sigla(s) agora.</div>`;
+    $("sigla").value = "";
+    $("formas").value = "";
+    await carregarSiglas();
+  } catch (e) { $("recadoSigla").innerHTML = `<div class="aviso">${e.message}</div>`; }
+};
+
 // --- máquina e pastas ---
 
 $("salvarMaquina").onclick = async () => {
@@ -592,6 +650,7 @@ async function carregarEstado() {
     perfis = (await api("/api/perfis")).perfis;
     desenharPerfis();
     await carregarEstado();
+    await carregarSiglas();
     await atualizarIndexacao();
     // Sondagem de dois segundos, o mesmo intervalo com que o indexador publica.
     // Mais rápido só gastaria leitura de arquivo sem mostrar nada novo.

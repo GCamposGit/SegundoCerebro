@@ -39,6 +39,7 @@ from ..census import RootSpec
 from ..config import Base, Busca, ErroDeConfig, Pesos, carregar, gravar
 from ..index.indexer import NOME_DA_TRAVA
 from ..logger import get_logger
+from ..retrieve.glossario import ErroDeGlossario, Glossario
 
 log = get_logger("painel")
 
@@ -117,6 +118,11 @@ def criar_app(
 
     def _golden_padrao() -> Path:
         return caminho_config.parent / "eval" / "golden" / "perguntas.jsonl"
+
+    def _glossario_padrao(base) -> Path:  # noqa: ANN001
+        """Ao lado do config, não dentro do índice: o dicionário é do usuário e
+        tem que sobreviver a um `--reindexar` que apague a pasta do índice."""
+        return caminho_config.parent / f"glossario-{base.id}.toml"
 
     def _config():  # noqa: ANN202
         """Lê o `config.toml` se existir; senão, descobre (census.toml, padrões).
@@ -280,6 +286,61 @@ def criar_app(
             fh.write(json.dumps(novo, ensure_ascii=False) + "\n")
         log.info("pergunta %s acrescentada ao dourado de '%s'", novo["id"], base.id)
         return JSONResponse({"id": novo["id"], "total": len(existentes) + 1, "arquivo": str(alvo)})
+
+    async def glossario(request: Request) -> JSONResponse:
+        """Lista (GET) e ensina (POST) uma sigla do acervo de quem está usando.
+
+        Esta é a feature, não um acessório dela. Medido em 18/08/2026
+        (`docs/ablacao-glossario.md`): o grupo de entradas genéricas — as que
+        serviriam a qualquer acervo — mediu **zero** ganho, e as específicas da
+        empresa produziram o ganho inteiro. Um glossário que exija editar TOML
+        entrega zero justamente para o usuário que tem as siglas que importam.
+
+        Grava sem exigir medição, ao contrário de `salvar`: a invariante 4 é sobre
+        mudar ranking, e uma sigla é vocabulário do acervo, não peso. Além disso o
+        efeito é por pergunta e não aparece numa média de 45 — exigir medição aqui
+        travaria a única fonte de dado que o sistema não tem como adivinhar.
+        """
+        if not autorizado(request):
+            return JSONResponse({"erro": "token inválido"}, status_code=403)
+        if request.method == "POST":
+            corpo = await request.json()
+        else:
+            corpo = {"base": request.query_params.get("base")}
+        try:
+            conf = _config()
+            base = _base(conf, corpo)
+        except ErroDeConfig as erro:
+            return JSONResponse({"erro": str(erro)}, status_code=400)
+
+        alvo = base.glossario or _glossario_padrao(base)
+        atual = Glossario.de_arquivo(alvo)
+        if request.method != "POST":
+            return JSONResponse(
+                {"arquivo": str(alvo), "termos": {s: list(f) for s, f in atual.termos.items()}}
+            )
+
+        sigla = (corpo.get("sigla") or "").strip()
+        formas = [f.strip() for f in (corpo.get("formas") or []) if (f or "").strip()]
+        try:
+            novo = atual.com(sigla, formas)
+        except ValueError:
+            return JSONResponse({"erro": "sigla e ao menos uma forma por extenso"}, status_code=400)
+        try:
+            novo.gravar(alvo)
+        except ErroDeGlossario as erro:
+            return JSONResponse({"erro": str(erro)}, status_code=500)
+
+        # O arquivo sozinho não muda recuperação: quem lê o glossário é a base.
+        # Apontar na primeira gravação é o que impede o caso "ensinei e não mudou
+        # nada" — que seria indistinguível de a expansão não funcionar.
+        if base.glossario is None:
+            gravar(replace(conf, bases=tuple(
+                replace(b, glossario=alvo) if b.id == base.id else b for b in conf.bases
+            )), caminho_config)
+            log.info("base '%s' passou a apontar o glossário %s", base.id, alvo)
+        log.info("sigla '%s' ensinada na base '%s'", sigla, base.id)
+        return JSONResponse({"arquivo": str(alvo), "total": len(novo.termos), "sigla": sigla})
 
     async def indexacao(request: Request) -> JSONResponse:
         """Estado da indexação de cada base — lido, nunca comandado daqui.
@@ -539,6 +600,7 @@ def criar_app(
             Route("/api/salvar", salvar, methods=["POST"]),
             Route("/api/diagnostico", diagnostico, methods=["POST"]),
             Route("/api/dourado", dourado, methods=["POST"]),
+            Route("/api/glossario", glossario, methods=["GET", "POST"]),
         ]
     )
 

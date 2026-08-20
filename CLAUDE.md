@@ -12,7 +12,8 @@ decisões e [ROADMAP.md](ROADMAP.md) para as fases.
 
 ## Estado atual
 
-**F1 fechada, F2 em curso, F3.5 concluída.** Ler `docs/estado-f1.md` primeiro — é o retomador de
+**F1 fechada, F2 fechada em 18/08/2026, F3.5 concluída. Da F3 falta só um ato
+humano.** Ler `docs/estado-f1.md` primeiro — é o retomador de
 contexto: o que está pronto, os números medidos, as decisões com motivo e as
 armadilhas já encontradas. Para usar o sistema, `docs/usar-o-mcp.md`.
 
@@ -131,8 +132,11 @@ que sobrevive a reuso de PID.
 py -m segundocerebro.index.indexer --perfil leve   # cede a vez, recusa bateria
 ```
 
-**F2 em curso desde 16/08/2026 — três entregas medidas.** recall@1 saiu de 0,600
-para **0,678** e MRR de 0,736 para **0,785** na condição C:
+**F2 fechada em 18/08/2026 — critério de saída cumprido.** A tabela consolidada
+está em `docs/ablacao-f2.md` (leitura) e `docs/ablacao-f2-tabela.md` (evidência
+regenerável). Sem reranking, a configuração entregue mede recall@1 **0,667**, MRR
+**0,787** e nDCG@5 **0,793**; com reranking ligado, recall@1 **0,678**. As
+entregas medidas, na ordem em que entraram:
 
 - **Famílias de versão** (`docs/ablacao-familias.md`): 0,600 → 0,644, armadilhas
   4 → **5 de 6**, zero regressões. **A porta 3 passa.** Custo zero por consulta.
@@ -144,11 +148,41 @@ para **0,678** e MRR de 0,736 para **0,785** na condição C:
 - **Expansão de contexto**: `search` anexa vizinhos em `antes`/`depois`, fora de
   `texto` para não contaminar procedência. Entra por argumento — o conjunto
   dourado não mede "a resposta estava no parágrafo seguinte".
+- **Glossário de siglas** (`docs/ablacao-glossario.md`): 0,644 → **0,667** de
+  recall@1, nDCG@5 0,760 → **0,793**, zero regressões, **custo zero por consulta**.
+  Nessa métrica vale mais que o reranking, que custa 6,9× no tempo.
 
-**A lição que se repetiu duas vezes:** neste acervo o consenso de ranqueadores
-independentes vale mais que qualquer juiz isolado. Aconteceu com o bm25 (13/08) e
-com o cross-encoder (16/08). Desconfiar de mecanismo que proponha reordenar
+  O achado que decide o produto: o dicionário de teste foi medido dividido, e o
+  grupo **genérico** (mês abreviado, serviria a qualquer acervo) deu **zero**
+  enquanto o **específico da empresa** deu o ganho inteiro. Logo dicionário
+  embutido é peso morto, e o mecanismo de o usuário construir o dele **é** a
+  feature — endpoint `/api/glossario` e tela no painel, arquivo por base.
+- **Tabela consolidada da F2** (`docs/ablacao-f2.md`, gerada por
+  `eval.ablacao_f2`): nove braços numa passada. O harness passou a emitir
+  nDCG@**5** e @10 — o @5 porque a saída da fase pede, o @10 para não perder
+  comparabilidade com F0 e F1.
+
+**A lição que se repetiu três vezes:** neste acervo o consenso de ranqueadores
+independentes vale mais que qualquer juiz isolado. Aconteceu com o bm25 (13/08),
+com o cross-encoder (16/08) e na tabela consolidada de 18/08 — nenhum ranqueador
+isolado chega perto da fusão. Desconfiar de mecanismo que proponha reordenar
 sozinho.
+
+E a lição inversa, que a tabela deu de graça: o pior par de dois sinais é
+`bm25 + nome` (nDCG@5 0,647), e é o par que lê **forma de superfície**. O que soma
+é sinal de natureza diferente, não sinal a mais.
+
+**Onde o bm25 se paga, e é só ali.** `denso + nome + famílias` tem o maior nDCG@5
+da tabela (0,789), acima do reranking, a um oitavo do custo — e faz **3 de 6
+armadilhas** contra 5 do padrão. Isso também mata a explicação de que as famílias
+teriam tornado o bm25 redundante: sem ele, com famílias ligadas, as armadilhas
+caem para 3. Os dois resolvem casos diferentes. O padrão não muda porque a regra
+foi declarada antes; fica registrado como candidato se a porta 3 for renegociada.
+
+**Metadado antes de modelo, confirmado duas vezes.** Famílias de versão e
+glossário custam zero por consulta e valem +0,044 e +0,033; o reranking custa
+6,9× e vale +0,011 de nDCG@5. Dois dos três maiores ganhos da fase não vieram de
+modelo nenhum.
 
 Armadilha do catálogo, repetida: o `bge-reranker-v2-m3` que o ROADMAP nomeava
 **não existe no `fastembed`**, igual ao BGE-M3 denso. Conferir catálogo antes de
@@ -158,11 +192,26 @@ escrever o nome de um modelo no plano.
 Starlette, sem npm e sem nada vindo de fora. Perfis com o custo de cada um à
 mostra, diagnóstico de consulta e conjunto dourado crescendo do uso real.
 
-378 testes.
+**Segundo cliente instalado por um comando, desde 18/08/2026.**
 
-**Próximo passo:** medir a F1 na condição C, agora que o índice está completo. Em
-paralelo, a tela do painel — perfis medidos, diagnóstico de consulta e o conjunto
-dourado crescendo do uso real.
+```bash
+py -m segundocerebro.mcp.registrar --cliente claude-desktop --instalar
+```
+
+Resolve `%APPDATA%\Claude\claude_desktop_config.json`, mescla preservando os outros
+servidores MCP e as preferências do app, e **recusa gravar** se o cliente não
+estiver na máquina — criar a pasta deixaria configuração órfã sem ninguém avisar.
+O teste `test_bloco_do_claude_desktop_sobe_de_um_cwd_neutro` (marcado `modelo`)
+sobe o servidor **de `C:\Windows\system32`** com o bloco exato e responde a
+consulta do traço da F3 contra o índice real. Da F3 falta só o ato humano: abrir o
+Claude Desktop e fazer a pergunta lá.
+
+515 testes.
+
+**Próximo passo:** a F2 fechou o critério de saída (tabela consolidada com
+nDCG@5). O que resta é a decisão sobre a porta 3 — ver "onde o bm25 se paga" — e a
+F4, cujo grafo derivado é a única rota para o multi-hop completo, travado em 1 de 5
+por razão estrutural e não de peso.
 
 O que o corpus real ensinou e que não estava no plano — tratar na F1:
 famílias de versão (`_v6` não é o vigente), caminhos acima de 260 caracteres

@@ -250,7 +250,7 @@ def test_resumo_traz_o_movimento_por_pergunta() -> None:
             posicao_primeiro_acerto=posicao,
             recall={1: 1.0 if posicao == 1 else 0.0, 10: 1.0 if acertou else 0.0},
             mrr=1.0 / posicao if posicao else 0.0,
-            ndcg=1.0 if posicao == 1 else 0.0,
+            ndcg=dict.fromkeys((5, 10), 1.0 if posicao == 1 else 0.0),
         )
 
     resultado = Resultado(
@@ -574,6 +574,75 @@ def test_dourado_exige_pergunta_e_fonte(cliente) -> None:
     for corpo in ({"pergunta": "x", "fontes": []}, {"pergunta": "", "fontes": ["a.pdf"]}):
         r = cliente.post("/api/dourado", json={"base": "trabalho", **corpo}, headers=cabecalho())
         assert r.status_code == 400
+
+
+# --- glossário: o dicionário do acervo de quem está usando --------------------
+
+
+def test_glossario_comeca_vazio(cliente) -> None:
+    """Nenhum dicionário embutido: o grupo genérico mediu zero em 18/08/2026."""
+    r = cliente.get("/api/glossario?base=trabalho", headers=cabecalho())
+    assert r.status_code == 200 and r.json()["termos"] == {}
+
+
+def test_ensinar_sigla_grava_e_lista(cliente) -> None:
+    r = cliente.post(
+        "/api/glossario",
+        json={"base": "trabalho", "sigla": "PO-VCE-007", "formas": ["Política de Inteligência Artificial", "política de IA"]},
+        headers=cabecalho(),
+    )
+    assert r.status_code == 200 and r.json()["total"] == 1
+
+    lido = cliente.get("/api/glossario?base=trabalho", headers=cabecalho()).json()
+    assert lido["termos"] == {"PO-VCE-007": ["Política de Inteligência Artificial", "política de IA"]}
+
+
+def test_ensinar_sigla_aponta_a_base_para_o_arquivo(cliente, caminho: Path) -> None:
+    """Sem isto, o usuário ensina e nada muda — indistinguível de a expansão falhar."""
+    cliente.post(
+        "/api/glossario",
+        json={"base": "trabalho", "sigla": "DPA", "formas": ["acordo de proteção de dados"]},
+        headers=cabecalho(),
+    )
+    from segundocerebro.config import carregar
+
+    base = carregar(caminho, ambiente={}).base("trabalho")
+    assert base.glossario is not None and base.glossario.exists()
+
+
+def test_glossario_do_painel_alimenta_a_recuperacao(cliente, caminho: Path) -> None:
+    """A prova de que o laço fecha: o que a tela grava é o que a busca lê."""
+    cliente.post(
+        "/api/glossario",
+        json={"base": "trabalho", "sigla": "CGI", "formas": ["Comitê de Governança de IA"]},
+        headers=cabecalho(),
+    )
+    from segundocerebro.config import carregar
+    from segundocerebro.retrieve.hybrid import BuscaHibrida
+
+    base = carregar(caminho, ambiente={}).base("trabalho")
+    expandida = BuscaHibrida.glossario_de(base).expandir("o que houve na CGI")
+    assert "Comitê de Governança de IA" in expandida
+
+
+def test_ensinar_sigla_sem_forma_e_400(cliente) -> None:
+    for corpo in ({"sigla": "DPA", "formas": []}, {"sigla": "", "formas": ["algo"]}):
+        r = cliente.post("/api/glossario", json={"base": "trabalho", **corpo}, headers=cabecalho())
+        assert r.status_code == 400
+
+
+def test_glossario_exige_token(cliente) -> None:
+    assert cliente.get("/api/glossario?base=trabalho").status_code == 403
+
+
+def test_ensinar_sigla_nao_exige_medicao(cliente, medicoes_feitas: list) -> None:
+    """Ao contrário de `salvar`: sigla é vocabulário do acervo, não peso de ranking."""
+    r = cliente.post(
+        "/api/glossario",
+        json={"base": "trabalho", "sigla": "POC", "formas": ["prova de conceito"]},
+        headers=cabecalho(),
+    )
+    assert r.status_code == 200 and not medicoes_feitas
 
 
 # --- máquina: velocidade, e por isso sem a exigência de medir -----------------

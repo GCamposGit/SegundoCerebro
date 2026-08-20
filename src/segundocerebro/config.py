@@ -228,6 +228,21 @@ class Base:
     como **conferência** — pega o caso de apontar o arquivo errado — não como a
     fronteira.
     """
+    glossario: Path | None = None
+    """Glossário de siglas desta base. `None` = nenhum, e é o padrão.
+
+    Arquivo, e não uma seção deste TOML, pelo mesmo motivo do `dourado`: é dado
+    que **cresce com o uso**, não configuração que alguém revisa. `gravar()`
+    reescreve este arquivo inteiro a cada ajuste do painel, e um dicionário
+    morando aqui dentro estaria a um defeito de distância de ser perdido.
+
+    Nasce vazio de propósito. Medido em 18/08/2026
+    (`docs/ablacao-glossario.md`): o grupo de entradas **genéricas** — mês
+    abreviado, que serviria a qualquer acervo — mediu **zero** ganho, e o grupo
+    específico da empresa produziu o ganho inteiro (+0,033 de nDCG@5, +0,153 de
+    MRR nas perguntas escritas de memória). Um dicionário embutido seria peso
+    morto; o que vale é o do dono do acervo.
+    """
     raizes: tuple[RootSpec, ...] = ()
     exclude_dirs: tuple[str, ...] = DEFAULT_EXCLUDE_DIRS
     exclude_globs: tuple[str, ...] = DEFAULT_EXCLUDE_GLOBS
@@ -440,6 +455,7 @@ def _base_de(dados: Mapping[str, Any], padrao: Base, indice: int) -> Base:
         indice=Path(dados["indice"]) if "indice" in dados else Path("index") / str(id_),
         modelo=str(dados.get("modelo", padrao.modelo)),
         dourado=Path(dados["dourado"]) if "dourado" in dados else None,
+        glossario=Path(dados["glossario"]) if "glossario" in dados else None,
         raizes=_raizes(dados.get("raizes"), f"base '{id_}'"),
         exclude_dirs=dirs,
         exclude_globs=globs,
@@ -576,6 +592,8 @@ def como_toml(cfg: Config, raiz: Path | None = None) -> dict[str, Any]:
         entrada["indice"] = caminho(b.indice)
         if b.dourado is not None:
             entrada["dourado"] = caminho(b.dourado)
+        if b.glossario is not None:
+            entrada["glossario"] = caminho(b.glossario)
         if b.raizes:
             entrada["raizes"] = [{"nome": r.name, "caminho": caminho(Path(r.path))} for r in b.raizes]
 
@@ -651,6 +669,7 @@ def _resolver(base: Base, raiz: Path) -> Base:
         base,
         indice=ancorar(base.indice),
         dourado=ancorar(base.dourado),
+        glossario=ancorar(base.glossario),
         raizes=tuple(
             RootSpec(name=r.name, path=ancorar(Path(r.path))) for r in base.raizes
         ),

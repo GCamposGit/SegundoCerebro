@@ -7,12 +7,14 @@ configuração de outro servidor MCP do usuário para escrever a nossa.
 from __future__ import annotations
 
 import json
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
 
 from segundocerebro.config import BASE_UNICA, Base
-from segundocerebro.mcp.registrar import CHAVE, entrada_de, main, mesclar, trecho
+from segundocerebro.mcp.registrar import CHAVE, DESTINOS, destino_de, entrada_de, main, mesclar, trecho
 
 
 def escrever_config(tmp_path, texto: str):  # noqa: ANN001, ANN201
@@ -157,6 +159,135 @@ def test_cli_exige_escolha_com_duas_bases(tmp_path, monkeypatch):
     monkeypatch.delenv("SEGUNDOCEREBRO_BASE", raising=False)
     cfg = escrever_config(tmp_path, DUAS_BASES)
     assert main(["--config", str(cfg)]) == 2
+
+
+def test_destino_expande_variavel_de_ambiente(monkeypatch):
+    """`%APPDATA%` literal viraria uma pasta chamada `%APPDATA%` dentro do projeto."""
+    monkeypatch.setenv("APPDATA", r"C:\Users\alguem\AppData\Roaming")
+    destino = destino_de("claude-desktop")
+    assert destino is not None
+    assert "%" not in str(destino) and destino.is_absolute()
+
+
+def test_destino_desconhecido_e_none():
+    assert destino_de("generico") is None and "generico" not in DESTINOS
+
+
+def test_instalar_grava_no_lugar_do_cliente(tmp_path, monkeypatch):
+    monkeypatch.delenv("SEGUNDOCEREBRO_BASE", raising=False)
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    (tmp_path / "Claude").mkdir()
+    cfg = escrever_config(tmp_path, DUAS_BASES)
+
+    assert main(["--config", str(cfg), "--base", "pessoal", "--cliente", "claude-desktop", "--instalar"]) == 0
+
+    escrito = json.loads((tmp_path / "Claude" / "claude_desktop_config.json").read_text(encoding="utf-8"))
+    entrada = escrito[CHAVE]["segundocerebro-pessoal"]
+    assert Path(entrada["env"]["PYTHONPATH"]).is_absolute(), "cliente fora do projeto precisa de absoluto"
+
+
+def test_instalar_preserva_as_preferencias_do_cliente(tmp_path, monkeypatch):
+    """O `claude_desktop_config.json` real tem chaves que não são de servidor.
+
+    Escrever por cima apagaria as preferências do usuário para registrar o nosso.
+    """
+    monkeypatch.delenv("SEGUNDOCEREBRO_BASE", raising=False)
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    (tmp_path / "Claude").mkdir()
+    alvo = tmp_path / "Claude" / "claude_desktop_config.json"
+    alvo.write_text(json.dumps({"preferences": {"tema": "escuro"}}), encoding="utf-8")
+    cfg = escrever_config(tmp_path, DUAS_BASES)
+
+    assert main(["--config", str(cfg), "--base", "pessoal", "--cliente", "claude-desktop", "--instalar"]) == 0
+
+    escrito = json.loads(alvo.read_text(encoding="utf-8"))
+    assert escrito["preferences"] == {"tema": "escuro"}
+    assert "segundocerebro-pessoal" in escrito[CHAVE]
+
+
+def test_instalar_recusa_cliente_sem_lugar_conhecido(tmp_path, monkeypatch):
+    monkeypatch.delenv("SEGUNDOCEREBRO_BASE", raising=False)
+    cfg = escrever_config(tmp_path, DUAS_BASES)
+    assert main(["--config", str(cfg), "--base", "pessoal", "--cliente", "generico", "--instalar"]) == 2
+
+
+def test_instalar_recusa_quando_o_cliente_nao_esta_instalado(tmp_path, monkeypatch):
+    """Criar a pasta deixaria um arquivo de configuração órfão, sem ninguém avisar."""
+    monkeypatch.delenv("SEGUNDOCEREBRO_BASE", raising=False)
+    monkeypatch.setenv("APPDATA", str(tmp_path / "vazio"))
+    cfg = escrever_config(tmp_path, DUAS_BASES)
+
+    assert main(["--config", str(cfg), "--base", "pessoal", "--cliente", "claude-desktop", "--instalar"]) == 2
+    assert not (tmp_path / "vazio").exists()
+
+
+def test_instalar_e_out_nao_se_combinam(tmp_path, monkeypatch):
+    monkeypatch.delenv("SEGUNDOCEREBRO_BASE", raising=False)
+    cfg = escrever_config(tmp_path, DUAS_BASES)
+    argv = ["--config", str(cfg), "--base", "pessoal", "--instalar", "--out", str(tmp_path / "x.json")]
+    assert main(argv) == 2
+
+
+REPO = Path(__file__).resolve().parent.parent
+CONFIG_REAL = REPO / "config.toml"
+
+
+@pytest.mark.modelo
+@pytest.mark.skipif(not CONFIG_REAL.exists(), reason="config.toml ausente (índice real não configurado)")
+def test_bloco_do_claude_desktop_sobe_de_um_cwd_neutro():
+    """O critério de saída da F3 em forma de teste: o segundo cliente conecta.
+
+    O que isto guarda não é o JSON, é o **modo de falha**. O Claude Desktop nasce
+    em `C:\\Windows\\system32`; um bloco com `PYTHONPATH=src` sobe com
+    `ModuleNotFoundError` e o cliente mostra "servidor não conecta", que não diz
+    nada sobre a causa. Aqui o servidor sobe do mesmo diretório neutro, faz o
+    handshake e responde uma consulta real contra o índice real.
+
+    Marcado `modelo` porque carrega o `e5-large` — fora da suíte padrão.
+    """
+    import asyncio
+    import json as _json
+    import os
+
+    from mcp import ClientSession, StdioServerParameters
+    from mcp.client.stdio import stdio_client
+
+    saida = subprocess.run(  # noqa: S603
+        [sys.executable, "-m", "segundocerebro.mcp.registrar", "--cliente", "claude-desktop"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        cwd=REPO,
+        env={**os.environ, "PYTHONPATH": str(REPO / "src"), "PYTHONIOENCODING": "utf-8"},
+        check=True,
+    )
+    entrada = next(iter(_json.loads(saida.stdout)[CHAVE].values()))
+    assert Path(entrada["env"]["PYTHONPATH"]).is_absolute()
+
+    neutro = Path(os.environ["SystemRoot"]) / "system32"
+    ambiente = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
+    ambiente.update(entrada["env"])
+
+    async def conversar() -> tuple[list[str], list[dict]]:
+        params = StdioServerParameters(
+            command=entrada["command"],
+            args=entrada["args"],
+            env=ambiente,
+            cwd=entrada.get("cwd") or str(neutro),
+        )
+        async with stdio_client(params) as (ler, escrever), ClientSession(ler, escrever) as sessao:
+            await sessao.initialize()
+            ferramentas = [f.name for f in (await sessao.list_tools()).tools]
+            r = await sessao.call_tool("search", {"consulta": "relação da Bazico com a Corpus", "k": 3})
+            carga = _json.loads(r.content[0].text)
+            return ferramentas, carga["trechos"]
+
+    ferramentas, trechos = asyncio.run(conversar())
+
+    assert {"search", "read_note"} <= set(ferramentas)
+    assert trechos, "handshake passou mas a busca não devolveu nada"
+    for t in trechos:
+        assert t["arquivo"] and t["id"], "invariante 5: procedência e id em todo retorno"
 
 
 @pytest.mark.parametrize("base_id", ["pessoal", "trabalho"])
