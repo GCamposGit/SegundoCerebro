@@ -39,6 +39,7 @@ from ..census import RootSpec
 from ..config import Base, Busca, ErroDeConfig, Pesos, carregar, gravar
 from ..index.indexer import NOME_DA_TRAVA
 from ..logger import get_logger
+from ..retrieve.glossario import ErroDeGlossario, Glossario
 
 log = get_logger("painel")
 
@@ -117,6 +118,11 @@ def criar_app(
 
     def _golden_padrao() -> Path:
         return caminho_config.parent / "eval" / "golden" / "perguntas.jsonl"
+
+    def _glossario_padrao(base) -> Path:  # noqa: ANN001
+        """Ao lado do config, não dentro do índice: o dicionário é do usuário e
+        tem que sobreviver a um `--reindexar` que apague a pasta do índice."""
+        return caminho_config.parent / f"glossario-{base.id}.toml"
 
     def _config():  # noqa: ANN202
         """Lê o `config.toml` se existir; senão, descobre (census.toml, padrões).
@@ -281,6 +287,61 @@ def criar_app(
         log.info("pergunta %s acrescentada ao dourado de '%s'", novo["id"], base.id)
         return JSONResponse({"id": novo["id"], "total": len(existentes) + 1, "arquivo": str(alvo)})
 
+    async def glossario(request: Request) -> JSONResponse:
+        """Lista (GET) e ensina (POST) uma sigla do acervo de quem está usando.
+
+        Esta é a feature, não um acessório dela. Medido em 18/08/2026
+        (`docs/ablacao-glossario.md`): o grupo de entradas genéricas — as que
+        serviriam a qualquer acervo — mediu **zero** ganho, e as específicas da
+        empresa produziram o ganho inteiro. Um glossário que exija editar TOML
+        entrega zero justamente para o usuário que tem as siglas que importam.
+
+        Grava sem exigir medição, ao contrário de `salvar`: a invariante 4 é sobre
+        mudar ranking, e uma sigla é vocabulário do acervo, não peso. Além disso o
+        efeito é por pergunta e não aparece numa média de 45 — exigir medição aqui
+        travaria a única fonte de dado que o sistema não tem como adivinhar.
+        """
+        if not autorizado(request):
+            return JSONResponse({"erro": "token inválido"}, status_code=403)
+        if request.method == "POST":
+            corpo = await request.json()
+        else:
+            corpo = {"base": request.query_params.get("base")}
+        try:
+            conf = _config()
+            base = _base(conf, corpo)
+        except ErroDeConfig as erro:
+            return JSONResponse({"erro": str(erro)}, status_code=400)
+
+        alvo = base.glossario or _glossario_padrao(base)
+        atual = Glossario.de_arquivo(alvo)
+        if request.method != "POST":
+            return JSONResponse(
+                {"arquivo": str(alvo), "termos": {s: list(f) for s, f in atual.termos.items()}}
+            )
+
+        sigla = (corpo.get("sigla") or "").strip()
+        formas = [f.strip() for f in (corpo.get("formas") or []) if (f or "").strip()]
+        try:
+            novo = atual.com(sigla, formas)
+        except ValueError:
+            return JSONResponse({"erro": "sigla e ao menos uma forma por extenso"}, status_code=400)
+        try:
+            novo.gravar(alvo)
+        except ErroDeGlossario as erro:
+            return JSONResponse({"erro": str(erro)}, status_code=500)
+
+        # O arquivo sozinho não muda recuperação: quem lê o glossário é a base.
+        # Apontar na primeira gravação é o que impede o caso "ensinei e não mudou
+        # nada" — que seria indistinguível de a expansão não funcionar.
+        if base.glossario is None:
+            gravar(replace(conf, bases=tuple(
+                replace(b, glossario=alvo) if b.id == base.id else b for b in conf.bases
+            )), caminho_config)
+            log.info("base '%s' passou a apontar o glossário %s", base.id, alvo)
+        log.info("sigla '%s' ensinada na base '%s'", sigla, base.id)
+        return JSONResponse({"arquivo": str(alvo), "total": len(novo.termos), "sigla": sigla})
+
     async def indexacao(request: Request) -> JSONResponse:
         """Estado da indexação de cada base — lido, nunca comandado daqui.
 
@@ -306,6 +367,64 @@ def criar_app(
                     }
                     for b in conf.bases
                 }
+            }
+        )
+
+    async def retomada(request: Request) -> JSONResponse:
+        """Retomada automática depois de reinício — estado (GET) e liga/desliga (POST).
+
+        Uma indexação deste acervo levou 39 h de trabalho efetivo e 64 h de parede.
+        Nesse intervalo a máquina reinicia, e sem esta tarefa a retomada depende de
+        alguém lembrar de digitar um comando — que é exatamente o que o usuário
+        não-técnico deste painel não vai fazer.
+
+        **Aqui o painel comanda, e é a única exceção da tela.** O endpoint
+        `indexacao` acima só lê, de propósito. A diferença é que instalar a tarefa
+        é ato de configuração, não de recuperação: acontece uma vez, fora do
+        caminho de consulta, e o que ele agenda é o indexador — que segue processo
+        independente. A invariante 6 continua de pé, e desinstalar a tarefa é um
+        `schtasks /Delete` que não precisa deste painel.
+
+        Mexe no agendador do Windows, então **nunca acontece por efeito colateral**:
+        só em POST com `ligar` explícito no corpo.
+        """
+        if not autorizado(request):
+            return JSONResponse({"erro": "token inválido"}, status_code=403)
+        from ..index.retomada import NOME_DA_TAREFA, instalada, pendentes
+
+        if request.method == "POST":
+            corpo = await request.json()
+            ligar = corpo.get("ligar")
+            if not isinstance(ligar, bool):
+                return JSONResponse({"erro": "'ligar' precisa ser true ou false"}, status_code=400)
+            from ..index.retomada import agendar
+
+            if agendar(instalar=ligar) != 0:
+                from ..index.retomada import caminho_do_gatilho
+
+                # Dizer **qual arquivo** falhou é o que torna o erro acionável: o
+                # gatilho é um `.cmd` na pasta de inicialização, e o usuário pode
+                # criá-lo ou apagá-lo à mão se o painel não conseguir.
+                return JSONResponse(
+                    {
+                        "erro": "não consegui escrever na pasta de inicialização do "
+                        f"Windows ({caminho_do_gatilho().parent}). Verifique se ela "
+                        "existe e se o antivírus não está bloqueando."
+                    },
+                    status_code=500,
+                )
+
+        try:
+            conf = _config()
+            aguardando = [b.id for b, _ in pendentes(conf)]
+        except ErroDeConfig as erro:
+            return JSONResponse({"erro": str(erro)}, status_code=400)
+
+        return JSONResponse(
+            {
+                "instalada": instalada(),
+                "tarefa": NOME_DA_TAREFA,
+                "aguardando": aguardando,
             }
         )
 
@@ -529,6 +648,7 @@ def criar_app(
             Route("/api/estado", estado),
             Route("/api/perfis", perfis),
             Route("/api/indexacao", indexacao),
+            Route("/api/retomada", retomada, methods=["GET", "POST"]),
             Route("/api/maquina", maquina, methods=["POST"]),
             Route("/api/raizes", raizes, methods=["POST"]),
             Route("/api/censo", censo, methods=["POST"]),
@@ -539,6 +659,7 @@ def criar_app(
             Route("/api/salvar", salvar, methods=["POST"]),
             Route("/api/diagnostico", diagnostico, methods=["POST"]),
             Route("/api/dourado", dourado, methods=["POST"]),
+            Route("/api/glossario", glossario, methods=["GET", "POST"]),
         ]
     )
 

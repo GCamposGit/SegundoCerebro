@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 from pathlib import Path
 from typing import Any
 
@@ -39,9 +40,20 @@ RAIZ = Path(__file__).resolve().parent.parent.parent.parent
 """Diretório do projeto. Vira caminho absoluto no registro de clientes que não
 abrem na pasta dele."""
 
+DESTINOS = {
+    "claude-desktop": r"%APPDATA%\Claude\claude_desktop_config.json",
+}
+"""Clientes cujo arquivo de configuração tem lugar fixo e conhecido.
+
+Só entra aqui cliente cujo caminho **e** formato foram conferidos, porque
+`--instalar` grava sem perguntar: um caminho adivinhado erraria escrevendo um
+arquivo que ninguém lê — falha silenciosa. Quem não está aqui usa `generico` e
+cola à mão. O VS Code fica fora de propósito: o `mcp.json` dele chama a seção
+`servers`, não `mcpServers`, e o trecho gerado aqui não serve para ele."""
+
 CLIENTES = {
     "claude-code": "Lê `.mcp.json` na pasta do projeto e abre nela — caminho relativo basta.",
-    "claude-desktop": r"%APPDATA%\Claude\claude_desktop_config.json",
+    "claude-desktop": DESTINOS["claude-desktop"],
     "generico": "Qualquer cliente MCP por stdio.",
 }
 
@@ -52,6 +64,12 @@ Todos os outros nascem em diretório arbitrário — o Claude Desktop começa em
 `C:\\Windows\\system32` — e ali `PYTHONPATH=src` não aponta para nada. O servidor
 subiria com `ModuleNotFoundError: segundocerebro`, que o cliente mostra como
 "servidor não conecta": silencioso quanto à causa, que é o pior modo de falha."""
+
+
+def destino_de(cliente: str) -> Path | None:
+    """Onde grava a configuração daquele cliente, ou `None` se não se sabe."""
+    modelo = DESTINOS.get(cliente)
+    return Path(os.path.expandvars(modelo)) if modelo else None
 
 
 def entrada_de(base, *, nomear: bool = True, absoluto: bool = False) -> dict[str, Any]:  # noqa: ANN001
@@ -116,6 +134,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--config", type=Path, help="arquivo de configuração")
     parser.add_argument("--out", type=Path, help="grava mesclando no arquivo, em vez de imprimir")
     parser.add_argument(
+        "--instalar",
+        action="store_true",
+        help="grava direto no arquivo de configuração do cliente, quando ele tem lugar fixo "
+        "e conhecido. Equivale a --out com o caminho certo já resolvido",
+    )
+    parser.add_argument(
         "--cliente",
         choices=sorted(CLIENTES),
         default="claude-code",
@@ -123,6 +147,24 @@ def main(argv: list[str] | None = None) -> int:
         "porque o cliente não abre na pasta do projeto",
     )
     args = parser.parse_args(argv)
+
+    if args.instalar:
+        if args.out is not None:
+            log.error("--instalar e --out escolhem o mesmo arquivo; use um dos dois")
+            return 2
+        args.out = destino_de(args.cliente)
+        if args.out is None:
+            log.error(
+                "não sei onde %s guarda a configuração — imprima sem --instalar e cole em: %s",
+                args.cliente,
+                CLIENTES[args.cliente],
+            )
+            return 2
+        # Criar a pasta seria escrever configuração para um app que não está aqui,
+        # e o arquivo ficaria órfão sem ninguém avisar.
+        if not args.out.parent.is_dir():
+            log.error("%s não existe — %s não parece instalado nesta máquina", args.out.parent, args.cliente)
+            return 2
 
     try:
         conf = carregar(args.config)

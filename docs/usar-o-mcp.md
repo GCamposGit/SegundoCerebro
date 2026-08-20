@@ -51,6 +51,39 @@ buscas respondem em frações de segundo. O modelo é carregado sob demanda de
 propósito — carregar na importação estoura o handshake do cliente MCP, e o modo
 de falha seria "servidor não conecta", que não diz nada sobre a causa.
 
+## Ligar no Claude Desktop — o segundo cliente
+
+Um comando, sem editar JSON:
+
+```bash
+py -m segundocerebro.mcp.registrar --cliente claude-desktop --instalar
+```
+
+Grava em `%APPDATA%\Claude\claude_desktop_config.json`, **mesclando**: os outros
+servidores MCP e as preferências do app ficam intactos, e o que mudou é relatado
+na saída. Depois, fechar e reabrir o Claude Desktop — ele lê a configuração no
+início, não recarrega em quente.
+
+Sem `--instalar` o comando imprime o trecho e diz onde colar, que é o caminho
+para qualquer outro cliente MCP por stdio (`--cliente generico`).
+
+Duas diferenças em relação ao Claude Code, e são as duas que fazem o registro
+manual falhar:
+
+- **Os caminhos saem absolutos.** O Claude Desktop nasce em
+  `C:\Windows\system32`, e ali `PYTHONPATH=src` não aponta para nada. O servidor
+  subiria com `ModuleNotFoundError`, que o cliente mostra como "servidor não
+  conecta" — silencioso quanto à causa. Por isso o trecho fixa `PYTHONPATH`,
+  `--config` e `cwd`.
+- **A primeira consulta ainda demora ~80 s.** No Claude Desktop isso aparece
+  depois do servidor já ter conectado, na primeira `search` — não no início. Se o
+  servidor aparecer como conectado e a primeira busca parecer travada, é a carga
+  do modelo.
+
+Sobre o `--instalar`: ele só existe para cliente cujo caminho **e** formato foram
+conferidos. O VS Code fica fora de propósito — o `mcp.json` dele chama a seção
+`servers`, não `mcpServers`, e o trecho gerado aqui não serve para ele.
+
 ## As duas ferramentas
 
 **`search(consulta, k=8)`** — trechos por significado e por termo exato, fundidos
@@ -61,9 +94,14 @@ por RRF. Devolve, para cada trecho: `id`, `arquivo`, `secao`, `onde`, `texto`,
 documento, para ler o contexto em volta. O `id` é o que veio da `search`.
 
 São duas, e não as cinco do ROADMAP, porque `search` e `read_note` já fecham o
-laço: "onde está X" e "me mostra o que tem em volta". `neighbors`, `list_recent`
-e `glossary` são hipóteses sobre o que será necessário — o uso real responde isso
-melhor que o palpite.
+laço: "onde está X" e "me mostra o que tem em volta". `neighbors` e `list_recent`
+continuam hipóteses — o uso real responde isso melhor que o palpite.
+
+A `glossary` que o ROADMAP previa **não virou ferramenta**, e por decisão: o
+glossário de siglas entrou como expansão de consulta dentro da `search`, invisível
+para o cliente. Uma ferramenta de glossário obrigaria o modelo a saber que precisa
+consultá-la antes de buscar — mais uma chamada por consulta e uma chance de ele
+não fazer. Expandir por dentro sempre funciona.
 
 ## O que o servidor não faz, e por quê
 
@@ -78,27 +116,35 @@ o laço de agente é quem compõe.
 
 ## O que esperar, honestamente
 
-Medido em 16/08/2026 sobre o **corpus completo** — 1.601 documentos, 92.125
+Medido em 18/08/2026 sobre o **corpus completo** — 1.601 documentos, 92.137
 chunks — contra o baseline de busca por nome de arquivo, em 45 perguntas do
-conjunto dourado (`docs/ablacao-f1.md`):
+conjunto dourado (`docs/ablacao-f2.md`). A coluna "atual" é sem reranking, com
+famílias de versão e com um glossário de 10 siglas:
 
 | | baseline | atual |
 |---|---:|---:|
-| recall@1 | 0,467 | **0,600** |
-| recall@10 | 0,800 | **0,907** |
-| MRR@10 | 0,592 | **0,736** |
+| recall@1 | 0,467 | **0,667** |
+| recall@5 | — | **0,885** |
+| recall@10 | 0,800 | **0,930** |
+| MRR@10 | 0,592 | **0,787** |
+| nDCG@5 | — | **0,793** |
+| perguntas do usuário: MRR | 0,557 | **0,724** |
 | perguntas do usuário: recall@10 | 0,833 | **1,000** |
-| multi-hop MRR | 0,117 | **0,600** |
+
+Com `rerank = 0.25` na base, o recall@1 vai a **0,678** e a consulta fica ~8×
+mais lenta. É troca, não melhoria pura — e nessa métrica o glossário, que é de
+graça, rende mais que o reranking.
 
 As seis perguntas escritas de memória pelo usuário — o subconjunto sem viés de
 construção — são **todas** encontradas dentro do top-10.
 
 E o que ele **ainda erra**, para você não descobrir sozinho:
 
-- **Famílias de versão.** Perguntar "qual a versão vigente" traz `_v1`, `_v3`,
-  `_v7` e não o vigente. São 4 de 6 casos-armadilha; a meta é 5, e o tratamento
-  de famílias de versão é da F2. As duas que faltam são a `g010` (versão vigente
-  da Política de IA) e a `g036` (qual empresa propôs implantação de IA).
+- **Famílias de versão — resolvido em 16/08/2026.** Perguntar "qual a versão
+  vigente" passou a trazer a vigente e citar as anteriores; os casos-armadilha
+  foram de 4 para **5 de 6** (`ablacao-familias.md`). O que ainda erra é
+  discriminar propostas irmãs na mesma pasta quando o nome tem erro de digitação —
+  caso nomeado, não resolvido pelo reranking.
 - **Multi-hop: 1 de 5.** Ele acha *uma* das fontes bem — o MRR saltou de 0,117
   para 0,600 — mas juntar **todas** as fontes no top-10 só acontece numa das
   cinco. É o ponto mais fraco e o mais sensível à escala, exatamente como
@@ -108,6 +154,27 @@ E o que ele **ainda erra**, para você não descobrir sozinho:
   `SELECT path FROM documentos WHERE digitalizado = 1`.
 - **5 planilhas gigantes foram adiadas** com `--pular-planilha-acima-de 40`.
   `SELECT path, detalhe FROM documentos WHERE status = 'adiado'` lista quais.
+
+## Ensinar as siglas da sua casa
+
+O ganho mais barato do sistema, e o único que ele não tem como adivinhar. Quando
+você pergunta "o acordo de proteção de dados" e o contrato diz "DPA", nada liga as
+duas formas; o contrário também.
+
+No painel, seção **Siglas da sua casa**: a sigla como aparece nos arquivos, o que
+ela significa, e pronto. As buscas passam a achar os dois jeitos, **sem custo
+nenhum no tempo de resposta** — é consulta a dicionário antes de qualquer
+ranqueador.
+
+Medido em 18/08/2026 (`ablacao-glossario.md`) com 10 siglas: recall@1 0,644 →
+**0,667**, nDCG@5 0,760 → **0,793**, e **0,571 → 0,724 de MRR nas perguntas
+escritas de memória** — o subconjunto que mais se parece com o uso real, porque no
+uso real ninguém consulta o nome do arquivo antes de perguntar. Zero regressões.
+
+O dicionário **nasce vazio**, e isso é resultado de medição, não economia de
+trabalho: a metade genérica do dicionário de teste — mês abreviado, que serviria a
+qualquer acervo — deu **zero**, e as siglas da empresa deram o ganho inteiro. Não
+há dicionário embutido porque um dicionário embutido não ajudaria ninguém.
 
 ## O que fazer com o que você encontrar
 

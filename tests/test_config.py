@@ -265,6 +265,21 @@ def test_duas_bases_no_mesmo_dourado_e_erro(tmp_path):
         carregar(caminho, ambiente=SEM_AMBIENTE)
 
 
+def test_glossario_e_opcional_e_nasce_vazio(tmp_path):
+    """Nenhum dicionário embutido: o genérico mediu zero (`docs/ablacao-glossario.md`)."""
+    caminho = escrever(tmp_path, '[[base]]\nid = "a"\nindice = "i"\n')
+    assert carregar(caminho, ambiente=SEM_AMBIENTE).base("a").glossario is None
+
+
+def test_glossario_e_ancorado_na_raiz_do_config(tmp_path):
+    """Como o `dourado`: o par `config.toml` + acervo tem que poder ser copiado."""
+    caminho = escrever(
+        tmp_path, '[[base]]\nid = "a"\nindice = "i"\nglossario = "siglas.toml"\n'
+    )
+    resolvido = carregar(caminho, ambiente=SEM_AMBIENTE).base("a").glossario
+    assert resolvido == tmp_path / "siglas.toml"
+
+
 def test_dourado_e_opcional(tmp_path):
     """Sem declarar, o eval usa o padrão — que é o caso de hoje."""
     caminho = escrever(tmp_path, '[[base]]\nid = "a"\n')
@@ -557,6 +572,7 @@ def test_ida_e_volta_preserva_a_configuracao(tmp_path):
         indice = "index"
         modelo = "minilm"
         dourado = "eval/golden/trabalho.jsonl"
+        glossario = "eval/glossario-trabalho.toml"
         raizes = [{ nome = "va", caminho = 'C:\Users\alguém\Área de Trabalho\07. Acme Holding' }]
         [base.pesos]
         lexical = 0.5

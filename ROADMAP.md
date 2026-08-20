@@ -186,7 +186,28 @@ parênteses):
 Mais: tempo de parede da indexação completa documentado, e nenhum placeholder
 hidratado sem intenção (censo antes e depois com a mesma contagem).
 
-#### Medido na condição C em 16/08/2026 — **a fase não fecha**
+#### ✅ Fechada em 17/08/2026 — as cinco portas passam
+
+`docs/fechamento-f1.md`. Condição C, índice completo (1.601 documentos, 92.137
+chunks), 45 perguntas, baseline remedido no mesmo run:
+
+| # | Porta | Medido | Alvo | Baseline |
+|---|---|---:|---:|---:|
+| 1 | recall@1 ≥ baseline + 0,10 | **0,678** | 0,567 | 0,467 |
+| 2 | MRR@10 ≥ baseline + 0,08 | **0,785** | 0,672 | 0,592 |
+| 3 | ≥ 5 de 6 armadilhas | **5 de 6** | 5 | 3 de 6 |
+| 4 | multi-hop: ≥ 1 fonte, por caso | **5 de 5** | 5 | 2 de 5 |
+| 5 | ≤ 3 quedas do 1º, nenhuma crítica | **1, nenhuma crítica** | 3 / 0 | — |
+
+As duas portas que reprovavam em 16/08 não foram afrouxadas: a 3 fechou com
+famílias de versão (metadado, que nenhum peso de fusão alcança) e a 4 foi
+reescrita por argumento de categoria, com a exigência dura migrando para F3 e F4.
+
+**O fechamento não depende do reranking.** Com ele desligado as portas 1 a 4
+também passam (0,644 e 0,762 contra alvos de 0,567 e 0,672), e ele custa 6,8× no
+tempo de consulta.
+
+#### Histórico — a medição de 16/08/2026, quando a fase não fechava
 
 Índice completo (1.601 documentos, 92.125 chunks), baseline e busca remedidos
 juntos no mesmo universo e nas mesmas 45 perguntas. Análise caso a caso em
@@ -276,7 +297,30 @@ remedidas — `verificar_escopo()` avisa quando a anotação ficar velha.
   Entra por argumento, não por número — e o argumento é que o chunker corta por
   estrutura, e estrutura não coincide com raciocínio
 - Expansão de contexto: devolve seção completa + vizinhos
-- Expansão de consulta via glossário de siglas
+- ✅ **Expansão de consulta via glossário de siglas — entregue em 18/08/2026.**
+  [`docs/ablacao-glossario.md`](docs/ablacao-glossario.md). Expande nos dois
+  sentidos — sigla → extenso e extenso → sigla — no bm25 e no ranqueador de nome.
+  O **denso não recebe a expansão**: acrescentar sinônimo move o vetor para a
+  média dos termos, e o embedding assimétrico do `e5` já resolve sinônimo.
+
+  Medido na condição C: recall@1 0,644 → **0,667**, MRR 0,762 → **0,787**, nDCG@5
+  0,760 → **0,793**, zero regressões. Custo por consulta **zero**. O contraste que
+  decide: nessa métrica ele vale mais que o reranking (+0,033 contra +0,011) e o
+  reranking custa 6,9× no tempo.
+
+  E o achado que decide o desenho do produto: o dicionário de teste nasceu
+  dividido em **genérico** (mês abreviado, serviria a qualquer acervo) e
+  **específico da empresa**, e os dois foram medidos isolados. O genérico deu
+  **zero** — dígito por dígito igual a não ter glossário — e o específico deu o
+  ganho inteiro. Logo **um dicionário embutido seria peso morto**, e o mecanismo
+  de o usuário construir o dele não é acessório da feature: é a feature. Daí o
+  endpoint e a tela no painel, e o arquivo por base no molde do conjunto dourado.
+
+  Nasce vazio. Duas correções vieram de teste e não de métrica, e nenhuma mudou
+  número: o mapa inverso guardava só a primeira sigla de cada forma (`dezembro`
+  virava `Dez` e nunca `Dec`), e a busca da sigla quebrava no hífen — o sentido
+  sigla → extenso estava morto para `CT-VCE-2024-0142` e `PO-VCE-007`. **Achar o
+  descasamento não é achar o gargalo**, e as duas pagam na próxima entrada
 - ✅ **Famílias de versão — entregue em 16/08/2026.**
   [`docs/ablacao-familias.md`](docs/ablacao-familias.md). Agrupa por pasta +
   extensão + nome sem marcadores, devolve a vigente e cita as anteriores; ligado
@@ -292,9 +336,24 @@ remedidas — `verificar_escopo()` avisa quando a anotação ficar velha.
   do mesmo deck não são versões um do outro) e **número declarado vence a data**
   — `_v0` de janeiro/2026 contra `_v1` de setembro/2025, o espelho do `g010`,
   onde a data acerta e o número erra. Nenhuma regra sozinha acerta os dois casos
-- Ablação medida: dense-só vs. híbrido vs. híbrido+rerank
+- ✅ **Ablação medida: dense-só vs. híbrido vs. híbrido+rerank — 18/08/2026.**
+  Leitura em [`docs/ablacao-f2.md`](docs/ablacao-f2.md), evidência regenerável em
+  [`docs/ablacao-f2-tabela.md`](docs/ablacao-f2-tabela.md) (`py -m eval.ablacao_f2`).
+  Nove braços na mesma passada, cada um diferindo do anterior por um fator só.
+  nDCG@5: denso-só 0,700 → híbrido 0,760 → híbrido+rerank 0,771, monotônico.
 
-**Saída:** tabela de ablação no `docs/`, com nDCG@5 por configuração. A escolha
+  O harness passou a emitir nDCG@**5** e @10. Os dois, porque o @5 é o que este
+  critério pede e o @10 é o que preserva comparabilidade com F0 e F1.
+
+  O ponto que a tabela revelou e que nenhuma medição anterior tinha: **`denso +
+  nome + famílias`, sem bm25, tem o maior nDCG@5 da tabela (0,789)** — acima do
+  reranking — a um oitavo do custo, e faz **3 de 6 armadilhas**. O bm25 se paga
+  exclusivamente ali. Também mata a explicação de que as famílias teriam tornado
+  o bm25 redundante: sem ele, com famílias ligadas, as armadilhas caem de 5 para 3.
+  Famílias e bm25 resolvem casos diferentes. O padrão **não muda**, porque a regra
+  de elegibilidade foi declarada antes e trocá-la agora seria escolha post-hoc
+
+**Saída:** ✅ tabela de ablação no `docs/`, com nDCG@5 por configuração. A escolha
 final é a que ganhou, não a que pareceu elegante.
 
 ---
@@ -312,15 +371,35 @@ final é a que ganhou, não a que pareceu elegante.
 > agregadas e passa a porta de regressão. O que falta é a medição no corpus
 > completo, que não bloqueia o uso.
 >
-> **Feito**: `search` e `read_note` de pé, 11 testes, provado por stdio contra o
-> índice real (`docs/usar-o-mcp.md`). **Falta**: validar num segundo cliente, e
-> registrar o traço de uma pergunta multi-hop real.
+> **Feito**: `search` e `read_note` de pé, provado por stdio contra o índice real
+> (`docs/usar-o-mcp.md`), traço multi-hop registrado (`docs/traco-f3-uso-real.md`),
+> e desde 18/08/2026 o segundo cliente instalado por um comando e provado por
+> teste a partir de um diretório neutro.
+>
+> **Falta só o ato humano**: rodar o comando, abrir o Claude Desktop e fazer a
+> pergunta na interface dele. Nenhum código bloqueia isso.
 
 - Servidor MCP via stdio com `search`, `read_note`, `neighbors`,
   `list_recent`, `glossary`
 - IDs estáveis e procedência em todo retorno
 - Registrado no Claude Code; **validado em ao menos um segundo cliente**
-  (Antigravity ou Claude Desktop) — é a prova de R1, não uma formalidade
+  (Antigravity ou Claude Desktop) — é a prova de R1, não uma formalidade.
+
+  **18/08/2026: o lado técnico está provado e automatizado.**
+  `py -m segundocerebro.mcp.registrar --cliente claude-desktop --instalar` resolve
+  `%APPDATA%\Claude\claude_desktop_config.json`, mescla preservando os outros
+  servidores e as preferências do app, e recusa gravar se o cliente não estiver na
+  máquina em vez de deixar um arquivo órfão.
+
+  E o teste `test_bloco_do_claude_desktop_sobe_de_um_cwd_neutro` (marcado
+  `modelo`) sobe o servidor **de `C:\Windows\system32`** com o bloco exato,
+  faz o handshake e responde a mesma consulta do traço da F3 contra o índice real.
+  Era o modo de falha que importava: bloco com caminho relativo sobe com
+  `ModuleNotFoundError` e o cliente mostra "servidor não conecta", que não diz
+  nada sobre a causa.
+
+  **Falta só o ato humano**: instalar, abrir o Claude Desktop e fazer a pergunta na
+  interface dele. Nenhum código bloqueia mais isso
 
 **Saída:** uma pergunta multi-hop real respondida corretamente, com o traço de
 chamadas de ferramenta registrado em `docs/`. Mesma pergunta funciona em dois
@@ -508,10 +587,20 @@ processo morto. Uma queda custa **no máximo um documento**. Falta fechar:
   `os.kill(pid, 0)` num PID reciclado responde "vivo" — o usuário levaria um
   "outro indexador está escrevendo" falso, sem outro indexador nenhum. A trava
   passa a guardar PID **e** horário de criação do processo (`psutil`)
-- **Marcador de retomada**: gravado no início, removido no fim limpo. Presente na
-  partida, o run continua de onde parou, dizendo isso
-- **Reinício automático depois de desligar**: tarefa agendada do Windows no
-  logon, opcional e desligável, que retoma se o marcador estiver lá
+- ✅ **Marcador de retomada — entregue.** Não há marcador novo: o
+  `progresso.json` já é ele. Um run que morreu sem encerrar deixa `indexando`
+  gravado, e `index/retomada.py` lê isso. Um segundo arquivo criaria duas fontes
+  de verdade, e a que discorda aparece no pior momento
+- ✅ **Reinício automático depois de desligar — entregue em 19/08/2026**, com o
+  mecanismo trocado e o motivo medido. O plano dizia *tarefa agendada no logon*;
+  tentado nesta máquina, `schtasks /SC ONLOGON` e o `Register-ScheduledTask` do
+  PowerShell **negam sem elevação** (Windows 11 Enterprise com política
+  corporativa), enquanto criar tarefa `ONCE` no mesmo shell funciona — o
+  impedimento é o gatilho de logon, não o agendador. Exigir administrador para
+  ligar uma conveniência derrubaria o público do painel, então o gatilho é um
+  `.cmd` na **pasta de inicialização do usuário**: dispensa elevação, e é um
+  arquivo visível que o usuário apaga à mão. Verificado de ponta a ponta rodando
+  a partir de `C:\Windows\System32`. Botão liga/desliga em Máquina, no painel
 - **Suspensão e hibernação**: o processo sobrevive; o que quebra é a estimativa.
   Detectar o salto de relógio, descontá-lo do tempo ativo e registrar "retomado
   após suspensão" em vez de contabilizar como lentidão

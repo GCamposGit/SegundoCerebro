@@ -95,6 +95,13 @@ descricao = "Documentos pessoais: finanças, saúde, casa, estudos."
 # contra as perguntas de outro dá um número que parece válido e não é. Duas bases
 # apontando para o mesmo arquivo param o carregamento.
 dourado = "eval/golden/pessoal.jsonl"
+# Glossário de siglas desta base. Opcional, e NASCE VAZIO de propósito: medido em
+# 18/08/2026 (docs/ablacao-glossario.md), o grupo de entradas genéricas — mês
+# abreviado, que serviria a qualquer acervo — deu ZERO ganho, e as siglas da
+# empresa deram o ganho inteiro: +0,033 de nDCG@5 e +0,153 de MRR nas perguntas
+# escritas de memória, a custo zero por consulta. Um dicionário embutido seria
+# peso morto. O painel escreve aqui a partir do uso; ninguém precisa editar à mão.
+glossario = "glossario-pessoal.toml"
 # Irmão de 'index', não dentro dele: apagar o de fora levaria o de dentro junto,
 # e o carregador recusa índices aninhados. Numa instalação nova, onde nenhuma
 # base ocupa 'index' puro, o padrão 'index/<id>' vale e esta linha é dispensável.

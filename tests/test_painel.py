@@ -250,7 +250,7 @@ def test_resumo_traz_o_movimento_por_pergunta() -> None:
             posicao_primeiro_acerto=posicao,
             recall={1: 1.0 if posicao == 1 else 0.0, 10: 1.0 if acertou else 0.0},
             mrr=1.0 / posicao if posicao else 0.0,
-            ndcg=1.0 if posicao == 1 else 0.0,
+            ndcg=dict.fromkeys((5, 10), 1.0 if posicao == 1 else 0.0),
         )
 
     resultado = Resultado(
@@ -576,6 +576,75 @@ def test_dourado_exige_pergunta_e_fonte(cliente) -> None:
         assert r.status_code == 400
 
 
+# --- glossário: o dicionário do acervo de quem está usando --------------------
+
+
+def test_glossario_comeca_vazio(cliente) -> None:
+    """Nenhum dicionário embutido: o grupo genérico mediu zero em 18/08/2026."""
+    r = cliente.get("/api/glossario?base=trabalho", headers=cabecalho())
+    assert r.status_code == 200 and r.json()["termos"] == {}
+
+
+def test_ensinar_sigla_grava_e_lista(cliente) -> None:
+    r = cliente.post(
+        "/api/glossario",
+        json={"base": "trabalho", "sigla": "PO-VCE-007", "formas": ["Política de Inteligência Artificial", "política de IA"]},
+        headers=cabecalho(),
+    )
+    assert r.status_code == 200 and r.json()["total"] == 1
+
+    lido = cliente.get("/api/glossario?base=trabalho", headers=cabecalho()).json()
+    assert lido["termos"] == {"PO-VCE-007": ["Política de Inteligência Artificial", "política de IA"]}
+
+
+def test_ensinar_sigla_aponta_a_base_para_o_arquivo(cliente, caminho: Path) -> None:
+    """Sem isto, o usuário ensina e nada muda — indistinguível de a expansão falhar."""
+    cliente.post(
+        "/api/glossario",
+        json={"base": "trabalho", "sigla": "DPA", "formas": ["acordo de proteção de dados"]},
+        headers=cabecalho(),
+    )
+    from segundocerebro.config import carregar
+
+    base = carregar(caminho, ambiente={}).base("trabalho")
+    assert base.glossario is not None and base.glossario.exists()
+
+
+def test_glossario_do_painel_alimenta_a_recuperacao(cliente, caminho: Path) -> None:
+    """A prova de que o laço fecha: o que a tela grava é o que a busca lê."""
+    cliente.post(
+        "/api/glossario",
+        json={"base": "trabalho", "sigla": "CGI", "formas": ["Comitê de Governança de IA"]},
+        headers=cabecalho(),
+    )
+    from segundocerebro.config import carregar
+    from segundocerebro.retrieve.hybrid import BuscaHibrida
+
+    base = carregar(caminho, ambiente={}).base("trabalho")
+    expandida = BuscaHibrida.glossario_de(base).expandir("o que houve na CGI")
+    assert "Comitê de Governança de IA" in expandida
+
+
+def test_ensinar_sigla_sem_forma_e_400(cliente) -> None:
+    for corpo in ({"sigla": "DPA", "formas": []}, {"sigla": "", "formas": ["algo"]}):
+        r = cliente.post("/api/glossario", json={"base": "trabalho", **corpo}, headers=cabecalho())
+        assert r.status_code == 400
+
+
+def test_glossario_exige_token(cliente) -> None:
+    assert cliente.get("/api/glossario?base=trabalho").status_code == 403
+
+
+def test_ensinar_sigla_nao_exige_medicao(cliente, medicoes_feitas: list) -> None:
+    """Ao contrário de `salvar`: sigla é vocabulário do acervo, não peso de ranking."""
+    r = cliente.post(
+        "/api/glossario",
+        json={"base": "trabalho", "sigla": "POC", "formas": ["prova de conceito"]},
+        headers=cabecalho(),
+    )
+    assert r.status_code == 200 and not medicoes_feitas
+
+
 # --- máquina: velocidade, e por isso sem a exigência de medir -----------------
 
 
@@ -703,3 +772,68 @@ class _BloqueiaPainel:
         if nome.startswith("segundocerebro.painel"):
             raise ImportError(f"painel desinstalado: {nome}")
         return None
+
+
+# --- retomada automática depois de reinício ----------------------------------
+# O que estes guardam é o modo de falha, não o JSON: `schtasks` é mudança que
+# sobrevive à sessão, e o painel é a única tela do projeto que comanda algo.
+
+
+def test_retomada_get_nao_mexe_no_agendador(cliente, monkeypatch) -> None:
+    """Ler o estado nunca instala nada.
+
+    É o defeito que mais assustaria: abrir a tela e ganhar uma tarefa agendada
+    que ninguém pediu.
+    """
+    chamadas = []
+    monkeypatch.setattr(
+        "segundocerebro.index.retomada.agendar",
+        lambda *, instalar: chamadas.append(instalar) or 0,
+    )
+    # `instalada` roda `schtasks` de verdade; fixá-la é o que faz este teste medir
+    # a regra em vez do estado da máquina de quem roda a suíte.
+    monkeypatch.setattr("segundocerebro.index.retomada.instalada", lambda: False)
+    resposta = cliente.get("/api/retomada", params={"token": TOKEN})
+    assert resposta.status_code == 200
+    assert chamadas == []
+    assert resposta.json()["instalada"] is False
+
+
+def test_retomada_liga_e_desliga(cliente, monkeypatch) -> None:
+    chamadas = []
+    monkeypatch.setattr(
+        "segundocerebro.index.retomada.agendar",
+        lambda *, instalar: chamadas.append(instalar) or 0,
+    )
+    assert cliente.post("/api/retomada", json={"ligar": True}, params={"token": TOKEN}).status_code == 200
+    assert cliente.post("/api/retomada", json={"ligar": False}, params={"token": TOKEN}).status_code == 200
+    assert chamadas == [True, False]
+
+
+def test_retomada_recusa_ligar_ausente_ou_nao_booleano(cliente, monkeypatch) -> None:
+    """Corpo sem `ligar` explícito não vira instalação por omissão.
+
+    `{"ligar": "sim"}` é o caso que um front mal escrito produz, e um `if
+    corpo.get("ligar")` ingênuo trataria como verdadeiro.
+    """
+    chamadas = []
+    monkeypatch.setattr(
+        "segundocerebro.index.retomada.agendar",
+        lambda *, instalar: chamadas.append(instalar) or 0,
+    )
+    for corpo in ({}, {"ligar": "sim"}, {"ligar": 1}, {"ligar": None}):
+        resposta = cliente.post("/api/retomada", json=corpo, params={"token": TOKEN})
+        assert resposta.status_code == 400, corpo
+    assert chamadas == []
+
+
+def test_retomada_relata_falha_do_agendador_com_causa(cliente, monkeypatch) -> None:
+    monkeypatch.setattr("segundocerebro.index.retomada.agendar", lambda *, instalar: 2)
+    resposta = cliente.post("/api/retomada", json={"ligar": True}, params={"token": TOKEN})
+    assert resposta.status_code == 500
+    assert "inicialização" in resposta.json()["erro"]
+
+
+def test_retomada_exige_token(cliente) -> None:
+    assert cliente.get("/api/retomada").status_code == 403
+    assert cliente.post("/api/retomada", json={"ligar": True}).status_code == 403

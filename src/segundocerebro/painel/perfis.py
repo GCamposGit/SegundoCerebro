@@ -8,6 +8,19 @@ que alguém já mediu. Estes quatro cobrem as formas de acervo que a varredura d
 noutro acervo, e exibi-la como se fosse desta base seria a mentira mais fácil
 desta tela — o usuário decidiria olhando um número que não é dele. O painel mede
 o perfil na base do usuário e só então mostra; antes disso, mostra que não sabe.
+
+O que os cartões podem dizer sem quebrar isso é a **forma** do compromisso —
+"ganha na média, perde no caso difícil" — porque essa é propriedade do mecanismo
+e não do acervo: um ranqueador a menos é um ranqueador a menos em qualquer
+instalação. Onde os dígitos moram é
+[`docs/ablacao-f2.md`](../../../docs/ablacao-f2.md), com a procedência do acervo
+em que foram tirados.
+
+Sobre o `significado` em particular: ele é o candidato a padrão que a ablação da
+F2 levantou e a regra de elegibilidade recusou — melhor em toda média, e abaixo
+da porta de casos-armadilha que foi declarada antes de medir. Fica aqui como
+escolha do usuário, e é por isso que o cartão diz "escolha por média ou por caso
+difícil" em vez de esconder o que ele perde.
 """
 
 from __future__ import annotations
@@ -49,11 +62,15 @@ PERFIS: tuple[Perfil, ...] = (
         id="significado",
         nome="Significado",
         pesos=Pesos(denso=1.0, lexical=0.0, nome=0.5),
-        para_quem="Perguntas em linguagem natural sobre acervo cujos nomes de "
-        "arquivo dizem pouco.",
-        custo="Sem o casamento exato, sigla e código de contrato deixam de ser "
-        "encontráveis. Na medição de 13/08 isso subiu o MRR e derrubou os "
-        "casos-armadilha de 4 para 3 de 6.",
+        para_quem="Perguntas em linguagem natural, escritas de memória e não "
+        "copiadas do nome do arquivo. É o perfil mais rápido dos quatro, porque "
+        "dispensa um dos ranqueadores, e no acervo de referência ele lidera todas "
+        "as médias de qualidade — inclusive contra o Equilibrado.",
+        custo="Lidera as médias e perde nos casos difíceis: sem o casamento exato "
+        "do termo, sigla e código de contrato deixam de ser encontráveis, e é "
+        "exatamente aí que documentos quase idênticos se distinguem. No acervo de "
+        "referência resolve menos casos-armadilha que o Equilibrado. Escolha este "
+        "por média, o Equilibrado por caso difícil.",
     ),
     Perfil(
         id="nome",

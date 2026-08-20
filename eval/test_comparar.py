@@ -13,7 +13,7 @@ def item(id_: str, posicao: int | None, *, armadilha: bool = False, tipo: str = 
         posicao_primeiro_acerto=posicao,
         recall={1: 0.0, 10: 0.0},
         mrr=0.0,
-        ndcg=0.0,
+        ndcg={5: 0.0, 10: 0.0},
     )
 
 
