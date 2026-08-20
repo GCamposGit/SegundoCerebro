@@ -26,6 +26,38 @@ TEXTOS = (
     "query: Qual a versão vigente da política de IA?",
 )
 
+# Espelha retrieve.rerank.MODELO_PADRAO e CANDIDATOS_PARA_RERANK. Não importar
+# retrieve daqui: o smoke é da camada index, e o wiring CUDA no query path é
+# outro PR (arquivo do notebook).
+MODELO_RERANK = "BAAI/bge-reranker-base"
+CANDIDATOS_RERANK = 25
+CANDIDATOS_CONFIG = 10
+"""10 é o default de config.Busca.rerank_candidatos; 25 é o do módulo."""
+
+CONSULTA_RERANK = "Qual é a versão vigente da política de IA da Várzea Clara Energia?"
+PASSAGENS_RERANK = (
+    "Politica de Inteligencia Artificial revisada GC > Vigência\n---\n"
+    "A versão vigente é a revisada por GC em março de 2026, que substitui a v6.",
+    "Politica de Inteligencia Artificial v6 > Histórico\n---\n"
+    "A v6 foi a minuta interna; não é o texto que vale para o conselho.",
+    "Proposta Aurora Tecnica implantacao IA > Escopo\n---\n"
+    "A Aurora propõe implantar o copiloto de contratos em 90 dias.",
+    "Proposta Boreal Servicos implantacao IA > Escopo\n---\n"
+    "A Boreal descreve serviços de implantação de IA generativa no mesmo edital.",
+    "Deck governanca IA v2 > Decisão\n---\n"
+    "O conselho aprovou o comitê de IA e pediu a política vigente como anexo.",
+    "Ata 2026-03-12 mudanca escopo > Deliberações\n---\n"
+    "A ata registra a troca de escopo do projeto Lagoa Norte, sem falar de IA.",
+    "Orcamento projeto Lagoa Norte > Planilha\n---\n"
+    "Valores de sondagem e licença ambiental; não menciona política de IA.",
+    "CT-VCE-2024-0142 Servicos consultoria > Cláusula 4\n---\n"
+    "O contrato de consultoria cobre licenciamento, não software de IA.",
+    "Nota licenciamento faixa norte > Resumo\n---\n"
+    "Pendência de licença prévia na faixa norte do reservatório.",
+    "Ata 2026-04-02 riscos ambientais > Riscos\n---\n"
+    "Risco de embargo na faixa norte; ação: protocolar a licença até maio.",
+)
+
 
 def _gpus() -> list[dict[str, str]]:
     try:
@@ -90,6 +122,19 @@ def main(argv: list[str] | None = None) -> int:
         help="nome no catálogo fastembed. MiniLM quantizado (onnx-Q) devolve NaN no Maxwell; "
         "e5-large (model.onnx) é o que vale neste desktop",
     )
+    parser.add_argument(
+        "--rerank",
+        action="store_true",
+        help="carrega o cross-encoder da F2 (BAAI/bge-reranker-base) no GPU e mede "
+        "latência CUDA vs CPU para 10 e 25 pares. Não altera retrieve/rerank.py, "
+        "não grava índice, não muda peso. model.onnx cheio (não onnx-Q)",
+    )
+    parser.add_argument(
+        "--modelo-rerank",
+        default=MODELO_RERANK,
+        dest="modelo_rerank",
+        help="nome no catálogo TextCrossEncoder. Padrão: o mesmo da F2",
+    )
     args = parser.parse_args(argv)
 
     gpus = _gpus()
@@ -118,8 +163,11 @@ def main(argv: list[str] | None = None) -> int:
     if args.pool:
         return _smoke_pool()
 
+    if args.rerank:
+        return _smoke_rerank(args.modelo_rerank)
+
     if not args.embed:
-        log.info("runtime CUDA visível. Rode de novo com --embed ou --pool")
+        log.info("runtime CUDA visível. Rode de novo com --embed, --pool ou --rerank")
         return 0
 
     try:
@@ -147,6 +195,111 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 3
     log.info("forward pass ok: %d vetores, dim %d, finitos", len(arr), len(arr[0]))
+    return 0
+
+
+def passagens_rerank(n: int) -> list[str]:
+    """n trechos sintéticos (VCE). Cíclicos se n > o estoque."""
+    if n < 1:
+        raise ValueError("n tem que ser ≥ 1")
+    estoque = list(PASSAGENS_RERANK)
+    return [estoque[i % len(estoque)] for i in range(n)]
+
+
+def _cronometrar_rerank(encoder, consulta: str, docs: list[str], repeticoes: int = 5) -> float:
+    """Mediana de parede, depois de o caller ter feito o warmup."""
+    import statistics
+    import time
+
+    amostras: list[float] = []
+    for _ in range(repeticoes):
+        t0 = time.perf_counter()
+        list(encoder.rerank(consulta, docs))
+        amostras.append(time.perf_counter() - t0)
+    return statistics.median(amostras)
+
+
+def _carregar_rerank(modelo: str, providers: list[str]):
+    from fastembed.rerank.cross_encoder import TextCrossEncoder
+
+    from .cuda_runtime import preparar
+
+    preparar()
+    return TextCrossEncoder(modelo, cache_dir="models", providers=providers, threads=10)
+
+
+def _scores_finitos(scores: list[float]) -> bool:
+    import math
+
+    return bool(scores) and all(math.isfinite(s) for s in scores)
+
+
+def _smoke_rerank(modelo: str) -> int:
+    """Cross-encoder no Maxwell. Latência, não qualidade. Não toca retrieve/."""
+    import gc
+    import time
+
+    docs10 = passagens_rerank(CANDIDATOS_CONFIG)
+    docs25 = passagens_rerank(CANDIDATOS_RERANK)
+
+    log.info("carregando reranker %s no CUDA (model.onnx, não onnx-Q)", modelo)
+    t0 = time.perf_counter()
+    try:
+        enc_cuda = _carregar_rerank(modelo, ["CUDAExecutionProvider"])
+    except Exception as erro:  # noqa: BLE001
+        log.error("carregar reranker no GPU falhou: %s", erro)
+        return 3
+    log.info("reranker CUDA pronto em %.1fs", time.perf_counter() - t0)
+
+    try:
+        scores = list(enc_cuda.rerank(CONSULTA_RERANK, docs25))
+    except Exception as erro:  # noqa: BLE001
+        log.error("forward pass do reranker no GPU falhou: %s", erro)
+        return 3
+    if not _scores_finitos(scores):
+        log.error(
+            "reranker no GPU devolveu NaN/Inf — o EP carregou, mas o Maxwell "
+            "não calcula este ONNX. Não ligar CUDA no query path."
+        )
+        return 3
+    log.info("forward CUDA ok: %d scores finitos, min=%.3f max=%.3f", len(scores), min(scores), max(scores))
+
+    med10_cuda = _cronometrar_rerank(enc_cuda, CONSULTA_RERANK, docs10)
+    med25_cuda = _cronometrar_rerank(enc_cuda, CONSULTA_RERANK, docs25)
+    log.info("CUDA mediana: %d pares %.3fs | %d pares %.3fs", CANDIDATOS_CONFIG, med10_cuda, CANDIDATOS_RERANK, med25_cuda)
+
+    del enc_cuda
+    gc.collect()
+
+    log.info("carregando o mesmo reranker na CPU (CPUExecutionProvider)")
+    t0 = time.perf_counter()
+    try:
+        enc_cpu = _carregar_rerank(modelo, ["CPUExecutionProvider"])
+    except Exception as erro:  # noqa: BLE001
+        log.error("carregar reranker na CPU falhou: %s", erro)
+        return 3
+    log.info("reranker CPU pronto em %.1fs", time.perf_counter() - t0)
+    try:
+        scores_cpu = list(enc_cpu.rerank(CONSULTA_RERANK, docs25))
+    except Exception as erro:  # noqa: BLE001
+        log.error("forward pass do reranker na CPU falhou: %s", erro)
+        return 3
+    if not _scores_finitos(scores_cpu):
+        log.error("reranker na CPU devolveu NaN/Inf")
+        return 3
+
+    med10_cpu = _cronometrar_rerank(enc_cpu, CONSULTA_RERANK, docs10)
+    med25_cpu = _cronometrar_rerank(enc_cpu, CONSULTA_RERANK, docs25)
+    log.info("CPU mediana: %d pares %.3fs | %d pares %.3fs", CANDIDATOS_CONFIG, med10_cpu, CANDIDATOS_RERANK, med25_cpu)
+
+    if med10_cuda > 0:
+        log.info("razão CPU/CUDA @%d: %.1f×", CANDIDATOS_CONFIG, med10_cpu / med10_cuda)
+    if med25_cuda > 0:
+        log.info("razão CPU/CUDA @%d: %.1f×", CANDIDATOS_RERANK, med25_cpu / med25_cuda)
+    log.info(
+        "query path ainda é CPU: retrieve/rerank.py não passa providers. "
+        "Isto mede o teto do hardware, não o tempo da consulta hoje."
+    )
     return 0
 
 

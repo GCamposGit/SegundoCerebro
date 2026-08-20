@@ -95,3 +95,12 @@ set SEGUNDOCEREBRO_PROVIDER=cuda
 ```
 
 `model_id` não muda.
+
+## Cross-encoder (20/08/2026)
+
+`.\.venv\Scripts\python.exe -m segundocerebro.index.smoke_cuda --rerank`
+
+`BAAI/bge-reranker-base` (`model.onnx`, não onnx-Q): 25 scores finitos no
+Maxwell. CUDA 0,028 s / 10 pares e 0,062 s / 25 pares, contra 1,084 s e
+2,280 s na CPU deste desktop (~37×). O query path ainda não usa isso —
+ver [`docs/rerank-gpu.md`](rerank-gpu.md). Não liga o padrão.

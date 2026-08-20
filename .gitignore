@@ -70,7 +70,6 @@ eval/glossario-*.toml
 # leitura agregada costuma ser publicável (`ablacao-f1.md`, `ablacao-f2.md`) e o
 # relatório que cita arquivo, não.
 docs/ablacao-glossario.md
->>>>>>> origin/main
 docs/ablacao-bm25-com-nome.md
 docs/ablacao-bm25-sem-nome.md
 docs/ablacao-denso-com-nome.md
