@@ -226,7 +226,7 @@ def test_thread_numera_as_mensagens_na_ordem() -> None:
 def test_url_de_rastreio_vira_host() -> None:
     """A URL inteira é o que estourava o orçamento de token do chunker: 400
     caracteres opacos ocupam a janela de 512 tokens e produzem chunk de 82
-    caracteres. O host sobrevive porque "veio da uber.com" é sinal fraco e real."""
+    caracteres. O host sobrevive porque o domínio do remetente é sinal fraco e real."""
     limpo = limpar_corpo("Recibo em https://cloud.mail.vce.example/e/x?t=Zm9vYmFy&u=42 obrigado")
 
     assert "cloud.mail.vce.example" in limpo

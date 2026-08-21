@@ -59,8 +59,8 @@ mudar isso mexe no laço do indexador, que é do outro setup
 
 A linha "370 chunks" da tabela acima é a segunda medição. A primeira não existiu
 como número: existiu como **a indexação parando de andar**. Nove núcleos ocupados
-por dez minutos num email de reembolso de Uber, e um deles entrou no índice com
-**343 chunks** antes de alguém notar.
+por dez minutos num email de reembolso de aplicativo de transporte, e um deles
+entrou no índice com **343 chunks** antes de alguém notar.
 
 A causa não é o parser de email nem o chunker isolados — é a interação dos dois.
 O chunker respeita um orçamento de **token**, com o tokenizador real, decisão de
@@ -144,7 +144,7 @@ máximo três perguntas caindo do 1º lugar, **cada uma inspecionada**. Inspecio
 
 | Pergunta | Antes | Depois | Quem passou na frente |
 |---|---|---|---|
-| `g045` "caderno de aceitação da POC da IBM" | 1º | 3º | um `.msg` da **reunião diária dessa mesma POC**, em 2º |
+| `g045` — caderno de aceitação de uma POC | 1º | 3º | um `.msg` da **reunião diária dessa mesma POC**, em 2º |
 | `g037` "quem propôs AI Literacy para líderes" | ≤5º | 11º | três transcrições de reunião em 2º, 3º e 7º — **não são email** |
 
 A segunda é a mais importante para ler o número certo. As três transcrições que

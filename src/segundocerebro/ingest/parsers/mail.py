@@ -162,7 +162,7 @@ def limpar_corpo(texto: str) -> str:
     3. Contar token nesse lixo custava 33 s de chunking por documento; os 48
        arquivos inteiros agora levam 13 s de parse **mais** chunking.
 
-    O host fica — "veio da uber.com" é sinal fraco mas real; o resto do endereço
+    O host fica — "veio do domínio do remetente" é sinal fraco mas real; o resto
     não é conteúdo em nenhuma leitura razoável.
 
     Mora aqui, e não no chunker, porque é um fato sobre **email**: PDF e DOCX
