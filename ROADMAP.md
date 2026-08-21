@@ -795,12 +795,42 @@ com o traço real de uso fica claro quais arestas o modelo aproveita.
 - SharePoint corporativo via pasta sincronizada, com a política de placeholders
   da F1 aplicada
 - Watcher para reindexação automática
-- Formatos restantes: MSG/EML, legado DOC/XLS se o censo justificar
-- Conjunto dourado ampliado para cobrir as fontes novas
+- ✅ **MSG/EML** — 48 `.msg` e um `.pdf` com conteúdo MIME saíram de `sem_parser`.
+  Legado DOC/XLS (10 arquivos) continua fora: mesmo container OLE, mas extrair
+  texto de `.doc` binário não é tabela de nomes de stream, e sem número no
+  dourado não há justificativa. Ver [`docs/ablacao-f4-email.md`](docs/ablacao-f4-email.md)
+- ✅ **Conjunto dourado ampliado** para as fontes novas: `g001`, `g011` e `g033`
+  perderam a anotação `fora_de_escopo: email`, e o motivo `email` saiu do catálogo
+  do harness junto com a entrega — motivo que sobrevive à própria correção é
+  desculpa disponível. Sobram três exclusões, todas `ocr`
 
 **Saída:** métricas de F2 **não regridem** com o corpus ampliado, e existe uma
 pergunta multi-hop que **só** é respondível via `neighbors` — a prova de que o
 grafo derivado carrega informação que a busca sozinha não alcança.
+
+> **A primeira metade do critério precisou ser lida como orçamento, em
+> 21/08/2026** — ver [`docs/ablacao-f4-email.md`](docs/ablacao-f4-email.md). Com os
+> 48 documentos de email dentro, as mesmas 45 perguntas medem recall@1 **0,644**
+> contra 0,667, e três perguntas que mediam **zero** passam a medir **1,000 em
+> recall@3**.
+>
+> Inspecionadas as duas que caíram, como a porta 5 da F1 exige: a `g045` perde o 1º
+> lugar para um `.msg` da reunião diária da POC que ela cita — outro documento
+> sobre o mesmo assunto, não resposta errada. A `g037` cai de ≤5º para 11º por
+> causa de **três transcrições de reunião**, que não são email: entraram por
+> acidente na primeira tentativa de indexação.
+>
+> Daí a leitura: "não regridem" ao pé da letra é exigência que nenhum corpus
+> ampliado cumpre, porque documento novo e relevante compete. Como orçamento — no
+> máximo três quedas do 1º lugar, cada uma inspecionada, que é como a F1 já
+> escreveu a porta 5 — está cumprida com uma queda.
+>
+> **E o corpus ampliado é maior do que a fase supunha.** `iter_files` enumera 2.617
+> documentos; o registro tinha 1.601. São **1.013 documentos nunca indexados**,
+> 1.010 deles em `Meetings/` — transcrição de reunião. Toda métrica de F1 e F2 foi
+> medida num corpus 39% menor que o disco. Nenhuma conclusão registrada muda (cada
+> uma diz qual corpus mediu), mas indexar isso é o próximo número a decidir, e é
+> decisão do usuário: custa horas.
 
 ---
 

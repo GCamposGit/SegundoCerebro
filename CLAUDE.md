@@ -254,8 +254,7 @@ evidência mais forte de R1 que a mesma decomposição repetida seria. Traço em
 
 **F4 — grafo derivado e `neighbors` entregues em 20/08/2026.** Ler
 `docs/ablacao-f4-grafo.md`. Métricas da F2 **idênticas** (recall@1 0,667, MRR
-0,787, nDCG@5 0,793) e o caso plano → norma respondível só pela aresta. Falta da
-F4: SharePoint, watcher, MSG/EML e legado DOC/XLS.
+0,787, nDCG@5 0,793) e o caso plano → norma respondível só pela aresta.
 
 ```bash
 py -m segundocerebro.retrieve.grafo --base padrao            # constrói, ~30 s
@@ -289,9 +288,45 @@ Quatro coisas da F4 que valem para as fases seguintes:
   **é** o assunto; no corpo, que ele **fala sobre** — e entra como desempate, nunca
   como prioridade sobre a raridade.
 
-**Próximo passo:** o que resta da F4 (SharePoint, watcher, MSG/EML) e a decisão
-sobre a porta 3 — ver "onde o bm25 se paga". O multi-hop completo segue em 1 de 5,
-e agora há a primitiva para atacá-lo: o cliente compõe `search` → `neighbors`.
+**F4 — MSG/EML entregue em 21/08/2026.** Ler `docs/ablacao-f4-email.md`. 48 `.msg`
+e um `.pdf` com conteúdo MIME saíram de `sem_parser`; `sem_parser` no registro caiu
+de 83 para 35 e o índice foi para **1.608 documentos, 93.073 chunks**. As três
+perguntas anotadas `fora_de_escopo: email` (`g001`, `g011`, `g033`) voltaram para a
+média e medem **1,000 em recall@3** — eram zero por construção.
+
+```bash
+py -m segundocerebro.index.indexer --base padrao --pular-planilha-acima-de 40 --prefixo 02
+py -m eval.rodar --retriever hibrido --sem-rerank --glossario eval/glossario-teste.toml --out docs/metricas-f4-email-depois-48.md
+```
+
+Cinco coisas desta entrega que valem para as fases seguintes:
+
+- **Documento sem chunk é invisível até para o ranqueador de nome.** Contraria a
+  intuição: "o número do contrato está no nome do arquivo, então o baseline acha"
+  é **falso** — `paths_com_chunks()` é a fronteira, e ela é de conteúdo. Formato
+  novo não é "mais um formato": é um conjunto de documentos saindo do zero absoluto.
+- **O defeito não estava no parser nem no chunker, e sim na interação.** O chunker
+  respeita orçamento de **token**; uma URL de rastreio de 400 caracteres opacos
+  consome a janela de 512 tokens inteira. Cinco emails de reembolso davam **2.931
+  chunks de 82 caracteres**; depois de trocar endereço por host, **25**. A
+  indexação passou de 25 min travados para 55 s. Medir chunk com o tokenizador
+  **real** é o que acha isso — sem ele o teste unitário dizia 19 onde havia 1.850.
+- **A regressão é de uma pergunta, e a inspeção diz de quem.** `g045` perde o 1º
+  lugar para um `.msg` da reunião diária da POC que ela cita. A outra queda
+  (`g037`, ≤5º → 11º) é de **transcrição de reunião**, não de email. Sem olhar
+  pergunta por pergunta as duas teriam sido creditadas ao email.
+- **Parser novo não repesca documento já indexado.** `STATUS_PARA_REPESCAR` cobre
+  "não havia parser", não "o parser mudou": um `.msg` ficou no índice com 343
+  chunks de lixo, e nada o repesca. Falta coluna de versão de parser no registro.
+- **O corpus é 63% maior do que o índice.** `iter_files` enumera 2.617 documentos,
+  o registro tinha 1.601: **1.013 nunca indexados**, 1.010 deles em `Meetings/`.
+  Toda métrica de F1 e F2 mediu um corpus 39% menor que o disco. Nenhuma conclusão
+  muda (cada uma declara seu corpus), mas é o próximo número a decidir.
+
+**Próximo passo:** decidir sobre `Meetings/` (1.010 documentos, horas de
+indexação), o que resta da F4 (SharePoint, watcher, legado DOC/XLS) e a porta 3 —
+ver "onde o bm25 se paga". O multi-hop completo segue em 1 de 5, e há a primitiva
+para atacá-lo: o cliente compõe `search` → `neighbors`.
 
 O que o corpus real ensinou e que não estava no plano — tratar na F1:
 famílias de versão (`_v6` não é o vigente), caminhos acima de 260 caracteres
