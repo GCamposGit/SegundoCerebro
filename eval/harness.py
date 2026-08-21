@@ -75,10 +75,16 @@ class Retriever(Protocol):
 
 
 MOTIVOS_FORA_DE_ESCOPO = {
-    "email": "fonte é email (.msg, ou MIME com extensão trocada) — parser de email é da F4",
     "ocr": "fonte é PDF digitalizado, imagem por página, zero texto extraível — OCR está fora da F1",
 }
 """Por que uma pergunta não é mensurável nesta fase.
+
+O catálogo **encurta** quando a capacidade entra. `email` (".msg, ou MIME com
+extensão trocada — parser de email é da F4") saiu em 21/08/2026, junto com o
+parser: motivo que sobrevive à própria correção é desculpa disponível, e
+`carregar_perguntas` passa a **recusar** um conjunto dourado que ainda anote uma
+pergunta como fora de escopo por ser email. É a garantia forte de que nenhuma
+anotação velha atravesse a fase em silêncio.
 
 A anotação é **estática**, no conjunto dourado, e não derivada do estado do
 índice. Derivar do índice seria cômodo e errado: um parser que quebrasse

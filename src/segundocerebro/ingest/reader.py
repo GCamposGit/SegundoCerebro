@@ -123,9 +123,23 @@ def parse_file(
         doc = parser(dados, nome)
     except Exception as exc:  # a corrupt file must not stop the indexing run
         natureza = detectar(path, dados)
-        if natureza.extensao_mente:
-            # Não é corrupção: é outro formato com a extensão errada. Dizer isso
-            # no `detalhe` poupa a investigação que este caso já custou uma vez.
+        if not natureza.extensao_mente:
+            log.warning("falha ao interpretar %s: %s", path, exc)
+            return ParseResult(
+                path=path,
+                status=ParseStatus.ERROR,
+                detail=f"{type(exc).__name__}: {exc}",
+                sha256=sha,
+                natureza=natureza,
+            )
+
+        # Não é corrupção: é outro formato com a extensão errada. Antes de
+        # desistir, tentar o parser do conteúdo — o `detalhe` já dizia qual era,
+        # e recusar um documento que sabemos interpretar seria desperdício.
+        alternativo = _reinterpretar(path, dados, nome, natureza.familia_real)
+        if alternativo is None:
+            # Dizer o conteúdo real no `detalhe` poupa a investigação que este
+            # caso já custou uma vez.
             log.warning(
                 "%s tem extensão %s mas conteúdo %s — não é corrupção",
                 path,
@@ -139,14 +153,7 @@ def parse_file(
                 sha256=sha,
                 natureza=natureza,
             )
-        log.warning("falha ao interpretar %s: %s", path, exc)
-        return ParseResult(
-            path=path,
-            status=ParseStatus.ERROR,
-            detail=f"{type(exc).__name__}: {exc}",
-            sha256=sha,
-            natureza=natureza,
-        )
+        doc = alternativo
 
     natureza = detectar(path, dados, doc)
     if not doc.blocks or not doc.total_chars:
@@ -161,6 +168,28 @@ def parse_file(
         )
 
     return ParseResult(path=path, status=ParseStatus.OK, doc=doc, sha256=sha, natureza=natureza)
+
+
+def _reinterpretar(path: str, dados: bytes, nome: str, familia: str) -> ParsedDoc | None:
+    """Segunda tentativa pelo conteúdo, para o arquivo cuja extensão mente.
+
+    Devolve `None` quando não há parser sem ambiguidade para a família — aí o
+    resultado volta a ser `sem_parser` com o motivo, que é honesto. Uma segunda
+    falha também devolve `None`: o arquivo pode estar corrompido *e* mentir sobre
+    a extensão, e nesse caso o motivo que interessa continua sendo o primeiro.
+    """
+    from .parsers import parser_for_familia
+
+    parser = parser_for_familia(familia)
+    if parser is None:
+        return None
+    try:
+        doc = parser(dados, nome)
+    except Exception as exc:  # noqa: BLE001 — mesmo motivo da primeira tentativa
+        log.warning("extensão mente (%s) e o parser de %s também falhou: %s", path, familia, exc)
+        return None
+    log.info("extensão mente: %s interpretado como %s", path, familia)
+    return doc
 
 
 def empty_doc(nome: str, **meta: str) -> ParsedDoc:

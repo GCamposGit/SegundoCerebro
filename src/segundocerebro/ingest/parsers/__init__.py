@@ -30,6 +30,25 @@ def parser_for(extension: str) -> Parser | None:
     return _REGISTRY.get(extension.lower())
 
 
+FAMILIA_SEM_AMBIGUIDADE: dict[str, str] = {
+    "email": ".eml",
+    "pdf": ".pdf",
+}
+"""Família de conteúdo (`natureza.familia_real`) → extensão que a interpreta.
+
+Só entram as famílias que identificam **um** formato. `ooxml` pode ser docx, xlsx
+ou pptx; `ole` pode ser doc, xls ou msg. Adivinhar nesses dois erraria calado, que
+é o oposto do que o portão de leitura existe para fazer — e nenhum arquivo do
+acervo precisa disso hoje: o único caso de extensão mentirosa medido é um `.pdf`
+cujo conteúdo é MIME de email."""
+
+
+def parser_for_familia(familia: str) -> Parser | None:
+    """Parser para o conteúdo de fato, quando a extensão mentiu."""
+    extensao = FAMILIA_SEM_AMBIGUIDADE.get(familia)
+    return parser_for(extensao) if extensao else None
+
+
 def supported_extensions() -> tuple[str, ...]:
     _load_all()
     return tuple(sorted(_REGISTRY))
@@ -43,6 +62,6 @@ def _load_all() -> None:
     global _LOADED
     if _LOADED:
         return
-    from . import pdf, sheets, slides, text, word  # noqa: F401
+    from . import mail, pdf, sheets, slides, text, word  # noqa: F401
 
     _LOADED = True

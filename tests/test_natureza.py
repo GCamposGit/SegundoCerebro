@@ -135,22 +135,44 @@ def test_como_colunas_converte_booleano_para_inteiro() -> None:
 # --- integração pelo portão de leitura --------------------------------------
 
 
-def test_parse_file_classifica_extensao_mentirosa_como_sem_parser(tmp_path: Path) -> None:
-    """Deixa de ser `erro` e passa a dizer o que o arquivo é.
+def test_parse_file_reinterpreta_extensao_mentirosa_pelo_conteudo(tmp_path: Path) -> None:
+    """A F4 fecha o ciclo que a flag abriu: acusar virou aproveitar.
 
-    `erro` sugere arquivo corrompido e convida a tentar de novo. `sem_parser` com
-    o motivo diz a verdade: o formato não tem parser nesta fase, e é escopo da F4.
+    Até 20/08/2026 este arquivo terminava em `sem_parser` com o motivo escrito no
+    `detalhe` — o melhor possível enquanto não havia parser de email. Com o parser
+    da F4, recusar um documento cujo conteúdo sabemos interpretar seria desperdício
+    de um documento que o dourado corporativo cobra (`g033`).
+
+    A flag continua ligada: o arquivo **de fato** mente sobre a extensão, e é isso
+    que o registro tem que dizer.
     """
     alvo = tmp_path / "PROPOSTA_falso.pdf"
     alvo.write_bytes(EMAIL_MIME)
 
     resultado = parse_file(str(alvo))
 
+    assert resultado.status is ParseStatus.OK
+    assert resultado.natureza is not None and resultado.natureza.extensao_mente
+    assert resultado.natureza.familia_real == "email"
+    assert resultado.doc is not None
+    assert "Corpo da mensagem." in "\n".join(b.text for b in resultado.doc.blocks)
+    assert resultado.sha256, "os bytes foram lidos, então o hash tem que estar lá"
+
+
+def test_parse_file_recusa_reinterpretar_familia_ambigua(tmp_path: Path) -> None:
+    """`ole` pode ser doc, xls ou msg — adivinhar erraria calado.
+
+    O portão continua dizendo o que o arquivo é, sem fingir que sabe interpretá-lo.
+    """
+    alvo = tmp_path / "planilha_falsa.docx"
+    alvo.write_bytes(b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1" + b"\x00" * 64)
+
+    resultado = parse_file(str(alvo))
+
     assert resultado.status is ParseStatus.UNSUPPORTED
     assert "extensão mente" in resultado.detail
-    assert "email" in resultado.detail
+    assert "ole" in resultado.detail
     assert resultado.natureza is not None and resultado.natureza.extensao_mente
-    assert resultado.sha256, "os bytes foram lidos, então o hash tem que estar lá"
 
 
 def test_parse_file_leva_natureza_no_caminho_bem_sucedido(tmp_path: Path) -> None:
