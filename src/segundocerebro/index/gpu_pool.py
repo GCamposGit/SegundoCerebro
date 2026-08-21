@@ -13,6 +13,7 @@ from __future__ import annotations
 import os
 import queue
 import subprocess
+from collections.abc import Sequence
 from multiprocessing import get_context
 from pathlib import Path
 from typing import Any, Callable
@@ -24,19 +25,61 @@ log = get_logger("index.gpu_pool")
 WorkerFn = Callable[[str, str, str, Any, Any], None]
 
 
-def contar_gpus() -> int:
+def _linhas_smi(query: str) -> list[str]:
     try:
         bruto = subprocess.run(
-            ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
+            ["nvidia-smi", f"--query-gpu={query}", "--format=csv,noheader"],
             check=False,
             capture_output=True,
             text=True,
         )
     except FileNotFoundError:
-        return 0
+        return []
     if bruto.returncode != 0:
-        return 0
-    return sum(1 for linha in bruto.stdout.splitlines() if linha.strip())
+        return []
+    return [ln.strip() for ln in bruto.stdout.splitlines() if ln.strip()]
+
+
+def dispositivos_embed() -> list[str]:
+    """Physical GPU indices for compute.
+
+    If at least one card has no monitor, skip the ones driving the display.
+    Loading e5-large (~4 GB) on a 6 GB 980 Ti that also paints the desktop
+    trips Windows TDR (Event 4101, nvlddmkm) and can take the machine down.
+    Measured 21/08/2026 on this desktop: GPU 0 `display_active=Enabled`,
+    GPU 1 Disabled; a night of dual-GPU embed ended in Kernel-Power 41.
+
+    If every card has a display, keep them all — there is nothing to spare.
+    """
+    linhas = _linhas_smi("index,display_active")
+    if not linhas:
+        # Older nvidia-smi without display_active: fall back to counting names.
+        return [str(i) for i, _ in enumerate(_linhas_smi("name"))]
+
+    todos: list[str] = []
+    livres: list[str] = []
+    for linha in linhas:
+        partes = [p.strip() for p in linha.split(",")]
+        if not partes:
+            continue
+        idx = partes[0]
+        todos.append(idx)
+        ativo = partes[1].lower() if len(partes) > 1 else ""
+        if ativo not in {"enabled", "enable"}:
+            livres.append(idx)
+    if livres:
+        if len(livres) < len(todos):
+            log.info(
+                "pulando GPU(s) com display %s; embed em %s",
+                [i for i in todos if i not in livres],
+                livres,
+            )
+        return livres
+    return todos
+
+
+def contar_gpus() -> int:
+    return len(dispositivos_embed())
 
 
 def _worker(device: str, modelo: str, cache: str, pedidos, respostas) -> None:
@@ -75,31 +118,35 @@ class EmbedFila:
 
     def __init__(
         self,
-        n_gpus: int,
+        gpus: int | Sequence[str],
         *,
         modelo: str,
         cache: Path,
         alvo: WorkerFn | None = None,
     ) -> None:
-        if n_gpus < 2:
+        if isinstance(gpus, int):
+            devices = [str(i) for i in range(gpus)]
+        else:
+            devices = [str(g) for g in gpus]
+        if len(devices) < 2:
             raise ValueError("EmbedFila precisa de ao menos 2 GPUs")
         ctx = get_context("spawn")
-        self._pedidos = [ctx.Queue() for _ in range(n_gpus)]
+        self._pedidos = [ctx.Queue() for _ in devices]
         self._respostas = ctx.Queue()
         self._procs = []
         self._proximo = 0
         self._jid = 0
         cache_s = str(cache)
         fn = alvo or _worker
-        for i in range(n_gpus):
+        for device in devices:
             p = ctx.Process(
                 target=fn,
-                args=(str(i), modelo, cache_s, self._pedidos[i], self._respostas),
+                args=(device, modelo, cache_s, self._pedidos[len(self._procs)], self._respostas),
                 daemon=True,
             )
             p.start()
             self._procs.append(p)
-        log.info("pipeline: %d processos de embed (um por GPU)", n_gpus)
+        log.info("pipeline: %d processos de embed (GPUs %s)", len(devices), ",".join(devices))
 
     def submit(self, textos: list[str], batch_size: int = 32) -> int:
         """Non-blocking. Pair with `receber` — up to one job in flight per GPU."""

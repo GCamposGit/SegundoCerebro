@@ -41,7 +41,7 @@ from ..ingest.document import ParseResult, ParseStatus
 from ..ingest.reader import parse_file
 from ..logger import get_logger
 from .embeddings import MODELOS, Embedder
-from .gpu_pool import EmbedFila, contar_gpus
+from .gpu_pool import EmbedFila, contar_gpus, dispositivos_embed
 from .esforco import PERFIS_DE_ESFORCO
 from .comando import aguardar as aguardar_comando
 from .comando import limpar as limpar_comando
@@ -377,6 +377,13 @@ def indexar(
                 "Use --modelo e5-large; o provider não entra em model_id"
             )
         n_gpus = contar_gpus()
+        if n_gpus == 1:
+            # The other card is painting the desktop. Pin ORT to the free one
+            # — otherwise the main thread still lands on GPU 0 and trips TDR.
+            livres = dispositivos_embed()
+            if livres:
+                os.environ["CUDA_VISIBLE_DEVICES"] = livres[0]
+                log.info("embed na GPU %s (a outra tem o monitor)", livres[0])
     if n_gpus >= 2:
         # Main must not load the encoder: e5-large already fills one 6 GB card.
         cache = getattr(embedder, "_cache_dir", Path("models"))

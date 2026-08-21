@@ -20,12 +20,40 @@ def test_contar_gpus_sem_nvidia_smi(monkeypatch: pytest.MonkeyPatch) -> None:
 def test_contar_gpus_conta_linhas(monkeypatch: pytest.MonkeyPatch) -> None:
     class Bruto:
         returncode = 0
-        stdout = "GeForce GTX 980 Ti\nGeForce GTX 980 Ti\n"
+        stdout = "0, Enabled\n1, Disabled\n"
 
     monkeypatch.setattr(
         "segundocerebro.index.gpu_pool.subprocess.run", lambda *_a, **_k: Bruto()
     )
-    assert contar_gpus() == 2
+    assert contar_gpus() == 1
+
+
+def test_dispositivos_embed_pula_display(monkeypatch: pytest.MonkeyPatch) -> None:
+    from segundocerebro.index.gpu_pool import dispositivos_embed
+
+    class Bruto:
+        returncode = 0
+        stdout = "0, Enabled\n1, Disabled\n"
+
+    monkeypatch.setattr(
+        "segundocerebro.index.gpu_pool.subprocess.run", lambda *_a, **_k: Bruto()
+    )
+    assert dispositivos_embed() == ["1"]
+
+
+def test_dispositivos_embed_mantem_tudo_se_todas_tem_display(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from segundocerebro.index.gpu_pool import dispositivos_embed
+
+    class Bruto:
+        returncode = 0
+        stdout = "0, Enabled\n1, Enabled\n"
+
+    monkeypatch.setattr(
+        "segundocerebro.index.gpu_pool.subprocess.run", lambda *_a, **_k: Bruto()
+    )
+    assert dispositivos_embed() == ["0", "1"]
 
 
 def test_embed_fila_exige_duas_gpus(tmp_path: Path) -> None:
