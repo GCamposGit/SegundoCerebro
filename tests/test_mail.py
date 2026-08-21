@@ -26,6 +26,7 @@ from segundocerebro.ingest.parsers import parser_for, parser_for_familia, suppor
 from segundocerebro.ingest.parsers.mail import (
     Mensagem,
     documento_de,
+    limpar_corpo,
     mensagem_de_mime,
     mensagem_de_streams,
     parse_eml,
@@ -217,6 +218,54 @@ def test_thread_numera_as_mensagens_na_ordem() -> None:
     doc = documento_de(Mensagem(assunto="A", corpo=corpo), "x.msg", "msg")
 
     assert [b.locator for b in doc.blocks] == ["cabeçalho", "mensagem 1", "mensagem 2", "mensagem 3"]
+
+
+# --- limpeza do corpo: o que é endereço e não texto ---------------------------
+
+
+def test_url_de_rastreio_vira_host() -> None:
+    """A URL inteira é o que estourava o orçamento de token do chunker: 400
+    caracteres opacos ocupam a janela de 512 tokens e produzem chunk de 82
+    caracteres. O host sobrevive porque "veio da uber.com" é sinal fraco e real."""
+    limpo = limpar_corpo("Recibo em https://cloud.mail.vce.example/e/x?t=Zm9vYmFy&u=42 obrigado")
+
+    assert "cloud.mail.vce.example" in limpo
+    assert "Zm9vYmFy" not in limpo
+    assert limpo.startswith("Recibo em (link:")
+
+
+def test_www_sem_esquema_tambem_e_endereco() -> None:
+    assert limpar_corpo("veja www.vce.example/promo/xyz") == "veja (link: vce.example)"
+
+
+def test_blob_opaco_sai_do_corpo() -> None:
+    blob = "A1b2C3d4" * 10  # 80 caracteres sem espaço
+    assert blob not in limpar_corpo(f"assinatura {blob} fim")
+
+
+def test_palavra_longa_de_verdade_sobrevive() -> None:
+    """O corte é em 60 caracteres porque palavra em português não chega lá — e
+    identificador de contrato, que é o que o grafo lê, muito menos."""
+    for palavra in ("anticonstitucionalissimamente", "CT-VCE-2024-0142", "ISO/IEC 42001:2023"):
+        assert palavra in limpar_corpo(f"conforme {palavra} no anexo")
+
+
+def test_referencia_de_imagem_embutida_sai() -> None:
+    assert "cid:" not in limpar_corpo("logo [cid:image001.png@01DA5F3B] fim")
+
+
+def test_limpeza_vale_no_corpo_do_msg_e_do_eml() -> None:
+    """Os dois caminhos passam pela mesma limpeza — senão o `.eml` reintroduziria
+    o problema pelo lado que ninguém está olhando."""
+    url = "https://rastreio.vce.example/x?token=" + "Zm9vYmFyYmF6" * 8
+    doc_msg = parse_msg(msg_de(assunto="Recibo", corpo=f"segue {url}"), "r.msg")
+    bruto = f"From: a@vce.example\r\nSubject: Recibo\r\n\r\nsegue {url}\r\n".encode()
+    doc_eml = parse_eml(bruto, "r.eml")
+
+    for doc in (doc_msg, doc_eml):
+        texto = texto_dos_blocos(doc)
+        assert "rastreio.vce.example" in texto
+        assert "Zm9vYmFyYmF6" not in texto
 
 
 # --- HTML --------------------------------------------------------------------

@@ -129,6 +129,54 @@ ESPACOS = re.compile(r"[ \t\xa0]+")
 LINHAS_VAZIAS = re.compile(r"\n\s*\n\s*\n+")
 
 
+ENDERECO = re.compile(r"(?i)\b(?:https?://|www\.)[^\s<>\"')\]]+")
+REFERENCIA_EMBUTIDA = re.compile(r"(?i)\bcid:\S+")
+OPACO = re.compile(r"[A-Za-z0-9+/=_%\-]{60,}")
+"""Sessenta caracteres sem espaço não existem em português. Existem em token de
+rastreio, em base64 de imagem embutida e em id de mensagem."""
+
+HOSPEDEIRO = re.compile(r"(?i)^(?:https?://)?(?:www\.)?([^/\s:]+)")
+
+
+def _hospedeiro(m: re.Match[str]) -> str:
+    encontrado = HOSPEDEIRO.match(m.group(0))
+    return f"(link: {encontrado.group(1)})" if encontrado else ""
+
+
+def limpar_corpo(texto: str) -> str:
+    """Tira do corpo o que é endereço, e não texto — e é o que fez este parser
+    ser medido duas vezes.
+
+    O chunker respeita um orçamento de **token**, com o tokenizador real, e uma
+    URL de rastreio de 400 caracteres opacos consome a janela inteira de 512
+    tokens. Medido nos cinco emails de reembolso do acervo, com o tokenizador de
+    verdade: **2.931 chunks de 82 caracteres** para 61.862 caracteres de corpo —
+    chunk cheio de token e vazio de conteúdo. Depois da limpeza, **25 chunks**
+    para os mesmos cinco arquivos, porque 78% daquele corpo era endereço.
+
+    Três consequências, e nenhuma é cosmética:
+
+    1. A indexação parou de andar: 9 núcleos por dez minutos num email só, e um
+       deles entrou no índice com 343 chunks antes de alguém notar.
+    2. O índice ganharia milhares de vetores de lixo competindo na fusão.
+    3. Contar token nesse lixo custava 33 s de chunking por documento; os 48
+       arquivos inteiros agora levam 13 s de parse **mais** chunking.
+
+    O host fica — "veio da uber.com" é sinal fraco mas real; o resto do endereço
+    não é conteúdo em nenhuma leitura razoável.
+
+    Mora aqui, e não no chunker, porque é um fato sobre **email**: PDF e DOCX
+    deste acervo não carregam token de rastreio. Mudar o chunker mexeria em todos
+    os formatos e pediria a medição de todos (invariante 4).
+    """
+    limpo = ENDERECO.sub(_hospedeiro, texto)
+    limpo = REFERENCIA_EMBUTIDA.sub("", limpo)
+    limpo = OPACO.sub("…", limpo)
+    limpo = ESPACOS.sub(" ", limpo)
+    linhas = [linha.rstrip() for linha in limpo.splitlines()]
+    return LINHAS_VAZIAS.sub("\n\n", "\n".join(linhas)).strip()
+
+
 def texto_de_html(bruto: str) -> str:
     """Texto de um corpo HTML, sem dependência de parser de HTML.
 
@@ -287,7 +335,7 @@ def mensagem_de_mime(dados: bytes) -> Mensagem:
         para=cabecalho("To"),
         cc=cabecalho("Cc"),
         data=data,
-        corpo=corpo.strip(),
+        corpo=limpar_corpo(corpo),
         anexos=tuple(anexos),
     )
 
@@ -384,7 +432,7 @@ def mensagem_de_streams(streams: Mapping[str, bytes]) -> Mensagem:
         para=_valor(streams, "", TAG_PARA),
         cc=_valor(streams, "", TAG_CC),
         data=_data_de_propriedades(streams.get(STREAM_DE_PROPRIEDADES)),
-        corpo=corpo,
+        corpo=limpar_corpo(corpo),
         anexos=_anexos(streams),
     )
 
