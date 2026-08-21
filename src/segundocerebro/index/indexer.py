@@ -37,6 +37,7 @@ from pathlib import Path
 from ..census import Config, iter_files
 from ..config import ErroDeConfig, carregar
 from ..ingest.chunking import CHUNKER_VERSION, ChunkConfig, chunk_document
+from ..ingest.parsers import parser_version_for
 from ..ingest.document import ParseResult, ParseStatus
 from ..ingest.reader import parse_file
 from ..logger import get_logger
@@ -265,16 +266,30 @@ mesmo parser, e repescar custaria reprocessar 12 PDFs digitalizados de até 61
 páginas a cada passada, sem nada a ganhar até existir OCR."""
 
 
-def _precisa_indexar(estado, arquivo, model_id: str) -> bool:  # noqa: ANN001
+def _precisa_indexar(estado, arquivo, model_id: str, parser: str) -> bool:  # noqa: ANN001
     if estado is None:
         return True
     if estado.status in STATUS_PARA_REPESCAR:
         return True
     if estado.model_id != model_id or estado.chunker != CHUNKER_VERSION:
         return True
+    # Parser corrigido alcança o que já está indexado. Sem esta linha, o único
+    # caminho era apagar linha do registro à mão — foi o que um `.msg` de 343
+    # chunks exigiu em 21/08/2026, e é o que o comentário acima admitia faltar.
+    if estado.parser != parser:
+        return True
     if estado.tamanho != arquivo.size or abs(estado.mtime - arquivo.mtime) > 1e-6:
         return True
     return False
+
+
+def _extensoes(bruto: str | None) -> frozenset[str] | None:
+    """`.txt,pdf` -> `{'.txt', '.pdf'}`. O ponto é opcional, porque digitar sem ele
+    é o erro que a pessoa comete e recusar seria pedantismo."""
+    if not bruto:
+        return None
+    itens = {p.strip().lower() for p in bruto.split(",") if p.strip()}
+    return frozenset(e if e.startswith(".") else f".{e}" for e in itens) or None
 
 
 def _parse_workers_padrao() -> int:
@@ -304,6 +319,7 @@ def indexar(
     limite: int | None = None,
     lote: int = LOTE_EMBEDDING,
     prefixo: str | None = None,
+    so_extensao: frozenset[str] | None = None,
     reconciliar_ao_fim: bool = True,
     forcar_reconciliacao: bool = False,
     limite_planilha_mb: float | None = None,
@@ -346,7 +362,15 @@ def indexar(
     # Custa segundos e nenhuma abertura de arquivo — `iter_files` já lê só
     # metadado, o que também é o que impede hidratar placeholder de nuvem.
     trabalho = [
-        (root, [a for a in iter_files(root, cfg) if not prefixo or a.rel.startswith(prefixo)])
+        (
+            root,
+            [
+                a
+                for a in iter_files(root, cfg)
+                if (not prefixo or a.rel.startswith(prefixo))
+                and (so_extensao is None or os.path.splitext(a.rel)[1].lower() in so_extensao)
+            ],
+        )
         for root in cfg.roots
     ]
     estimador = Estimador()
@@ -403,7 +427,8 @@ def indexar(
                 vistos.add(arquivo.rel)
                 progresso.documentos += 1
                 estado = store.estado_documento(arquivo.rel)
-                if not _precisa_indexar(estado, arquivo, embedder.model_id):
+                versao_parser = parser_version_for(os.path.splitext(arquivo.rel)[1])
+                if not _precisa_indexar(estado, arquivo, embedder.model_id, versao_parser):
                     progresso.pulados += 1
                     # Sai do restante sem entrar na calibragem: pular é grátis, e
                     # deixar isso ensinar a vazão faria a estimativa prometer um
@@ -431,6 +456,7 @@ def indexar(
                 n_chunks=len(chunks),
                 model_id=embedder.model_id,
                 chunker=CHUNKER_VERSION,
+                parser=parser_version_for(os.path.splitext(arquivo.rel)[1]),
                 natureza=resultado.natureza,
             )
             store.commit()
@@ -508,6 +534,7 @@ def indexar(
                     detalhe=resultado.detail[:500],
                     model_id=embedder.model_id,
                     chunker=CHUNKER_VERSION,
+                    parser=parser_version_for(os.path.splitext(arquivo.rel)[1]),
                     natureza=resultado.natureza,
                 )
                 store.commit()
@@ -532,6 +559,11 @@ def indexar(
                 and estado.status == ParseStatus.OK.value
                 and estado.model_id == embedder.model_id
                 and estado.chunker == CHUNKER_VERSION
+                # O atalho reaproveita os chunks que já estão lá. Se o parser
+                # mudou, são chunks de outro texto — reaproveitá-los anularia a
+                # repesca e deixaria o documento repescando a cada passada, para
+                # sempre, sem nunca mudar.
+                and estado.parser == parser_version_for(os.path.splitext(arquivo.rel)[1])
             ):
                 store.registrar_documento(
                     path=arquivo.rel,
@@ -543,6 +575,7 @@ def indexar(
                     n_chunks=estado.n_chunks,
                     model_id=embedder.model_id,
                     chunker=CHUNKER_VERSION,
+                    parser=parser_version_for(os.path.splitext(arquivo.rel)[1]),
                     natureza=resultado.natureza,
                 )
                 store.commit()
@@ -602,7 +635,12 @@ def indexar(
     # A passada só vale para reconciliar se percorreu o escopo inteiro. Com
     # `--limite` ou interrupção, um caminho ausente de `vistos` significa "não
     # cheguei lá", e não "não existe mais".
-    passada_completa = not progresso.interrompido and limite is None
+    #
+    # `so_extensao` entra na mesma conta, e é o caso mais perigoso dos três: um
+    # recorte por extensão deixa fora de `vistos` todo documento do prefixo que
+    # tem **outra** extensão, e reconciliar isso apagaria do índice tudo que a
+    # passada não veio buscar. Filtro de escopo não é evidência de ausência.
+    passada_completa = not progresso.interrompido and limite is None and so_extensao is None
     progresso.reconciliacao = reconciliar(
         store,
         vistos,
@@ -666,6 +704,15 @@ def main(argv: list[str] | None = None) -> int:
         "(um processo por placa); senão fica na thread principal",
     )
     parser.add_argument("--prefixo", help="indexa só caminhos que começam com este prefixo")
+    parser.add_argument(
+        "--so-extensao",
+        dest="so_extensao",
+        metavar=".txt,.pdf",
+        help="indexa só estas extensões, separadas por vírgula. Existe para partir uma "
+        "passada por custo: em Meetings/ os 819 .txt custam 13 min e os 188 .pdf custam "
+        "de 5 a 11 h, e medir entre as duas metades vale mais que descobrir depois. "
+        "Desliga a reconciliação — o recorte não é evidência de que o resto sumiu",
+    )
     parser.add_argument(
         "--pular-planilha-acima-de",
         type=float,
@@ -735,6 +782,7 @@ def main(argv: list[str] | None = None) -> int:
             limite=args.limite,
             lote=conf.maquina.lote,
             prefixo=args.prefixo,
+            so_extensao=_extensoes(args.so_extensao),
             limite_planilha_mb=args.pular_planilha_acima_de,
             esforco=esforco,
             reconciliar_ao_fim=not args.sem_reconciliar,

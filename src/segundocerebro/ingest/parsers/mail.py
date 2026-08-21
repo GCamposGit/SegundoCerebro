@@ -439,12 +439,22 @@ def mensagem_de_streams(streams: Mapping[str, bytes]) -> Mensagem:
 
 # --- entradas registradas ----------------------------------------------------
 
+VERSAO = "2"
+"""Versão do texto que este parser produz — não da implementação.
 
-@register(".eml")
+`1` é o primeiro parser de email, do mesmo dia. `2` é depois de trocar endereço
+de rastreio por host no corpo (`limpar_corpo`): cinco emails de reembolso
+produziam 2.931 chunks de 82 caracteres porque uma URL de 400 caracteres opacos
+consome a janela de 512 tokens inteira. Mesmo arquivo, texto diferente — logo,
+versão diferente, e o registro repesca sozinho o que ficou com o corpo sujo.
+"""
+
+
+@register(".eml", version=VERSAO)
 def parse_eml(dados: bytes, nome: str) -> ParsedDoc:
     return documento_de(mensagem_de_mime(dados), nome, "eml")
 
 
-@register(".msg")
+@register(".msg", version=VERSAO)
 def parse_msg(dados: bytes, nome: str) -> ParsedDoc:
     return documento_de(mensagem_de_streams(streams_de_cfb(dados)), nome, "msg")

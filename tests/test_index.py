@@ -570,6 +570,7 @@ def test_documento_travado_e_repescado_na_proxima_passada(tmp_path: Path) -> Non
             self.status = status
             self.model_id = "m:8"
             self.chunker = CHUNKER_VERSION
+            self.parser = "1"
             self.tamanho = 10
             self.mtime = 1.0
             self.sha256 = "abc"
@@ -580,7 +581,7 @@ def test_documento_travado_e_repescado_na_proxima_passada(tmp_path: Path) -> Non
         mtime = 1.0
 
     for status in ("travado", "placeholder", "erro", "sem_parser"):
-        assert _precisa_indexar(Estado(status), Arquivo(), "m:8"), f"{status} tem que ser repescado"
+        assert _precisa_indexar(Estado(status), Arquivo(), "m:8", "1"), f"{status} tem que ser repescado"
 
 
 def test_documento_ok_ou_vazio_nao_e_reprocessado(tmp_path: Path) -> None:
@@ -592,6 +593,7 @@ def test_documento_ok_ou_vazio_nao_e_reprocessado(tmp_path: Path) -> None:
             self.status = status
             self.model_id = "m:8"
             self.chunker = CHUNKER_VERSION
+            self.parser = "1"
             self.tamanho = 10
             self.mtime = 1.0
             self.sha256 = "abc"
@@ -601,5 +603,125 @@ def test_documento_ok_ou_vazio_nao_e_reprocessado(tmp_path: Path) -> None:
         size = 10
         mtime = 1.0
 
-    assert not _precisa_indexar(Estado("ok"), Arquivo(), "m:8")
-    assert not _precisa_indexar(Estado("vazio"), Arquivo(), "m:8")
+    assert not _precisa_indexar(Estado("ok"), Arquivo(), "m:8", "1")
+    assert not _precisa_indexar(Estado("vazio"), Arquivo(), "m:8", "1")
+
+
+# --- versão de parser -------------------------------------------------------
+
+
+def test_parser_corrigido_repesca_e_nao_repesca_de_novo(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """O defeito que custou um script avulso em 21/08/2026, agora fechado.
+
+    Três asserções, e as três importam:
+
+    1. Subir a versão do parser **repesca** o documento, mesmo com arquivo
+       intocado — tamanho, mtime, modelo e chunker todos batem.
+    2. Os chunks são **regenerados**, não reaproveitados: o atalho de "sha256
+       idêntico com mtime novo" existe e reusaria `n_chunks` do estado antigo.
+    3. A passada seguinte **pula**. Sem gravar a versão nova, o documento
+       repescaria a cada passada para sempre, produzindo o mesmo texto.
+    """
+    from segundocerebro.ingest import parsers
+
+    cfg = corpus(tmp_path / "raiz")
+    store = Store(tmp_path / "indice", DIM)
+    emb = EmbedderFalso()
+
+    indexar(cfg, store, emb)
+    assert store.estado_documento("contrato.md").parser == parsers.VERSAO_INICIAL
+
+    monkeypatch.setitem(parsers._VERSOES, ".md", "7")
+    depois = indexar(cfg, store, emb)
+
+    assert depois.indexados == 2, "os dois .md com conteúdo têm que ser repescados"
+    assert depois.pulados == 0
+    assert depois.inalterados == 0, "o atalho de sha256 anularia a repesca"
+    assert store.estado_documento("contrato.md").parser == "7"
+
+    terceira = indexar(cfg, store, emb)
+    assert terceira.indexados == 0, "repescaria para sempre sem gravar a versão"
+    assert terceira.pulados == 3
+    store.fechar()
+
+
+def test_indice_antigo_e_estampado_e_nao_reindexado(tmp_path: Path) -> None:
+    """A migração precisa afirmar algo, porque o default aqui não é neutro.
+
+    `parser = ''` não bate com nenhuma versão declarada, então abrir um índice
+    de 1.608 documentos com a coluna vazia mandaria 39 h de parede reproduzir o
+    texto que já estava lá. Este teste é a única prova de que isso não acontece —
+    e o custo do erro é grande demais para ficar sem uma.
+    """
+    from segundocerebro.ingest.parsers import VERSAO_INICIAL
+
+    cfg = corpus(tmp_path / "raiz")
+    store = Store(tmp_path / "indice", DIM)
+    indexar(cfg, store, EmbedderFalso())
+    store.con.execute("ALTER TABLE documentos DROP COLUMN parser")
+    store.fechar()
+
+    de_novo = Store(tmp_path / "indice", DIM)
+    versoes = {r[0] for r in de_novo.con.execute("SELECT DISTINCT parser FROM documentos")}
+    assert versoes == {VERSAO_INICIAL}
+
+    passada = indexar(cfg, de_novo, EmbedderFalso())
+    assert passada.indexados == 0, "índice antigo não pode reindexar por causa da coluna nova"
+    assert passada.pulados == 3
+    de_novo.fechar()
+
+
+def test_versao_de_parser_vem_do_registro_de_extensoes() -> None:
+    """A versão mora junto do parser, não numa tabela paralela que envelhece à parte."""
+    from segundocerebro.ingest.parsers import VERSAO_INICIAL, parser_version_for
+
+    assert parser_version_for(".msg") == parser_version_for(".eml") == "2"
+    assert parser_version_for(".MSG") == "2", "extensão em maiúscula é a mesma extensão"
+    assert parser_version_for(".pdf") == VERSAO_INICIAL
+    assert parser_version_for(".xyz") == VERSAO_INICIAL, "sem parser é repescado por status"
+
+
+# --- recorte por extensão ---------------------------------------------------
+
+
+def test_so_extensao_recorta_o_escopo(tmp_path: Path) -> None:
+    """Partir a passada por custo: em Meetings/ é 13 min contra 5–11 h."""
+    cfg = corpus(tmp_path / "raiz")
+    (tmp_path / "raiz" / "planilha.csv").write_text("a,b" + chr(10) + "1,2" + chr(10), encoding="utf-8")
+    store = Store(tmp_path / "indice", DIM)
+
+    progresso = indexar(cfg, store, EmbedderFalso(), so_extensao=frozenset({".csv"}))
+
+    assert progresso.documentos == 1
+    assert {p for p, in store.con.execute("SELECT path FROM documentos")} == {"planilha.csv"}
+    store.fechar()
+
+
+def test_so_extensao_nao_reconcilia(tmp_path: Path) -> None:
+    """O recorte por extensão é o caso em que reconciliar apaga o acervo.
+
+    Todo documento de outra extensão fica fora de `vistos`, e reconciliar leria
+    isso como "sumiu do disco". A passada de `.txt` de Meetings/ apagaria os
+    1.514 documentos que já estavam indexados.
+    """
+    cfg = corpus(tmp_path / "raiz")
+    (tmp_path / "raiz" / "planilha.csv").write_text("a,b" + chr(10) + "1,2" + chr(10), encoding="utf-8")
+    store = Store(tmp_path / "indice", DIM)
+
+    indexar(cfg, store, EmbedderFalso())
+    antes = {p for p, in store.con.execute("SELECT path FROM documentos")}
+    progresso = indexar(cfg, store, EmbedderFalso(), so_extensao=frozenset({".csv"}))
+
+    assert progresso.reconciliacao.removidos == []
+    assert {p for p, in store.con.execute("SELECT path FROM documentos")} == antes
+    store.fechar()
+
+
+def test_extensoes_da_cli_aceitam_com_e_sem_ponto() -> None:
+    from segundocerebro.index.indexer import _extensoes
+
+    assert _extensoes("txt,.PDF") == frozenset({".txt", ".pdf"})
+    assert _extensoes("") is None
+    assert _extensoes(None) is None

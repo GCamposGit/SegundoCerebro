@@ -46,6 +46,10 @@ CREATE TABLE IF NOT EXISTS documentos (
     n_chunks    INTEGER DEFAULT 0,
     model_id    TEXT DEFAULT '',
     chunker     TEXT DEFAULT '',
+    -- Versão do parser que produziu o texto (ver ingest/parsers/__init__.py).
+    -- Sem ela um parser corrigido não alcança o que já está no índice: tamanho,
+    -- mtime, modelo e chunker todos passam.
+    parser      TEXT DEFAULT '',
     indexado_em TEXT NOT NULL,
     -- Natureza do arquivo (ver ingest/natureza.py). Persistida porque estava
     -- sendo calculada e descartada: um PDF digitalizado e um PDF vazio de
@@ -162,6 +166,7 @@ class EstadoDocumento:
     n_chunks: int
     model_id: str
     chunker: str
+    parser: str
 
 
 @dataclass(frozen=True)
@@ -228,6 +233,7 @@ class Store:
         ("tem_tabela", "INTEGER DEFAULT 0"),
         ("figuras_por_pagina", "REAL DEFAULT 0"),
         ("paginas", "INTEGER DEFAULT 0"),
+        ("parser", "TEXT DEFAULT ''"),
     )
 
     def _alinhar_colunas(self) -> None:
@@ -245,6 +251,31 @@ class Store:
             if nome not in existentes:
                 self.con.execute(f"ALTER TABLE documentos ADD COLUMN {nome} {tipo}")
                 log.info("registro: coluna %s acrescentada", nome)
+                if nome == "parser":
+                    self._estampar_parser_inicial()
+
+    def _estampar_parser_inicial(self) -> None:
+        """Estampa `VERSAO_INICIAL` no índice que existia antes da coluna.
+
+        É a única migração deste registro que precisa escrever valor em vez de
+        deixar o default, e o motivo é o oposto do usual: aqui o "não sei" **não**
+        é neutro. `parser = ''` não bate com nenhuma versão declarada, então a
+        próxima passada repescaria o índice inteiro — 1.608 documentos, 39 h de
+        parede — para reproduzir exatamente o texto que já está lá.
+
+        A afirmação que a estampa faz é verificável: todo parser nasceu em
+        `VERSAO_INICIAL`, e quem subiu de versão declarou isso no código. Logo o
+        que estava indexado veio da versão inicial, exceto onde alguém subiu a
+        versão de propósito — que é precisamente o que deve repescar.
+        """
+        from ..ingest.parsers import VERSAO_INICIAL
+
+        n = self.con.execute(
+            "UPDATE documentos SET parser = ? WHERE parser = '' OR parser IS NULL",
+            (VERSAO_INICIAL,),
+        ).rowcount
+        self.con.commit()
+        log.info("registro: %d documento(s) estampado(s) com parser=%s", n, VERSAO_INICIAL)
 
     # --- LanceDB, aberto sob demanda -------------------------------------
 
@@ -319,7 +350,7 @@ class Store:
 
     def estado_documento(self, path: str) -> EstadoDocumento | None:
         linha = self.con.execute(
-            "SELECT path, tamanho, mtime, sha256, status, n_chunks, model_id, chunker"
+            "SELECT path, tamanho, mtime, sha256, status, n_chunks, model_id, chunker, parser"
             " FROM documentos WHERE path = ?",
             (path,),
         ).fetchone()
@@ -348,6 +379,7 @@ class Store:
         n_chunks: int = 0,
         model_id: str = "",
         chunker: str = "",
+        parser: str = "",
         natureza=None,  # noqa: ANN001 — ingest.natureza.Natureza, importado tarde
     ) -> None:
         colunas = self.COLUNAS_NATUREZA
@@ -361,15 +393,19 @@ class Store:
             f"""
             INSERT INTO documentos
                 (path, raiz, tamanho, mtime, sha256, status, detalhe, n_chunks,
-                 model_id, chunker, indexado_em, {lista})
-            VALUES (?,?,?,?,?,?,?,?,?,?,?, {marcas})
+                 model_id, chunker, parser, indexado_em, {lista})
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?, {marcas})
             ON CONFLICT(path) DO UPDATE SET
                 raiz=excluded.raiz, tamanho=excluded.tamanho, mtime=excluded.mtime,
                 sha256=excluded.sha256, status=excluded.status, detalhe=excluded.detalhe,
                 n_chunks=excluded.n_chunks, model_id=excluded.model_id,
-                chunker=excluded.chunker, indexado_em=excluded.indexado_em, {atualiza}
+                chunker=excluded.chunker, parser=excluded.parser,
+                indexado_em=excluded.indexado_em, {atualiza}
             """,
-            (path, raiz, tamanho, mtime, sha256, status, detalhe, n_chunks, model_id, chunker, agora())
+            (
+                path, raiz, tamanho, mtime, sha256, status, detalhe, n_chunks,
+                model_id, chunker, parser, agora(),
+            )
             + extras,
         )
 
