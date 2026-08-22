@@ -48,7 +48,7 @@ class EmbedderFalso:
     def contar_tokens(self, texto: str) -> int:
         return len(texto) // 4
 
-    def embed_passagens(self, textos, batch_size: int = 32) -> list[np.ndarray]:  # noqa: ANN001, ARG002
+    def embed_passagens(self, textos, batch_size: int = 32, ao_progresso=None) -> list[np.ndarray]:  # noqa: ANN001, ARG002
         self.chamadas += len(textos)
         saida = []
         for t in textos:
@@ -56,6 +56,8 @@ class EmbedderFalso:
             rng = np.random.default_rng(semente)
             v = rng.standard_normal(self.dim).astype(np.float32)
             saida.append(v / np.linalg.norm(v))
+        if ao_progresso is not None:
+            ao_progresso(len(saida), len(saida))
         return saida
 
     def embed_consulta(self, texto: str) -> np.ndarray:
@@ -246,6 +248,9 @@ def test_pipeline_duas_gpus_grava_via_fila(tmp_path: Path, monkeypatch: pytest.M
 
     monkeypatch.setenv("SEGUNDOCEREBRO_PROVIDER", "cuda")
     monkeypatch.setattr("segundocerebro.index.indexer.contar_gpus", lambda: 2)
+    monkeypatch.setattr(
+        "segundocerebro.index.indexer.dispositivos_embed", lambda **k: ["0", "1"]
+    )
     monkeypatch.setattr("segundocerebro.index.indexer.EmbedFila", fabricar)
 
     cfg = corpus(tmp_path / "raiz")
@@ -603,3 +608,67 @@ def test_documento_ok_ou_vazio_nao_e_reprocessado(tmp_path: Path) -> None:
 
     assert not _precisa_indexar(Estado("ok"), Arquivo(), "m:8")
     assert not _precisa_indexar(Estado("vazio"), Arquivo(), "m:8")
+
+
+def test_txt_com_muitos_trechos_e_adiado_sem_embeddar(tmp_path: Path) -> None:
+    """Rede de segurança: dump que passa do teto de bytes ainda pode explodir em trechos."""
+    raiz = tmp_path / "raiz"
+    raiz.mkdir()
+    (raiz / "dump.txt").write_text(("palavra " * 40 + "\n") * 80, encoding="utf-8")
+    cfg = Config(roots=(RootSpec(name="r", path=raiz),))
+    store = Store(tmp_path / "indice", DIM)
+    emb = EmbedderFalso()
+
+    progresso = indexar(
+        cfg,
+        store,
+        emb,
+        chunk_cfg=ChunkConfig(max_chars=60, min_chars=20, overlap_chars=8),
+        limite_chunks=5,
+        publicar=False,
+    )
+
+    estado = store.estado_documento("dump.txt")
+    assert estado is not None and estado.status == "adiado"
+    assert progresso.indexados == 0
+    assert emb.chamadas == 0
+    assert "adiado" in progresso.falhas
+    store.fechar()
+
+
+def test_txt_curto_passa_pelo_teto_de_trechos(tmp_path: Path) -> None:
+    raiz = tmp_path / "raiz"
+    raiz.mkdir()
+    (raiz / "nota.txt").write_text("nota curta o bastante para um trecho só.\n", encoding="utf-8")
+    cfg = Config(roots=(RootSpec(name="r", path=raiz),))
+    store = Store(tmp_path / "indice", DIM)
+
+    progresso = indexar(cfg, store, EmbedderFalso(), limite_chunks=5, publicar=False)
+
+    assert store.estado_documento("nota.txt").status == "ok"
+    assert progresso.indexados == 1
+    store.fechar()
+
+
+def test_teto_de_trechos_nao_adia_markdown(tmp_path: Path) -> None:
+    """O teto é para dump .txt/.csv. Relatório em markdown continua no índice."""
+    raiz = tmp_path / "raiz"
+    raiz.mkdir()
+    (raiz / "relatorio.md").write_text("# T\n\n" + ("parágrafo. " * 40 + "\n") * 80, encoding="utf-8")
+    cfg = Config(roots=(RootSpec(name="r", path=raiz),))
+    store = Store(tmp_path / "indice", DIM)
+    emb = EmbedderFalso()
+
+    progresso = indexar(
+        cfg,
+        store,
+        emb,
+        chunk_cfg=ChunkConfig(max_chars=60, min_chars=20, overlap_chars=8),
+        limite_chunks=5,
+        publicar=False,
+    )
+
+    assert store.estado_documento("relatorio.md").status == "ok"
+    assert progresso.indexados == 1
+    assert emb.chamadas > 0
+    store.fechar()

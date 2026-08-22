@@ -1,11 +1,11 @@
 """One ONNX session per GPU — the Runtime will not split a session.
 
-Used only when SEGUNDOCEREBRO_PROVIDER=cuda and nvidia-smi sees ≥2 cards.
-The main process never loads the encoder in that case (VRAM: e5-large ≈ 5 GB
-on a 6 GB 980 Ti). Token budget on the main thread is the spec window, not
-the live tokenizer — same ChunkConfig.max_tokens, no silent CUDA load.
+GPUs are discovered at runtime (`nvidia-smi`). Nothing here assumes how many
+cards the machine has, or which one drives the monitor — that is only known
+at install. `model_id` is unchanged. Hardware does not enter the vector.
 
-model_id is unchanged. Hardware does not enter the vector fingerprint.
+Used when SEGUNDOCEREBRO_PROVIDER=cuda and at least two cards were *selected*
+for embed. The main process then never loads the encoder.
 """
 
 from __future__ import annotations
@@ -40,22 +40,8 @@ def _linhas_smi(query: str) -> list[str]:
     return [ln.strip() for ln in bruto.stdout.splitlines() if ln.strip()]
 
 
-def dispositivos_embed() -> list[str]:
-    """Physical GPU indices for compute.
-
-    If at least one card has no monitor, skip the ones driving the display.
-    Loading e5-large (~4 GB) on a 6 GB 980 Ti that also paints the desktop
-    trips Windows TDR (Event 4101, nvlddmkm) and can take the machine down.
-    Measured 21/08/2026 on this desktop: GPU 0 `display_active=Enabled`,
-    GPU 1 Disabled; a night of dual-GPU embed ended in Kernel-Power 41.
-
-    If every card has a display, keep them all — there is nothing to spare.
-    """
-    linhas = _linhas_smi("index,display_active")
-    if not linhas:
-        # Older nvidia-smi without display_active: fall back to counting names.
-        return [str(i) for i, _ in enumerate(_linhas_smi("name"))]
-
+def _parse_smi_display(linhas: list[str]) -> tuple[list[str], list[str]]:
+    """Returns (all indices, indices without an active display)."""
     todos: list[str] = []
     livres: list[str] = []
     for linha in linhas:
@@ -67,10 +53,38 @@ def dispositivos_embed() -> list[str]:
         ativo = partes[1].lower() if len(partes) > 1 else ""
         if ativo not in {"enabled", "enable"}:
             livres.append(idx)
-    if livres:
+    return todos, livres
+
+
+def dispositivos_embed(*, reservar_display: bool = False) -> list[str]:
+    """Physical GPU indices for the encoder, discovered now.
+
+    The installer does not know how many cards there will be. Rules, in order:
+
+    1. No NVIDIA / nvidia-smi → empty (caller stays on CPU).
+    2. One GPU → that GPU, even if it drives the monitor. Skipping it would
+       leave a one-GPU machine with no accelerator — the common case.
+    3. Two or more, and `reservar_display` (perfil `leve`) → drop cards with
+       `display_active`, but only if at least one remains. TDR on the desktop
+       GPU is a `leve` concern; it is not a reason to idle a spare card in
+       `completo`/`maximo`.
+    4. Two or more, not `leve` → every card.
+
+    `reservar_display` is the effort profile, not a hardware constant.
+    """
+    linhas = _linhas_smi("index,display_active")
+    if not linhas:
+        return [str(i) for i, _ in enumerate(_linhas_smi("name"))]
+
+    todos, livres = _parse_smi_display(linhas)
+    if not todos:
+        return []
+    if len(todos) == 1:
+        return todos
+    if reservar_display and livres:
         if len(livres) < len(todos):
             log.info(
-                "pulando GPU(s) com display %s; embed em %s",
+                "perfil leve: GPU do display %s fica para o desktop; embed em %s",
                 [i for i in todos if i not in livres],
                 livres,
             )
@@ -79,7 +93,8 @@ def dispositivos_embed() -> list[str]:
 
 
 def contar_gpus() -> int:
-    return len(dispositivos_embed())
+    """How many NVIDIA GPUs nvidia-smi sees. Display does not subtract."""
+    return len(dispositivos_embed(reservar_display=False))
 
 
 def _worker(device: str, modelo: str, cache: str, pedidos, respostas) -> None:

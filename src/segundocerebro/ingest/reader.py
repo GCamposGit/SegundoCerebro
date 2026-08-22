@@ -19,6 +19,7 @@ from __future__ import annotations
 import hashlib
 import os
 import time
+from collections.abc import Mapping
 
 from ..census import caminho_estendido, is_cloud_only
 from ..logger import get_logger
@@ -66,6 +67,34 @@ def read_bytes(
     raise FileLocked(f"arquivo em uso por outro processo: {path}") from ultimo
 
 
+def _adiar_por_tamanho(path: str, limite_mb: float) -> ParseResult | None:
+    """`adiado` for an oversized file, without reading a single byte of content.
+
+    Size comes from `stat`, which does not hydrate a cloud placeholder. A 269 MB
+    export must not be loaded into RAM just so we can decide not to index it.
+    """
+    try:
+        tamanho = os.stat(caminho_estendido(path)).st_size
+    except OSError:
+        return None
+    mb = tamanho / 1_000_000
+    if mb <= limite_mb:
+        return None
+    extensao = os.path.splitext(path)[1].lower()
+    log.info(
+        "adiado: %s tem %.1f MB em disco (limite %.1f MB para %s)",
+        path,
+        mb,
+        limite_mb,
+        extensao,
+    )
+    return ParseResult(
+        path=path,
+        status=ParseStatus.DEFERRED,
+        detail=f"{mb:.1f} MB em disco, acima do limite de {limite_mb:.1f} MB para {extensao}",
+    )
+
+
 def parse_file(
     path: str,
     *,
@@ -73,11 +102,15 @@ def parse_file(
     retries: int = RETRIES_PADRAO,
     espera: float = ESPERA_PADRAO,
     limite_planilha_mb: float | None = None,
+    limite_texto_mb: float | None = None,
+    limites_mb: Mapping[str, float] | None = None,
 ) -> ParseResult:
     """Read and parse one file, turning every failure into a recorded status.
 
-    `limite_planilha_mb` adia planilhas cujo XML de abas passe do limite. A
-    decisão mora aqui, e não no indexador, pelo mesmo motivo que a recusa de
+    `limites_mb` adia pelo tamanho em disco **antes** de abrir, por extensão.
+    `limite_texto_mb` é o atalho legado para `.txt`/`.csv`. `limite_planilha_mb`
+    adia planilhas pelo XML de abas, que o tamanho em disco não prevê. As três
+    decisões moram aqui, e não no indexador, pelo mesmo motivo que a recusa de
     placeholder de nuvem mora aqui: é uma decisão sobre **abrir ou não abrir o
     conteúdo**, e ter dois lugares que decidem isso é como o portão único se
     perde.
@@ -88,6 +121,20 @@ def parse_file(
     parser = parser_for(extensao)
     if parser is None:
         return ParseResult(path=path, status=ParseStatus.UNSUPPORTED, detail=extensao)
+
+    mapa = dict(limites_mb or {})
+    if limite_texto_mb is not None:
+        if limite_texto_mb > 0:
+            mapa[".txt"] = limite_texto_mb
+            mapa[".csv"] = limite_texto_mb
+        else:
+            mapa.pop(".txt", None)
+            mapa.pop(".csv", None)
+    teto = mapa.get(extensao)
+    if teto is not None and teto > 0:
+        adiado = _adiar_por_tamanho(path, teto)
+        if adiado is not None:
+            return adiado
 
     try:
         dados = read_bytes(path, allow_hydration=allow_hydration, retries=retries, espera=espera)

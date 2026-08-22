@@ -25,10 +25,12 @@ def test_contar_gpus_conta_linhas(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(
         "segundocerebro.index.gpu_pool.subprocess.run", lambda *_a, **_k: Bruto()
     )
-    assert contar_gpus() == 1
+    assert contar_gpus() == 2
 
 
-def test_dispositivos_embed_pula_display(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_dispositivos_embed_pula_display_so_no_perfil_leve(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     from segundocerebro.index.gpu_pool import dispositivos_embed
 
     class Bruto:
@@ -38,7 +40,8 @@ def test_dispositivos_embed_pula_display(monkeypatch: pytest.MonkeyPatch) -> Non
     monkeypatch.setattr(
         "segundocerebro.index.gpu_pool.subprocess.run", lambda *_a, **_k: Bruto()
     )
-    assert dispositivos_embed() == ["1"]
+    assert dispositivos_embed() == ["0", "1"]
+    assert dispositivos_embed(reservar_display=True) == ["1"]
 
 
 def test_dispositivos_embed_mantem_tudo_se_todas_tem_display(

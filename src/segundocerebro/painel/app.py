@@ -36,7 +36,7 @@ from pathlib import Path
 from typing import Any, Callable
 
 from ..census import RootSpec
-from ..config import Base, Busca, ErroDeConfig, Pesos, carregar, gravar
+from ..config import Base, Busca, ErroDeConfig, LimitesDeIndexacao, Pesos, carregar, gravar
 from ..index.indexer import NOME_DA_TRAVA
 from ..logger import get_logger
 from ..retrieve.glossario import ErroDeGlossario, Glossario
@@ -92,6 +92,28 @@ def _ajuste_de(corpo: dict[str, Any], base) -> tuple[Pesos, Busca]:  # noqa: ANN
     pesos.validar("ajuste")
     busca.validar("ajuste")
     return pesos, busca
+
+
+def _limites_do_corpo(corpo: dict[str, Any]) -> LimitesDeIndexacao:
+    """Lê o mapa tipo → MB. 0 é sem teto; negativo ou tipo desconhecido é erro."""
+    bruto = corpo.get("limites")
+    if not isinstance(bruto, dict):
+        raise ValueError("'limites' precisa ser um objeto com o teto em MB de cada tipo")
+    conhecidos = set(LimitesDeIndexacao.__dataclass_fields__)
+    desconhecidos = sorted(set(bruto) - conhecidos)
+    if desconhecidos:
+        raise ValueError(
+            f"tipo desconhecido: {', '.join(desconhecidos)} "
+            f"(conhecidos: {', '.join(sorted(conhecidos))})"
+        )
+    convertidos: dict[str, float] = {}
+    for chave, valor in bruto.items():
+        if isinstance(valor, bool) or not isinstance(valor, (int, float)):
+            raise ValueError(f"limite '{chave}' precisa ser um número em MB (0 = sem teto)")
+        convertidos[chave] = float(valor)
+    limites = replace(LimitesDeIndexacao(), **convertidos)
+    limites.validar("limites")
+    return limites
 
 
 def criar_app(
@@ -163,6 +185,7 @@ def criar_app(
                         "pesos": dict(b.pesos.__dict__),
                         "busca": dict(b.busca.__dict__),
                         "raizes": [str(r.path) for r in b.raizes],
+                        "limites": b.limites.como_json(),
                         # Quantas perguntas medem esta base. Perfil medido contra
                         # quatro perguntas não é perfil medido, e a tela precisa
                         # poder dizer isso.
@@ -518,6 +541,47 @@ def criar_app(
             }
         )
 
+    async def limites(request: Request) -> JSONResponse:
+        """Teto de MB por tipo ao indexar. Grava direto: não é ranking.
+
+        Arquivo acima do teto fica `adiado`, não some. Já no índice continua até
+        mudar no disco. A passada em voo nasceu com o mapa antigo — vale na
+        próxima. Não é `chunking.max_chars`: aquele muda todos os ids.
+        """
+        if not autorizado(request):
+            return JSONResponse({"erro": "token inválido"}, status_code=403)
+        corpo = await request.json()
+        try:
+            conf = _config()
+            base = _base(conf, corpo)
+            novos = _limites_do_corpo(corpo)
+        except ErroDeConfig as erro:
+            return JSONResponse({"erro": str(erro)}, status_code=400)
+        except ValueError as erro:
+            return JSONResponse({"erro": str(erro)}, status_code=400)
+
+        atualizada = replace(base, limites=novos)
+        try:
+            gravar(
+                replace(
+                    conf,
+                    bases=tuple(atualizada if b.id == base.id else b for b in conf.bases),
+                ),
+                caminho_config,
+            )
+        except ErroDeConfig as erro:
+            return JSONResponse({"erro": str(erro)}, status_code=400)
+
+        log.info("limites de indexação da base '%s' salvos: %s", base.id, novos.como_mapa())
+        return JSONResponse(
+            {
+                "base": base.id,
+                "limites": novos.como_json(),
+                "aviso": "salvo. Vale na próxima passada. Arquivos já indexados "
+                "não saem sozinhos. 0 MB = sem teto para aquele tipo.",
+            }
+        )
+
     async def censo(request: Request) -> JSONResponse:
         """Prévia de pastas antes de indexar. Só metadado, nunca conteúdo."""
         if not autorizado(request):
@@ -689,6 +753,7 @@ def criar_app(
             Route("/api/retomada", retomada, methods=["GET", "POST"]),
             Route("/api/maquina", maquina, methods=["POST"]),
             Route("/api/raizes", raizes, methods=["POST"]),
+            Route("/api/limites", limites, methods=["POST"]),
             Route("/api/censo", censo, methods=["POST"]),
             Route("/api/base", criar_base, methods=["POST"]),
             Route("/api/indexar", indexar, methods=["POST"]),
@@ -724,3 +789,59 @@ def _proximo_id(existentes: list[str]) -> str:
 
 def gerar_token() -> str:
     return secrets.token_urlsafe(24)
+
+
+PORTA_PADRAO = 18787
+"""Porta fixa para o atalho do Windows reabrir a mesma URL.
+
+0 (livre) fazia cada abertura nascer noutro endereço, e o usuário não tinha
+como voltar à tela sem perguntar ao agente."""
+
+SESSAO_PAINEL = ".painel.json"
+
+
+def caminho_da_sessao(config: Path) -> Path:
+    return Path(config).expanduser().resolve().parent / SESSAO_PAINEL
+
+
+def ler_sessao(config: Path) -> dict[str, Any] | None:
+    alvo = caminho_da_sessao(config)
+    try:
+        dados = json.loads(alvo.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(dados, dict):
+        return None
+    porta, token = dados.get("porta"), dados.get("token")
+    if not isinstance(porta, int) or not isinstance(token, str) or not token:
+        return None
+    return {"porta": porta, "token": token, "url": dados.get("url") or f"http://127.0.0.1:{porta}/?token={token}"}
+
+
+def gravar_sessao(config: Path, porta: int, token: str) -> None:
+    alvo = caminho_da_sessao(config)
+    payload = {
+        "porta": porta,
+        "token": token,
+        "url": f"http://127.0.0.1:{porta}/?token={token}",
+    }
+    tmp = alvo.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=1), encoding="utf-8")
+    tmp.replace(alvo)
+
+
+def painel_responde(porta: int, token: str, host: str = "127.0.0.1", timeout: float = 0.4) -> bool:
+    """True se já há um painel vivo nesta porta com este token."""
+    from urllib.error import URLError
+    from urllib.request import Request, urlopen
+
+    pedido = Request(
+        f"http://{host}:{porta}/api/estado",
+        headers={"x-painel-token": token},
+        method="GET",
+    )
+    try:
+        with urlopen(pedido, timeout=timeout) as resp:  # noqa: S310 — loopback, token obrigatório
+            return 200 <= getattr(resp, "status", 200) < 300
+    except (URLError, TimeoutError, OSError):
+        return False

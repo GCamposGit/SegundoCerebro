@@ -235,6 +235,30 @@ def test_token_gerado_nao_e_adivinhavel() -> None:
     assert len(gerar_token()) >= 24 and gerar_token() != gerar_token()
 
 
+def test_sessao_do_painel_grava_e_le_a_url(tmp_path: Path) -> None:
+    """O atalho do Windows precisa da mesma porta e do mesmo token."""
+    from segundocerebro.painel.app import caminho_da_sessao, gravar_sessao, ler_sessao
+
+    cfg = tmp_path / "config.toml"
+    cfg.write_text('[[base]]\nid = "x"\n', encoding="utf-8")
+    gravar_sessao(cfg, 18787, "abc")
+
+    dados = ler_sessao(cfg)
+    assert dados["porta"] == 18787
+    assert dados["token"] == "abc"
+    assert "18787" in dados["url"]
+    assert caminho_da_sessao(cfg).name == ".painel.json"
+
+
+def test_sessao_ilegivel_vira_ausencia(tmp_path: Path) -> None:
+    from segundocerebro.painel.app import ler_sessao
+
+    cfg = tmp_path / "config.toml"
+    cfg.write_text('[[base]]\nid = "x"\n', encoding="utf-8")
+    (tmp_path / ".painel.json").write_text("{nao", encoding="utf-8")
+    assert ler_sessao(cfg) is None
+
+
 # --- o resumo que a tela consome ---------------------------------------------
 
 
@@ -740,6 +764,41 @@ def test_reapontar_troca_as_pastas_e_avisa_que_nada_reindexa(cliente, caminho: P
     assert [str(x.path) for x in raizes] == [str(nova)]
 
 
+def test_estado_traz_limites_padrao(cliente) -> None:
+    dados = cliente.get("/api/estado", headers=cabecalho()).json()
+    limites = dados["bases"][0]["limites"]
+    assert limites["txt"] == 2.0
+    assert limites["csv"] == 2.0
+    assert limites["pdf"] == 0.0
+
+
+def test_salvar_limites_nao_exige_medicao(cliente, caminho: Path) -> None:
+    """Não é ranking: dump adiado não move recall, e ritual de medir ensinaria a ignorar a regra."""
+    r = cliente.post(
+        "/api/limites",
+        json={"base": "trabalho", "limites": {"csv": 5, "xlsx": 40, "txt": 0}},
+        headers=cabecalho(),
+    )
+    assert r.status_code == 200
+    assert r.json()["limites"]["csv"] == 5
+    gravada = carregar(caminho, ambiente={}).base("trabalho", ambiente={}).limites
+    assert gravada.csv == 5 and gravada.xlsx == 40 and gravada.txt == 0
+    assert gravada.pdf == 0
+
+
+def test_limites_negativos_ou_tipo_desconhecido_sao_recusados(cliente) -> None:
+    assert cliente.post(
+        "/api/limites",
+        json={"base": "trabalho", "limites": {"pdf": -1}},
+        headers=cabecalho(),
+    ).status_code == 400
+    assert cliente.post(
+        "/api/limites",
+        json={"base": "trabalho", "limites": {"exe": 10}},
+        headers=cabecalho(),
+    ).status_code == 400
+
+
 def test_reapontar_para_pasta_inexistente_e_recusado(cliente) -> None:
     """Caminho errado gravado é índice que nunca mais reconcilia."""
     r = cliente.post(
@@ -769,7 +828,7 @@ def test_rerank_negativo_e_recusado(cliente) -> None:
     assert cliente.post("/api/medir", json=corpo, headers=cabecalho()).status_code == 400
 
 
-@pytest.mark.parametrize("rota", ["/api/maquina", "/api/raizes"])
+@pytest.mark.parametrize("rota", ["/api/maquina", "/api/raizes", "/api/limites"])
 def test_rotas_novas_exigem_token(cliente, rota: str) -> None:
     assert cliente.post(rota, json={}).status_code == 403
 

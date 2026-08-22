@@ -32,11 +32,12 @@ p.sub { color: var(--suave); font-size: 13px; margin: 0 0 20px; }
   padding: 14px 16px; box-shadow: var(--sombra);
 }
 .linha { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
-select, input[type=text] {
+select, input[type=text], input[type=number] {
   font: inherit; padding: 7px 10px; border-radius: 7px;
   border: 1px solid var(--borda); background: var(--painel); color: var(--texto);
 }
 input[type=text] { flex: 1; min-width: 220px; }
+input[type=number] { width: 7.5rem; font-variant-numeric: tabular-nums; }
 button {
   font: inherit; font-weight: 550; padding: 8px 15px; border-radius: 7px;
   border: 1px solid var(--borda); background: var(--painel); color: var(--texto);
@@ -82,8 +83,8 @@ code { font-family: ui-monospace, "Cascadia Code", monospace; font-size: 12px; }
 <div class="envelope">
   <h1>Painel de ajuste</h1>
   <p class="sub">
-    Ajusta como a busca ordena resultados. Não indexa e não responde perguntas —
-    o servidor de busca funciona com esta tela fechada.
+    Acompanha a indexação e ajusta como a busca ordena resultados. O servidor de
+    busca funciona com esta tela fechada — mas a barra de progresso só vive aqui.
   </p>
 
   <div class="cartao linha">
@@ -91,6 +92,47 @@ code { font-family: ui-monospace, "Cascadia Code", monospace; font-size: 12px; }
     <select id="base"></select>
     <span id="infoBase" class="sub" style="margin:0"></span>
     <button id="abrirNova" style="margin-left:auto">Nova base</button>
+  </div>
+
+  <div id="indexacao" class="oculto">
+    <h2>Indexação <span class="nota" id="idxBaseNota">o indexador roda sozinho; esta tela só observa</span></h2>
+    <div class="cartao">
+      <div class="barra"><div id="barraCheia"></div></div>
+      <div class="linha" style="margin-top:10px;justify-content:space-between">
+        <span id="idxResumo" class="sub" style="margin:0"></span>
+        <span id="idxFalta" class="sub" style="margin:0;font-variant-numeric:tabular-nums"></span>
+      </div>
+      <div id="idxArquivo" class="via"></div>
+      <div class="barra oculto" id="barraArquivoCaixa" style="height:6px;margin-top:8px"><div id="barraArquivo"></div></div>
+      <div id="idxEtapa" class="via"></div>
+      <div id="idxSinal" class="via"></div>
+      <div id="idxAviso"></div>
+      <div class="linha" id="idxControles" style="margin-top:12px">
+        <button id="idxPausar">Pausar</button>
+        <button id="idxContinuar" class="oculto">Continuar</button>
+        <button id="idxCancelar">Cancelar</button>
+      </div>
+    </div>
+  </div>
+
+  <h2>Cortes ao indexar <span class="nota">por tipo, em MB — 0 = sem teto</span></h2>
+  <div class="cartao">
+    <p class="sub" style="margin:0 0 12px">
+      Arquivo maior que o teto fica <b>adiado</b>, não some, e não trava a GPU.
+      Isto não é o tamanho do trecho: mudar o trecho reindexa tudo. Já no índice
+      continua até o arquivo mudar no disco. A passada em andamento usa o mapa
+      com que começou — vale na próxima.
+    </p>
+    <table>
+      <thead>
+        <tr><th>Tipo</th><th class="num">Teto (MB)</th></tr>
+      </thead>
+      <tbody id="tabelaCortes"></tbody>
+    </table>
+    <div class="linha" style="margin-top:12px">
+      <button id="salvarCortes" class="primario">Salvar cortes desta base</button>
+    </div>
+    <div id="recadoCortes"></div>
   </div>
 
   <div id="nova" class="oculto">
@@ -124,24 +166,6 @@ code { font-family: ui-monospace, "Cascadia Code", monospace; font-size: 12px; }
     <h2>Conectar <span class="nota">cole no .mcp.json do seu cliente</span></h2>
     <div class="cartao">
       <pre id="trechoMcp" style="overflow-x:auto;margin:0;font-size:12px"></pre>
-    </div>
-  </div>
-
-  <div id="indexacao" class="oculto">
-    <h2>Indexação <span class="nota">o indexador roda sozinho; esta tela só observa</span></h2>
-    <div class="cartao">
-      <div class="barra"><div id="barraCheia"></div></div>
-      <div class="linha" style="margin-top:10px;justify-content:space-between">
-        <span id="idxResumo" class="sub" style="margin:0"></span>
-        <span id="idxFalta" class="sub" style="margin:0;font-variant-numeric:tabular-nums"></span>
-      </div>
-      <div id="idxArquivo" class="via"></div>
-      <div id="idxAviso"></div>
-      <div class="linha" id="idxControles" style="margin-top:12px">
-        <button id="idxPausar">Pausar</button>
-        <button id="idxContinuar" class="oculto">Continuar</button>
-        <button id="idxCancelar">Cancelar</button>
-      </div>
     </div>
   </div>
 
@@ -304,7 +328,16 @@ code { font-family: ui-monospace, "Cascadia Code", monospace; font-size: 12px; }
 const token = new URLSearchParams(location.search).get("token") || "";
 const $ = (id) => document.getElementById(id);
 const MINIMO_DE_PERGUNTAS = 15;
-let bases = [], perfis = [], medicaoAtual = null, assinaturaMedida = null;
+const CORTES = [
+  ["pdf", "PDF"],
+  ["docx", "Word (.docx)"],
+  ["pptx", "PowerPoint (.pptx)"],
+  ["xlsx", "Planilha (.xlsx)"],
+  ["txt", "Texto (.txt)"],
+  ["csv", "CSV"],
+  ["md", "Markdown (.md)"],
+];
+let bases = [], perfis = [], medicaoAtual = null, assinaturaMedida = null, baseDaBarra = null;
 
 async function api(rota, corpo) {
   const opcoes = { headers: { "x-painel-token": token } };
@@ -471,8 +504,43 @@ function mostrarBase() {
     : " · nenhuma pergunta para medir";
   $("infoBase").textContent = `${b.indexada ? "indexada" : "ainda não indexada"}`
     + ` · modelo ${b.modelo}` + (b.indexando ? " · indexando agora" : "") + dourado;
+  preencherCortes(b.limites || {});
   sincronizar();
 }
+
+function preencherCortes(limites) {
+  const corpo = $("tabelaCortes");
+  corpo.innerHTML = CORTES.map(([id, rotulo]) => {
+    const valor = limites[id] == null ? "" : String(limites[id]);
+    return `<tr>
+      <td><label for="corte-${id}">${rotulo}</label></td>
+      <td class="num"><input type="number" id="corte-${id}" min="0" step="0.5" value="${valor}"></td>
+    </tr>`;
+  }).join("");
+}
+
+function lerCortes() {
+  const saida = {};
+  for (const [id] of CORTES) {
+    const bruto = $("corte-" + id).value.trim();
+    saida[id] = bruto === "" ? 0 : Number(bruto);
+  }
+  return saida;
+}
+
+$("salvarCortes").onclick = async () => {
+  const limites = lerCortes();
+  if (Object.values(limites).some((n) => Number.isNaN(n) || n < 0)) {
+    $("recadoCortes").innerHTML = '<div class="aviso">Cada teto precisa ser um número ≥ 0. Zero = sem teto.</div>';
+    return;
+  }
+  try {
+    const r = await api("/api/limites", { base: $("base").value, limites });
+    const b = baseAtual();
+    if (b) b.limites = r.limites;
+    $("recadoCortes").innerHTML = `<div class="ok">${r.aviso}</div>`;
+  } catch (e) { $("recadoCortes").innerHTML = `<div class="aviso">${e.message}</div>`; }
+};
 
 // --- estágio 0: criar, ver o custo, indexar, conectar ---
 
@@ -672,25 +740,53 @@ const ROTULO_STATUS = {
 
 async function pedirComando(acao) {
   try {
-    await api("/api/comando", { base: $("base").value, acao });
+    await api("/api/comando", { base: baseDaBarra || $("base").value, acao });
     await atualizarIndexacao();
   } catch (e) { recado(e.message); }
 }
 $("idxPausar").onclick = () => pedirComando("pausar");
 $("idxContinuar").onclick = () => pedirComando("retomar");
 $("idxCancelar").onclick = () => {
-  if (confirm("Cancelar a indexação? O documento em andamento termina e o resto espera a próxima passada.")) {
+  if (confirm("Cancelar a indexação? O arquivo em andamento não entra no índice; o resto espera a próxima passada.")) {
     pedirComando("cancelar");
   }
 };
 
+function progressoVisivel(dados) {
+  const mapa = dados.bases || {};
+  const vivos = Object.entries(mapa).filter(([, b]) => {
+    const s = b.progresso && b.progresso.status;
+    return s === "indexando" || s === "preparando" || s === "pausada";
+  });
+  if (vivos.length) return { id: vivos[0][0], ...vivos[0][1] };
+  const paradas = Object.entries(mapa)
+    .filter(([, b]) => b.progresso && b.progresso.status === "interrompida")
+    .sort((a, b) => (b[1].progresso.atualizado_em || 0) - (a[1].progresso.atualizado_em || 0));
+  if (paradas.length) return { id: paradas[0][0], ...paradas[0][1] };
+  const sel = $("base").value;
+  return mapa[sel] ? { id: sel, ...mapa[sel] } : null;
+}
+
+function haQuanto(ts) {
+  if (!ts) return "";
+  const s = Math.max(0, Math.round(Date.now() / 1000 - ts));
+  if (s < 3) return "agora";
+  if (s < 60) return `há ${s} s`;
+  if (s < 3600) return `há ${Math.round(s / 60)} min`;
+  return `há ${(s / 3600).toFixed(1)} h`;
+}
+
 async function atualizarIndexacao() {
   let dados;
   try { dados = await api("/api/indexacao"); } catch { return; }
-  const desta = dados.bases?.[$("base").value];
-  const p = desta?.progresso;
-  if (!p) { $("indexacao").classList.add("oculto"); return; }
+  const desta = progressoVisivel(dados);
+  const p = desta && desta.progresso;
+  if (!p) { $("indexacao").classList.add("oculto"); baseDaBarra = null; return; }
   $("indexacao").classList.remove("oculto");
+  baseDaBarra = desta.id;
+
+  const nomeBase = (bases.find((b) => b.id === desta.id) || { nome: desta.id }).nome;
+  $("idxBaseNota").textContent = nomeBase;
 
   const rodando = p.status === "indexando" || p.status === "preparando";
   const pausada = p.status === "pausada";
@@ -702,14 +798,39 @@ async function atualizarIndexacao() {
   $("barraCheia").parentElement.classList.toggle("parada", !rodando);
 
   const d = p.documentos || {};
+  const falhas = p.falhas || {};
+  const adiados = falhas.adiado ? ` · ${falhas.adiado} adiados` : "";
   $("idxResumo").textContent =
     `${ROTULO_STATUS[p.status] || p.status} · ${pct}% · ${d.feitos}/${d.totais} documentos`
-    + (p.chunks ? ` · ${p.chunks.toLocaleString("pt-BR")} trechos` : "");
+    + (p.chunks ? ` · ${Number(p.chunks).toLocaleString("pt-BR")} trechos` : "")
+    + adiados;
 
   // Tempo ativo e parado separados: somar os dois mente sobre a vazão.
   const parado = p.parado_segundos > 60 ? ` (${Math.round(p.parado_segundos / 60)} min parada)` : "";
-  $("idxFalta").textContent = rodando ? `faltam ${p.restante}${parado}` : "";
-  $("idxArquivo").textContent = p.arquivo ? p.arquivo : (p.resumo || "");
+  $("idxFalta").textContent = rodando ? `faltam ${p.restante}${parado}` : (p.resumo || "");
+  $("idxArquivo").textContent = p.arquivo || "";
+
+  const trechos = Number(p.trechos) || 0;
+  const trecho = Number(p.trecho) || 0;
+  const noArquivo = trechos > 0 && (rodando || pausada);
+  $("barraArquivoCaixa").classList.toggle("oculto", !noArquivo);
+  if (noArquivo) {
+    $("barraArquivo").style.width = Math.min(100, Math.round((trecho / trechos) * 100)) + "%";
+    $("idxEtapa").textContent =
+      (p.etapa === "embed" ? "vetorizando" : (p.etapa === "parse" ? "lendo" : p.etapa || ""))
+      + ` ${trecho.toLocaleString("pt-BR")} / ${trechos.toLocaleString("pt-BR")} trechos deste arquivo`;
+  } else if (p.etapa === "parse" && p.arquivo) {
+    $("idxEtapa").textContent = "lendo o arquivo…";
+  } else {
+    $("idxEtapa").textContent = "";
+  }
+
+  const atraso = p.atualizado_em ? (Date.now() / 1000 - p.atualizado_em) : 0;
+  if (rodando && atraso > 20) {
+    $("idxSinal").innerHTML = `<div class="aviso">A barra não recebeu sinal ${haQuanto(p.atualizado_em)}. O indexador pode estar preso num arquivo grande.</div>`;
+  } else {
+    $("idxSinal").textContent = p.atualizado_em ? `atualizado ${haQuanto(p.atualizado_em)}` : "";
+  }
 
   // "Pedi leve e o sistema não deixou" em vez de fingir que está leve.
   const e = p.esforco || {};
