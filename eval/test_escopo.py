@@ -57,7 +57,7 @@ def test_motivo_nao_catalogado_e_erro(tmp_path: Path) -> None:
 
 def test_pergunta_sem_anotacao_esta_no_escopo() -> None:
     assert pergunta("x1", ["a.pdf"]).no_escopo
-    assert not pergunta("x2", ["a.msg"], fora="email").no_escopo
+    assert not pergunta("x2", ["digitalizado.pdf"], fora="ocr").no_escopo
 
 
 # --- agregação --------------------------------------------------------------
@@ -66,7 +66,7 @@ def test_pergunta_sem_anotacao_esta_no_escopo() -> None:
 def test_restrito_ao_escopo_muda_o_denominador() -> None:
     perguntas = [
         pergunta("x1", ["achado.pdf"]),
-        pergunta("x2", ["inalcancavel.msg"], fora="email"),
+        pergunta("x2", ["inalcancavel.pdf"], fora="ocr"),
     ]
     resultado = avaliar(RecuperadorFixo(["achado.pdf"]), perguntas)
 
@@ -127,20 +127,20 @@ def test_anotacao_velha_quando_a_fonte_virou_indexavel() -> None:
 
 
 def test_fora_de_escopo_ainda_ilegivel_nao_reclama() -> None:
-    assert verificar_escopo([pergunta("x1", ["a.msg"], fora="email")], set()) == []
+    assert verificar_escopo([pergunta("x1", ["digitalizado.pdf"], fora="ocr")], set()) == []
 
 
 def test_baseline_por_nome_nao_dispara_anotacao_velha() -> None:
-    """O baseline alcança um .msg pelo nome sem abrir o arquivo.
+    """O baseline alcança um PDF digitalizado pelo nome sem abrir o arquivo.
 
     Presença no disco não é evidência de texto extraível, então a direção
     `anotacao_velha` não se aplica a quem ranqueia sem ler conteúdo — senão
     todo arquivo fora de escopo viraria alarme falso a cada rodada do baseline.
     """
-    p = pergunta("x1", ["a.msg"], fora="email")
+    p = pergunta("x1", ["digitalizado.pdf"], fora="ocr")
 
-    assert [d.especie for d in verificar_escopo([p], {"a.msg"})] == ["anotacao_velha"]
-    assert verificar_escopo([p], {"a.msg"}, universo_de_conteudo=False) == []
+    assert [d.especie for d in verificar_escopo([p], {"digitalizado.pdf"})] == ["anotacao_velha"]
+    assert verificar_escopo([p], {"digitalizado.pdf"}, universo_de_conteudo=False) == []
 
 
 def test_fonte_sumida_do_disco_alerta_mesmo_sem_conteudo() -> None:

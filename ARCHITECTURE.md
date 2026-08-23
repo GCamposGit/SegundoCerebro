@@ -188,7 +188,7 @@ prioridade real:
 | DOCX | `python-docx` | Headings reais viram hierarquia |
 | XLSX | `openpyxl` | Uma linha ≠ um chunk. Aba + cabeçalho + faixa de linhas como unidade |
 | PPTX | `python-pptx` | Slide = unidade; título do slide é o heading |
-| MSG / EML | `extract-msg` | Assunto, remetente, data são metadados fortes |
+| MSG / EML | `olefile` (só o container) + camada MAPI própria; `email` da stdlib para MIME | Assunto, remetente, data e **nome do anexo** são metadados fortes. O corpo é partido por mensagem da thread, senão a decisão que importa fica diluída no histórico citado. `extract-msg` traria seis pacotes transitivos para fazer a metade que é tabela de nomes de stream |
 | Markdown | nativo | Frontmatter, `#tags`, `[[wikilinks]]` **se existirem** |
 | DOC / XLS legado | conversão via LibreOffice headless | Só se houver volume que justifique |
 

@@ -44,3 +44,14 @@ tomli-w>=1.0
 # Cliente de teste do Starlette (`tests/test_painel.py`). Vem com o `mcp`, mas o
 # mesmo argumento se aplica: se um teste importa, o arquivo declara.
 httpx>=0.27
+
+# F4 — email. Só o **container** do `.msg`: CFB tem FAT, mini-FAT e DIFAT, e ler
+# errado um mini-stream devolve bytes plausíveis do lugar errado, que é falha
+# silenciosa. A camada MAPI é nossa (`ingest/parsers/mail.py`) porque é tabela de
+# nomes de stream e custa dez linhas — `extract-msg` resolveria as duas metades
+# trazendo seis pacotes transitivos.
+#
+# `olefile` é um módulo só, python puro, sem dependência nenhuma, e **não** muda
+# `model_id`: nada reindexa por causa desta linha, mas o outro setup precisa de
+# um `pip install -r requirements.txt` para rodar os testes de email.
+olefile==0.47
