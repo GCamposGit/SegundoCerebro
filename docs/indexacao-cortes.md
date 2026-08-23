@@ -19,7 +19,11 @@ não mudou.
   só valia entre documentos — um dump prendia a GPU por horas.
 - Perfil `leve`: a placa que pinta o desktop não carrega o encoder
   (TDR / evento `nvlddmkm`). Uma GPU só, mesmo com monitor, continua
-  usando essa GPU. `completo`/`maximo` usam todas.
+  usando essa GPU, mas não a 100%. `normal` usa todas, com a GPU 0
+  abaixo de 100%. `maximo` usa todas a 100%. Trocar o perfil no painel
+  vale no processo em curso (prioridade, CPU, ritmo); GPU nova só na
+  próxima largada. O perfil salvo em `[maquina]` é o que a retomada
+  usa depois de reiniciar.
 
 ## Cortes por tipo
 
@@ -27,15 +31,20 @@ não mudou.
 no painel (por base). Padrão do código, omitido do arquivo se não
 diferir:
 
-| Campo | Extensões | Padrão (MB) |
+| Campo | Extensões | Recomendado no painel (MB) |
 |-------|-----------|------------:|
 | `txt` | `.txt` | 2 |
 | `csv` | `.csv` | 2 |
-| `pdf` `docx` `pptx` `xlsx` `md` | as óbvias + `.docm`/`.pptm`/`.xlsm` | 0 (sem teto) |
+| `md` | `.md` | 5 |
+| `xlsx` | `.xlsx` `.xlsm` | 15 |
+| `docx` | `.docx` `.docm` | 30 |
+| `pdf` `pptx` | as óbvias + `.pptm` | 50 |
 
-`0` = sem teto. Já indexado **não** sai sozinho. A passada em voo nasceu
-com o mapa antigo — vale na próxima. Flag de CLI `--pular-texto-acima-de`
-ainda cobre `.txt`/`.csv` se vier explícita.
+`0` = sem teto. O painel já vem preenchido com o recomendado até o
+usuário ajustar. O ajuste grava na base **e** em `[maquina.limites]`,
+para a próxima base nesta máquina herdar. Já indexado **não** sai
+sozinho. A passada em voo nasceu com o mapa antigo. Flag de CLI
+`--pular-texto-acima-de` ainda cobre `.txt`/`.csv` se vier explícita.
 
 Isto **não** é `max_chars`. Mexer no trecho reindexa o corporativo.
 
@@ -48,6 +57,13 @@ O indexador publica `etapa`, `trecho` e `trechos` a cada ~2 s, inclusive
 no meio de um arquivo. A tela avisa se o sinal parar por mais de 20 s.
 Atalho: `scripts/abrir-painel.cmd` (porta 18787, token em `.painel.json`
 ao lado do `config.toml`, gitignorado).
+
+## Fila
+
+A ordem dos arquivos não é mais a do disco. Ondas, pastas pequenas primeiro e
+versão vigente (mtime) estão em [`prioridade-de-indexacao.md`](prioridade-de-indexacao.md).
+Os tetos desta página continuam sendo a **porta** (`adiado`); as ondas só
+decidem **quando** o arquivo entra na fila.
 
 ## O que não vai no Git
 

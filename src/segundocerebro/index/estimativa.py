@@ -61,11 +61,17 @@ esta constante só impede a barra de abrir em '5–11 h' de novo.
 Não entra em `model_id`. Só vale com SEGUNDOCEREBRO_PROVIDER=cuda."""
 
 MEIA_VIDA = 20
-"""Documentos até um coeficiente novo valer metade do peso total.
+"""Mantido por compatibilidade de import. A calibragem passou a ser média
+ponderada pelo trabalho (`previsto`), não por contagem de arquivos."""
 
-Média móvel exponencial: a tabela governa os primeiros minutos e o run governa o
-resto. Alto demais e a semente demora a sair de cena; baixo demais e um único
-arquivo atípico desestabiliza a estimativa."""
+CLIP_OUTLIER = 6.0
+"""Razão medido÷previsto fora de 1/N…N vezes a média atual não entra na média.
+
+Um Word travado por dez minutos não pode mandar a barra para '3 dias' e devolver
+no arquivo seguinte."""
+
+ALFA_UI = 0.2
+"""Quanto da estimativa nova entra no número exibido. 0,2 = anda 20% por arquivo."""
 
 LIMIAR_DE_SUSPENSAO = 120.0
 """Salto de relógio acima disto é máquina dormindo, não documento lento.
@@ -89,9 +95,13 @@ class Relogio:
     _ultimo: float | None = None
     suspensoes: int = 0
     parado: float = 0.0
+    _em_pausa: bool = False
+    _pausa_atual: float = 0.0
 
     def tique(self, agora: float | None = None) -> None:
         agora = time.monotonic() if agora is None else agora
+        self._em_pausa = False
+        self._pausa_atual = 0.0
         if self._ultimo is not None:
             passou = agora - self._ultimo
             if passou > LIMIAR_DE_SUSPENSAO:
@@ -106,12 +116,32 @@ class Relogio:
 
         Hibernação incrementa `suspensoes`. Isto não — alguém apertou Pausar.
         """
-        self.parado += max(segundos, 0.0)
+        dt = max(segundos, 0.0)
+        self._em_pausa = True
+        self._pausa_atual += dt
+        self.parado += dt
         self._ultimo = time.monotonic() if agora is None else agora
+
+    def fim_pausa(self) -> None:
+        self._em_pausa = False
+        self._pausa_atual = 0.0
+
+    def restaurar(self, ativo: float = 0.0, parado: float = 0.0, suspensoes: int = 0) -> None:
+        """Continua o relógio de um processo que morreu. O próximo tique não soma o buraco."""
+        self._ativo = max(0.0, float(ativo))
+        self.parado = max(0.0, float(parado))
+        self.suspensoes = max(0, int(suspensoes))
+        self._ultimo = None
+        self._em_pausa = False
+        self._pausa_atual = 0.0
 
     @property
     def ativo(self) -> float:
         return self._ativo
+
+    @property
+    def pausa_atual(self) -> float:
+        return self._pausa_atual if self._em_pausa else 0.0
 
 
 def _semente(extensao: str) -> float:
@@ -147,7 +177,13 @@ class Faixa:
 
 @dataclass
 class Estimador:
-    """Trabalho declarado por quem enumera, e recalibrado por quem executa."""
+    """Trabalho declarado por quem enumera, e recalibrado por quem executa.
+
+    A taxa é média ponderada pelo trabalho já feito (`soma(segundos) /
+    soma(previsto)`), não um EMA que trata um TXT de 2 KB igual a um DOCX de
+    40 MB. A barra exibida ainda é amortecida: um arquivo atípico não pode
+    mandar o número da tela para o outro extremo.
+    """
 
     total: float = 0.0
     feito: float = 0.0
@@ -155,7 +191,9 @@ class Estimador:
     documentos_feitos: int = 0
     _fatores: list[float] = field(default_factory=list)
     _fator: float = 1.0
-    """Razão medido ÷ previsto, por média móvel. 1,0 = a semente está certa."""
+    _previsto_obs: float = 0.0
+    _medido_obs: float = 0.0
+    _p50_exibido: float | None = None
 
     def declarar(self, arquivos) -> None:  # noqa: ANN001 — iterável de (rel, tamanho)
         """O total vem de fora, do mesmo enumerador que o indexador usa.
@@ -178,9 +216,32 @@ class Estimador:
         self.documentos_feitos += 1
         if previsto > 0 and segundos > 0:
             razao = segundos / previsto
-            peso = 2.0 / (MEIA_VIDA + 1)
-            self._fator = self._fator + peso * (razao - self._fator)
             insort(self._fatores, razao)
+            atual = (self._medido_obs / self._previsto_obs) if self._previsto_obs > 0 else 1.0
+            entra = not (razao > CLIP_OUTLIER * atual or razao < atual / CLIP_OUTLIER)
+            if entra:
+                self._previsto_obs += previsto
+                self._medido_obs += segundos
+                self._fator = self._medido_obs / self._previsto_obs
+
+    def restaurar(self, dados: dict) -> None:  # noqa: ANN001
+        previsto = float(dados.get("previsto") or 0.0)
+        medido = float(dados.get("medido") or 0.0)
+        if previsto > 0 and medido > 0:
+            self._previsto_obs = previsto
+            self._medido_obs = medido
+            self._fator = medido / previsto
+        p50 = dados.get("p50_exibido")
+        if p50 is not None:
+            self._p50_exibido = float(p50)
+
+    def como_json(self) -> dict[str, float]:
+        return {
+            "previsto": round(self._previsto_obs, 3),
+            "medido": round(self._medido_obs, 3),
+            "fator": round(self._fator, 4),
+            "p50_exibido": round(self._p50_exibido or 0.0, 1),
+        }
 
     @property
     def fracao(self) -> float:
@@ -189,16 +250,20 @@ class Estimador:
     def restante(self) -> Faixa:
         """Segundos ativos que faltam, como faixa.
 
-        `p90` sai do percentil observado da razão medido÷previsto, não de um
-        multiplicador inventado: se este acervo se comporta pior que a semente, a
-        própria dispersão dele diz quanto.
+        `p50` é a média ponderada, amortecida para a tela. `p90` sai do
+        percentil observado das razões, para a faixa continuar honesta.
         """
         falta = max(self.total - self.feito, 0.0)
         if falta <= 0:
+            self._p50_exibido = 0.0
             return Faixa(0.0, 0.0)
-        p50 = falta * self._fator
+        p50_bruto = falta * self._fator
+        if self._p50_exibido is None:
+            self._p50_exibido = p50_bruto
+        else:
+            self._p50_exibido += ALFA_UI * (p50_bruto - self._p50_exibido)
+        p50 = max(0.0, self._p50_exibido)
         if len(self._fatores) < 5:
-            # Amostra curta: a faixa é larga porque a ignorância é real.
             return Faixa(p50, p50 * 2.0)
         alto = self._fatores[min(int(len(self._fatores) * 0.9), len(self._fatores) - 1)]
         return Faixa(p50, falta * max(alto, self._fator))

@@ -13,3 +13,5 @@ import pytest
 @pytest.fixture(autouse=True)
 def sem_gpu_pool(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr("segundocerebro.index.indexer.contar_gpus", lambda: 0)
+    monkeypatch.setattr("segundocerebro.index.indexer.dispositivos_embed", lambda **_k: [])
+    monkeypatch.setattr("segundocerebro.index.esforco.listar_gpus", lambda: [])

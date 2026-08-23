@@ -90,6 +90,12 @@ class ParseStatus(str, Enum):
     horas, e a passada de hoje quer terminar. Fica registrado com o motivo e é
     repescado na primeira passada que rodar sem o limite — nunca vira documento
     esquecido, que é o que aconteceria movendo o arquivo para uma pasta de fora."""
+    DUPLICATE = "duplicado"
+    """Same bytes as another path already embedded with this model/chunker.
+
+    The second copy is recorded, not re-embedded. Retrieval finds the first
+    path. Copying vectors onto new chunk ids is a follow-up — ids include the
+    path, and inventing a second provenance without the bytes would lie."""
 
 
 @dataclass(frozen=True)

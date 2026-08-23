@@ -311,7 +311,7 @@ def test_a_pagina_e_servida_e_nao_leva_o_token_embutido(cliente) -> None:
     resposta = cliente.get("/")
 
     assert resposta.status_code == 200
-    assert "Painel de ajuste" in resposta.text
+    assert "Painel de Controle" in resposta.text
     assert TOKEN not in resposta.text
 
 
@@ -719,6 +719,17 @@ def test_perfil_de_maquina_salva_sem_exigir_medicao(cliente, caminho: Path) -> N
     assert carregar(caminho, ambiente={}).maquina.perfil == "leve"
 
 
+def test_perfil_normal_e_maximo_gravam(cliente, caminho: Path) -> None:
+    """O painel fala leve/normal/maximo; o arquivo antigo falava completo/gpu."""
+    r = cliente.post("/api/maquina", json={"perfil": "normal"}, headers=cabecalho())
+    assert r.status_code == 200
+    assert carregar(caminho, ambiente={}).maquina.perfil == "normal"
+    r = cliente.post("/api/maquina", json={"perfil": "maximo"}, headers=cabecalho())
+    assert r.status_code == 200
+    assert carregar(caminho, ambiente={}).maquina.perfil == "maximo"
+    assert r.json()["plano"]["cpu"]["percentual"] == 100
+
+
 def test_perfil_invalido_e_recusado(cliente) -> None:
     r = cliente.post("/api/maquina", json={"perfil": "turbo"}, headers=cabecalho())
     assert r.status_code == 400
@@ -728,6 +739,9 @@ def test_estado_expoe_maquina_raizes_e_tamanho_do_dourado(cliente) -> None:
     dados = cliente.get("/api/estado", headers=cabecalho()).json()
 
     assert dados["maquina"]["perfil"]
+    assert "plano" in dados["maquina"]
+    assert "limites" in dados["maquina"]
+    assert dados["limites_recomendados"]["txt"] == 2
     trabalho = dados["bases"][0]
     assert "raizes" in trabalho and "dourado" in trabalho
     assert "rerank" in trabalho["busca"], "a tela precisa saber se o rerank está ligado"

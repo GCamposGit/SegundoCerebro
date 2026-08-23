@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -143,6 +144,110 @@ def mesclar(existente: dict[str, Any], novo: dict[str, Any]) -> tuple[dict[str, 
     return saida, acrescentados, trocados
 
 
+def python_do_projeto(*, relativo: bool = True) -> str:
+    """O interpretador da instalação, não o `py` do PATH.
+
+    Neste desktop o `py` é o 3.11 do sistema e o pacote mora no `.venv` 3.12.
+    Registrar `py` faz o cliente subir um interpretador sem dependências e o
+    handshake falha em silêncio.
+    """
+    for candidato in (RAIZ / ".venv" / "Scripts" / "python.exe", RAIZ / ".venv" / "bin" / "python"):
+        if candidato.exists():
+            if relativo:
+                return str(candidato.relative_to(RAIZ)).replace("\\", "/")
+            return str(candidato.resolve())
+    return sys.executable
+
+
+def extra_env_hardware(conf: Any = None, existente: dict[str, Any] | None = None) -> dict[str, str]:
+    """Provider de embedding (cuda/cpu) — hardware, não entra em `model_id`.
+
+    Ordem: variável de ambiente, `[maquina] provider`, o que já estiver num
+    `segundocerebro-*` do arquivo. Sem isto a base nova no desktop subiria em
+    CPU com o índice feito em GPU, ou o contrário no notebook.
+    """
+    provider = (os.environ.get("SEGUNDOCEREBRO_PROVIDER") or "").strip()
+    if not provider and conf is not None:
+        provider = (getattr(getattr(conf, "maquina", None), "provider", None) or "").strip()
+    if not provider and existente:
+        for nome, entrada in (existente.get(CHAVE) or {}).items():
+            if str(nome).startswith("segundocerebro"):
+                herdado = ((entrada or {}).get("env") or {}).get("SEGUNDOCEREBRO_PROVIDER")
+                if herdado:
+                    provider = str(herdado).strip()
+                    break
+    return {"SEGUNDOCEREBRO_PROVIDER": provider} if provider else {}
+
+
+def _ler_existente(destino: Path) -> dict[str, Any]:
+    if not destino.exists():
+        return {}
+    try:
+        return json.loads(destino.read_text(encoding="utf-8"))
+    except json.JSONDecodeError as erro:
+        raise ErroDeConfig(
+            f"{destino} não é JSON válido ({erro}) — não vou sobrescrever"
+        ) from erro
+
+
+def gravar_em(
+    destino: Path,
+    bases: Any,
+    *,
+    nomear: bool = True,
+    absoluto: bool = False,
+    python: str = "py",
+    extra_env: dict[str, str] | None = None,
+) -> tuple[list[str], list[str]]:
+    """Mescla no arquivo. Recusa JSON ilegível em vez de apagar o dos outros."""
+    existente = _ler_existente(destino)
+    novo = trecho(bases, nomear=nomear, absoluto=absoluto, python=python)
+    extra = dict(extra_env or {})
+    if extra:
+        for entrada in novo[CHAVE].values():
+            env = dict(entrada.get("env") or {})
+            env.update({k: v for k, v in extra.items() if v})
+            entrada["env"] = env
+    mesclado, acrescentados, trocados = mesclar(existente, novo)
+    destino.parent.mkdir(parents=True, exist_ok=True)
+    temporario = destino.with_suffix(destino.suffix + ".tmp")
+    temporario.write_text(
+        json.dumps(mesclado, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+    )
+    temporario.replace(destino)
+    return acrescentados, trocados
+
+
+def ativar(base: Any, *, conf: Any, destino: Path | None = None) -> Path:
+    """Liga a base no `.mcp.json` do projeto. Idempotente.
+
+    Indexar uma base nova e esquecer este degrau deixa o índice pronto e o
+    assistente cego. O painel 'conectar' era o passo humano; agora a passada
+    completa registra sozinha.
+    """
+    if destino is None:
+        raiz = conf.caminho.parent if getattr(conf, "caminho", None) else RAIZ
+        destino = raiz / ".mcp.json"
+    existente = _ler_existente(destino) if destino.exists() else {}
+    acrescentados, trocados = gravar_em(
+        destino,
+        [base],
+        nomear=True,
+        absoluto=False,
+        python=python_do_projeto(relativo=True),
+        extra_env=extra_env_hardware(conf, existente),
+    )
+    log.info(
+        "MCP da base '%s' em %s: %s",
+        base.id,
+        destino,
+        "já estava" if not acrescentados and not trocados else (
+            "acrescentado" if acrescentados else "atualizado"
+        ),
+    )
+    return destino
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
         prog="segundocerebro.mcp.registrar",
@@ -217,18 +322,22 @@ def main(argv: list[str] | None = None) -> int:
         print(json.dumps(novo, indent=2, ensure_ascii=False))
         return 0
 
-    existente: dict[str, Any] = {}
-    if args.out.exists():
-        try:
-            existente = json.loads(args.out.read_text(encoding="utf-8"))
-        except json.JSONDecodeError as erro:
-            log.error("%s não é JSON válido (%s) — não vou sobrescrever", args.out, erro)
-            return 2
+    try:
+        existente = _ler_existente(args.out)
+        acrescentados, trocados = gravar_em(
+            args.out,
+            bases,
+            nomear=conf.caminho is not None or len(conf.bases) > 1,
+            absoluto=args.cliente not in RELATIVO,
+            python=args.python,
+            extra_env=extra_env_hardware(conf, existente),
+        )
+    except ErroDeConfig as erro:
+        log.error("%s", erro)
+        return 2
 
-    mesclado, acrescentados, trocados = mesclar(existente, novo)
-    args.out.write_text(json.dumps(mesclado, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-
-    preservados = sorted(set(mesclado[CHAVE]) - {b.servidor for b in bases})
+    escrito = json.loads(args.out.read_text(encoding="utf-8"))
+    preservados = sorted(set(escrito[CHAVE]) - {b.servidor for b in bases})
     log.info(
         "%s: %d acrescentado(s)%s, %d atualizado(s)%s, %d preservado(s)%s",
         args.out,

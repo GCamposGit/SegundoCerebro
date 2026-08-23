@@ -367,7 +367,7 @@ def test_maquina_e_do_computador_nao_da_base(tmp_path):
         """,
     )
     cfg = carregar(caminho, ambiente=SEM_AMBIENTE)
-    assert (cfg.maquina.perfil, cfg.maquina.threads, cfg.maquina.provider) == ("gpu", 24, "cuda")
+    assert (cfg.maquina.perfil, cfg.maquina.threads, cfg.maquina.provider) == ("maximo", 24, "cuda")
     assert not hasattr(cfg.base("a"), "threads"), "threads não é atributo de base"
 
 
@@ -381,9 +381,21 @@ def test_ambiente_vence_o_arquivo_na_maquina(tmp_path):
 
 
 def test_perfil_leve_usa_metade_dos_nucleos():
-    assert Maquina(perfil="leve").threads_efetivos(nucleos=12) == 6
-    assert Maquina(perfil="completo").threads_efetivos(nucleos=12) == 12
+    """Leve ~25%, normal ~50% e nunca 100% se houver núcleo de sobra. Máximo usa tudo."""
+    assert Maquina(perfil="leve").threads_efetivos(nucleos=12) == 3
+    assert Maquina(perfil="normal").threads_efetivos(nucleos=12) == 6
+    assert Maquina(perfil="completo").threads_efetivos(nucleos=12) == 6, "completo é alias de normal"
+    assert Maquina(perfil="maximo").threads_efetivos(nucleos=12) == 12
     assert Maquina(perfil="leve", threads=10).threads_efetivos(nucleos=12) == 10, "explícito vence"
+    assert Maquina(perfil="normal").threads_efetivos(nucleos=12) < 12
+    assert Maquina(perfil="leve").threads_efetivos(nucleos=12) < 12
+
+
+def test_alias_completo_e_gpu_continuam_lendo(tmp_path):
+    caminho = escrever(tmp_path, '[maquina]\nperfil = "completo"\n[[base]]\nid = "a"\n')
+    assert carregar(caminho, ambiente=SEM_AMBIENTE).maquina.perfil == "normal"
+    caminho2 = escrever(tmp_path, '[maquina]\nperfil = "gpu"\n[[base]]\nid = "b"\n')
+    assert carregar(caminho2, ambiente=SEM_AMBIENTE).maquina.perfil == "maximo"
 
 
 def test_perfil_invalido(tmp_path):

@@ -140,9 +140,9 @@ class Busca:
 
 _ALIAS_LIMITES: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("pdf", (".pdf",)),
-    ("docx", (".docx", ".docm")),
-    ("pptx", (".pptx", ".pptm")),
-    ("xlsx", (".xlsx", ".xlsm")),
+    ("docx", (".docx", ".docm", ".doc")),
+    ("pptx", (".pptx", ".pptm", ".ppt")),
+    ("xlsx", (".xlsx", ".xlsm", ".xls")),
     ("txt", (".txt",)),
     ("csv", (".csv",)),
     ("md", (".md", ".markdown")),
@@ -193,6 +193,22 @@ class LimitesDeIndexacao:
         return {c: float(getattr(self, c)) for c in self.__dataclass_fields__}
 
 
+LIMITES_RECOMENDADOS = LimitesDeIndexacao(
+    pdf=50.0,
+    docx=30.0,
+    pptx=50.0,
+    xlsx=15.0,
+    txt=2.0,
+    csv=2.0,
+    md=5.0,
+)
+"""Teto inicial por tipo, em MB. 0 continua sendo sem teto se o usuário apagar.
+
+Nascem preenchidos no painel e em bases novas desta máquina. Um CSV enorme
+segura a GPU horas; PDF/DOCX/PPTX têm teto alto porque são o acervo, não o dump.
+O usuário ajusta uma vez; a próxima base nesta máquina herda."""
+
+
 @dataclass(frozen=True)
 class Chunking:
     """Espelha `ingest.chunking.ChunkConfig`.
@@ -215,7 +231,37 @@ class Chunking:
             )
 
 
-PERFIS = ("leve", "completo", "gpu")
+PERFIS = ("leve", "normal", "maximo")
+"""Esforço ao indexar. Não é backend: `gpu` era eixo misturado e virou alias."""
+
+ALIAS_PERFIL = {"completo": "normal", "gpu": "maximo"}
+"""Nomes antigos do `[maquina] perfil`. `completo` era o normal; `gpu` não é esforço."""
+
+FRACAO_CPU = {"leve": 0.25, "normal": 0.50, "maximo": 1.00}
+"""Fração dos núcleos lógicos. Leve e normal nunca ficam com 100% se houver o que deixar."""
+
+
+def normalizar_perfil(perfil: str) -> str:
+    """`leve` / `normal` / `maximo`. Aceita os nomes velhos para não quebrar config.toml."""
+    p = (perfil or "normal").strip().lower()
+    return ALIAS_PERFIL.get(p, p)
+
+
+def nucleos_para(perfil: str, nucleos: int | None = None) -> int:
+    """Quantos núcleos o indexador pode usar neste perfil.
+
+    Flexível entre um notebook de 2 núcleos e um i7 de 20 fios: a conta é
+    fração, não número mágico. Com 2+ núcleos, leve e normal deixam pelo menos
+    um de fora — é o que impede a máquina de ir a 100% de CPU.
+    """
+    n = nucleos if nucleos is not None else (os.cpu_count() or 4)
+    n = max(1, int(n))
+    perfil = normalizar_perfil(perfil)
+    if n <= 1 or perfil == "maximo":
+        return n
+    fracao = FRACAO_CPU.get(perfil, FRACAO_CPU["normal"])
+    usados = max(1, round(n * fracao))
+    return min(usados, n - 1)
 
 
 @dataclass(frozen=True)
@@ -234,15 +280,17 @@ class Maquina:
     tudo.
     """
 
-    perfil: str = "completo"
+    perfil: str = "normal"
     threads: int | None = None
     """`None` deixa o perfil decidir. Explícito vence o perfil."""
     lote: int = 32
     provider: str = ""
     """Vazio = deixa o runtime escolher. `cuda` exige `onnxruntime-gpu`."""
+    limites: LimitesDeIndexacao = LIMITES_RECOMENDADOS
+    """Cortes padrão desta máquina. Bases novas herdam; cada base pode sobrescrever."""
 
     def threads_efetivos(self, nucleos: int | None = None) -> int:
-        """No perfil leve, metade dos núcleos — o notebook continua usável.
+        """Leve ~25%, normal ~50%, máximo 100%. Explícito em `threads` vence.
 
         Medido em 15/08/2026: 11 h de parada em 46 h de indexação, porque a
         alternativa a parar era o notebook travar. Um indexador que não sabe
@@ -250,11 +298,11 @@ class Maquina:
         """
         if self.threads is not None:
             return self.threads
-        n = nucleos or os.cpu_count() or 4
-        return max(1, n // 2) if self.perfil == "leve" else n
+        return nucleos_para(self.perfil, nucleos)
 
     def validar(self) -> None:
-        if self.perfil not in PERFIS:
+        perfil = normalizar_perfil(self.perfil)
+        if perfil not in PERFIS:
             raise ErroDeConfig(
                 f"perfil de máquina desconhecido: '{self.perfil}' (use {', '.join(PERFIS)})"
             )
@@ -262,6 +310,7 @@ class Maquina:
             raise ErroDeConfig(f"[maquina]: 'threads' precisa ser ao menos 1 ({self.threads})")
         if self.lote < 1:
             raise ErroDeConfig(f"[maquina]: 'lote' precisa ser ao menos 1 ({self.lote})")
+        self.limites.validar("[maquina.limites]")
 
 
 @dataclass(frozen=True)
@@ -567,11 +616,19 @@ def _maquina(dados: Mapping[str, Any], ambiente: Mapping[str, str]) -> Maquina:
     produzido. É o mecanismo que faz o mesmo `config.toml` servir ao notebook e
     ao desktop com GPU.
     """
-    m = _secao({"maquina": dados}, "maquina", Maquina(), Maquina) if dados else Maquina()
+    bruto = dict(dados) if dados else {}
+    limites_bruto = bruto.pop("limites", None)
+    m = _secao({"maquina": bruto}, "maquina", Maquina(), Maquina) if bruto else Maquina()
+    if limites_bruto is not None:
+        m = replace(
+            m,
+            limites=_secao({"limites": limites_bruto}, "limites", m.limites, LimitesDeIndexacao),
+        )
+    m = replace(m, perfil=normalizar_perfil(m.perfil))
 
     perfil = ambiente.get("SEGUNDOCEREBRO_PERFIL")
     if perfil:
-        m = replace(m, perfil=perfil)
+        m = replace(m, perfil=normalizar_perfil(perfil))
     provider = ambiente.get("SEGUNDOCEREBRO_PROVIDER")
     if provider:
         m = replace(m, provider=provider)
@@ -639,6 +696,12 @@ def como_toml(cfg: Config, raiz: Path | None = None) -> dict[str, Any]:
     dados: dict[str, Any] = {"versao": VERSAO}
 
     maquina = diferenca(cfg.maquina, Maquina())
+    if "limites" in maquina:
+        lim = diferenca(cfg.maquina.limites, Maquina().limites)
+        if lim:
+            maquina["limites"] = lim
+        else:
+            del maquina["limites"]
     if maquina:
         dados["maquina"] = {k: v for k, v in maquina.items() if v is not None}
 

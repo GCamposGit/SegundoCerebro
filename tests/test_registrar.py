@@ -13,8 +13,20 @@ from pathlib import Path
 
 import pytest
 
-from segundocerebro.config import BASE_UNICA, Base
-from segundocerebro.mcp.registrar import CHAVE, DESTINOS, destino_de, entrada_de, main, mesclar, trecho
+from segundocerebro.config import BASE_UNICA, Base, ErroDeConfig, carregar
+from segundocerebro.mcp.registrar import (
+    CHAVE,
+    DESTINOS,
+    ativar,
+    destino_de,
+    entrada_de,
+    extra_env_hardware,
+    gravar_em,
+    main,
+    mesclar,
+    python_do_projeto,
+    trecho,
+)
 
 
 def escrever_config(tmp_path, texto: str):  # noqa: ANN001, ANN201
@@ -226,6 +238,81 @@ def test_instalar_e_out_nao_se_combinam(tmp_path, monkeypatch):
     cfg = escrever_config(tmp_path, DUAS_BASES)
     argv = ["--config", str(cfg), "--base", "pessoal", "--instalar", "--out", str(tmp_path / "x.json")]
     assert main(argv) == 2
+
+
+def test_ativar_liga_a_base_no_mcp_do_projeto(tmp_path, monkeypatch):
+    """Indexar e esquecer de registrar deixava o assistente cego da base nova."""
+    monkeypatch.delenv("SEGUNDOCEREBRO_BASE", raising=False)
+    monkeypatch.delenv("SEGUNDOCEREBRO_PROVIDER", raising=False)
+    cfg = escrever_config(tmp_path, DUAS_BASES)
+    conf = carregar(cfg)
+    destino = tmp_path / ".mcp.json"
+    destino.write_text(json.dumps({CHAVE: {"github": {"command": "gh-mcp"}}}), encoding="utf-8")
+
+    saida = ativar(conf.base("trabalho"), conf=conf, destino=destino)
+
+    assert saida == destino
+    escrito = json.loads(destino.read_text(encoding="utf-8"))
+    assert set(escrito[CHAVE]) == {"github", "segundocerebro-trabalho"}
+    entrada = escrito[CHAVE]["segundocerebro-trabalho"]
+    assert entrada["args"] == ["-m", "segundocerebro.mcp.server", "--base", "trabalho"]
+    assert entrada["command"].replace("\\", "/").endswith("python.exe") or "python" in entrada["command"]
+
+
+def test_ativar_e_idempotente(tmp_path, monkeypatch):
+    monkeypatch.delenv("SEGUNDOCEREBRO_BASE", raising=False)
+    monkeypatch.delenv("SEGUNDOCEREBRO_PROVIDER", raising=False)
+    cfg = escrever_config(tmp_path, DUAS_BASES)
+    conf = carregar(cfg)
+    destino = tmp_path / ".mcp.json"
+    ativar(conf.base("trabalho"), conf=conf, destino=destino)
+    uma = json.loads(destino.read_text(encoding="utf-8"))
+    ativar(conf.base("trabalho"), conf=conf, destino=destino)
+    assert json.loads(destino.read_text(encoding="utf-8")) == uma
+
+
+def test_ativar_herda_cuda_do_servidor_ja_registrado(tmp_path, monkeypatch):
+    """A base nova neste desktop tem que nascer com o mesmo provider das outras."""
+    monkeypatch.delenv("SEGUNDOCEREBRO_BASE", raising=False)
+    monkeypatch.delenv("SEGUNDOCEREBRO_PROVIDER", raising=False)
+    cfg = escrever_config(tmp_path, DUAS_BASES)
+    conf = carregar(cfg)
+    destino = tmp_path / ".mcp.json"
+    destino.write_text(
+        json.dumps({
+            CHAVE: {
+                "segundocerebro-pessoal": {
+                    "command": "py",
+                    "args": ["-m", "segundocerebro.mcp.server", "--base", "pessoal"],
+                    "env": {"PYTHONPATH": "src", "SEGUNDOCEREBRO_PROVIDER": "cuda"},
+                }
+            }
+        }),
+        encoding="utf-8",
+    )
+
+    ativar(conf.base("trabalho"), conf=conf, destino=destino)
+
+    trabalho = json.loads(destino.read_text(encoding="utf-8"))[CHAVE]["segundocerebro-trabalho"]
+    assert trabalho["env"]["SEGUNDOCEREBRO_PROVIDER"] == "cuda"
+
+
+def test_extra_env_hardware_prefere_a_variavel(monkeypatch):
+    monkeypatch.setenv("SEGUNDOCEREBRO_PROVIDER", "cpu")
+    assert extra_env_hardware() == {"SEGUNDOCEREBRO_PROVIDER": "cpu"}
+
+
+def test_gravar_em_recusa_json_invalido(tmp_path):
+    alvo = tmp_path / ".mcp.json"
+    alvo.write_text("{isto não é json", encoding="utf-8")
+    with pytest.raises(ErroDeConfig, match="não é JSON válido"):
+        gravar_em(alvo, [Base(id="trabalho")])
+    assert alvo.read_text(encoding="utf-8") == "{isto não é json"
+
+
+def test_python_do_projeto_aponta_o_venv_quando_existe():
+    caminho = python_do_projeto(relativo=True)
+    assert "python" in caminho.lower()
 
 
 REPO = Path(__file__).resolve().parent.parent

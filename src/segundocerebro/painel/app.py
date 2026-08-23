@@ -36,7 +36,16 @@ from pathlib import Path
 from typing import Any, Callable
 
 from ..census import RootSpec
-from ..config import Base, Busca, ErroDeConfig, LimitesDeIndexacao, Pesos, carregar, gravar
+from ..config import (
+    LIMITES_RECOMENDADOS,
+    Base,
+    Busca,
+    ErroDeConfig,
+    LimitesDeIndexacao,
+    Pesos,
+    carregar,
+    gravar,
+)
 from ..index.indexer import NOME_DA_TRAVA
 from ..logger import get_logger
 from ..retrieve.glossario import ErroDeGlossario, Glossario
@@ -169,10 +178,22 @@ def criar_app(
             # Configuração ilegível é erro do usuário, não defeito do servidor:
             # devolver 500 esconderia a mensagem que diz como consertar.
             return JSONResponse({"erro": str(erro), "bases": []}, status_code=400)
+        from ..index.esforco import planar
+
+        maquina = {
+            "perfil": conf.maquina.perfil,
+            "threads": conf.maquina.threads,
+            "lote": conf.maquina.lote,
+            "provider": conf.maquina.provider,
+            "limites": conf.maquina.limites.como_json(),
+            "plano": planar(conf.maquina.perfil).como_json(),
+        }
         return JSONResponse(
             {
                 "config": str(caminho_config),
-                "maquina": dict(conf.maquina.__dict__),
+                "maquina": maquina,
+                "limites_recomendados": LIMITES_RECOMENDADOS.como_json(),
+                "limites_fabrica": LimitesDeIndexacao().como_json(),
                 "bases": [
                     {
                         "id": b.id,
@@ -464,12 +485,12 @@ def criar_app(
         if not autorizado(request):
             return JSONResponse({"erro": "token inválido"}, status_code=403)
         corpo = await request.json()
-        from ..index.esforco import PERFIS_DE_ESFORCO
+        from ..config import PERFIS, normalizar_perfil
 
-        perfil = corpo.get("perfil")
-        if perfil not in PERFIS_DE_ESFORCO:
+        perfil = normalizar_perfil(str(corpo.get("perfil") or ""))
+        if perfil not in PERFIS:
             return JSONResponse(
-                {"erro": f"perfil precisa ser um de {', '.join(PERFIS_DE_ESFORCO)}"},
+                {"erro": f"perfil precisa ser um de {', '.join(PERFIS)}"},
                 status_code=400,
             )
         try:
@@ -481,8 +502,22 @@ def criar_app(
         except ErroDeConfig as erro:
             return JSONResponse({"erro": str(erro)}, status_code=400)
 
+        from ..index.esforco import pedir as pedir_esforco
+        from ..index.esforco import planar
+
+        for b in conf.bases:
+            if (b.indice / NOME_DA_TRAVA).exists():
+                pedir_esforco(b.indice, perfil)
+
         log.info("perfil de máquina salvo: %s", perfil)
-        return JSONResponse({"perfil": perfil, "threads": nova.threads})
+        return JSONResponse(
+            {
+                "perfil": perfil,
+                "threads": nova.threads,
+                "plano": planar(perfil).como_json(),
+                "ao_vivo": any((b.indice / NOME_DA_TRAVA).exists() for b in conf.bases),
+            }
+        )
 
     async def raizes(request: Request) -> JSONResponse:
         """Re-aponta as pastas de uma base — o caso de copiar o índice de máquina.
@@ -561,10 +596,12 @@ def criar_app(
             return JSONResponse({"erro": str(erro)}, status_code=400)
 
         atualizada = replace(base, limites=novos)
+        maquina = replace(conf.maquina, limites=novos)
         try:
             gravar(
                 replace(
                     conf,
+                    maquina=maquina,
                     bases=tuple(atualizada if b.id == base.id else b for b in conf.bases),
                 ),
                 caminho_config,
@@ -577,8 +614,8 @@ def criar_app(
             {
                 "base": base.id,
                 "limites": novos.como_json(),
-                "aviso": "salvo. Vale na próxima passada. Arquivos já indexados "
-                "não saem sozinhos. 0 MB = sem teto para aquele tipo.",
+                "aviso": "Salvo. Vale na próxima passada desta base e nas bases novas desta máquina. "
+                "Arquivos já indexados não saem sozinhos. 0 MB = sem teto.",
             }
         )
 
@@ -620,6 +657,7 @@ def criar_app(
             descricao=(corpo.get("descricao") or "").strip(),
             indice=caminho_config.parent / f"index-{id_}",
             modelo=corpo.get("modelo") or Base.modelo,
+            limites=conf.maquina.limites,
             raizes=tuple(
                 RootSpec(name=Path(c).name or f"raiz{i}", path=Path(c).expanduser())
                 for i, c in enumerate(caminhos, start=1)
@@ -694,7 +732,9 @@ def criar_app(
                 {"erro": f"a base '{base.id}' já está sendo indexada"}, status_code=409
             )
 
-        perfil = corpo.get("perfil") or conf.maquina.perfil
+        from ..config import normalizar_perfil
+
+        perfil = normalizar_perfil(corpo.get("perfil") or conf.maquina.perfil)
         comando = [
             sys.executable, "-m", "segundocerebro.index.indexer",
             "--base", base.id, "--config", str(caminho_config), "--perfil", perfil,

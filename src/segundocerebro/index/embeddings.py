@@ -20,6 +20,7 @@ spec, not to the call site.
 from __future__ import annotations
 
 import os
+import time
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
@@ -248,6 +249,7 @@ class Embedder:
         textos: Sequence[str],
         batch_size: int = 32,
         ao_progresso: Callable[[int, int], None] | None = None,
+        ritmo: float = 1.0,
     ) -> list[np.ndarray]:
         """Embed chunks for indexing.
 
@@ -255,6 +257,10 @@ class Embedder:
         indexer can publish the bar and honour cancel *during* a large file,
         not only after it. Consuming the generator in one list comprehension
         is what froze the bar for four hours on a 68 MB CSV.
+
+        `ritmo` 1.0 = a GPU/CPU no máximo; 0.4 = trabalha 40% do tempo e
+        descansa o resto. É o que impede o modo leve/normal de cravar 100%
+        numa placa só, sem mudar o `model_id`.
         """
         if not textos:
             return []
@@ -262,10 +268,17 @@ class Embedder:
         modelo = self._carregar()
         bruto: list[np.ndarray] = []
         total = len(prefixados)
+        t_lote = time.perf_counter()
         for i, v in enumerate(modelo.embed(prefixados, batch_size=batch_size), start=1):
             bruto.append(np.asarray(v, dtype=np.float32))
-            if ao_progresso is not None and (i % batch_size == 0 or i == total):
-                ao_progresso(i, total)
+            if i % batch_size == 0 or i == total:
+                if ao_progresso is not None:
+                    ao_progresso(i, total)
+                if ritmo < 0.999:
+                    from .esforco import dormir_ritmo
+
+                    dormir_ritmo(time.perf_counter() - t_lote, ritmo)
+                t_lote = time.perf_counter()
         ruins = sum(1 for v in bruto if not np.isfinite(v).all())
         if ruins:
             raise RuntimeError(

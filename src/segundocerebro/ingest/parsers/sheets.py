@@ -132,6 +132,81 @@ def _e_aba_alta(aba) -> bool:  # noqa: ANN001
     return (aba.max_row or 0) > LIMIAR_ABA_ENORME
 
 
+def _emitir_linhas_de_aba(
+    titulo: str,
+    linhas: list[tuple[int, list[str]]],
+    blocos: list[Block],
+    truncadas: list[str],
+    parciais: list[str],
+    abas_em_digesto: list[str],
+) -> None:
+    """Turn already-formatted rows into sheet blocks. Shared by xlsx and xls."""
+    if _e_despejo_de_dados(linhas):
+        abas_em_digesto.append(titulo)
+        _blocos_de_digesto(titulo, (v for _, v in linhas), blocos, truncadas, parciais)
+        return
+
+    indice_cabecalho = next(
+        (i for i, (_, v) in enumerate(linhas) if sum(1 for x in v if x) >= MIN_CELULAS_PARA_CABECALHO),
+        None,
+    )
+    if indice_cabecalho is None:
+        cabecalho: list[str] = []
+        corpo = linhas
+    else:
+        cabecalho = [c for c in linhas[indice_cabecalho][1] if c]
+        corpo = linhas[indice_cabecalho + 1 :]
+
+    titulo_cabecalho = " | ".join(cabecalho)
+    largura = _coluna(max((len(v) for _, v in linhas), default=1))
+
+    if not corpo and cabecalho:
+        blocos.append(
+            Block(
+                heading_path=(titulo,),
+                text=titulo_cabecalho,
+                locator=f"{titulo}!A{linhas[indice_cabecalho][0]}",
+                kind=BlockKind.SHEET,
+            )
+        )
+        return
+
+    aba_grande = len(corpo) > LIMIAR_ABA_GRANDE
+    passo = LINHAS_POR_BLOCO_GRANDE if aba_grande else LINHAS_POR_BLOCO
+
+    if aba_grande:
+        exemplos = "\n".join(
+            " | ".join(v).rstrip(" |") for _, v in corpo[:LINHAS_DE_EXEMPLO_NO_CARTAO]
+        )
+        cartao = (
+            f"Aba '{titulo}' com {len(corpo)} linhas de dados.\n"
+            f"Colunas: {titulo_cabecalho}\n"
+            f"Primeiras linhas:\n{exemplos}"
+        )
+        blocos.append(
+            Block(
+                heading_path=(titulo,),
+                text=cartao,
+                locator=f"{titulo} (resumo da aba)",
+                kind=BlockKind.SHEET,
+            )
+        )
+
+    for inicio in range(0, len(corpo), passo):
+        janela = corpo[inicio : inicio + passo]
+        corpo_texto = "\n".join(" | ".join(v).rstrip(" |") for _, v in janela)
+        texto = f"{titulo_cabecalho}\n{corpo_texto}" if titulo_cabecalho else corpo_texto
+        primeira, ultima = janela[0][0], janela[-1][0]
+        blocos.append(
+            Block(
+                heading_path=(titulo,),
+                text=texto.strip(),
+                locator=f"{titulo}!A{primeira}:{largura}{ultima}",
+                kind=BlockKind.SHEET,
+            )
+        )
+
+
 def _e_despejo_de_dados(linhas: list[tuple[int, list[str]]]) -> bool:
     """Área real, contada nas linhas já lidas.
 
@@ -326,78 +401,9 @@ def _parse_xlsx(dados: bytes, nome: str) -> ParsedDoc:
 
             if not linhas:
                 continue
-
-            # Segunda checagem, agora com a área real: `max_row` em `read_only`
-            # não é confiável, e a aba de 4.279×22 passou batido pelo gatilho de
-            # altura. Janelá-la renderia milhares de chunks quase idênticos.
-            if _e_despejo_de_dados(linhas):
-                abas_em_digesto.append(aba.title)
-                _blocos_de_digesto(
-                    aba.title, (v for _, v in linhas), blocos, abas_truncadas, digestos_parciais
-                )
-                continue
-
-            # cabeçalho: primeira linha com pelo menos duas células preenchidas
-            indice_cabecalho = next(
-                (i for i, (_, v) in enumerate(linhas) if sum(1 for x in v if x) >= MIN_CELULAS_PARA_CABECALHO),
-                None,
+            _emitir_linhas_de_aba(
+                aba.title, linhas, blocos, abas_truncadas, digestos_parciais, abas_em_digesto
             )
-            if indice_cabecalho is None:
-                cabecalho: list[str] = []
-                corpo = linhas
-            else:
-                cabecalho = [c for c in linhas[indice_cabecalho][1] if c]
-                corpo = linhas[indice_cabecalho + 1 :]
-
-            titulo_cabecalho = " | ".join(cabecalho)
-            largura = _coluna(max((len(v) for _, v in linhas), default=1))
-
-            if not corpo and cabecalho:
-                blocos.append(
-                    Block(
-                        heading_path=(aba.title,),
-                        text=titulo_cabecalho,
-                        locator=f"{aba.title}!A{linhas[indice_cabecalho][0]}",
-                        kind=BlockKind.SHEET,
-                    )
-                )
-                continue
-
-            aba_grande = len(corpo) > LIMIAR_ABA_GRANDE
-            passo = LINHAS_POR_BLOCO_GRANDE if aba_grande else LINHAS_POR_BLOCO
-
-            if aba_grande:
-                # cartão da aba: o que permite achar a planilha sem indexar cada linha
-                exemplos = "\n".join(
-                    " | ".join(v).rstrip(" |") for _, v in corpo[:LINHAS_DE_EXEMPLO_NO_CARTAO]
-                )
-                cartao = (
-                    f"Aba '{aba.title}' com {len(corpo)} linhas de dados.\n"
-                    f"Colunas: {titulo_cabecalho}\n"
-                    f"Primeiras linhas:\n{exemplos}"
-                )
-                blocos.append(
-                    Block(
-                        heading_path=(aba.title,),
-                        text=cartao,
-                        locator=f"{aba.title} (resumo da aba)",
-                        kind=BlockKind.SHEET,
-                    )
-                )
-
-            for inicio in range(0, len(corpo), passo):
-                janela = corpo[inicio : inicio + passo]
-                corpo_texto = "\n".join(" | ".join(v).rstrip(" |") for _, v in janela)
-                texto = f"{titulo_cabecalho}\n{corpo_texto}" if titulo_cabecalho else corpo_texto
-                primeira, ultima = janela[0][0], janela[-1][0]
-                blocos.append(
-                    Block(
-                        heading_path=(aba.title,),
-                        text=texto.strip(),
-                        locator=f"{aba.title}!A{primeira}:{largura}{ultima}",
-                        kind=BlockKind.SHEET,
-                    )
-                )
     finally:
         livro.close()
 
@@ -412,4 +418,64 @@ def _parse_xlsx(dados: bytes, nome: str) -> ParsedDoc:
     if not blocos:
         # sem valor em cache: a planilha nunca foi aberta pelo Excel depois de gerada
         meta["aviso"] = "nenhum valor calculado em cache"
+    return ParsedDoc(name=nome, blocks=tuple(blocos), meta=meta)
+
+
+def _formatar_xls(aba, linha: int, coluna: int) -> str:  # noqa: ANN001 — tipos do xlrd
+    import xlrd
+
+    tipo = aba.cell_type(linha, coluna)
+    valor = aba.cell_value(linha, coluna)
+    if tipo == xlrd.XL_CELL_EMPTY or tipo == xlrd.XL_CELL_BLANK:
+        return ""
+    if tipo == xlrd.XL_CELL_DATE:
+        try:
+            partes = xlrd.xldate_as_tuple(valor, aba.book.datemode)
+            dt = datetime(*partes[:6])
+            return _formatar(dt)
+        except Exception:  # noqa: BLE001 — date out of range stays as number
+            return _formatar(valor)
+    if tipo == xlrd.XL_CELL_BOOLEAN:
+        return "TRUE" if valor else "FALSE"
+    return _formatar(valor)
+
+
+@register(".xls")
+def parse_xls(dados: bytes, nome: str) -> ParsedDoc:
+    """Excel 97-2003. Same block rules as xlsx — one row is not one chunk."""
+    import xlrd
+
+    livro = xlrd.open_workbook(file_contents=dados, formatting_info=False)
+    blocos: list[Block] = []
+    abas_truncadas: list[str] = []
+    abas_em_digesto: list[str] = []
+    digestos_parciais: list[str] = []
+
+    for aba in livro.sheets():
+        if aba.nrows > LIMIAR_ABA_ENORME:
+            abas_em_digesto.append(aba.name)
+            linhas_fmt = (
+                [_formatar_xls(aba, i, j) for j in range(min(aba.ncols, MAX_COLUNAS))]
+                for i in range(min(aba.nrows, MAX_LINHAS_VARREDURA + 1))
+            )
+            _blocos_de_digesto(aba.name, linhas_fmt, blocos, abas_truncadas, digestos_parciais)
+            continue
+        linhas: list[tuple[int, list[str]]] = []
+        for i in range(aba.nrows):
+            valores = [_formatar_xls(aba, i, j) for j in range(min(aba.ncols, MAX_COLUNAS))]
+            if _linha_util(valores):
+                linhas.append((i + 1, valores))
+        if not linhas:
+            continue
+        _emitir_linhas_de_aba(
+            aba.name, linhas, blocos, abas_truncadas, digestos_parciais, abas_em_digesto
+        )
+
+    meta = {"formato": "xls", "abas": str(livro.nsheets)}
+    if abas_em_digesto:
+        meta["abas_em_digesto"] = ", ".join(sorted(set(abas_em_digesto)))
+    if digestos_parciais:
+        meta["digesto_parcial"] = ", ".join(sorted(set(digestos_parciais)))
+    if abas_truncadas:
+        meta["truncadas"] = ", ".join(sorted(set(abas_truncadas)))
     return ParsedDoc(name=nome, blocks=tuple(blocos), meta=meta)

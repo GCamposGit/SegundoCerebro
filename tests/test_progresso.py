@@ -149,8 +149,12 @@ def test_aplicar_esforco_nunca_levanta(perfil: str) -> None:
     assert relato["perfil"] == perfil
 
 
-def test_normal_nao_mexe_em_nada() -> None:
-    assert aplicar("normal") == {"perfil": "normal", "prioridade": None, "e_s": None}
+def test_normal_nao_sobe_prioridade() -> None:
+    """Normal restringe CPU; não compete em prioridade com o que está na tela."""
+    relato = aplicar("normal")
+    assert relato["perfil"] == "normal"
+    assert relato["prioridade"] is None
+    assert relato["cpu_percentual"] == 50
 
 
 def test_relato_permite_a_tela_dizer_a_verdade() -> None:

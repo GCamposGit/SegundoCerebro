@@ -11,7 +11,7 @@
 versao = 1
 
 [maquina]
-perfil = "completo"
+perfil = "normal"
 
 [padrao]
 modelo = "minilm"

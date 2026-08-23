@@ -97,6 +97,14 @@ def contar_gpus() -> int:
     return len(dispositivos_embed(reservar_display=False))
 
 
+def _desempacotar(job) -> tuple:  # noqa: ANN001
+    """(jid, textos, lote, ritmo). Ritmo 1.0 se o produtor velho mandou 3 campos."""
+    if len(job) == 4:
+        return job
+    jid, textos, lote = job
+    return jid, textos, lote, 1.0
+
+
 def _worker(device: str, modelo: str, cache: str, pedidos, respostas) -> None:
     os.environ["CUDA_VISIBLE_DEVICES"] = device
     os.environ["SEGUNDOCEREBRO_PROVIDER"] = "cuda"
@@ -110,9 +118,9 @@ def _worker(device: str, modelo: str, cache: str, pedidos, respostas) -> None:
         job = pedidos.get()
         if job is None:
             return
-        jid, textos, lote = job
+        jid, textos, lote, ritmo = _desempacotar(job)
         try:
-            vetores = embedder.embed_passagens(textos, batch_size=lote)
+            vetores = embedder.embed_passagens(textos, batch_size=lote, ritmo=ritmo)
             respostas.put((jid, [v.tolist() for v in vetores], None))
         except Exception as erro:  # noqa: BLE001
             respostas.put((jid, None, str(erro)))
@@ -124,7 +132,7 @@ def _worker_eco(device: str, modelo: str, cache: str, pedidos, respostas) -> Non
         job = pedidos.get()
         if job is None:
             return
-        jid, textos, _lote = job
+        jid, textos, _lote, _ritmo = _desempacotar(job)
         respostas.put((jid, [[float(len(t))] for t in textos], None))
 
 
@@ -143,33 +151,70 @@ class EmbedFila:
             devices = [str(i) for i in range(gpus)]
         else:
             devices = [str(g) for g in gpus]
-        if len(devices) < 2:
-            raise ValueError("EmbedFila precisa de ao menos 2 GPUs")
+        if len(devices) < 1:
+            raise ValueError("EmbedFila precisa de ao menos 1 GPU")
         ctx = get_context("spawn")
+        self._devices = devices
         self._pedidos = [ctx.Queue() for _ in devices]
         self._respostas = ctx.Queue()
         self._procs = []
-        self._proximo = 0
+        self._inflight = [0] * len(devices)
+        self._pesos = [1.0] * len(devices)
+        self._ritmos = [1.0] * len(devices)
+        self._onde: dict[int, int] = {}
         self._jid = 0
-        cache_s = str(cache)
-        fn = alvo or _worker
+        self._modelo = modelo
+        self._cache = str(cache)
+        self._alvo = alvo or _worker
+        self._ctx = ctx
         for device in devices:
-            p = ctx.Process(
-                target=fn,
-                args=(device, modelo, cache_s, self._pedidos[len(self._procs)], self._respostas),
-                daemon=True,
-            )
-            p.start()
-            self._procs.append(p)
+            self._spawn(device)
         log.info("pipeline: %d processos de embed (GPUs %s)", len(devices), ",".join(devices))
 
-    def submit(self, textos: list[str], batch_size: int = 32) -> int:
+    def _spawn(self, device: str) -> None:
+        p = self._ctx.Process(
+            target=self._alvo,
+            args=(device, self._modelo, self._cache, self._pedidos[len(self._procs)], self._respostas),
+            daemon=True,
+        )
+        p.start()
+        self._procs.append(p)
+
+    @property
+    def pids(self) -> list[int]:
+        return [p.pid for p in self._procs if p.pid]
+
+    def ajustar(self, pesos: dict[str, float], ritmos: dict[str, float] | None = None) -> None:
+        """Repondera GPUs já ligadas. Peso 0 = não recebe trabalho novo."""
+        ritmos = ritmos or {}
+        for i, d in enumerate(self._devices):
+            self._pesos[i] = max(0.0, float(pesos.get(d, 0.0)))
+            if d in ritmos:
+                self._ritmos[i] = max(0.05, min(1.0, float(ritmos[d])))
+
+    def _escolher(self) -> int:
+        melhor, nota = 0, 1e18
+        algum = False
+        for i, peso in enumerate(self._pesos):
+            if peso <= 0:
+                continue
+            algum = True
+            carga = self._inflight[i] / peso
+            if carga < nota:
+                melhor, nota = i, carga
+        if not algum:
+            return min(range(len(self._devices)), key=lambda i: self._inflight[i])
+        return melhor
+
+    def submit(self, textos: list[str], batch_size: int = 32, ritmo: float | None = None) -> int:
         """Non-blocking. Pair with `receber` — up to one job in flight per GPU."""
         jid = self._jid
         self._jid += 1
-        alvo = self._proximo % len(self._pedidos)
-        self._proximo += 1
-        self._pedidos[alvo].put((jid, list(textos), batch_size))
+        alvo = self._escolher()
+        self._inflight[alvo] += 1
+        self._onde[jid] = alvo
+        duty = self._ritmos[alvo] if ritmo is None else ritmo
+        self._pedidos[alvo].put((jid, list(textos), batch_size, duty))
         return jid
 
     def receber(self, timeout: float | None = None) -> tuple[int, list[Any]] | None:
@@ -184,6 +229,9 @@ class EmbedFila:
                 return None
         if erro:
             raise RuntimeError(f"embed GPU falhou: {erro}")
+        slot = self._onde.pop(rid, None)
+        if slot is not None:
+            self._inflight[slot] = max(0, self._inflight[slot] - 1)
         return rid, [np.asarray(v, dtype=np.float32) for v in bruto]
 
     def _bloquear(self) -> tuple[int, Any, str | None]:

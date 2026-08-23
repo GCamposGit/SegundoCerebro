@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Segundo Cérebro — painel de ajuste</title>
+<title>Segundo Cérebro | Painel de Controle</title>
 <style>
 :root {
   --fundo: #fbfbfa; --painel: #fff; --borda: #e3e1dd; --texto: #26241f;
@@ -46,13 +46,16 @@ button {
 button:hover:not(:disabled) { border-color: var(--suave); }
 button.primario { background: var(--acento); border-color: var(--acento); color: #fff; }
 button:disabled { opacity: .45; cursor: not-allowed; }
-.perfis { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(215px, 1fr)); }
-.perfil { text-align: left; padding: 13px 14px; display: block; }
+.perfis { display: grid; gap: 10px; grid-template-columns: repeat(auto-fit, minmax(215px, 1fr)); align-items: stretch; }
+.perfil { text-align: left; padding: 13px 14px; display: flex; flex-direction: column; justify-content: flex-start; align-items: flex-start; height: 100%; }
 .perfil.ativo { border-color: var(--acento); background: var(--acento-fraco); }
 .perfil b { display: block; font-size: 14px; margin-bottom: 3px; }
 .perfil .pesos { font-variant-numeric: tabular-nums; color: var(--suave); font-size: 12px; }
 .perfil small { display: block; color: var(--suave); font-weight: 400; margin-top: 7px; font-size: 12px; }
 .perfil .custo { color: var(--alerta); }
+.recursos { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.recurso { font-size: 12px; border: 1px solid var(--borda); border-radius: 999px; padding: 3px 10px; font-variant-numeric: tabular-nums; }
+.recurso.off { opacity: .45; }
 details { margin-top: 12px; }
 summary { cursor: pointer; color: var(--suave); font-size: 13px; }
 .slider { display: grid; grid-template-columns: 74px 1fr 46px; gap: 10px; align-items: center; margin-top: 11px; }
@@ -81,10 +84,10 @@ code { font-family: ui-monospace, "Cascadia Code", monospace; font-size: 12px; }
 </head>
 <body>
 <div class="envelope">
-  <h1>Painel de ajuste</h1>
+  <h1>Painel de Controle</h1>
   <p class="sub">
     Acompanha a indexação e ajusta como a busca ordena resultados. O servidor de
-    busca funciona com esta tela fechada — mas a barra de progresso só vive aqui.
+    busca funciona com esta tela fechada.
   </p>
 
   <div class="cartao linha">
@@ -105,6 +108,8 @@ code { font-family: ui-monospace, "Cascadia Code", monospace; font-size: 12px; }
       <div id="idxArquivo" class="via"></div>
       <div class="barra oculto" id="barraArquivoCaixa" style="height:6px;margin-top:8px"><div id="barraArquivo"></div></div>
       <div id="idxEtapa" class="via"></div>
+      <div id="idxTempos" class="via"></div>
+      <div id="idxRecursos" class="recursos"></div>
       <div id="idxSinal" class="via"></div>
       <div id="idxAviso"></div>
       <div class="linha" id="idxControles" style="margin-top:12px">
@@ -115,13 +120,11 @@ code { font-family: ui-monospace, "Cascadia Code", monospace; font-size: 12px; }
     </div>
   </div>
 
-  <h2>Cortes ao indexar <span class="nota">por tipo, em MB — 0 = sem teto</span></h2>
+  <h2>Cortes ao indexar <span class="nota">MB por tipo. 0 = sem teto</span></h2>
   <div class="cartao">
     <p class="sub" style="margin:0 0 12px">
-      Arquivo maior que o teto fica <b>adiado</b>, não some, e não trava a GPU.
-      Isto não é o tamanho do trecho: mudar o trecho reindexa tudo. Já no índice
-      continua até o arquivo mudar no disco. A passada em andamento usa o mapa
-      com que começou — vale na próxima.
+      Arquivo maior que o teto fica adiado e entra na próxima passada.
+      Já indexado não sai. Vale para a próxima base desta máquina.
     </p>
     <table>
       <thead>
@@ -136,7 +139,7 @@ code { font-family: ui-monospace, "Cascadia Code", monospace; font-size: 12px; }
   </div>
 
   <div id="nova" class="oculto">
-    <h2>Nova base <span class="nota">criar, ver o custo, indexar, conectar</span></h2>
+    <h2>Nova base <span class="nota">criar, ver o custo, indexar — o MCP liga sozinho no fim</span></h2>
     <div class="cartao">
       <div class="slider" style="grid-template-columns:110px 1fr">
         <label for="nvId">Identificador</label>
@@ -163,13 +166,17 @@ code { font-family: ui-monospace, "Cascadia Code", monospace; font-size: 12px; }
   </div>
 
   <div id="conectar" class="oculto">
-    <h2>Conectar <span class="nota">cole no .mcp.json do seu cliente</span></h2>
+    <h2>Conectar <span class="nota">grava no .mcp.json quando a indexação termina</span></h2>
     <div class="cartao">
+      <p class="sub" style="margin:0 0 10px">
+        Passada completa registra a base sozinha. Recarregue o cliente (Grok, Claude)
+        para ela aparecer. O trecho abaixo é para outro cliente, se precisar colar à mão.
+      </p>
       <pre id="trechoMcp" style="overflow-x:auto;margin:0;font-size:12px"></pre>
     </div>
   </div>
 
-  <h2>Perfis <span class="nota">escolha um, meça, e só então salve</span></h2>
+  <h2>Perfis <span class="nota">escolha, meça, salve</span></h2>
   <div class="perfis" id="perfis"></div>
 
   <details id="avancado">
@@ -247,18 +254,11 @@ code { font-family: ui-monospace, "Cascadia Code", monospace; font-size: 12px; }
     </div>
   </div>
 
-  <h2>Siglas da sua casa <span class="nota">o que o sistema não tem como adivinhar</span></h2>
+  <h2>Siglas</h2>
   <div class="cartao">
-    <p class="sub" style="margin:0 0 10px">
-      Quando você pergunta "o acordo de proteção de dados" e o documento diz "DPA",
-      nada liga as duas formas — e o contrário também: você escreve a sigla e o
-      contrato escreve por extenso. Ensine o par aqui e as buscas passam a achar os
-      dois jeitos, sem custo nenhum no tempo de resposta.
-    </p>
     <p class="sub" style="margin:0 0 12px">
-      Este dicionário começa <b>vazio</b> porque só você sabe as siglas do seu
-      acervo. Medimos: as siglas genéricas não ajudaram em nada, e as da casa
-      valeram mais que o reranking — que custa oito vezes mais tempo.
+      Ensine o par sigla / forma por extenso. A busca passa a achar os dois,
+      sem custo no tempo de resposta.
     </p>
     <div class="linha">
       <input type="text" id="sigla" placeholder="sigla, como aparece nos arquivos (ex.: DPA)">
@@ -266,39 +266,45 @@ code { font-family: ui-monospace, "Cascadia Code", monospace; font-size: 12px; }
       <button id="salvarSigla">Ensinar</button>
     </div>
     <div id="recadoSigla"></div>
-    <table id="tabelaSiglas"></table>
+    <div class="linha" style="margin-top:12px">
+      <button id="exibirSiglas">Exibir siglas já salvas</button>
+    </div>
+    <div id="caixaSiglas" class="oculto">
+      <table id="tabelaSiglas"></table>
+    </div>
   </div>
 
-  <h2>Máquina <span class="nota">velocidade, nunca conteúdo do índice</span></h2>
+  <h2>Máquina</h2>
   <div class="cartao">
     <div class="linha">
       <label for="perfilMaquina"><b>Esforço ao indexar</b></label>
       <select id="perfilMaquina">
-        <option value="leve">Leve — dá para trabalhar ao mesmo tempo</option>
+        <option value="leve">Leve</option>
         <option value="normal">Normal</option>
-        <option value="maximo">Máximo — deixa a máquina lenta</option>
+        <option value="maximo">Máximo</option>
       </select>
       <button id="salvarMaquina">Salvar</button>
     </div>
     <p class="sub" style="margin:10px 0 0">
-      Leve cede a vez ao que está em primeiro plano e recusa rodar na bateria.
-      Isto não passa pelo "medir antes de salvar": muda a velocidade da
-      indexação, nunca o que entra no índice.
+      Leve: cerca de 25% da CPU. Se houver duas GPUs, a do monitor fica de fora;
+      se houver só uma, ela não vai a 100%. Recusa rodar na bateria.
     </p>
+    <p class="sub" style="margin:6px 0 0">
+      Normal: cerca de 50% da CPU. A GPU 0 não vai a 100%. Dá para usar o computador.
+    </p>
+    <p class="sub" style="margin:6px 0 0">
+      Máximo: 100% da CPU e de todas as GPUs. A indexação termina antes; o resto fica lento.
+    </p>
+    <div id="maquinaRecursos" class="recursos"></div>
     <div class="linha" style="margin-top:16px;padding-top:16px;border-top:1px solid var(--borda)">
-      <!-- Sem `for`: o controle é um botão, e `for` apontando para id inexistente
-           é pior que rótulo nenhum — o leitor de tela anuncia campo que não há. -->
       <span><b>Retomar sozinho depois de reiniciar</b></span>
       <button id="retomadaBotao" aria-describedby="retomadaEstado">Ligar</button>
       <span id="retomadaEstado" class="sub" style="margin:0"></span>
     </div>
     <p class="sub" style="margin:10px 0 0">
-      Indexar este acervo levou dias de máquina ligada. Se o computador reiniciar
-      no meio, a indexação continua de onde parou — mas só se alguém mandar. Com
-      isto ligado, ela recomeça no próximo logon, sozinha e no esforço leve.
-      <b>Não reindexa nada</b> que já esteja pronto. O gatilho é um `.cmd` na
-      pasta de inicialização — `schtasks /SC ONLOGON` exige elevação neste
-      Windows e foi recusado.
+      Se o computador reiniciar no meio, a indexação continua de onde parou,
+      no mesmo esforço. Nada já indexado é refeito. O atalho fica na pasta
+      Inicializar do Windows.
     </p>
     <div id="recadoRetomada"></div>
 
@@ -338,6 +344,8 @@ const CORTES = [
   ["md", "Markdown (.md)"],
 ];
 let bases = [], perfis = [], medicaoAtual = null, assinaturaMedida = null, baseDaBarra = null;
+let maquinaEstado = {}, limitesFabrica = {}, limitesRecomendados = {};
+let siglasVisiveis = false;
 
 async function api(rota, corpo) {
   const opcoes = { headers: { "x-painel-token": token } };
@@ -496,22 +504,23 @@ function mostrarBase() {
   $("pNome").value = b.pesos.nome;
   $("pRerank").value = b.busca.rerank || 0;
   $("raizesBase").value = (b.raizes || []).join(" ; ");
-  // Quantas perguntas medem esta base. Abaixo de um mínimo o número é ruído, e a
-  // tela diz isso em vez de exibir três casas decimais sobre n = 4.
-  const dourado = b.dourado
-    ? ` · mede com ${b.dourado} pergunta${b.dourado === 1 ? "" : "s"}`
-      + (b.dourado < MINIMO_DE_PERGUNTAS ? " (poucas — o número ainda é ruído)" : "")
-    : " · nenhuma pergunta para medir";
-  $("infoBase").textContent = `${b.indexada ? "indexada" : "ainda não indexada"}`
-    + ` · modelo ${b.modelo}` + (b.indexando ? " · indexando agora" : "") + dourado;
+  $("infoBase").textContent = b.modelo || "";
   preencherCortes(b.limites || {});
   sincronizar();
 }
 
+function fabricaCortes(limites) {
+  return CORTES.every(([id]) =>
+    Number(limites[id] ?? 0) === Number(limitesFabrica[id] ?? 0));
+}
+
 function preencherCortes(limites) {
+  const fonte = fabricaCortes(limites)
+    ? { ...limitesRecomendados, ...(maquinaEstado.limites || {}) }
+    : limites;
   const corpo = $("tabelaCortes");
   corpo.innerHTML = CORTES.map(([id, rotulo]) => {
-    const valor = limites[id] == null ? "" : String(limites[id]);
+    const valor = fonte[id] == null ? "" : String(fonte[id]);
     return `<tr>
       <td><label for="corte-${id}">${rotulo}</label></td>
       <td class="num"><input type="number" id="corte-${id}" min="0" step="0.5" value="${valor}"></td>
@@ -636,15 +645,23 @@ $("salvarDourado").onclick = async () => {
 
 async function carregarSiglas() {
   const tabela = $("tabelaSiglas");
+  if (!siglasVisiveis) { tabela.innerHTML = ""; return; }
   try {
     const r = await api(`/api/glossario?base=${encodeURIComponent($("base").value)}`);
     const linhas = Object.entries(r.termos || {});
     tabela.innerHTML = linhas.length
       ? "<tr><th>Sigla</th><th>Significa</th></tr>"
         + linhas.map(([s, f]) => `<tr><td><b>${esc(s)}</b></td><td>${f.map(esc).join(" · ")}</td></tr>`).join("")
-      : "";
+      : "<tr><td colspan='2'>Nenhuma sigla salva nesta base.</td></tr>";
   } catch { tabela.innerHTML = ""; }
 }
+
+$("exibirSiglas").onclick = async () => {
+  siglasVisiveis = !siglasVisiveis;
+  $("caixaSiglas").classList.toggle("oculto", !siglasVisiveis);
+  $("exibirSiglas").textContent = siglasVisiveis ? "Ocultar siglas salvas" : "Exibir siglas já salvas";
+  if (siglasVisiveis) await carregarSiglas();
+};
 
 $("salvarSigla").onclick = async () => {
   const sigla = $("sigla").value.trim();
@@ -667,8 +684,15 @@ $("salvarSigla").onclick = async () => {
 
 $("salvarMaquina").onclick = async () => {
   try {
-    await api("/api/maquina", { perfil: $("perfilMaquina").value });
-    recado("Esforço salvo. Vale para a próxima indexação.", "ok");
+    const r = await api("/api/maquina", { perfil: $("perfilMaquina").value });
+    maquinaEstado.perfil = r.perfil;
+    if (r.plano) {
+      maquinaEstado.plano = r.plano;
+      desenharRecursos("maquinaRecursos", r.plano);
+    }
+    recado(r.ao_vivo
+      ? "Esforço salvo. Vale já, sem parar a indexação."
+      : "Esforço salvo. Vale nesta máquina, inclusive depois de reiniciar.", "ok");
   } catch (e) { recado(e.message); }
 };
 
@@ -773,7 +797,8 @@ function haQuanto(ts) {
   if (s < 3) return "agora";
   if (s < 60) return `há ${s} s`;
   if (s < 3600) return `há ${Math.round(s / 60)} min`;
-  return `há ${(s / 3600).toFixed(1)} h`;
+  if (s < 86400) return `há ${(s / 3600).toFixed(1)} h`;
+  return `há ${(s / 86400).toFixed(1)} d`;
 }
 
 async function atualizarIndexacao() {
@@ -805,10 +830,21 @@ async function atualizarIndexacao() {
     + (p.chunks ? ` · ${Number(p.chunks).toLocaleString("pt-BR")} trechos` : "")
     + adiados;
 
-  // Tempo ativo e parado separados: somar os dois mente sobre a vazão.
-  const parado = p.parado_segundos > 60 ? ` (${Math.round(p.parado_segundos / 60)} min parada)` : "";
-  $("idxFalta").textContent = rodando ? `faltam ${p.restante}${parado}` : (p.resumo || "");
+  $("idxFalta").textContent = rodando
+    ? `faltam ${p.restante}`
+    : (pausada && p.pausada_ha_segundos
+      ? `pausada há ${humanoSeg(p.pausada_ha_segundos)}`
+      : (p.resumo || ""));
   $("idxArquivo").textContent = p.arquivo || "";
+  $("idxTempos").textContent = [
+    p.corrido_segundos != null ? `tempo corrido ${humanoSeg(p.corrido_segundos)}` : "",
+    p.ativo_segundos != null
+      ? ((rodando || pausada)
+        ? `indexando de fato ${humanoSeg(p.ativo_segundos)}`
+        : `durou ${humanoSeg(p.ativo_segundos)} de trabalho`)
+      : "",
+  ].filter(Boolean).join(" · ");
+  desenharRecursos("idxRecursos", p.recursos || (p.esforco && p.esforco.recursos));
 
   const trechos = Number(p.trechos) || 0;
   const trecho = Number(p.trecho) || 0;
@@ -839,10 +875,42 @@ async function atualizarIndexacao() {
     : "";
 }
 
+function humanoSeg(s) {
+  s = Math.max(0, Math.round(Number(s) || 0));
+  if (s < 60) return "um instante";
+  const min = Math.floor(s / 60);
+  if (min < 60) return `${min} min`;
+  const h = Math.floor(min / 60), r = min % 60;
+  if (h < 24) return r ? `${h} h ${r} min` : `${h} h`;
+  const d = Math.floor(h / 24), rh = h % 24;
+  return rh ? `${d} d ${rh} h` : `${d} d`;
+}
+
+function desenharRecursos(id, plano) {
+  const el = $(id);
+  if (!el) return;
+  if (!plano) { el.innerHTML = ""; return; }
+  const cpu = plano.cpu || {};
+  const gpus = plano.gpus || [];
+  const chips = [];
+  if (cpu.percentual != null) {
+    chips.push(`<span class="recurso">CPU ${cpu.percentual}%</span>`);
+  }
+  for (const g of gpus) {
+    const off = !g.ativo || !g.percentual;
+    chips.push(`<span class="recurso${off ? " off" : ""}">GPU${g.id} ${off ? "0%" : g.percentual + "%"}</span>`);
+  }
+  el.innerHTML = chips.join("");
+}
+
 async function carregarEstado() {
   const e = await api("/api/estado");
   bases = e.bases;
-  if (e.maquina?.perfil) $("perfilMaquina").value = e.maquina.perfil;
+  maquinaEstado = e.maquina || {};
+  limitesFabrica = e.limites_fabrica || { pdf: 0, docx: 0, pptx: 0, xlsx: 0, txt: 2, csv: 2, md: 0 };
+  limitesRecomendados = e.limites_recomendados || limitesFabrica;
+  if (maquinaEstado.perfil) $("perfilMaquina").value = maquinaEstado.perfil;
+  desenharRecursos("maquinaRecursos", maquinaEstado.plano);
   const anterior = $("base").value;
   $("base").innerHTML = bases.map((b) => `<option value="${b.id}">${b.nome}</option>`).join("");
   if (anterior && bases.some((b) => b.id === anterior)) $("base").value = anterior;
@@ -855,7 +923,6 @@ async function carregarEstado() {
     perfis = (await api("/api/perfis")).perfis;
     desenharPerfis();
     await carregarEstado();
-    await carregarSiglas();
     await carregarRetomada();
     await atualizarIndexacao();
     // Sondagem de dois segundos, o mesmo intervalo com que o indexador publica.

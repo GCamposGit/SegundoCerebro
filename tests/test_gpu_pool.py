@@ -59,9 +59,9 @@ def test_dispositivos_embed_mantem_tudo_se_todas_tem_display(
     assert dispositivos_embed() == ["0", "1"]
 
 
-def test_embed_fila_exige_duas_gpus(tmp_path: Path) -> None:
-    with pytest.raises(ValueError, match="2 GPUs"):
-        EmbedFila(1, modelo="falso", cache=tmp_path)
+def test_embed_fila_exige_ao_menos_uma_gpu(tmp_path: Path) -> None:
+    with pytest.raises(ValueError, match="1 GPU"):
+        EmbedFila(0, modelo="falso", cache=tmp_path)
 
 
 def test_fila_round_robin_com_eco(tmp_path: Path) -> None:

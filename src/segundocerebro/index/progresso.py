@@ -63,6 +63,7 @@ class Publicador:
     estimador: Estimador
     relogio: Relogio = field(default_factory=Relogio)
     intervalo: float = INTERVALO_PADRAO
+    iniciado_em: float = field(default_factory=time.time)
     _ultima: float = 0.0
     _extra: dict[str, Any] = field(default_factory=dict)
 
@@ -72,10 +73,13 @@ class Publicador:
 
     def instantaneo(self, status: str = "indexando") -> dict[str, Any]:
         faixa = self.estimador.restante()
+        agora = time.time()
+        pausada_ha = self.relogio.pausa_atual if status == "pausada" else 0.0
         return {
             "status": status,
             "pid": os.getpid(),
-            "atualizado_em": time.time(),
+            "atualizado_em": agora,
+            "iniciado_em": self.iniciado_em,
             "documentos": {
                 "feitos": self.estimador.documentos_feitos,
                 "totais": self.estimador.documentos_totais,
@@ -87,11 +91,14 @@ class Publicador:
             "restante_segundos": round(faixa.p50),
             "restante_p90_segundos": round(faixa.p90),
             "restante": faixa_humana(faixa),
-            # Ativo e parado separados: 40% do relógio do run completo foi
-            # máquina dormindo, e somar os dois mente sobre a vazão.
+            # Ativo = indexando de fato. Corrido = relógio de parede desde o
+            # primeiro start desta passada (sobrevive a reboot).
             "ativo_segundos": round(self.relogio.ativo),
+            "corrido_segundos": round(max(0.0, agora - self.iniciado_em)),
             "parado_segundos": round(self.relogio.parado),
+            "pausada_ha_segundos": round(pausada_ha),
             "suspensoes": self.relogio.suspensoes,
+            "calibracao": self.estimador.como_json(),
             **self._extra,
         }
 

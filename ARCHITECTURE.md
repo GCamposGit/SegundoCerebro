@@ -190,7 +190,7 @@ prioridade real:
 | PPTX | `python-pptx` | Slide = unidade; título do slide é o heading |
 | MSG / EML | `olefile` (só o container) + camada MAPI própria; `email` da stdlib para MIME | Assunto, remetente, data e **nome do anexo** são metadados fortes. O corpo é partido por mensagem da thread, senão a decisão que importa fica diluída no histórico citado. `extract-msg` traria seis pacotes transitivos para fazer a metade que é tabela de nomes de stream |
 | Markdown | nativo | Frontmatter, `#tags`, `[[wikilinks]]` **se existirem** |
-| DOC / XLS legado | conversão via LibreOffice headless | Só se houver volume que justifique |
+| DOC / XLS / PPT legado | `olefile` + `xlrd` sobre bytes | Extração mais pobre que OOXML; sem COM. Fila de indexação: [`docs/prioridade-de-indexacao.md`](docs/prioridade-de-indexacao.md) |
 
 **Fontes**
 
@@ -539,9 +539,9 @@ compartilhado.
 
 | Perfil | Para quê | O que faz |
 |--------|----------|-----------|
-| `leve` | Notebook, em segundo plano, enquanto se trabalha | Prioridade abaixo do normal, metade dos núcleos, cede quando há carga em primeiro plano |
-| `completo` | Notebook dedicado à indexação | Todos os núcleos |
-| `gpu` | Máquina com CUDA | Um worker por placa, parse em processos separados |
+| `leve` | Trabalhar ao mesmo tempo | ~25% da CPU; 2+ GPUs: a do monitor fica de fora; 1 GPU: ela não vai a 100% |
+| `normal` | Equilíbrio | ~50% da CPU; a GPU 0 não vai a 100%; as outras andam mais |
+| `maximo` | Terminar o mais rápido | 100% da CPU e de todas as GPUs |
 
 O perfil `leve` não é enfeite: a medição de 15/08 mostrou 11 h de parada em 46 h
 de indexação, porque a alternativa a parar era o notebook ficar inutilizável.

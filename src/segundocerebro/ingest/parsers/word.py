@@ -124,3 +124,15 @@ def parse_docx(dados: bytes, nome: str) -> ParsedDoc:
             meta["autor"] = propriedades.author
 
     return ParsedDoc(name=nome, blocks=tuple(blocos), meta=meta)
+
+
+@register(".doc")
+def parse_doc(dados: bytes, nome: str) -> ParsedDoc:
+    """Word 97-2003. Bytes only — no COM, no temp file."""
+    from .ole_texto import texto_de_doc
+
+    texto = texto_de_doc(dados).strip()
+    blocos: tuple[Block, ...] = ()
+    if texto:
+        blocos = (Block(heading_path=(), text=texto),)
+    return ParsedDoc(name=nome, blocks=blocos, meta={"formato": "doc"})

@@ -99,3 +99,15 @@ def parse_pptx(dados: bytes, nome: str) -> ParsedDoc:
                 )
 
     return ParsedDoc(name=nome, blocks=tuple(blocos), meta={"formato": "pptx", "slides": str(len(apresentacao.slides))})
+
+
+@register(".ppt")
+def parse_ppt(dados: bytes, nome: str) -> ParsedDoc:
+    """PowerPoint 97-2003. Bytes only — no COM, no temp file."""
+    from .ole_texto import texto_de_ppt
+
+    texto = texto_de_ppt(dados).strip()
+    blocos: tuple[Block, ...] = ()
+    if texto:
+        blocos = (Block(heading_path=(), text=texto, locator="deck"),)
+    return ParsedDoc(name=nome, blocks=blocos, meta={"formato": "ppt"})

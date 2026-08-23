@@ -348,6 +348,19 @@ class Store:
 
     # --- registro ---------------------------------------------------------
 
+    def path_ok_por_sha256(
+        self, sha256: str, model_id: str, chunker: str, parser: str = ""
+    ) -> str | None:
+        """First path already embedded with this content, model, chunker and parser."""
+        if not sha256:
+            return None
+        linha = self.con.execute(
+            "SELECT path FROM documentos WHERE sha256 = ? AND status = 'ok' "
+            "AND n_chunks > 0 AND model_id = ? AND chunker = ? AND parser = ? LIMIT 1",
+            (sha256, model_id, chunker, parser),
+        ).fetchone()
+        return str(linha["path"]) if linha else None
+
     def estado_documento(self, path: str) -> EstadoDocumento | None:
         linha = self.con.execute(
             "SELECT path, tamanho, mtime, sha256, status, n_chunks, model_id, chunker, parser"
