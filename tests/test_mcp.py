@@ -102,8 +102,14 @@ def chamar(servidor, nome: str, **kwargs) -> dict:  # noqa: ANN001
 # --- o contrato da superfície -----------------------------------------------
 
 
-def test_expoe_exatamente_duas_ferramentas(servidor) -> None:  # noqa: ANN001
-    assert set(ferramentas(servidor)) == {"search", "read_note"}
+def test_expoe_exatamente_as_ferramentas_previstas(servidor) -> None:  # noqa: ANN001
+    """A superfície é fechada de propósito.
+
+    `list_recent` e `glossary` continuam de fora: são hipóteses que o uso real não
+    confirmou. `neighbors` entrou na F4 porque o traço mostrou o limite concreto
+    que ela rompe — não porque estava na lista.
+    """
+    assert set(ferramentas(servidor)) == {"search", "read_note", "neighbors"}
 
 
 def test_nenhuma_ferramenta_gera_texto(servidor) -> None:  # noqa: ANN001
@@ -247,7 +253,7 @@ def test_sem_base_a_superficie_nao_muda(tmp_path: Path) -> None:
     servidor = construir(Recursos(indice=tmp_path / "i", modelo="falso", threads=1))
 
     assert servidor.name == "segundocerebro"
-    assert set(ferramentas(servidor)) == {"search", "read_note"}
+    assert set(ferramentas(servidor)) == {"search", "read_note", "neighbors"}
 
 
 def test_search_anexa_vizinhos_sem_misturar_com_o_trecho(servidor) -> None:  # noqa: ANN001
@@ -298,3 +304,103 @@ def test_k_e_janela_saem_da_base(tmp_path: Path) -> None:
 
     assert ferrs["search"].input_schema["properties"]["k"]["default"] == 3
     assert ferrs["read_note"].input_schema["properties"]["janela"]["default"] == 2
+
+
+# --- neighbors: a aresta que a busca por texto não alcança -------------------
+
+
+def test_neighbors_avisa_quando_o_grafo_nunca_foi_construido(servidor) -> None:  # noqa: ANN001
+    """Grafo vazio e documento sem vizinho devolvem a mesma lista, e são coisas
+    diferentes.
+
+    Sem o aviso, um grafo não construído parece um acervo sem ligações — e
+    ninguém investiga o que parece resposta legítima. É o modo de falha mais
+    provável desta ferramenta, porque a passada do grafo é separada da indexação.
+    """
+    dados = chamar(servidor, "neighbors", arquivo="Politica de IA/PO-ACME-007.docx")
+
+    assert dados["vizinhos"] == []
+    assert "grafo" in dados["aviso"]
+    assert "segundocerebro.retrieve.grafo" in dados["aviso"]
+
+
+def test_neighbors_liga_documentos_por_norma_citada(tmp_path: Path) -> None:
+    """O caso que motiva a F4: pastas diferentes, nomes diferentes, nenhum termo
+    em comum — só a norma que os dois citam."""
+    from segundocerebro.index.store import Store
+    from segundocerebro.retrieve.grafo import construir as construir_grafo
+    from segundocerebro.retrieve.hybrid import BuscaHibrida
+    from tests.test_index import DIM, EmbedderFalso, chunk
+
+    store = Store(tmp_path / "indice", DIM)
+    emb = EmbedderFalso()
+    chunks = [
+        chunk("p1", "Politicas/plano_de_acao.md", 0, "meta do plano: certificação ISO 42001"),
+        chunk("n1", "Normas/gestao.md", 0, "a ISO 42001 define o sistema de gestão de IA"),
+        chunk("o1", "Obras/medicao.md", 0, "quantidades medidas no trecho sul"),
+    ]
+    store.gravar_chunks(chunks, emb.embed_passagens([c.text for c in chunks]), 0.0, emb.model_id)
+    store.commit()
+    construir_grafo(store)
+
+    recursos = Recursos(indice=tmp_path / "indice", modelo="falso", threads=1)
+    recursos._store = store
+    recursos._busca = BuscaHibrida(store, emb)
+    servidor = construir(recursos)
+
+    dados = chamar(servidor, "neighbors", arquivo="Politicas/plano_de_acao.md")
+
+    assert [v["arquivo"] for v in dados["vizinhos"]] == ["Normas/gestao.md"]
+    porque = dados["vizinhos"][0]["porque"][0]
+    assert porque["identificador"] == "ISO 42001"
+    assert porque["tipo"] == "norma"
+    assert "aviso" not in dados
+    store.fechar()
+
+
+def test_neighbors_devolve_id_que_serve_para_read_note(tmp_path: Path) -> None:
+    """O motivo tem que ser conferível, senão a ferramenta é um oráculo.
+
+    O `id` no `porque` é o trecho onde o vizinho cita o identificador — passar
+    esse id a `read_note` é como o cliente confirma que a ligação é real.
+    """
+    from segundocerebro.index.store import Store
+    from segundocerebro.retrieve.grafo import construir as construir_grafo
+    from segundocerebro.retrieve.hybrid import BuscaHibrida
+    from tests.test_index import DIM, EmbedderFalso, chunk
+
+    store = Store(tmp_path / "indice", DIM)
+    emb = EmbedderFalso()
+    chunks = [
+        chunk("a1", "a.md", 0, "prevê a ISO 42001"),
+        chunk("b1", "b.md", 0, "a ISO 42001 exige requisitos"),
+    ]
+    store.gravar_chunks(chunks, emb.embed_passagens([c.text for c in chunks]), 0.0, emb.model_id)
+    store.commit()
+    construir_grafo(store)
+
+    recursos = Recursos(indice=tmp_path / "indice", modelo="falso", threads=1)
+    recursos._store = store
+    recursos._busca = BuscaHibrida(store, emb)
+    servidor = construir(recursos)
+
+    id_do_motivo = chamar(servidor, "neighbors", arquivo="a.md")["vizinhos"][0]["porque"][0]["id"]
+    lido = chamar(servidor, "read_note", id=id_do_motivo, janela=0)
+
+    assert lido["documento"] == "b.md"
+    assert "ISO 42001" in lido["trechos"][0]["texto"]
+    store.fechar()
+
+
+def test_neighbors_com_arquivo_vazio_nao_explode(servidor) -> None:  # noqa: ANN001
+    dados = chamar(servidor, "neighbors", arquivo="   ")
+    assert dados["vizinhos"] == []
+    assert "erro" in dados
+
+
+def test_neighbors_respeita_o_teto_do_limite(servidor) -> None:  # noqa: ANN001
+    """Cada vizinho custa contexto do cliente."""
+    ferrs = ferramentas(servidor)
+    assert ferrs["neighbors"].input_schema["properties"]["limite"]["default"] == 5
+    dados = chamar(servidor, "neighbors", arquivo="qualquer.md", limite=9999)
+    assert dados["vizinhos"] == []

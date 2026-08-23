@@ -247,12 +247,51 @@ sobe o servidor **de `C:\Windows\system32`** com o bloco exato e responde a
 consulta do traço da F3 contra o índice real. Da F3 falta só o ato humano: abrir o
 Claude Desktop e fazer a pergunta lá.
 
-515 testes.
+**F3 fechada em 20/08/2026.** Mesma pergunta multi-hop nos dois clientes, com
+decomposições de busca **diferentes** e nenhum fato sem fonte no acervo —
+evidência mais forte de R1 que a mesma decomposição repetida seria. Traço em
+`docs/traco-f3-uso-real.md` (gitignorado).
 
-**Próximo passo:** a F2 fechou o critério de saída (tabela consolidada com
-nDCG@5). O que resta é a decisão sobre a porta 3 — ver "onde o bm25 se paga" — e a
-F4, cujo grafo derivado é a única rota para o multi-hop completo, travado em 1 de 5
-por razão estrutural e não de peso.
+**F4 — grafo derivado e `neighbors` entregues em 20/08/2026.** Ler
+`docs/ablacao-f4-grafo.md`. Métricas da F2 **idênticas** (recall@1 0,667, MRR
+0,787, nDCG@5 0,793) e o caso plano → norma respondível só pela aresta. Falta da
+F4: SharePoint, watcher, MSG/EML e legado DOC/XLS.
+
+```bash
+py -m segundocerebro.retrieve.grafo --base padrao            # constrói, ~30 s
+py -m segundocerebro.retrieve.grafo --base padrao --estado   # só relata
+py -m eval.rodar --retriever hibrido --com-grafo --out docs/metricas-f4-com-grafo.md
+```
+
+**O ganho medido é de uma pergunta só, e é a certa.** `g048` (multi-hop) vai de
+recall@10 **0,50 → 1,00**: exigia todas as fontes e ficava travada porque a
+segunda era inalcançável por qualquer busca. Custo: duas perguntas descem de 5→8 e
+8→10, −0,018 de recall@5. O salto **não é padrão** — a troca é do cliente.
+
+Quatro coisas da F4 que valem para as fases seguintes:
+
+- **Passada separada do indexador vale mais que a economia óbvia.** Reconstruir o
+  grafo custa 30 s contra 39 h de reindexação — e foram necessárias **cinco**
+  iterações de regra de extração. Um artefato derivado do índice, e não do disco,
+  é iterável; um que exige reindexar, não é.
+- **Cinco defeitos, todos a mesma classe, nenhum pego por teste unitário.** Todos
+  eram "o mesmo identificador escrito de outra forma não liga" — `ISO 42001:2023`
+  contra `ISO 42001`, `ISO 14.001` truncado em `ISO 14`, LGPD partida em duas.
+  É o defeito mais insidioso possível aqui, porque cada grafia produz sua própria
+  aresta plausível e nada parece errado. **Só olhar a distribuição real acha.**
+- **Um limite escolhido no abstrato cortou o caso motivador da fase.** O teto de
+  25 documentos por identificador tinha raciocínio plausível e excluía a `ISO
+  42001` (27 docs), que é a aresta que a fase existia para construir. A
+  distribuição medida é o que desfaz esse tipo de erro.
+- **Nome de arquivo é fonte de identificador, não só o texto.** O documento que a
+  pergunta multi-hop precisa é PDF digitalizado com zero texto extraível. Daí o
+  desempate que decide a ordem: identificador no nome significa que o documento
+  **é** o assunto; no corpo, que ele **fala sobre** — e entra como desempate, nunca
+  como prioridade sobre a raridade.
+
+**Próximo passo:** o que resta da F4 (SharePoint, watcher, MSG/EML) e a decisão
+sobre a porta 3 — ver "onde o bm25 se paga". O multi-hop completo segue em 1 de 5,
+e agora há a primitiva para atacá-lo: o cliente compõe `search` → `neighbors`.
 
 O que o corpus real ensinou e que não estava no plano — tratar na F1:
 famílias de versão (`_v6` não é o vigente), caminhos acima de 260 caracteres

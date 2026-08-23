@@ -90,6 +90,25 @@ CREATE TRIGGER IF NOT EXISTS chunks_ad AFTER DELETE ON chunks BEGIN
     VALUES ('delete', old.rowid, old.texto, old.trilha, old.caminho);
 END;
 
+-- Grafo derivado (F4). Guarda **menção**, não aresta: duas arestas entre N
+-- documentos que citam o mesmo identificador seriam N² linhas, e envelheceriam
+-- na primeira reindexação. A aresta é derivada por junção em tempo de consulta,
+-- que é a mesma escolha de `retrieve/familias.py` e pelo mesmo motivo.
+--
+-- `chunk_id` existe para a resposta carregar procedência: dizer que dois
+-- documentos se ligam pela ISO 42001 vale pouco se o cliente não pode ler o
+-- trecho onde cada um a cita.
+CREATE TABLE IF NOT EXISTS mencoes (
+    path     TEXT NOT NULL,
+    tipo     TEXT NOT NULL,
+    valor    TEXT NOT NULL,
+    chunk_id TEXT NOT NULL DEFAULT '',
+    PRIMARY KEY (path, tipo, valor)
+);
+-- A junção do `neighbors` parte de (tipo, valor) para achar quem mais cita o
+-- mesmo identificador; sem este índice ela varre a tabela inteira por consulta.
+CREATE INDEX IF NOT EXISTS idx_mencoes_valor ON mencoes(tipo, valor);
+
 CREATE TABLE IF NOT EXISTS execucoes (
     id           INTEGER PRIMARY KEY AUTOINCREMENT,
     iniciada_em  TEXT NOT NULL,
@@ -530,6 +549,104 @@ class Store:
             (atual.path, atual.ordinal - janela, atual.ordinal + janela),
         ).fetchall()
         return [ChunkArmazenado(**dict(l)) for l in linhas]
+
+    # --- grafo derivado (F4) ----------------------------------------------
+
+    def registrar_mencoes(self, path: str, mencoes: Sequence[tuple[str, str, str]]) -> int:
+        """Substitui as menções de um documento. Devolve quantas ficaram.
+
+        Substitui em vez de acrescentar porque a passada do grafo é idempotente
+        por documento: rodar duas vezes tem que dar o mesmo resultado, e um
+        identificador que saiu do texto depois de uma edição tem que sair do
+        grafo — senão a aresta sobrevive ao fato que a justificava.
+        """
+        self.con.execute("DELETE FROM mencoes WHERE path = ?", (path,))
+        if mencoes:
+            self.con.executemany(
+                "INSERT OR REPLACE INTO mencoes(path, tipo, valor, chunk_id) VALUES (?,?,?,?)",
+                [(path, t, v, c) for t, v, c in mencoes],
+            )
+        return len(mencoes)
+
+    def mencoes_de(self, path: str) -> list[tuple[str, str, str]]:
+        return [
+            (l["tipo"], l["valor"], l["chunk_id"])
+            for l in self.con.execute(
+                "SELECT tipo, valor, chunk_id FROM mencoes WHERE path = ? ORDER BY tipo, valor",
+                (path,),
+            )
+        ]
+
+    def paths_do_registro(self) -> list[str]:
+        """Todo documento conhecido, **inclusive** os sem chunk.
+
+        `paths_com_chunks` responde "o que a busca alcança"; isto responde "o que
+        existe". A diferença são os documentos de status `vazio`, `travado` ou
+        `sem_parser` — e é justamente onde vive o PDF digitalizado cujo único
+        sinal é o nome do arquivo.
+        """
+        return [
+            l["path"]
+            for l in self.con.execute("SELECT path FROM documentos ORDER BY path")
+        ]
+
+    def paths_com_mencoes(self) -> list[str]:
+        return [
+            l["path"]
+            for l in self.con.execute("SELECT DISTINCT path FROM mencoes ORDER BY path")
+        ]
+
+    def frequencia_de_mencoes(self, path: str) -> list[tuple[str, str, int]]:
+        """Para cada identificador citado por `path`, em quantos documentos ele
+        aparece no acervo inteiro.
+
+        É o insumo do peso da aresta. Um identificador que aparece em dois
+        documentos liga os dois; o CNPJ da própria empresa aparece em todo
+        contrato e não liga nada — descobrir qual é qual exige esta contagem, e
+        é por isso que ela não pode ser estimada nem cacheada por documento.
+        """
+        return [
+            (l["tipo"], l["valor"], l["docs"])
+            for l in self.con.execute(
+                "SELECT m.tipo, m.valor, COUNT(DISTINCT m.path) AS docs FROM mencoes m"
+                " WHERE (m.tipo, m.valor) IN (SELECT tipo, valor FROM mencoes WHERE path = ?)"
+                " GROUP BY m.tipo, m.valor",
+                (path,),
+            )
+        ]
+
+    def quem_cita(self, tipo: str, valor: str, excluir: str = "") -> list[tuple[str, str]]:
+        """Documentos que citam este identificador, com o chunk onde citam."""
+        return [
+            (l["path"], l["chunk_id"])
+            for l in self.con.execute(
+                "SELECT path, chunk_id FROM mencoes WHERE tipo = ? AND valor = ? AND path != ?"
+                " ORDER BY path",
+                (tipo, valor, excluir),
+            )
+        ]
+
+    def estatisticas_do_grafo(self) -> dict[str, object]:
+        linha = self.con.execute(
+            # Subconsulta em vez de concatenar tipo+valor com um separador
+            # literal: qualquer separador escolhido pode aparecer dentro de um
+            # valor, e aí dois identificadores diferentes contariam como um.
+            "SELECT COUNT(*) AS mencoes, COUNT(DISTINCT path) AS documentos,"
+            " (SELECT COUNT(*) FROM (SELECT DISTINCT tipo, valor FROM mencoes))"
+            " AS identificadores FROM mencoes"
+        ).fetchone()
+        por_tipo = {
+            l["tipo"]: l["n"]
+            for l in self.con.execute(
+                "SELECT tipo, COUNT(DISTINCT valor) AS n FROM mencoes GROUP BY tipo ORDER BY tipo"
+            )
+        }
+        return {
+            "mencoes": linha["mencoes"],
+            "documentos": linha["documentos"],
+            "identificadores": linha["identificadores"],
+            "por_tipo": por_tipo,
+        }
 
     # --- estado -----------------------------------------------------------
 

@@ -12,10 +12,17 @@ localmente, sem nenhuma chamada a API paga. Ver as invariantes em
 - **Multi-hop é do cliente.** Estas ferramentas são primitivas componíveis; o
   laço de agente é quem compõe. Não há orquestrador de recuperação aqui.
 
-Duas ferramentas, e não as cinco do ROADMAP, porque `search` e `read_note` já
-fecham o laço — "onde está X" e "me mostra o que tem em volta". `neighbors`,
-`list_recent` e `glossary` são hipóteses sobre o que será preciso, e o uso real
-responde isso melhor que o palpite.
+Três ferramentas, e não as cinco do ROADMAP. `search` e `read_note` fecham o laço
+básico — "onde está X" e "me mostra o que tem em volta" — e foram as duas únicas
+até a F3 fechar, porque `list_recent` e `glossary` continuam sendo hipóteses que
+o uso real não confirmou.
+
+`neighbors` entrou na F4 por um motivo diferente: o traço de uso real mostrou o
+limite que ela existe para romper. Dois documentos que só se ligam por um
+identificador citado em ambos — um plano de ação que termina em "certificação
+ISO 42001" e a norma, em outra pasta — não têm nome, pasta nem vocabulário em
+comum. Nenhum ranqueador desta pilha os aproxima, por melhor que seja o peso de
+fusão; o que faltava não era precisão, era uma **aresta**. Ver `retrieve/grafo.py`.
 """
 
 from __future__ import annotations
@@ -40,6 +47,15 @@ K_PADRAO = 8
 K_MAX = 50
 JANELA_PADRAO = 1
 JANELA_MAX = 5
+
+MAX_VIZINHOS_PADRAO = 5
+MAX_VIZINHOS_TETO = 25
+"""Quantos documentos ligados o `neighbors` devolve.
+
+Padrão baixo de propósito. O grafo é feito para o caso em que **um** documento
+faltava — a norma que o plano cita —, e devolver vinte candidatos transfere ao
+cliente o trabalho de filtrar, gastando contexto dele. Quem precisa de mais pede.
+"""
 
 CONTEXTO_PADRAO = 1
 CONTEXTO_MAX = 3
@@ -213,6 +229,69 @@ def construir(recursos: Recursos) -> MCPServer:
             "documento": alvo.path,
             "trechos": [
                 {**_procedencia(c), "texto": c.texto, "e_o_pedido": c.id == id} for c in vizinhos
+            ],
+        }
+
+    @servidor.tool(
+        description=(
+            "Documentos ligados a um arquivo por identificador citado em comum — norma "
+            "(ISO, NBR), lei, código de contrato ou documento, CNPJ, processo. Use quando "
+            "a resposta depender de um documento que a busca por texto não alcança porque "
+            "ele não repete as palavras da pergunta: o plano cita a norma, e a norma está "
+            "em outra pasta com outro vocabulário. Devolve **por que** cada um está ligado."
+        )
+    )
+    def neighbors(arquivo: str, limite: int = MAX_VIZINHOS_PADRAO) -> dict[str, Any]:
+        """Args:
+        arquivo: caminho vindo do campo `arquivo` de `search`.
+        limite: quantos documentos ligados devolver (1 a 25).
+        """
+        from ..retrieve.grafo import vizinhos as andar_no_grafo
+
+        if not arquivo.strip():
+            return {"erro": "arquivo vazio", "vizinhos": []}
+        limite = max(1, min(int(limite), MAX_VIZINHOS_TETO))
+
+        store = recursos.store
+        # Grafo vazio e documento sem vizinho devolvem a mesma lista, e são coisas
+        # diferentes: uma é "a passada do grafo nunca rodou", a outra é "este
+        # documento não cita identificador que outro cite". Sem separar as duas, um
+        # grafo não construído parece um acervo sem ligações — e ninguém investiga
+        # o que parece resposta legítima.
+        if not store.paths_com_mencoes():
+            return {
+                "arquivo": arquivo,
+                "encontrados": 0,
+                "vizinhos": [],
+                "aviso": (
+                    "o grafo derivado desta base está vazio: rode "
+                    "`py -m segundocerebro.retrieve.grafo --base <id>` para construí-lo"
+                ),
+            }
+
+        achados = andar_no_grafo(store, arquivo, limite=limite)
+        return {
+            "arquivo": arquivo,
+            "encontrados": len(achados),
+            "vizinhos": [
+                {
+                    "arquivo": v.path,
+                    "peso": round(v.peso, 5),
+                    # O motivo é parte da resposta, não enfeite: sem ele o cliente
+                    # recebe "documento relacionado" e tem que confiar. Com o
+                    # identificador e o trecho, ele confere — e descarta se a
+                    # ligação não servir para a pergunta dele.
+                    "porque": [
+                        {
+                            "tipo": l.tipo,
+                            "identificador": l.valor,
+                            "citado_em_documentos": l.documentos,
+                            **({"id": l.chunk_id} if l.chunk_id else {}),
+                        }
+                        for l in v.ligacoes
+                    ],
+                }
+                for v in achados
             ],
         }
 
