@@ -62,9 +62,11 @@ def test_espelhos_batem_com_o_codigo():
 
     assert Base(id="x").modelo == MODELO_PADRAO
 
-    from segundocerebro.index.indexer import LOTE_EMBEDDING
+    from segundocerebro.config import LimitesDeIndexacao
+    from segundocerebro.index.indexer import LIMITE_TEXTO_MB_PADRAO, LOTE_EMBEDDING
 
     assert Maquina().lote == LOTE_EMBEDDING
+    assert LIMITE_TEXTO_MB_PADRAO == LimitesDeIndexacao().txt
 
 
 # --------------------------------------------------------------------------- #
@@ -610,8 +612,68 @@ def test_gravar_omite_o_que_e_padrao(tmp_path):
 
     texto = destino.read_text(encoding="utf-8")
     assert "pesos" not in texto and "chunking" not in texto
+    assert "limites" not in texto
     assert "maquina" not in texto
     assert 'id = "a"' in texto
+
+
+def test_limites_por_tipo_sobrescrevem_o_padrao(tmp_path):
+    """Teto de dump é da base: um acervo tem CSV enorme, outro pode não ter."""
+    from segundocerebro.config import LimitesDeIndexacao
+
+    caminho = escrever(
+        tmp_path,
+        """
+        [[base]]
+        id = "bain"
+        [base.limites]
+        csv = 5
+        xlsx = 40
+        txt = 0
+        """,
+    )
+    base = carregar(caminho, ambiente=SEM_AMBIENTE).base("bain", ambiente=SEM_AMBIENTE)
+
+    assert base.limites.csv == 5
+    assert base.limites.xlsx == 40
+    assert base.limites.txt == 0
+    assert base.limites.pdf == 0
+    assert ".csv" in base.limites.como_mapa()
+    assert ".txt" not in base.limites.como_mapa()
+    assert base.limites.como_mapa()[".xlsx"] == 40
+    assert LimitesDeIndexacao().txt == 2.0
+
+
+def test_limites_desconhecidos_sao_erro(tmp_path):
+    caminho = escrever(
+        tmp_path,
+        """
+        [[base]]
+        id = "a"
+        [base.limites]
+        exe = 10
+        """,
+    )
+    with pytest.raises(ErroDeConfig, match="exe"):
+        carregar(caminho, ambiente=SEM_AMBIENTE)
+
+
+def test_ida_e_volta_preserva_limites(tmp_path):
+    original = escrever(
+        tmp_path,
+        """
+        [[base]]
+        id = "a"
+        [base.limites]
+        pdf = 80
+        csv = 1.5
+        """,
+    )
+    antes = carregar(original, ambiente=SEM_AMBIENTE)
+    destino = tmp_path / "gravado.toml"
+    gravar(antes, destino)
+    depois = carregar(destino, ambiente=SEM_AMBIENTE)
+    assert depois.base("a", ambiente=SEM_AMBIENTE).limites == antes.base("a", ambiente=SEM_AMBIENTE).limites
 
 
 def test_gravar_recusa_configuracao_invalida(tmp_path):

@@ -119,6 +119,11 @@ class Natureza:
 
 EXTENSOES_DE_PLANILHA = (".xlsx", ".xlsm", ".xltx")
 
+EXTENSOES_DE_TEXTO_BRUTO = (".txt", ".csv")
+"""Dumps, not documents. A 269 MB `.txt` became 176 k chunks — 73% of one
+index — and a 68 MB `.csv` froze the progress bar for hours. They share a
+parser with short notes, so the size/chunk caps have to live at the gate."""
+
 
 def mb_de_abas(dados: bytes) -> float | None:
     """Megabytes de XML de aba dentro de um XLSX, sem descomprimir nada.

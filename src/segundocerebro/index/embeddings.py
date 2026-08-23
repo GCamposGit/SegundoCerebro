@@ -20,7 +20,7 @@ spec, not to the call site.
 from __future__ import annotations
 
 import os
-from collections.abc import Iterable, Sequence
+from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -243,20 +243,36 @@ class Embedder:
             return len(texto) // CARACTERES_POR_TOKEN
         return len(tokenizador.encode(texto, add_special_tokens=False).ids)
 
-    def embed_passagens(self, textos: Sequence[str], batch_size: int = 32) -> list[np.ndarray]:
-        """Embed chunks for indexing."""
+    def embed_passagens(
+        self,
+        textos: Sequence[str],
+        batch_size: int = 32,
+        ao_progresso: Callable[[int, int], None] | None = None,
+    ) -> list[np.ndarray]:
+        """Embed chunks for indexing.
+
+        `ao_progresso(feitos, total)` runs at each batch boundary so the
+        indexer can publish the bar and honour cancel *during* a large file,
+        not only after it. Consuming the generator in one list comprehension
+        is what froze the bar for four hours on a 68 MB CSV.
+        """
         if not textos:
             return []
         prefixados = [self.spec.prefixo_passagem + t for t in textos]
         modelo = self._carregar()
-        vetores = [np.asarray(v, dtype=np.float32) for v in modelo.embed(prefixados, batch_size=batch_size)]
-        ruins = sum(1 for v in vetores if not np.isfinite(v).all())
+        bruto: list[np.ndarray] = []
+        total = len(prefixados)
+        for i, v in enumerate(modelo.embed(prefixados, batch_size=batch_size), start=1):
+            bruto.append(np.asarray(v, dtype=np.float32))
+            if ao_progresso is not None and (i % batch_size == 0 or i == total):
+                ao_progresso(i, total)
+        ruins = sum(1 for v in bruto if not np.isfinite(v).all())
         if ruins:
             raise RuntimeError(
-                f"{ruins}/{len(vetores)} vetores com NaN/Inf — no Maxwell o MiniLM "
+                f"{ruins}/{len(bruto)} vetores com NaN/Inf — no Maxwell o MiniLM "
                 "quantizado (onnx-Q) faz isso no CUDA; e5-large (model.onnx) é o teste que vale"
             )
-        return [normalizar(v) for v in vetores]
+        return [normalizar(v) for v in bruto]
 
     def embed_consulta(self, texto: str) -> np.ndarray:
         """Embed one query. Asymmetric: uses the query prefix, not the passage one."""

@@ -35,14 +35,15 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 
 from ..census import Config, iter_files
-from ..config import ErroDeConfig, carregar
+from ..config import ErroDeConfig, LimitesDeIndexacao, carregar
 from ..ingest.chunking import CHUNKER_VERSION, ChunkConfig, chunk_document
 from ..ingest.parsers import parser_version_for
 from ..ingest.document import ParseResult, ParseStatus
+from ..ingest.natureza import EXTENSOES_DE_TEXTO_BRUTO
 from ..ingest.reader import parse_file
 from ..logger import get_logger
 from .embeddings import MODELOS, Embedder
-from .gpu_pool import EmbedFila, contar_gpus
+from .gpu_pool import EmbedFila, contar_gpus, dispositivos_embed
 from .esforco import PERFIS_DE_ESFORCO
 from .comando import aguardar as aguardar_comando
 from .comando import limpar as limpar_comando
@@ -61,6 +62,19 @@ medir enquanto o índice está sendo reescrito mede um alvo em movimento."""
 
 LOTE_EMBEDDING = 32
 INTERVALO_LOG = 25
+LIMITE_TEXTO_MB_PADRAO = LimitesDeIndexacao().txt
+"""Espelho de `LimitesDeIndexacao.txt`. A fonte é a config; isto documenta o CLI."""
+
+LIMITE_CHUNKS_PADRAO = 800
+"""Safety net for `.txt`/`.csv` that sneak under the byte cap and still explode.
+
+~800 chunks × 1 800 chars is about 1,4 MB of text — a long report, not a dump.
+Does not apply to PDF/DOCX/PPTX: those are the knowledge formats, and a cap
+here would silently drop timetable-style PDFs on a rebuild."""
+
+
+class PedidoDeParada(RuntimeError):
+    """Cancel or Ctrl+C during embed — the document in flight is not committed."""
 
 
 @dataclass
@@ -305,9 +319,36 @@ def _parse_workers_padrao() -> int:
     return 1
 
 
-def _parsear_um(path: str, limite_planilha_mb: float | None):
+def _limites_efetivos(
+    limites: LimitesDeIndexacao,
+    pular_texto_acima_de: float | None,
+) -> dict[str, float]:
+    """Mapa extensão → MB. A flag de CLI, se vier, só cobre .txt/.csv."""
+    mapa = dict(limites.como_mapa())
+    if pular_texto_acima_de is None:
+        return mapa
+    if pular_texto_acima_de <= 0:
+        mapa.pop(".txt", None)
+        mapa.pop(".csv", None)
+        return mapa
+    mapa[".txt"] = pular_texto_acima_de
+    mapa[".csv"] = pular_texto_acima_de
+    return mapa
+
+
+def _parsear_um(
+    path: str,
+    limite_planilha_mb: float | None,
+    limites_mb: dict[str, float] | None,
+):
     """Top-level so ThreadPoolExecutor can pickle it on Windows spawn later."""
-    return parse_file(path, retries=1, espera=0.5, limite_planilha_mb=limite_planilha_mb)
+    return parse_file(
+        path,
+        retries=1,
+        espera=0.5,
+        limite_planilha_mb=limite_planilha_mb,
+        limites_mb=limites_mb,
+    )
 
 
 def indexar(
@@ -323,6 +364,9 @@ def indexar(
     reconciliar_ao_fim: bool = True,
     forcar_reconciliacao: bool = False,
     limite_planilha_mb: float | None = None,
+    limite_texto_mb: float | None = None,
+    limites_mb: dict[str, float] | None = None,
+    limite_chunks: int | None = None,
     publicar: bool = True,
     esforco: dict[str, object] | None = None,
     parse_workers: int | None = None,
@@ -390,6 +434,15 @@ def indexar(
         faixa_humana(estimador.restante()),
     )
 
+    mapa_limites: dict[str, float] = dict(limites_mb or {})
+    if limite_texto_mb is not None:
+        if limite_texto_mb > 0:
+            mapa_limites[".txt"] = limite_texto_mb
+            mapa_limites[".csv"] = limite_texto_mb
+        else:
+            mapa_limites.pop(".txt", None)
+            mapa_limites.pop(".csv", None)
+
     workers = parse_workers if parse_workers is not None else _parse_workers_padrao()
     workers = max(1, int(workers))
     fila: EmbedFila | None = None
@@ -400,13 +453,22 @@ def indexar(
                 "MiniLM quantizado (onnx-Q) devolve NaN no CUDA deste hardware. "
                 "Use --modelo e5-large; o provider não entra em model_id"
             )
-        n_gpus = contar_gpus()
+        perfil = str((esforco or {}).get("perfil") or "")
+        reservar = perfil == "leve"
+        gpus = dispositivos_embed(reservar_display=reservar)
+        n_gpus = len(gpus)
+        if n_gpus == 1:
+            # One selected card: pin ORT to it. With two cards in `leve` this
+            # is the one without a monitor; with a single card it is that card,
+            # display or not.
+            os.environ["CUDA_VISIBLE_DEVICES"] = gpus[0]
+            log.info("embed na GPU %s", gpus[0])
     if n_gpus >= 2:
         # Main must not load the encoder: e5-large already fills one 6 GB card.
         cache = getattr(embedder, "_cache_dir", Path("models"))
-        fila = EmbedFila(n_gpus, modelo=embedder.spec.id, cache=cache)
+        fila = EmbedFila(gpus, modelo=embedder.spec.id, cache=cache)
         chunk_cfg = replace(chunk_cfg, contar_tokens=None)
-        log.info("pipeline: %d parse worker(s) · %d GPUs de embed", workers, n_gpus)
+        log.info("pipeline: %d parse worker(s) · %d GPUs de embed (%s)", workers, n_gpus, ",".join(gpus))
     else:
         log.info("pipeline: %d parse worker(s) · embed na thread principal", workers)
 
@@ -464,7 +526,13 @@ def indexar(
             progresso.chunks += len(chunks)
             estimador.registrar(arquivo.rel, arquivo.size, time.perf_counter() - comeco)
             if publicador is not None:
-                publicador.anotar(chunks=progresso.chunks)
+                publicador.anotar(
+                    chunks=progresso.chunks,
+                    falhas=progresso.falhas,
+                    etapa=None,
+                    trecho=None,
+                    trechos=None,
+                )
                 publicador.publicar()
             if progresso.indexados % INTERVALO_LOG == 0:
                 decorrido = time.perf_counter() - inicio
@@ -480,13 +548,23 @@ def indexar(
         def fechar_um_embed(*, block: bool) -> bool:
             if fila is None or not pend_embed:
                 return False
-            got = fila.receber(timeout=None if block else 0.05)
-            if got is None:
-                return False
-            jid, vetores = got
-            root, arquivo, estado, resultado, chunks, comeco = pend_embed.pop(jid)
-            gravar_ok(root, arquivo, estado, resultado, chunks, vetores, comeco)
-            return True
+            while True:
+                got = fila.receber(timeout=2.0 if block else 0.05)
+                if got is None:
+                    if not block:
+                        return False
+                    relogio.tique()
+                    if publicador is not None:
+                        publicador.anotar(etapa="embed")
+                        publicador.publicar()
+                    honrar_comando()
+                    if interrupcao.pedida:
+                        return False
+                    continue
+                jid, vetores = got
+                root, arquivo, estado, resultado, chunks, comeco = pend_embed.pop(jid)
+                gravar_ok(root, arquivo, estado, resultado, chunks, vetores, comeco)
+                return True
 
         def honrar_comando() -> None:
             if aguardar_comando(
@@ -510,9 +588,20 @@ def indexar(
                 root, arquivo, estado = pendentes[proximo]
                 proximo += 1
                 if publicador is not None:
-                    publicador.anotar(arquivo=arquivo.rel)
+                    publicador.anotar(
+                        arquivo=arquivo.rel,
+                        etapa="parse",
+                        trecho=None,
+                        trechos=None,
+                        falhas=progresso.falhas,
+                    )
                     publicador.publicar()
-                fut = pool.submit(_parsear_um, str(arquivo.path), limite_planilha_mb)
+                fut = pool.submit(
+                    _parsear_um,
+                    str(arquivo.path),
+                    limite_planilha_mb,
+                    mapa_limites or None,
+                )
                 inflight[fut] = (root, arquivo, estado, time.perf_counter())
 
         def cancelar_resto() -> None:
@@ -547,6 +636,7 @@ def indexar(
                     arquivo.rel, arquivo.size, time.perf_counter() - comeco
                 )
                 if publicador is not None:
+                    publicador.anotar(falhas=progresso.falhas, etapa=None, trecho=None, trechos=None)
                     publicador.publicar()
                 return
 
@@ -588,21 +678,96 @@ def indexar(
                 return
 
             chunks = chunk_document(resultado.doc, arquivo.rel, chunk_cfg)
+            ext = os.path.splitext(arquivo.rel)[1].lower()
+            if (
+                limite_chunks is not None
+                and ext in EXTENSOES_DE_TEXTO_BRUTO
+                and len(chunks) > limite_chunks
+            ):
+                store.remover_documento(arquivo.rel)
+                store.registrar_documento(
+                    path=arquivo.rel,
+                    raiz=root.name,
+                    tamanho=arquivo.size,
+                    mtime=arquivo.mtime,
+                    sha256=resultado.sha256,
+                    status=ParseStatus.DEFERRED.value,
+                    detalhe=(
+                        f"{len(chunks)} trechos, acima do limite de {limite_chunks} para {ext}"
+                    )[:500],
+                    model_id=embedder.model_id,
+                    chunker=CHUNKER_VERSION,
+                    parser=parser_version_for(ext),
+                    natureza=resultado.natureza,
+                )
+                store.commit()
+                progresso.registrar_falha(ParseStatus.DEFERRED.value)
+                estimador.registrar(
+                    arquivo.rel, arquivo.size, time.perf_counter() - comeco
+                )
+                if publicador is not None:
+                    publicador.anotar(falhas=progresso.falhas, etapa=None, trecho=None, trechos=None)
+                    publicador.publicar()
+                log.info(
+                    "adiado: %s gerou %d trechos (limite %d)",
+                    arquivo.rel,
+                    len(chunks),
+                    limite_chunks,
+                )
+                return
+
+            def ao_embed(feitos: int, total: int) -> None:
+                relogio.tique()
+                if publicador is not None:
+                    publicador.anotar(
+                        arquivo=arquivo.rel,
+                        etapa="embed",
+                        trecho=feitos,
+                        trechos=total,
+                    )
+                    publicador.publicar()
+                honrar_comando()
+                if interrupcao.pedida:
+                    raise PedidoDeParada()
+
             if fila is not None:
                 while len(pend_embed) >= n_gpus:
                     fechar_um_embed(block=True)
+                    if interrupcao.pedida:
+                        return
                 jid = fila.submit([c.embedding_text for c in chunks], lote)
                 pend_embed[jid] = (root, arquivo, estado, resultado, chunks, comeco)
                 return
-            vetores = embedder.embed_passagens(
-                [c.embedding_text for c in chunks], batch_size=lote
-            )
+            try:
+                vetores = embedder.embed_passagens(
+                    [c.embedding_text for c in chunks],
+                    batch_size=lote,
+                    ao_progresso=ao_embed,
+                )
+            except TypeError as erro:
+                if "ao_progresso" not in str(erro):
+                    raise
+                vetores = embedder.embed_passagens(
+                    [c.embedding_text for c in chunks], batch_size=lote
+                )
+            except PedidoDeParada:
+                return
             gravar_ok(root, arquivo, estado, resultado, chunks, vetores, comeco)
 
         limpar_comando(store.diretorio)
         preencher()
         while inflight:
-            concluidos, _ = wait(inflight, return_when=FIRST_COMPLETED)
+            concluidos, _ = wait(inflight, timeout=2.0, return_when=FIRST_COMPLETED)
+            relogio.tique()
+            if publicador is not None:
+                publicador.publicar()
+            honrar_comando()
+            if interrupcao.pedida:
+                progresso.interrompido = True
+                cancelar_resto()
+                break
+            if not concluidos:
+                continue
             for fut in concluidos:
                 root, arquivo, estado, comeco = inflight.pop(fut)
                 try:
@@ -629,8 +794,11 @@ def indexar(
             preencher()
         if interrupcao.pedida:
             progresso.interrompido = True
-        while pend_embed:
+        while pend_embed and not progresso.interrompido:
             fechar_um_embed(block=True)
+            if interrupcao.pedida:
+                progresso.interrompido = True
+                break
 
     # A passada só vale para reconciliar se percorreu o escopo inteiro. Com
     # `--limite` ou interrupção, um caminho ausente de `vistos` significa "não
@@ -708,9 +876,12 @@ def main(argv: list[str] | None = None) -> int:
         "--so-extensao",
         dest="so_extensao",
         metavar=".txt,.pdf",
-        help="indexa só estas extensões, separadas por vírgula. Existe para partir uma "
-        "passada por custo: em Meetings/ os 819 .txt custam 13 min e os 188 .pdf custam "
-        "de 5 a 11 h, e medir entre as duas metades vale mais que descobrir depois. "
+        help="indexa só estas extensões, separadas por vírgula. Recorta na **enumeração**: "
+        "o que fica fora não é aberto nem registrado — é diferente de "
+        "--pular-texto-acima-de e --pular-acima-de-n-chunks, que abrem, medem e adiam. "
+        "Existe para partir uma passada por custo: em Meetings/ os 188 .pdf custam de 5 a "
+        "11 h e trazem renderizado o que os .txt já trazem em texto, e medir entre as duas "
+        "metades vale mais que descobrir depois. "
         "Desliga a reconciliação — o recorte não é evidência de que o resto sumiu",
     )
     parser.add_argument(
@@ -720,6 +891,28 @@ def main(argv: list[str] | None = None) -> int:
         help="adia planilhas cujo XML de abas passe deste tamanho, em MB. O preditor é o XML "
         "descompactado, não o tamanho em disco: 17,9 MB comprimidos podem esconder 124 MB em 69 "
         "abas e custar duas horas. Fica registrado como `adiado` e é repescado numa passada sem o limite",
+    )
+    parser.add_argument(
+        "--pular-texto-acima-de",
+        type=float,
+        metavar="MB",
+        default=None,
+        help=(
+            "adia .txt/.csv maiores que isto, em MB, sem abrir o arquivo. "
+            "Ausente: vale o [base.limites] (padrão 2 MB). 0 desliga. Fica como "
+            "`adiado` e é repescado numa passada sem o limite"
+        ),
+    )
+    parser.add_argument(
+        "--pular-acima-de-n-chunks",
+        type=int,
+        metavar="N",
+        default=LIMITE_CHUNKS_PADRAO,
+        help=(
+            f"adia .txt/.csv que gerem mais de N trechos (padrão: {LIMITE_CHUNKS_PADRAO}). "
+            "0 desliga. O teto de megabytes pega o caso comum; este é a rede de segurança. "
+            "Não se aplica a PDF/DOCX/PPTX"
+        ),
     )
     parser.add_argument(
         "--sem-reconciliar",
@@ -784,6 +977,10 @@ def main(argv: list[str] | None = None) -> int:
             prefixo=args.prefixo,
             so_extensao=_extensoes(args.so_extensao),
             limite_planilha_mb=args.pular_planilha_acima_de,
+            limites_mb=_limites_efetivos(base.limites, args.pular_texto_acima_de),
+            limite_chunks=(
+                None if args.pular_acima_de_n_chunks <= 0 else args.pular_acima_de_n_chunks
+            ),
             esforco=esforco,
             reconciliar_ao_fim=not args.sem_reconciliar,
             forcar_reconciliacao=args.forcar_reconciliacao,

@@ -365,3 +365,48 @@ def test_adiado_e_repescado_na_proxima_passada() -> None:
     from segundocerebro.index.indexer import STATUS_PARA_REPESCAR
 
     assert ParseStatus.DEFERRED.value in STATUS_PARA_REPESCAR
+
+
+def test_txt_acima_do_limite_e_adiado_sem_abrir(tmp_path: Path) -> None:
+    """269 MB de dump não podem entrar na RAM só para depois serem recusados."""
+    alvo = tmp_path / "dump.txt"
+    alvo.write_bytes(b"x" * 3_000_000)
+
+    resultado = parse_file(str(alvo), limite_texto_mb=2.0)
+
+    assert resultado.status is ParseStatus.DEFERRED
+    assert resultado.sha256 == ""
+    assert "MB" in resultado.detail
+
+
+def test_csv_abaixo_do_limite_passa(tmp_path: Path) -> None:
+    alvo = tmp_path / "tabela.csv"
+    alvo.write_text("a,b\n1,2\n3,4\n", encoding="utf-8")
+
+    assert parse_file(str(alvo), limite_texto_mb=2.0).status is ParseStatus.OK
+
+
+def test_limite_de_texto_nao_afeta_markdown(tmp_path: Path) -> None:
+    alvo = tmp_path / "nota.md"
+    alvo.write_text("# Título\n\nCorpo com texto suficiente para virar bloco.\n", encoding="utf-8")
+
+    assert parse_file(str(alvo), limite_texto_mb=0.0001).status is ParseStatus.OK
+
+
+def test_mapa_de_limites_adia_pdf_pelo_tamanho_em_disco(tmp_path: Path) -> None:
+    """O painel configura por tipo; o reader recusa antes de abrir."""
+    alvo = tmp_path / "relatorio.pdf"
+    alvo.write_bytes(b"%PDF-1.4\n" + b"x" * 3_000_000)
+
+    resultado = parse_file(str(alvo), limites_mb={".pdf": 2.0})
+
+    assert resultado.status is ParseStatus.DEFERRED
+    assert resultado.sha256 == ""
+    assert "MB" in resultado.detail
+
+
+def test_mapa_de_limites_nao_adia_abaixo_do_teto(tmp_path: Path) -> None:
+    alvo = tmp_path / "nota.txt"
+    alvo.write_text("nota curta o bastante para um trecho.\n", encoding="utf-8")
+
+    assert parse_file(str(alvo), limites_mb={".txt": 2.0}).status is ParseStatus.OK

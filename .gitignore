@@ -27,6 +27,7 @@ docs/censo*.json
 census.toml
 config.toml
 config.local.*
+.painel.json
 
 # Índices de bases além da padrão (/index/ já está coberto acima)
 /index-*/
