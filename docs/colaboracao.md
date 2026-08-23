@@ -21,9 +21,17 @@ em `eval/sintetico/`.
 | Desktop | `index/embeddings.py`, laço/pipeline de `index/indexer.py`, `index/esforco.py`, `index/smoke_cuda.py`, `requirements-gpu.txt` se existir, `docs/` de F3.6 e de estimativa | Velocidade, não ranking |
 | Notebook | `retrieve/*`, `eval/*` **exceto** o exemplo sintético, docs gitignorados do acervo real, padrões de peso em `config.py` | Invariante 4 mora aqui |
 | Um de cada vez | `mcp/server.py`, `painel/*`, schema de `config.py`, `ROADMAP.md` | Branch dedicada, merge, o outro puxa |
+| Um de cada vez, **por formato** | `ingest/parsers/*` | Os dois lados precisam de formato novo. O dono é por arquivo de parser, declarado na §6 antes de começar |
 | Só o notebook | `CLAUDE.md` | É o retomador do Claude Code. O desktop no máximo acrescenta um ponteiro |
 
 Mudança que toca ranking **e** o laço do indexador = **dois PRs**, não um.
+
+`ingest/parsers/*` entrou na tabela em 23/08/2026 porque a regra antiga
+(“parser é do notebook, laço é do desktop”) não sobreviveu ao encontro dos PRs
+#5 e #6: o notebook escreveu `email.py`, o desktop escreveu `ole_texto.py`, e os
+dois mexeram no despachante. Não houve conflito, e foi sorte. O dono é do
+**arquivo de parser**, não da pasta; o despachante (`parsers/__init__.py`,
+`supported_extensions()`) é “um de cada vez” como `mcp/server.py`.
 
 `[padrao]` é compartilhado. `[[base]]` da base nova é do desktop. Algoritmo
 (`hybrid.py`, `familias.py`, `rerank.py`, tamanho de chunk) afeta as duas bases
@@ -69,13 +77,24 @@ Não mandar `config.toml` por chat, e-mail ou gist.
 
 Ninguém commita em `main`. Nem o agente.
 
+Em 23/08/2026, tudo que a árvore antiga listava está em `main` (PRs #2 a #6).
+A árvore vira histórico e o que vale é a regra: **uma branch por entrega, com
+prefixo da fase e do lado que a conduz.**
+
 ```
-main                         sempre verde; é o que o CI rodou
- ├─ f36-smoke-cuda           desktop, primeiro
- ├─ f36-pipeline             desktop, só depois do smoke passar
- ├─ onboarding-golden        desktop: sintético + exemplo (esta entrega)
- └─ f3-uso-real              notebook; o traço em si fica gitignorado
+main                    sempre verde; é o que o CI rodou   (677fa22)
+ │
+ │  fechadas e mergeadas
+ ├─ onboarding-golden   desktop  PR #2   sintético + exemplo
+ ├─ f4-grafo-neighbors  notebook PR #3   grafo derivado + neighbors
+ ├─ f36-rerank-gpu      desktop  PR #4   rerank na GPU, limites por tipo
+ ├─ f4-msg-eml          notebook PR #5   .msg/.eml + versão de parser
+ └─ f36-fila-ondas      desktop  PR #6   fila em ondas + OLE legado
 ```
+
+Branch mergeada é apagada — local e remota. As cinco acima ainda existem
+localmente nos dois setups e só confundem: `git branch -vv` mostra
+`[origin/…: gone]`, que é o sinal de que já foram.
 
  Ritmo, dos dois lados:
 
@@ -94,7 +113,7 @@ ou um marker `cuda` — fora da suíte padrão.
 
 ---
 
-## 4. As sete regras que evitam retrabalho
+## 4. As oito regras que evitam retrabalho
 
 1. **Padrão de ranking não muda** sem o notebook medir antes/depois no
    conjunto corporativo.
@@ -111,6 +130,11 @@ ou um marker `cuda` — fora da suíte padrão.
 7. **Número sem corpus é mentira.** “recall@1 = 0,678” sem “condição C,
    corporativo, 16/08” não é referência. Número do sintético diz
    `corpus=sintetico` e **não substitui** a condição C.
+8. **Achado no acervo do outro se reporta, não se corrige.** Um coeficiente de
+   estimativa medido no corporativo vira nota no doc do notebook e ponteiro para
+   `docs/estimativa-de-indexacao.md`; quem edita o arquivo é o dono dele. Vale
+   nos dois sentidos. Feito assim em `docs/ablacao-f4-meetings.md` — a regra só
+   registra o que já funcionou.
 
 ---
 
@@ -144,71 +168,72 @@ em [`docs/portabilidade-f36.md`](portabilidade-f36.md).
 
 ## 6. O que cada lado faz nesta fase
 
-**Estado em 22/08/2026.** F1, F2, F3 e F3.5-D em `main`. F3.6 **fechada** no
-sintético (vetor 1,0000; métricas idênticas nos dois lados; índice do desktop
-consultado no notebook sem reembeddar). F3 **fechada** no corporativo
-(`ba73da2`): a mesma pergunta multi-hop verificada no Claude Code e no
-Claude Desktop, decomposições diferentes, nenhum fato sem fonte no acervo.
-O traço em si continua gitignorado.
+**Estado em 23/08/2026.** F1, F2, F3, F3.5 e F3.6 fechadas. F4 **em curso**, e é
+a única fase aberta. `main` = `677fa22`, 676 testes verdes, PRs #2 a #6
+mergeados. Índice corporativo do notebook: **1.828 documentos, 97.981 trechos**.
 
-**Desktop — feito em `onboarding-golden` (já em `main`)**
+Histórico das entregas fechadas (smoke CUDA, pipeline, sintético, portabilidade,
+rerank na GPU, perfil leve, limites por tipo, painel 18787, grafo, `neighbors`,
+`.msg`/`.eml`, versão de parser, fila em ondas, OLE legado) está nos PRs #2 a #6
+e nos `docs/` que cada um cita. Não repetir a lista aqui: ela envelheceu duas
+vezes em três dias. Esta seção passa a dizer só **o que está aberto**.
 
-1. Smoke CUDA nas 980 Ti (`docs/smoke-cuda.md`). Pin `onnxruntime-gpu==1.18.0`
-   + CUDA 11.8 + cuDNN 8. MiniLM quantizado = NaN; e5-large finito.
-   `model_id` sem `cuda`.
-2. Pipeline: parse em threads + `EmbedFila` (um processo por GPU).
-3. Corpus sintético versionado + `perguntas.example.jsonl`.
-4. Estimativa com semente GPU (`FATOR_GPU = 28`, medido).
-5. Painel: retomada no logon via `.cmd` na pasta de inicialização (`schtasks
-   /SC ONLOGON` exige elevação e foi recusado no notebook); Pausar /
-   Continuar / Cancelar (`comando.txt` ao lado do índice, sem IPC).
-6. Pacote de portabilidade: `docs/portabilidade-f36.md`. O zip do índice
-   **não** vai no Git.
+### Aberto — notebook
 
-**Desktop — feito em `f36-rerank-gpu` (já em `main`, PR #4)**
+**1. `Meetings/`, a passada que está pausada agora.** É o número que o
+fechamento do email deixou pendurado, e o levantamento está em
+[`docs/ablacao-f4-meetings.md`](ablacao-f4-meetings.md): 1.009 arquivos, **169
+reuniões**, 6,0 arquivos por reunião. A passada parou em **234 de 833**
+documentos (`index/comando.txt` = `pausar`), e o que ela estava indexando no
+momento da pausa é um `_context.txt` — **andaime**, o prompt que o aplicativo
+monta, não a reunião.
 
-1. Smoke do cross-encoder nas 980 Ti (`docs/rerank-gpu.md`). Latência, não
-   qualidade. `corpus=sintetico`. **Não liga rerank por padrão.**
-2. Perfil `leve`: a GPU do monitor fica fora do embed (TDR / `nvlddmkm`).
-3. Barra de indexação anda **dentro** do arquivo (trecho a trecho).
-4. Teto de MB por tipo: `[padrao.limites]` / `[base.limites]` (padrão 2 MB em
-   `.txt` e `.csv`). Arquivo acima fica `adiado`. **Não é `chunking.max_chars`.**
-5. Painel em porta fixa 18787, atalho `scripts/abrir-painel.cmd`.
+Por isso o próximo passo não é “continuar”: é **cortar a fila por papel** e só
+então continuar. O levantamento já mediu três redundâncias, todas antes de
+gastar a passada — 280 arquivos de andaime, 177 PDFs que são 188/188 redundantes
+com um `.txt` do próprio conjunto (381 dos 397 MB, 5 h a 11 h), e 263 duplicatas
+exatas entre `Meetings/` e `09. Meetings/`. Sobram as transcrições, e delas há
+**três renderizações do mesmo áudio** por reunião.
 
-**Notebook — feito em `main` (PRs #3 e #5)**
+Isto encosta na fila em ondas do desktop (#6) e é o primeiro caso real em que
+uma **regra de exclusão por papel dentro da pasta** não cabe em teto de MB nem
+em extensão. Proposta do notebook, a validar: a exclusão mora na configuração da
+base (`[base.excluir]` por padrão de nome), não em código do indexador — assim o
+notebook não reescreve `indexer.py`, que é do desktop.
 
-Grafo derivado + `neighbors`. Email (`.msg`/`.eml`) e **versão de parser** no
-registro. `--so-extensao` recorta a enumeração e desliga reconciliação.
+**2. Repescagem do legado com o parser do desktop.** O `ole_texto.py` do #6 e a
+versão de parser no registro do #5 se encontram: `_precisa_indexar` já repesca
+por `estado.parser != parser`, então os 10 `.doc`/`.xls` que a F4 tinha deixado
+fora entram sozinhos na próxima passada. Falta **medir** no dourado corporativo.
+Convergência não planejada dos dois lados — vale registrar que funcionou.
 
-**Desktop — agora (`f36-fila-ondas`, ainda não em `main`)**
+**3. O que resta da F4 depois disso:** SharePoint via pasta sincronizada,
+watcher, e a porta 3 (“onde o bm25 se paga”). Multi-hop completo segue em 1 de 5.
 
-Fila em ondas ([`docs/prioridade-de-indexacao.md`](prioridade-de-indexacao.md))
-e parsers de Office legado (`.doc` `.xls` `.ppt` `.rtf`) sobre bytes, sem COM.
-Convive com `--so-extensao` do #5. Todo `registrar_documento` novo leva
-`parser=`. Sem isso a base Bain ficou cega — dezenas de milhares de
-`sem_parser`. Qualidade abaixo de OOXML; MSG/OCR continuam F4 no notebook.
+### Aberto — desktop
 
-**Não tocou:** `retrieve/*`, pesos padrão, `Chunking`, `CLAUDE.md`,
-`ROADMAP.md`, `mcp/server.py`. Corpus da medição: nenhum (índice privado
-deste desktop, fora do Git).
+A definir pelo desktop nesta rodada. O que o notebook **pede** que não comece
+antes de combinar: mexer em `[padrao]`, em `Chunking`, em `model_id`, ou em
+`retrieve/*`.
 
-Enquanto este PR não mergear: o notebook **não** reescreve `indexer.py`
-nem `ingest/parsers/*` (tabela da seção 1, “um de cada vez”).
+### Aberto — os dois, e precisa de acordo
 
-**Notebook — agora**
+**Nome real em documento público.** `docs/colaboracao.md` citava o nome de um
+cliente real ao explicar o `parser=` do #6 (corrigido neste PR para “a base
+privada do desktop”). O repositório é público e a regra de saneamento do
+`CLAUDE.md` vale para os dois lados, não só para o acervo corporativo: nome de
+cliente, de fornecedor ou de projeto real não entra em doc, docstring nem
+mensagem de commit. O vocabulário de exemplo é a VCE.
 
-Medição de `Meetings/` no dourado corporativo. `ROADMAP.md` e
-`docs/ablacao-f4-*` são do notebook nesta semana.
+### Não é de ninguém, daqui
+
+F5 (segundo usuário real), segundo ataque isolado à `g036`, ligar rerank por
+padrão no notebook.
 
 **Prioridade registrada para o produto, não só para esta máquina:** Office
 legado (`.doc` `.xls` `.ppt`) é caminho crítico em acervo de consultoria. Não
-tratar como “F4 se o eval pedir”. Sem esses três a base indexa o OOXML e
-ignora o arquivo que o usuário ainda abre no dia a dia.
-
-**Nenhum dos dois, daqui**
-
-F5 (segundo usuário real), segundo ataque isolado à `g036`, ligar rerank
-por padrão no notebook.
+tratar como “F4 se o eval pedir”. Sem esses três a base indexa o OOXML e ignora
+o arquivo que o usuário ainda abre no dia a dia.
 
 ---
 
