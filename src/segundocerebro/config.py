@@ -138,6 +138,61 @@ class Busca:
             )
 
 
+_ALIAS_LIMITES: tuple[tuple[str, tuple[str, ...]], ...] = (
+    ("pdf", (".pdf",)),
+    ("docx", (".docx", ".docm")),
+    ("pptx", (".pptx", ".pptm")),
+    ("xlsx", (".xlsx", ".xlsm")),
+    ("txt", (".txt",)),
+    ("csv", (".csv",)),
+    ("md", (".md", ".markdown")),
+)
+
+
+@dataclass(frozen=True)
+class LimitesDeIndexacao:
+    """Teto de tamanho em disco, em MB, por tipo — o arquivo acima fica `adiado`.
+
+    `0` = sem teto. Não é tamanho de trecho (`chunking.max_chars`): aquele muda
+    todos os ids e obriga a reindexar. Isto só recusa dumps caros na porta, o
+    mesmo mecanismo das planilhas gigantes. Já indexado não sai sozinho.
+
+    Padrão medido em 22/08/2026 neste desktop: `.txt`/`.csv` em 2 MB. Um CSV
+    de dezenas de MB segurou a GPU horas sem a barra andar; um TXT enorme
+    virou a maioria dos trechos do índice. PDF/DOCX/PPTX começam sem teto —
+    são o acervo, não o dump.
+    """
+
+    pdf: float = 0.0
+    docx: float = 0.0
+    pptx: float = 0.0
+    xlsx: float = 0.0
+    txt: float = 2.0
+    csv: float = 2.0
+    md: float = 0.0
+
+    def validar(self, onde: str) -> None:
+        for campo in self.__dataclass_fields__:
+            valor = getattr(self, campo)
+            if isinstance(valor, bool) or not isinstance(valor, (int, float)):
+                raise ErroDeConfig(f"{onde}: limite '{campo}' precisa ser um número em MB")
+            if valor < 0:
+                raise ErroDeConfig(f"{onde}: limite '{campo}' não pode ser negativo ({valor})")
+
+    def como_mapa(self) -> dict[str, float]:
+        """Extensão → MB, só o que tem teto. O reader não abre o arquivo acima."""
+        saida: dict[str, float] = {}
+        for campo, extensoes in _ALIAS_LIMITES:
+            mb = float(getattr(self, campo))
+            if mb > 0:
+                for ext in extensoes:
+                    saida[ext] = mb
+        return saida
+
+    def como_json(self) -> dict[str, float]:
+        return {c: float(getattr(self, c)) for c in self.__dataclass_fields__}
+
+
 @dataclass(frozen=True)
 class Chunking:
     """Espelha `ingest.chunking.ChunkConfig`.
@@ -249,6 +304,8 @@ class Base:
     pesos: Pesos = Pesos()
     busca: Busca = Busca()
     chunking: Chunking = Chunking()
+    limites: LimitesDeIndexacao = LimitesDeIndexacao()
+    """Teto de MB por tipo ao indexar. Não herda de chunking e não muda ids."""
 
     @property
     def titulo(self) -> str:
@@ -284,6 +341,7 @@ class Base:
         self.pesos.validar(onde)
         self.busca.validar(onde)
         self.chunking.validar(onde)
+        self.limites.validar(onde)
 
 
 @dataclass(frozen=True)
@@ -462,6 +520,7 @@ def _base_de(dados: Mapping[str, Any], padrao: Base, indice: int) -> Base:
         pesos=_secao(dados, "pesos", padrao.pesos, Pesos),
         busca=_secao(dados, "busca", padrao.busca, Busca),
         chunking=_secao(dados, "chunking", padrao.chunking, Chunking),
+        limites=_secao(dados, "limites", padrao.limites, LimitesDeIndexacao),
     )
 
 
@@ -610,6 +669,7 @@ def como_toml(cfg: Config, raiz: Path | None = None) -> dict[str, Any]:
             ("pesos", b.pesos, Pesos()),
             ("busca", b.busca, Busca()),
             ("chunking", b.chunking, Chunking()),
+            ("limites", b.limites, LimitesDeIndexacao()),
         ):
             secao = diferenca(valor, referencia)
             if secao:
@@ -746,6 +806,7 @@ def carregar(
         pesos=_secao(padrao_bruto, "pesos", Pesos(), Pesos),
         busca=_secao(padrao_bruto, "busca", Busca(), Busca),
         chunking=_secao(padrao_bruto, "chunking", Chunking(), Chunking),
+        limites=_secao(padrao_bruto, "limites", LimitesDeIndexacao(), LimitesDeIndexacao),
     )
 
     brutas = dados.get("base", [])

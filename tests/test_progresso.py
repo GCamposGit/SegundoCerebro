@@ -102,6 +102,18 @@ def test_anotar_acrescenta_o_que_a_tela_mostra(tmp_path: Path) -> None:
     assert dados["base"] == "trabalho" and dados["arquivo"] == "Contrato.pdf"
 
 
+def test_anotar_publica_trecho_dentro_do_arquivo(tmp_path: Path) -> None:
+    """A barra tem que andar durante o embed, não só entre documentos."""
+    p = publicador(tmp_path)
+    p.anotar(arquivo="dump.csv", etapa="embed", trecho=1200, trechos=4000)
+    p.publicar(forcar=True)
+
+    dados = ler(tmp_path)
+    assert dados["etapa"] == "embed"
+    assert dados["trecho"] == 1200
+    assert dados["trechos"] == 4000
+
+
 def test_gravacao_e_atomica(tmp_path: Path) -> None:
     """A barra lê a qualquer momento; JSON truncado mostraria erro no pior momento."""
     p = publicador(tmp_path)

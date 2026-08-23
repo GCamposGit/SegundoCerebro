@@ -16,7 +16,8 @@ O outro lado é Claude Code no notebook, dono dos números corporativos.
 
 1. Leia `docs/colaboracao.md` inteiro. É a fonte. Não resuma regras de memória.
 2. `git pull origin main`. Trabalhe numa branch `f36-*` ou `onboarding-*`, nunca em `main`.
-   A entrega atual desta máquina está em `onboarding-golden`.
+   A entrega atual desta máquina está em `f36-rerank-gpu` (latência do
+   cross-encoder nas 980 Ti). `onboarding-golden` já mergeou em `main`.
 3. Declare na primeira resposta: setup=desktop, branch, fase, o que não vai tocar.
 
 ## Você pode

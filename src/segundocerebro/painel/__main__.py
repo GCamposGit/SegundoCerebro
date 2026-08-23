@@ -14,7 +14,14 @@ import webbrowser
 from pathlib import Path
 
 from ..logger import get_logger
-from .app import criar_app, gerar_token
+from .app import (
+    PORTA_PADRAO,
+    criar_app,
+    gerar_token,
+    gravar_sessao,
+    ler_sessao,
+    painel_responde,
+)
 
 log = get_logger("painel")
 
@@ -24,7 +31,12 @@ HOST = "127.0.0.1"
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="segundocerebro.painel", description="Painel de ajuste")
     parser.add_argument("--config", type=Path, help="arquivo de configuração")
-    parser.add_argument("--porta", type=int, default=0, help="0 = o sistema escolhe uma livre")
+    parser.add_argument(
+        "--porta",
+        type=int,
+        default=PORTA_PADRAO,
+        help=f"porta (padrão: {PORTA_PADRAO}). 0 = o sistema escolhe uma livre",
+    )
     parser.add_argument("--sem-navegador", action="store_true")
     args = parser.parse_args(argv)
 
@@ -39,14 +51,23 @@ def main(argv: list[str] | None = None) -> int:
     # Alvo de **escrita**. A leitura cai para a descoberta enquanto ele não
     # existir, e é o primeiro salvamento que o materializa.
     caminho = args.config or Path("config.toml")
-    token = gerar_token()
+    porta = args.porta or _porta_livre()
+    sessao = ler_sessao(caminho)
+    token = sessao["token"] if sessao and sessao["porta"] == porta else gerar_token()
+
+    if painel_responde(porta, token):
+        url = f"http://{HOST}:{porta}/?token={token}"
+        log.info("painel já está no ar em %s", url)
+        if not args.sem_navegador:
+            webbrowser.open(url)
+        return 0
+
     medidor = Medidor()
     app = criar_app(
         caminho, medidor=medidor, diagnosticador=medidor.diagnosticar, token=token
     )
-
-    porta = args.porta or _porta_livre()
     url = f"http://{HOST}:{porta}/?token={token}"
+    gravar_sessao(caminho, porta, token)
     log.info("painel em %s", url)
     if not args.sem_navegador:
         webbrowser.open(url)

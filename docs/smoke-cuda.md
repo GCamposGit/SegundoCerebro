@@ -95,3 +95,26 @@ set SEGUNDOCEREBRO_PROVIDER=cuda
 ```
 
 `model_id` não muda.
+
+## Display GPU e TDR (21/08/2026)
+
+GPU 0 tem o monitor (`display_active=Enabled`); GPU 1 não. Embed nas duas
+encheu ~4 GB em cada 980 Ti de 6 GB. O driver `nvlddmkm` entrou em TDR
+(Event 4101, 37 vezes entre 04:54 e 06:01) e o Windows reiniciou à força
+(Kernel-Power 41, desligamento inesperado às 06:00:51).
+
+O pool agora **pula a placa com display** quando existe outra. Neste desktop
+isso deixa o embed só na GPU 1, na thread principal. `model_id` não muda.
+
+A retomada no logon é um `.cmd` na pasta de inicialização do usuário
+(`SegundoCerebro-retomar-indexacao.cmd`). Sem esse arquivo, o reboot não
+religa o indexador.
+
+## Cross-encoder (20/08/2026)
+
+`.\.venv\Scripts\python.exe -m segundocerebro.index.smoke_cuda --rerank`
+
+`BAAI/bge-reranker-base` (`model.onnx`, não onnx-Q): 25 scores finitos no
+Maxwell. CUDA 0,028 s / 10 pares e 0,062 s / 25 pares, contra 1,084 s e
+2,280 s na CPU deste desktop (~37×). O query path ainda não usa isso —
+ver [`docs/rerank-gpu.md`](rerank-gpu.md). Não liga o padrão.

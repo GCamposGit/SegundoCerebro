@@ -116,3 +116,15 @@ raizes = [
 
 [base.exclude]
 dirs = ["Backups"]
+
+# Teto em MB por tipo, ao indexar. 0 = sem teto. Arquivo maior fica `adiado`
+# (não some) e não trava a GPU. Não é o tamanho do trecho — aquele está em
+# [padrao.chunking] e reindexa tudo. Padrão: 2 MB em .txt e .csv; o resto livre.
+# [base.limites]
+# pdf = 0
+# docx = 0
+# pptx = 0
+# xlsx = 40
+# txt = 2
+# csv = 2
+# md = 0

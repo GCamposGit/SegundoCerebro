@@ -1,11 +1,11 @@
 """One ONNX session per GPU — the Runtime will not split a session.
 
-Used only when SEGUNDOCEREBRO_PROVIDER=cuda and nvidia-smi sees ≥2 cards.
-The main process never loads the encoder in that case (VRAM: e5-large ≈ 5 GB
-on a 6 GB 980 Ti). Token budget on the main thread is the spec window, not
-the live tokenizer — same ChunkConfig.max_tokens, no silent CUDA load.
+GPUs are discovered at runtime (`nvidia-smi`). Nothing here assumes how many
+cards the machine has, or which one drives the monitor — that is only known
+at install. `model_id` is unchanged. Hardware does not enter the vector.
 
-model_id is unchanged. Hardware does not enter the vector fingerprint.
+Used when SEGUNDOCEREBRO_PROVIDER=cuda and at least two cards were *selected*
+for embed. The main process then never loads the encoder.
 """
 
 from __future__ import annotations
@@ -13,6 +13,7 @@ from __future__ import annotations
 import os
 import queue
 import subprocess
+from collections.abc import Sequence
 from multiprocessing import get_context
 from pathlib import Path
 from typing import Any, Callable
@@ -24,19 +25,76 @@ log = get_logger("index.gpu_pool")
 WorkerFn = Callable[[str, str, str, Any, Any], None]
 
 
-def contar_gpus() -> int:
+def _linhas_smi(query: str) -> list[str]:
     try:
         bruto = subprocess.run(
-            ["nvidia-smi", "--query-gpu=name", "--format=csv,noheader"],
+            ["nvidia-smi", f"--query-gpu={query}", "--format=csv,noheader"],
             check=False,
             capture_output=True,
             text=True,
         )
     except FileNotFoundError:
-        return 0
+        return []
     if bruto.returncode != 0:
-        return 0
-    return sum(1 for linha in bruto.stdout.splitlines() if linha.strip())
+        return []
+    return [ln.strip() for ln in bruto.stdout.splitlines() if ln.strip()]
+
+
+def _parse_smi_display(linhas: list[str]) -> tuple[list[str], list[str]]:
+    """Returns (all indices, indices without an active display)."""
+    todos: list[str] = []
+    livres: list[str] = []
+    for linha in linhas:
+        partes = [p.strip() for p in linha.split(",")]
+        if not partes:
+            continue
+        idx = partes[0]
+        todos.append(idx)
+        ativo = partes[1].lower() if len(partes) > 1 else ""
+        if ativo not in {"enabled", "enable"}:
+            livres.append(idx)
+    return todos, livres
+
+
+def dispositivos_embed(*, reservar_display: bool = False) -> list[str]:
+    """Physical GPU indices for the encoder, discovered now.
+
+    The installer does not know how many cards there will be. Rules, in order:
+
+    1. No NVIDIA / nvidia-smi → empty (caller stays on CPU).
+    2. One GPU → that GPU, even if it drives the monitor. Skipping it would
+       leave a one-GPU machine with no accelerator — the common case.
+    3. Two or more, and `reservar_display` (perfil `leve`) → drop cards with
+       `display_active`, but only if at least one remains. TDR on the desktop
+       GPU is a `leve` concern; it is not a reason to idle a spare card in
+       `completo`/`maximo`.
+    4. Two or more, not `leve` → every card.
+
+    `reservar_display` is the effort profile, not a hardware constant.
+    """
+    linhas = _linhas_smi("index,display_active")
+    if not linhas:
+        return [str(i) for i, _ in enumerate(_linhas_smi("name"))]
+
+    todos, livres = _parse_smi_display(linhas)
+    if not todos:
+        return []
+    if len(todos) == 1:
+        return todos
+    if reservar_display and livres:
+        if len(livres) < len(todos):
+            log.info(
+                "perfil leve: GPU do display %s fica para o desktop; embed em %s",
+                [i for i in todos if i not in livres],
+                livres,
+            )
+        return livres
+    return todos
+
+
+def contar_gpus() -> int:
+    """How many NVIDIA GPUs nvidia-smi sees. Display does not subtract."""
+    return len(dispositivos_embed(reservar_display=False))
 
 
 def _worker(device: str, modelo: str, cache: str, pedidos, respostas) -> None:
@@ -75,31 +133,35 @@ class EmbedFila:
 
     def __init__(
         self,
-        n_gpus: int,
+        gpus: int | Sequence[str],
         *,
         modelo: str,
         cache: Path,
         alvo: WorkerFn | None = None,
     ) -> None:
-        if n_gpus < 2:
+        if isinstance(gpus, int):
+            devices = [str(i) for i in range(gpus)]
+        else:
+            devices = [str(g) for g in gpus]
+        if len(devices) < 2:
             raise ValueError("EmbedFila precisa de ao menos 2 GPUs")
         ctx = get_context("spawn")
-        self._pedidos = [ctx.Queue() for _ in range(n_gpus)]
+        self._pedidos = [ctx.Queue() for _ in devices]
         self._respostas = ctx.Queue()
         self._procs = []
         self._proximo = 0
         self._jid = 0
         cache_s = str(cache)
         fn = alvo or _worker
-        for i in range(n_gpus):
+        for device in devices:
             p = ctx.Process(
                 target=fn,
-                args=(str(i), modelo, cache_s, self._pedidos[i], self._respostas),
+                args=(device, modelo, cache_s, self._pedidos[len(self._procs)], self._respostas),
                 daemon=True,
             )
             p.start()
             self._procs.append(p)
-        log.info("pipeline: %d processos de embed (um por GPU)", n_gpus)
+        log.info("pipeline: %d processos de embed (GPUs %s)", len(devices), ",".join(devices))
 
     def submit(self, textos: list[str], batch_size: int = 32) -> int:
         """Non-blocking. Pair with `receber` — up to one job in flight per GPU."""

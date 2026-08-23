@@ -84,10 +84,10 @@ class ParseStatus(str, Enum):
     tira o registro do índice é a reconciliação, e é lá que a decisão mora —
     apagar na primeira ausência confundiria queda de rede com exclusão."""
     DEFERRED = "adiado"
-    """Caro demais para esta passada, por decisão explícita de quem rodou.
+    """Caro demais para esta passada, por um limite explícito.
 
-    Não é falha: é o usuário dizendo "esta planilha de 69 abas custa duas horas e
-    eu quero testar hoje". Fica registrado com o motivo e o custo estimado, e é
+    Não é falha: é "esta planilha de 69 abas" ou "este .csv de 68 MB" custando
+    horas, e a passada de hoje quer terminar. Fica registrado com o motivo e é
     repescado na primeira passada que rodar sem o limite — nunca vira documento
     esquecido, que é o que aconteceria movendo o arquivo para uma pasta de fora."""
 
