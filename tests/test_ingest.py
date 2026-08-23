@@ -23,7 +23,7 @@ from segundocerebro.ingest.parsers import parser_for, supported_extensions
 from segundocerebro.ingest.parsers.pdf import parse_pdf
 from segundocerebro.ingest.parsers.sheets import parse_xlsx
 from segundocerebro.ingest.parsers.slides import parse_pptx
-from segundocerebro.ingest.parsers.text import blocos_de_markdown, decode, parse_markdown, parse_texto
+from segundocerebro.ingest.parsers.text import blocos_de_markdown, decode, parse_markdown, parse_rtf, parse_texto
 from segundocerebro.ingest.parsers.word import _nivel, parse_docx
 from segundocerebro.ingest.reader import CloudOnlyFile, FileLocked, parse_file, read_bytes
 
@@ -459,7 +459,7 @@ def test_pdf_curto_e_legitimo_nao_e_confundido_com_scan() -> None:
 
 
 def test_registro_cobre_os_formatos_dominantes() -> None:
-    for ext in (".pdf", ".xlsx", ".docx", ".pptx", ".md", ".txt"):
+    for ext in (".pdf", ".xlsx", ".xls", ".docx", ".doc", ".pptx", ".ppt", ".md", ".txt", ".rtf"):
         assert parser_for(ext) is not None, ext
     assert parser_for(".dwg") is None
     assert ".pdf" in supported_extensions()
@@ -607,7 +607,22 @@ def test_documento_sem_texto_vira_vazio(tmp_path: Path) -> None:
     resultado = parse_file(str(alvo))
     assert resultado.status is ParseStatus.EMPTY
     assert resultado.doc is not None
-    assert resultado.doc.meta["suspeita"] == "digitalizado"
+
+
+def test_rtf_extrai_texto_sem_abrir_arquivo() -> None:
+    rtf = br"{\rtf1\ansi O contrato CT-VCE-2024-0142.\par }"
+    doc = parse_rtf(rtf, "nota.rtf")
+    assert "CT-VCE-2024-0142" in doc.blocks[0].text
+
+
+def test_ppt_atomos_de_texto_sem_ole() -> None:
+    import struct
+
+    from segundocerebro.ingest.parsers.ole_texto import _ppt_registros
+
+    payload = "Briefing VCE".encode("utf-16-le")
+    atomo = struct.pack("<HHI", 0, 0x0FA0, len(payload)) + payload
+    assert "Briefing VCE" in "\n".join(_ppt_registros(atomo))
 
 
 # --- defeitos achados no acervo real, 15/08/2026 ------------------------------

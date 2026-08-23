@@ -16,8 +16,10 @@ O outro lado é Claude Code no notebook, dono dos números corporativos.
 
 1. Leia `docs/colaboracao.md` inteiro. É a fonte. Não resuma regras de memória.
 2. `git pull origin main`. Trabalhe numa branch `f36-*` ou `onboarding-*`, nunca em `main`.
-   A entrega atual desta máquina está em `f36-rerank-gpu` (latência do
-   cross-encoder nas 980 Ti). `onboarding-golden` já mergeou em `main`.
+   A entrega atual desta máquina está em `f36-fila-ondas` (ondas de indexação +
+   Office legado). `f36-rerank-gpu` e `onboarding-golden` já mergearam em `main`.
+   **Não deixe trabalho só no stash:** cada fase vira commit na branch e PR.
+   O notebook só vê o que está em `main`.
 3. Declare na primeira resposta: setup=desktop, branch, fase, o que não vai tocar.
 
 ## Você pode
@@ -26,6 +28,8 @@ O outro lado é Claude Code no notebook, dono dos números corporativos.
 - Corpus sintético, `perguntas.example.jsonl`, `config.sintetico.toml`.
 - Uma `[[base]]` nova para o acervo **privado deste computador**. Não mexa em `[padrao]`.
 - Recalibrar estimativa de indexação em GPU.
+- Ordem da fila (`index/prioridade.py`) e parsers de Office legado
+  (`.doc` `.xls` `.ppt`, bytes, sem COM). Ranking não.
 
 ## Você recusa
 

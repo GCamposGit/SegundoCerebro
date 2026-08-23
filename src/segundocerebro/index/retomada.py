@@ -26,7 +26,7 @@ import subprocess
 import sys
 from pathlib import Path
 
-from ..config import ErroDeConfig, carregar
+from ..config import ErroDeConfig, carregar, normalizar_perfil
 from ..logger import get_logger
 from .indexer import TravaDeIndice
 from .progresso import ler
@@ -194,7 +194,11 @@ def main(argv: list[str] | None = None) -> int:
     )
     parser.add_argument("--config", type=Path, help="arquivo de configuração")
     parser.add_argument("--base", help="só esta base")
-    parser.add_argument("--perfil", default="leve", help="esforço da retomada (padrão: leve)")
+    parser.add_argument(
+        "--perfil",
+        default=None,
+        help="esforço da retomada; ausente: o [maquina] perfil salvo nesta máquina",
+    )
     parser.add_argument("--listar", action="store_true", help="diz o que faria e sai")
     parser.add_argument(
         "--instalar", action="store_true", help="liga a retomada automática no logon"
@@ -233,7 +237,8 @@ def main(argv: list[str] | None = None) -> int:
         )
         if args.listar:
             continue
-        comando = comando_de_retomada(base, conf.caminho, args.perfil)
+        perfil = normalizar_perfil(args.perfil or conf.maquina.perfil)
+        comando = comando_de_retomada(base, conf.caminho, perfil)
         log.info("retomando: %s", " ".join(comando))
         # Sequencial de propósito: duas bases ao mesmo tempo dividiriam a CPU que
         # o perfil `leve` já limita, e a segunda demoraria o dobro sem ninguém

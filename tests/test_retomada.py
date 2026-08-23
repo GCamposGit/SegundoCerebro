@@ -120,7 +120,25 @@ def test_retoma_chamando_o_indexador(tmp_path: Path, monkeypatch) -> None:
 
     assert len(comandos) == 1
     assert "--base" in comandos[0] and "x" in comandos[0]
-    assert comandos[0][-2:] == ["--perfil", "leve"], "retoma em esforço leve por padrão"
+    assert comandos[0][-2:] == ["--perfil", "leve"]
+
+
+def test_retoma_com_o_perfil_salvo_na_maquina(tmp_path: Path, monkeypatch) -> None:
+    """Reiniciar não volta para leve: vale o esforço que estava gravado."""
+    (tmp_path / "config.toml").write_text(
+        '[maquina]\nperfil = "maximo"\n[[base]]\nid = "x"\nindice = "indice"\n',
+        encoding="utf-8",
+    )
+    base_com_progresso(tmp_path, "indexando")
+    comandos = []
+
+    def falso(comando, **k):  # noqa: ANN001, ANN003, ANN202
+        comandos.append(comando)
+        return type("R", (), {"returncode": 0})()
+
+    monkeypatch.setattr("segundocerebro.index.retomada.subprocess.run", falso)
+    assert main(["--config", str(tmp_path / "config.toml")]) == 0
+    assert comandos[0][-2:] == ["--perfil", "maximo"]
 
 
 def test_config_invalida_falha_claro(tmp_path: Path) -> None:

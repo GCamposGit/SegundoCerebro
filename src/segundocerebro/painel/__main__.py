@@ -29,7 +29,7 @@ HOST = "127.0.0.1"
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="segundocerebro.painel", description="Painel de ajuste")
+    parser = argparse.ArgumentParser(prog="segundocerebro.painel", description="Painel de Controle")
     parser.add_argument("--config", type=Path, help="arquivo de configuração")
     parser.add_argument(
         "--porta",

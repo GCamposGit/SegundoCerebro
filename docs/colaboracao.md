@@ -165,44 +165,45 @@ O traço em si continua gitignorado.
 6. Pacote de portabilidade: `docs/portabilidade-f36.md`. O zip do índice
    **não** vai no Git.
 
-**Desktop — feito em `f36-rerank-gpu` (22/08/2026), ainda não em `main`**
-
-Detalhe em [`docs/indexacao-cortes.md`](indexacao-cortes.md). Resumo para o
-notebook puxar `main` **depois do merge**, não antes:
+**Desktop — feito em `f36-rerank-gpu` (já em `main`, PR #4)**
 
 1. Smoke do cross-encoder nas 980 Ti (`docs/rerank-gpu.md`). Latência, não
    qualidade. `corpus=sintetico`. **Não liga rerank por padrão.**
 2. Perfil `leve`: a GPU do monitor fica fora do embed (TDR / `nvlddmkm`).
-   `completo`/`maximo` usam as duas placas. `model_id` continua sem `cuda`.
-3. Barra de indexação anda **dentro** do arquivo (trecho a trecho), não só
-   entre documentos. Cancelar vale no lote, não depois de horas.
-4. Teto de MB por tipo ao indexar: `[base.limites]` (padrão 2 MB em `.txt` e
-   `.csv`; 0 = sem teto nos demais). Arquivo acima fica `adiado`. **Não é
-   `chunking.max_chars`.** Tela no painel, por base. Vale na próxima passada.
+3. Barra de indexação anda **dentro** do arquivo (trecho a trecho).
+4. Teto de MB por tipo: `[padrao.limites]` / `[base.limites]` (padrão 2 MB em
+   `.txt` e `.csv`). Arquivo acima fica `adiado`. **Não é `chunking.max_chars`.**
 5. Painel em porta fixa 18787, atalho `scripts/abrir-painel.cmd`.
 
-Tocou: `index/*` (laço), `ingest/reader.py`, `painel/*`, schema de
-`config.py` (`LimitesDeIndexacao` em `[[base]]`, não em `[padrao]`).
-**Não tocou:** `retrieve/*`, pesos padrão, `Chunking`, `CLAUDE.md`,
-`mcp/server.py`. Corpus da medição: nenhum (índice privado deste desktop,
-fora do Git).
+**Notebook — feito em `main` (PRs #3 e #5)**
 
-Enquanto este PR não mergear: o notebook **não** reescreve `indexer.py`,
-`painel/*` nem o schema de `config.py` (tabela da seção 1, “um de cada vez”).
-Parser novo ou laço do indexador = dois PRs.
+Grafo derivado + `neighbors`. Email (`.msg`/`.eml`) e **versão de parser** no
+registro. `--so-extensao` recorta a enumeração e desliga reconciliação.
+
+**Desktop — agora (`f36-fila-ondas`, ainda não em `main`)**
+
+Fila em ondas ([`docs/prioridade-de-indexacao.md`](prioridade-de-indexacao.md))
+e parsers de Office legado (`.doc` `.xls` `.ppt` `.rtf`) sobre bytes, sem COM.
+Convive com `--so-extensao` do #5. Todo `registrar_documento` novo leva
+`parser=`. Sem isso a base Bain ficou cega — dezenas de milhares de
+`sem_parser`. Qualidade abaixo de OOXML; MSG/OCR continuam F4 no notebook.
+
+**Não tocou:** `retrieve/*`, pesos padrão, `Chunking`, `CLAUDE.md`,
+`ROADMAP.md`, `mcp/server.py`. Corpus da medição: nenhum (índice privado
+deste desktop, fora do Git).
+
+Enquanto este PR não mergear: o notebook **não** reescreve `indexer.py`
+nem `ingest/parsers/*` (tabela da seção 1, “um de cada vez”).
 
 **Notebook — agora**
 
-F4 (`neighbors`, grafo, MSG/OCR, watcher). Precisa do conjunto dourado
-corporativo para medir, e é adjacente a `retrieve/*`. `ROADMAP.md` continua
-"um de cada vez". Em 22/08 havia `f4-grafo-neighbors` e `f4-msg-eml` no
-remoto: se tocarem `ingest/reader.py` ou o laço do indexador, dois PRs e
-rebase depois deste merge — não um PR só com ranking e pipeline.
+Medição de `Meetings/` no dourado corporativo. `ROADMAP.md` e
+`docs/ablacao-f4-*` são do notebook nesta semana.
 
-**Desktop — agora**
-
-Esperar o CI desta branch; depois revisar PRs da F4 pela tabela da seção 1.
-Não reabrir o laço do indexador sem necessidade.
+**Prioridade registrada para o produto, não só para esta máquina:** Office
+legado (`.doc` `.xls` `.ppt`) é caminho crítico em acervo de consultoria. Não
+tratar como “F4 se o eval pedir”. Sem esses três a base indexa o OOXML e
+ignora o arquivo que o usuário ainda abre no dia a dia.
 
 **Nenhum dos dois, daqui**
 

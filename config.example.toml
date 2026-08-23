@@ -25,7 +25,7 @@ versao = 1
 # produzido. Ver ARCHITECTURE.md §4, "hardware muda velocidade, nunca conteúdo".
 
 [maquina]
-perfil = "completo"    # leve | completo | gpu
+perfil = "normal"      # leve | normal | maximo  (completo→normal, gpu→maximo)
 # threads = 10         # ausente: o perfil decide (leve = metade dos núcleos)
 lote = 32
 # provider = "cuda"    # exige onnxruntime-gpu; vazio deixa o runtime escolher

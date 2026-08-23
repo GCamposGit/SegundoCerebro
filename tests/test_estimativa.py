@@ -189,3 +189,24 @@ def test_faixa_humana_colapsa_quando_os_dois_lados_batem() -> None:
 def test_coeficientes_sao_os_medidos() -> None:
     """Se alguém mexer nestes números, é porque remediu — e o doc tem que mudar."""
     assert SEGUNDOS_POR_MB == {"pptx": 3.8, "pdf": 48.7, "xlsx": 487.2, "docx": 522.5}
+
+
+def test_arquivo_miudo_nao_joga_a_estimativa() -> None:
+    """Média ponderada pelo trabalho: 2 KB lentos não mandam a barra para dias."""
+    e = Estimador()
+    e.declarar([("grande.pdf", 50 * MB), ("miudo.txt", 2000)])
+    previsto_grande = peso_de("grande.pdf", 50 * MB)
+    e.registrar("miudo.txt", 2000, 120.0)  # 2 minutos num TXT minúsculo
+    # Ainda quase tudo pela frente; a semente do PDF manda, não o outlier.
+    assert e.restante().p50 == pytest.approx(previsto_grande, rel=0.35)
+
+
+def test_pausa_atual_so_existe_enquanto_esta_pausado() -> None:
+    r = Relogio()
+    r.tique(0.0)
+    r.tique(10.0)
+    assert r.pausa_atual == 0
+    r.contar_parado(30.0, agora=40.0)
+    assert r.pausa_atual == pytest.approx(30.0)
+    r.fim_pausa()
+    assert r.pausa_atual == 0

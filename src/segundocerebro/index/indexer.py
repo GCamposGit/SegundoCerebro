@@ -41,16 +41,19 @@ from ..ingest.parsers import parser_version_for
 from ..ingest.document import ParseResult, ParseStatus
 from ..ingest.natureza import EXTENSOES_DE_TEXTO_BRUTO
 from ..ingest.reader import parse_file
+from .prioridade import ONDAS, indexaveis, onda_de, ordenar as ordenar_fila
+from .prioridade import pasta_de, vigentes as vigentes_de
 from ..logger import get_logger
 from .embeddings import MODELOS, Embedder
 from .gpu_pool import EmbedFila, contar_gpus, dispositivos_embed
-from .esforco import PERFIS_DE_ESFORCO
 from .comando import aguardar as aguardar_comando
 from .comando import limpar as limpar_comando
+from .esforco import PERFIS_DE_ESFORCO, ControleEsforco
 from .esforco import aplicar as aplicar_esforco
-from .esforco import na_bateria
+from .esforco import limpar_pedido, na_bateria
 from .estimativa import Estimador, Relogio, faixa_humana
 from .progresso import Publicador
+from .progresso import ler as ler_progresso
 from .reconciliar import Reconciliacao, reconciliar
 from .store import Store
 
@@ -370,6 +373,7 @@ def indexar(
     publicar: bool = True,
     esforco: dict[str, object] | None = None,
     parse_workers: int | None = None,
+    apenas_onda: int | None = None,
 ) -> Progresso:
     """Index the corpus. `prefixo` restricts to a subtree by **filtering**.
 
@@ -387,6 +391,10 @@ def indexar(
         )
     progresso = Progresso()
     inicio = time.perf_counter()
+    controle: ControleEsforco | None = None
+    if esforco and esforco.get("perfil"):
+        controle = ControleEsforco(store.diretorio, str(esforco["perfil"]))
+        esforco = controle.como_json()
 
     trava = TravaDeIndice(store.diretorio)
     execucao = store.iniciar_execucao(
@@ -397,15 +405,17 @@ def indexar(
 
     vistos: set[str] = set()
 
-    # Pré-passada só de metadados, para o denominador. É o **mesmo** `iter_files`
-    # que o laço consome, e é essa igualdade que impede o erro que custou dois
-    # relatórios em 15/08/2026: o censo conta 3.154 arquivos, o indexador processa
-    # 1.601, e usar a contagem bruta reporta 45% quando o real é 91%. Contar duas
-    # vezes é como as duas contas divergem.
+    # Pré-passada só de metadados, para o denominador. `iter_files` enumera o
+    # mesmo universo do censo (e alimenta `vistos` para reconciliar). A fila de
+    # trabalho — e o estimador — é o subconjunto com parser, na ordem de
+    # `prioridade.ordenar`. Contar o bruto de novo reportaria JPEG como trabalho
+    # e reabriria o erro dos 45% vs 91%.
     #
-    # Custa segundos e nenhuma abertura de arquivo — `iter_files` já lê só
-    # metadado, o que também é o que impede hidratar placeholder de nuvem.
-    trabalho = [
+    # `--so-extensao` recorta a enumeração (não abre nem registra o que ficou
+    # fora) e por isso também desliga a reconciliação, mais abaixo. `--apenas-onda`
+    # **não** recorta `vistos`: a onda 4 continua no disco, e reconciliar como se
+    # tivesse sumido apagaria o histórico da passada anterior.
+    enumerados = [
         (
             root,
             [
@@ -417,15 +427,42 @@ def indexar(
         )
         for root in cfg.roots
     ]
+    for _root, arquivos in enumerados:
+        for arquivo in arquivos:
+            vistos.add(arquivo.rel)
+    trabalho = [
+        (root, ordenar_fila(indexaveis(arquivos), apenas_onda=apenas_onda))
+        for root, arquivos in enumerados
+    ]
+    vigentes_fila = vigentes_de([a for _, arquivos in trabalho for a in arquivos])
     estimador = Estimador()
     estimador.declarar((a.rel, a.size) for _, arquivos in trabalho for a in arquivos)
     relogio = Relogio()
-    publicador = Publicador(store.diretorio, estimador, relogio) if publicar else None
+    iniciado_em = time.time()
+    previo = ler_progresso(store.diretorio) if publicar else None
+    if previo and previo.get("status") in {"preparando", "indexando", "pausada"}:
+        relogio.restaurar(
+            ativo=float(previo.get("ativo_segundos") or 0),
+            parado=float(previo.get("parado_segundos") or 0),
+            suspensoes=int(previo.get("suspensoes") or 0),
+        )
+        if previo.get("iniciado_em"):
+            iniciado_em = float(previo["iniciado_em"])
+        if isinstance(previo.get("calibracao"), dict):
+            estimador.restaurar(previo["calibracao"])
+    publicador = (
+        Publicador(store.diretorio, estimador, relogio, iniciado_em=iniciado_em)
+        if publicar
+        else None
+    )
     if publicador is not None:
         # O esforço **aplicado**, não o pedido: a tela precisa poder dizer "pedi
         # leve e o sistema não deixou" em vez de mentir que está leve.
         publicador.anotar(
-            indice=str(store.diretorio), modelo=embedder.model_id, esforco=esforco or {}
+            indice=str(store.diretorio),
+            modelo=embedder.model_id,
+            esforco=esforco or {},
+            recursos=(controle.plano.como_json() if controle else None),
         )
         publicador.publicar("preparando", forcar=True)
     log.info(
@@ -443,30 +480,42 @@ def indexar(
             mapa_limites.pop(".txt", None)
             mapa_limites.pop(".csv", None)
 
-    workers = parse_workers if parse_workers is not None else _parse_workers_padrao()
+    workers = parse_workers if parse_workers is not None else (
+        controle.plano.parse_workers if controle else _parse_workers_padrao()
+    )
     workers = max(1, int(workers))
     fila: EmbedFila | None = None
     n_gpus = 0
+    gpus: list[str] = []
     if os.environ.get("SEGUNDOCEREBRO_PROVIDER", "").lower() == "cuda":
         if getattr(embedder.spec, "id", None) == "minilm":
             raise RuntimeError(
                 "MiniLM quantizado (onnx-Q) devolve NaN no CUDA deste hardware. "
                 "Use --modelo e5-large; o provider não entra em model_id"
             )
-        perfil = str((esforco or {}).get("perfil") or "")
-        reservar = perfil == "leve"
-        gpus = dispositivos_embed(reservar_display=reservar)
+        if controle is not None:
+            gpus = controle.plano.gpu_ids_ativos
+            if not gpus:
+                # Perfil deixou todas de fora: cai na CPU. Não deve acontecer
+                # com 1 GPU (o plano usa essa placa em leve/normal).
+                log.warning("plano de esforço sem GPU ativa; embed na CPU")
+        else:
+            perfil = str((esforco or {}).get("perfil") or "")
+            gpus = dispositivos_embed(reservar_display=perfil == "leve")
         n_gpus = len(gpus)
         if n_gpus == 1:
-            # One selected card: pin ORT to it. With two cards in `leve` this
-            # is the one without a monitor; with a single card it is that card,
-            # display or not.
             os.environ["CUDA_VISIBLE_DEVICES"] = gpus[0]
-            log.info("embed na GPU %s", gpus[0])
+            log.info("embed na GPU %s (ritmo %.0f%%)", gpus[0], 100 * (
+                controle.plano.duty_padrao if controle else 1.0
+            ))
     if n_gpus >= 2:
-        # Main must not load the encoder: e5-large already fills one 6 GB card.
         cache = getattr(embedder, "_cache_dir", Path("models"))
         fila = EmbedFila(gpus, modelo=embedder.spec.id, cache=cache)
+        if controle is not None:
+            fila.ajustar(
+                {g.indice: g.duty for g in controle.plano.gpus},
+                {g.indice: g.duty for g in controle.plano.gpus if g.ativo},
+            )
         chunk_cfg = replace(chunk_cfg, contar_tokens=None)
         log.info("pipeline: %d parse worker(s) · %d GPUs de embed (%s)", workers, n_gpus, ",".join(gpus))
     else:
@@ -567,6 +616,19 @@ def indexar(
                 return True
 
         def honrar_comando() -> None:
+            nonlocal esforco
+            if controle is not None:
+                pids = list(getattr(fila, "pids", []) or []) if fila is not None else []
+                if controle.atualizar(pids=pids):
+                    esforco = controle.como_json()
+                    if fila is not None:
+                        fila.ajustar(
+                            {g.indice: (g.duty if g.ativo else 0.0) for g in controle.plano.gpus},
+                            {g.indice: g.duty for g in controle.plano.gpus if g.ativo},
+                        )
+                    if publicador is not None:
+                        publicador.anotar(esforco=esforco, recursos=controle.plano.como_json())
+                        publicador.publicar(forcar=True)
             if aguardar_comando(
                 store.diretorio,
                 relogio=relogio,
@@ -575,6 +637,8 @@ def indexar(
                 ),
             ):
                 interrupcao.pedida = True
+            else:
+                relogio.fim_pausa()
 
         def preencher() -> None:
             nonlocal proximo
@@ -594,6 +658,9 @@ def indexar(
                         trecho=None,
                         trechos=None,
                         falhas=progresso.falhas,
+                        onda=onda_de(arquivo, vigentes_rels=vigentes_fila),
+                        ondas=ONDAS if apenas_onda is None else 1,
+                        pasta=pasta_de(arquivo.rel) or "(raiz)",
                     )
                     publicador.publicar()
                 fut = pool.submit(
@@ -677,6 +744,37 @@ def indexar(
                     publicador.publicar()
                 return
 
+            outro = store.path_ok_por_sha256(
+                resultado.sha256,
+                embedder.model_id,
+                CHUNKER_VERSION,
+                parser_version_for(os.path.splitext(arquivo.rel)[1]),
+            )
+            if outro and outro != arquivo.rel:
+                store.registrar_documento(
+                    path=arquivo.rel,
+                    raiz=root.name,
+                    tamanho=arquivo.size,
+                    mtime=arquivo.mtime,
+                    sha256=resultado.sha256,
+                    status=ParseStatus.DUPLICATE.value,
+                    detalhe=f"mesmo conteúdo que {outro}",
+                    n_chunks=0,
+                    model_id=embedder.model_id,
+                    chunker=CHUNKER_VERSION,
+                    parser=parser_version_for(os.path.splitext(arquivo.rel)[1]),
+                    natureza=resultado.natureza,
+                )
+                store.commit()
+                progresso.registrar_falha(ParseStatus.DUPLICATE.value)
+                estimador.registrar(
+                    arquivo.rel, arquivo.size, time.perf_counter() - comeco
+                )
+                if publicador is not None:
+                    publicador.anotar(falhas=progresso.falhas, etapa=None, trecho=None, trechos=None)
+                    publicador.publicar()
+                return
+
             chunks = chunk_document(resultado.doc, arquivo.rel, chunk_cfg)
             ext = os.path.splitext(arquivo.rel)[1].lower()
             if (
@@ -730,8 +828,9 @@ def indexar(
                 if interrupcao.pedida:
                     raise PedidoDeParada()
 
+            ritmo = controle.plano.duty_padrao if controle is not None else 1.0
             if fila is not None:
-                while len(pend_embed) >= n_gpus:
+                while len(pend_embed) >= max(1, len(controle.plano.gpu_ids_ativos) if controle else n_gpus):
                     fechar_um_embed(block=True)
                     if interrupcao.pedida:
                         return
@@ -743,9 +842,10 @@ def indexar(
                     [c.embedding_text for c in chunks],
                     batch_size=lote,
                     ao_progresso=ao_embed,
+                    ritmo=ritmo,
                 )
             except TypeError as erro:
-                if "ao_progresso" not in str(erro):
+                if "ao_progresso" not in str(erro) and "ritmo" not in str(erro):
                     raise
                 vetores = embedder.embed_passagens(
                     [c.embedding_text for c in chunks], batch_size=lote
@@ -755,6 +855,7 @@ def indexar(
             gravar_ok(root, arquivo, estado, resultado, chunks, vetores, comeco)
 
         limpar_comando(store.diretorio)
+        limpar_pedido(store.diretorio)
         preencher()
         while inflight:
             concluidos, _ = wait(inflight, timeout=2.0, return_when=FIRST_COMPLETED)
@@ -915,6 +1016,13 @@ def main(argv: list[str] | None = None) -> int:
         ),
     )
     parser.add_argument(
+        "--apenas-onda",
+        type=int,
+        choices=(1, 2, 3, 4),
+        help="indexa só esta onda de prioridade (1=pequenos vigentes, 4=cauda). "
+        "Ausente: as quatro, nesta ordem, numa passada só",
+    )
+    parser.add_argument(
         "--sem-reconciliar",
         action="store_true",
         help="não remove do índice os documentos que sumiram do disco; deixa fantasma para trás",
@@ -943,7 +1051,9 @@ def main(argv: list[str] | None = None) -> int:
     threads = args.threads if args.threads is not None else conf.maquina.threads_efetivos()
     max_chars = args.max_chars if args.max_chars is not None else base.chunking.max_chars
 
-    perfil = args.perfil or conf.maquina.perfil
+    from ..config import normalizar_perfil
+
+    perfil = normalizar_perfil(args.perfil or conf.maquina.perfil)
     esforco = aplicar_esforco(perfil)
     if perfil == "leve" and na_bateria():
         # Quem escolheu "leve" escolheu não sentir a indexação, e 39 h de
@@ -985,6 +1095,7 @@ def main(argv: list[str] | None = None) -> int:
             reconciliar_ao_fim=not args.sem_reconciliar,
             forcar_reconciliacao=args.forcar_reconciliacao,
             parse_workers=args.parse_workers,
+            apenas_onda=args.apenas_onda,
         )
     finally:
         estat = store.estatisticas()
@@ -995,7 +1106,33 @@ def main(argv: list[str] | None = None) -> int:
     if progresso.interrompido:
         log.warning("execução interrompida — rodar de novo retoma de onde parou")
         return 130
+    if _deve_ativar_mcp(args):
+        try:
+            from ..mcp.registrar import ativar as ativar_mcp
+
+            caminho_mcp = ativar_mcp(base, conf=conf)
+            log.info(
+                "MCP da base '%s' ativo em %s — recarregue o cliente para usar",
+                base.id,
+                caminho_mcp,
+            )
+        except Exception as erro:  # noqa: BLE001 — indexação já commitou; MCP é o degrau seguinte
+            log.warning(
+                "índice da base '%s' pronto, mas o MCP não foi registrado: %s",
+                base.id,
+                erro,
+            )
     return 0
+
+
+def _deve_ativar_mcp(args: argparse.Namespace) -> bool:
+    """Passada completa: o índice é usável, então o cliente tem que enxergar a base.
+
+    `--limite`, `--prefixo` e `--apenas-onda` são recortes. Registrar no meio
+    faria o assistente buscar num acervo pela metade e parecer que a base
+    'não acha nada'.
+    """
+    return args.limite is None and not args.prefixo and args.apenas_onda is None
 
 
 if __name__ == "__main__":

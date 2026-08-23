@@ -99,8 +99,11 @@ DOCX. Duas consequências de projeto:
 
 Os coeficientes acima são desta máquina, deste corpus e do `e5-large`. Trocar
 qualquer um dos três invalida a tabela. Por isso ela é **semente**, não verdade:
-o estimador recalibra por formato com média móvel exponencial sobre os
-documentos do próprio run, e a tabela só governa os primeiros minutos.
+o estimador recalibra com a média ponderada pelo trabalho já feito
+(`soma(segundos) / soma(previsto)`), não por arquivo. Um TXT de 2 KB
+não pesa o mesmo que um DOCX de 40 MB, e um outlier é recusado em vez
+de mandar a barra para o outro extremo. A tabela só governa os
+primeiros minutos.
 
 ### Semente em GPU (desktop, 19/08/2026)
 

@@ -113,3 +113,57 @@ def parse_texto(dados: bytes, nome: str) -> ParsedDoc:
         return ParsedDoc(name=nome, meta={"formato": "texto"})
     bloco = Block(heading_path=(), text=conteudo, kind=BlockKind.TEXT)
     return ParsedDoc(name=nome, blocks=(bloco,), meta={"formato": "texto"})
+
+
+def _rtf_para_texto(dados: bytes) -> str:
+    """Strip RTF control words. Good enough for notes; not a layout engine."""
+    bruto = decode(dados)
+    saida: list[str] = []
+    i = 0
+    n = len(bruto)
+    while i < n:
+        c = bruto[i]
+        if c == "\\":
+            i += 1
+            if i < n and bruto[i] in ("\\", "{", "}"):
+                saida.append(bruto[i])
+                i += 1
+                continue
+            if i < n and bruto[i] == "'":
+                hexes = bruto[i + 1 : i + 3]
+                i += 3
+                try:
+                    saida.append(bytes.fromhex(hexes).decode("cp1252", errors="ignore"))
+                except ValueError:
+                    pass
+                continue
+            while i < n and bruto[i].isalpha():
+                i += 1
+            if i < n and bruto[i] == "-":
+                i += 1
+            while i < n and bruto[i].isdigit():
+                i += 1
+            if i < n and bruto[i] == " ":
+                i += 1
+            continue
+        if c == "{":
+            i += 1
+            continue
+        if c == "}":
+            i += 1
+            continue
+        if c == "\r":
+            i += 1
+            continue
+        saida.append("\n" if c == "\n" else c)
+        i += 1
+    return re.sub(r"\n{3,}", "\n\n", "".join(saida)).strip()
+
+
+@register(".rtf")
+def parse_rtf(dados: bytes, nome: str) -> ParsedDoc:
+    texto = _rtf_para_texto(dados)
+    blocos: tuple[Block, ...] = ()
+    if texto:
+        blocos = (Block(heading_path=(), text=texto),)
+    return ParsedDoc(name=nome, blocks=blocos, meta={"formato": "rtf"})

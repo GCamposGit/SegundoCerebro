@@ -12,6 +12,7 @@ The properties that matter here are not about search quality:
 
 from __future__ import annotations
 
+import argparse
 import hashlib
 from pathlib import Path
 
@@ -21,7 +22,7 @@ import pytest
 from segundocerebro.census import Config, RootSpec
 from segundocerebro.ingest.chunking import CHUNKER_VERSION, Chunk, ChunkConfig
 from segundocerebro.ingest.document import BlockKind
-from segundocerebro.index.indexer import indexar
+from segundocerebro.index.indexer import _deve_ativar_mcp, indexar
 from segundocerebro.index.store import Store, consulta_fts
 
 DIM = 8
@@ -433,6 +434,15 @@ def test_limite_para_a_execucao_e_a_retomada_continua(tmp_path: Path) -> None:
     assert segunda.indexados == 1  # o outro documento com texto
     assert store.estatisticas()["por_status"]["ok"] == 2
     store.fechar()
+
+
+def test_passada_completa_ativa_mcp_recortes_nao() -> None:
+    """Índice pela metade no MCP faz o assistente achar que a base está vazia."""
+    completa = argparse.Namespace(limite=None, prefixo=None, apenas_onda=None)
+    assert _deve_ativar_mcp(completa)
+    assert not _deve_ativar_mcp(argparse.Namespace(limite=1000, prefixo=None, apenas_onda=None))
+    assert not _deve_ativar_mcp(argparse.Namespace(limite=None, prefixo="01.", apenas_onda=None))
+    assert not _deve_ativar_mcp(argparse.Namespace(limite=None, prefixo=None, apenas_onda=1))
 
 
 def test_execucao_fica_registrada(tmp_path: Path) -> None:
