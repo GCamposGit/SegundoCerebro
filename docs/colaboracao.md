@@ -195,13 +195,24 @@ Onda 1 do notebook:
    de MRR. Medido: **recall@1 0.625 mesma-língua contra 0.333 cross-lingual**,
    razão em recall@5 **0.73** contra o 0.80 do critério. Ver
    [`fatia-cross-lingual.md`](fatia-cross-lingual.md).
-2. **R9.3** — porta de latência. Linha de base já medida em 24/08: `search` sem
-   rerank **p50 1.145 ms / p95 1.418 ms**; com rerank de 10 candidatos, p50
-   8.019 ms. O notebook define a porta; o índice inflado vem do desktop.
-   **É o que o notebook pega agora.**
+2. ~~**R9.3**~~ — **portas definidas em 24/08/2026.** Instrumento em
+   `eval/latencia.py`, portas em `eval/portas-latencia.toml`, raciocínio em
+   [`porta-de-latencia.md`](porta-de-latencia.md). São **duas**: alvo de produto
+   (hoje reprovado, é o que `R4.1`/`R3.3` perseguem) e piso de regressão **por
+   máquina nomeada**. Medido: `search` p95 **1.840 – 2.877 ms** conforme o estado
+   térmico — a faixa reconcilia a linha de base de 1.145 ms que o ROADMAP
+   registrava, que estava sem protocolo.
+
+   **Falta o índice inflado de 1M trechos, que é do desktop.** Quando ele
+   existir, `py -m eval.latencia --base <id> --maquina <nome> --porta` mede lá e
+   grava um `[regressao.<maquina>]` próprio — o arquivo já aceita quantas
+   máquinas existirem, e um piso medido num setup **não** vale no outro.
 
 Depois da onda 1: `C6` (família de versões ≠ grupo de formatos), `F4-P`+`C3.a`,
 `R6.1`. **Não começar `retrieve/*` antes** — a régua tem de existir primeiro.
+
+**O que o notebook pega agora:** `C6` (família de versões ≠ grupo de formatos),
+`F4-P`+`C3.a` e `R6.1` — a onda 2, agora que a régua da onda 1 existe.
 
 ### Agora — desktop
 
