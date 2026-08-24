@@ -772,21 +772,22 @@ privada do desktop **não** trava nenhum destes:
 | # | Pacote | Dono | Onda | Começa já? |
 |---|--------|------|:---:|------------|
 | F4-M | `[base.exclude.papel]` + `Meetings/` por papel | notebook | — | ✅ **fechado** (PR #10) |
-| F4-D | Dourado que cubra o acervo — **25% hoje** | notebook | **1** | **em curso**; falta o lote do usuário |
-| R9.3 | Porta de latência, com a baseline medida | notebook define, desktop infla o índice | **1** | **sim** — é a régua das ondas 3 e 4 |
+| R9.1 | Dourados sintéticos multi-perfil (gerador, não corpus) | qualquer | **1** | **sim** — é o instrumento |
+| R9.2 | Benchmark público como árbitro externo | notebook | **1** | **sim**, depois de dimensionar o custo |
+| R9.3 | Porta de latência, com a baseline medida | notebook define, desktop infla o índice | **1** | **sim** — é a régua das ondas 4 e 5 |
 | F6-A / R8.1 | `pip install` sem `PYTHONPATH=src` | desktop | **1** | **sim** — não depende de nada |
-| F4-P + R1.3 | Família por ranking **e** peso de nome por tipo de fonte | notebook | 2 | depois do lote do usuário em F4-D |
-| R1.4 | Quarentena de arquivo venenoso | desktop | 2 | **sim** |
-| R5.2 | Orçamento adaptativo de recursos | desktop | 2 | **sim** |
-| R3.2 · R4.1 · R3.3 | Dois passes · ANN · quantização INT8 | desktop | 3 | depois da porta da onda 1 |
-| R3.1 + R2.1 | Ablação de modelo + contexto no chunk (um rebuild só) | desktop roda, notebook mede | 4 | depois de F4-D |
-| F4-L / R1.1 | OLE que mente + conversor de legado | desktop | 5 | **sim** — não bloqueia nada |
-| F4-O / R1.2 | OCR de PDF digitalizado | a combinar (despachante) | 5 | **sim** — F4-M mergeou |
-| F4-W / R5.1 | Watcher, com camada USN Journal | desktop | 5 | **sim** |
-| F4-S | SharePoint = pasta sincronizada, só política e tela | notebook | 5 | **sim** — F4-M soltou o painel |
-| R6.2 · R7.1 · R7.2 · R6.3 | Rerank v2 · tools de navegação · descriptions · tempo/pasta | notebook | 6 | depois de F4-D |
-| F6-B / R8.2 | Primeira base sem terminal, empacotada como MCPB | quem não estiver no painel | 7 | depois de F6-A |
-| R9.1 | Dourados sintéticos multi-perfil | qualquer | 7 | — |
+| R6.1 | Autotune: peso por base, prior de fábrica | notebook | 2 | depois de R9.1 |
+| F4-P + R1.3 | Família por ranking **e** peso de nome por tipo de fonte | notebook | 2 | depois de R9.1 |
+| R1.4 · R5.2 · R3.2 | Quarentena · orçamento de recursos · dois passes | desktop | 3 | **sim** — nenhum depende da onda 1 |
+| R4.1 · R3.3 | ANN · quantização INT8 | desktop | 4 | depois da porta de latência |
+| R3.1 + R2.1 | Ablação de modelo + contexto no chunk (um rebuild só) | desktop roda, notebook mede | 5 | depois da régua multi-perfil |
+| F4-L / R1.1 | OLE que mente + conversor de legado | desktop | 6 | **sim** — não bloqueia nada |
+| F4-O / R1.2 | OCR de PDF digitalizado | a combinar (despachante) | 6 | **sim** — F4-M mergeou |
+| F4-W / R5.1 | Watcher, com camada USN Journal | desktop | 6 | **sim** |
+| F4-S | SharePoint = pasta sincronizada, só política e tela | notebook | 6 | **sim** — F4-M soltou o painel |
+| R6.2 · R7.1 · R7.2 · R6.3 | Rerank v2 · tools de navegação · descriptions · tempo/pasta | notebook | 7 | — |
+| F6-B / R8.2 | Primeira base sem terminal, empacotada como MCPB | quem não estiver no painel | 8 | depois de F6-A |
+| F4-D | Cobertura do dourado real | notebook | — | **reescopado**: vira piso de regressão e limitação declarada, não fila de perguntas |
 | F5 | Segundo usuário, ACL | ninguém | — | gatilho: segundo usuário real |
 
 Os pacotes `R*` são de [`docs/dossie-melhorias.md`](docs/dossie-melhorias.md); a
@@ -866,22 +867,71 @@ reranqueador. Registrado para não virar promessa.
 - **`R8.1`**: é o `F6-A`. **`R8.2`**: é o `F6-B`, ampliado para MCPB.
 - **`R1.1`/`R1.2`**: são `F4-L` e `F4-O`, com solução proposta.
 
-### Ordem revisada
+### A decisão que reordena tudo: não escolher peso global de acervo nenhum
 
-A §12 do dossiê, com `F4-D` na frente e `R9.3` junto da onda 1 (é barato e é a
-régua das ondas 3 e 4):
+**24/08/2026, decisão do usuário.** O problema que a medição encontrou — o dourado
+real cobre 25% do índice — tem duas respostas possíveis, e a errada é a óbvia.
+
+A óbvia é **escrever mais perguntas para este acervo**. Ela conserta a cobertura e
+não conserta o viés: o resultado continua sendo um número desta máquina, deste
+corpus, com nome de arquivo excepcionalmente informativo. O alvo do produto é
+acervo genérico em máquina desconhecida.
+
+A resposta adotada é **parar de escolher peso global a partir de qualquer acervo
+único**. Isso muda o papel de três pacotes:
+
+- **`R6.1` (autotune) deixa de ser "a feature que mata o overfitting" e passa a
+  ser a arquitetura de ranking.** Os pesos de fábrica viram *prior*; cada base
+  ajusta os seus com perguntas geradas do próprio acervo. Se o peso é por base, a
+  cobertura do dourado de **um** acervo deixa de ser o gargalo que era.
+- **`R9.1` (dourados sintéticos multi-perfil) vira o instrumento principal**, não
+  um item de onda 7. É o que prova generalização: perfis com características
+  opostas — nome informativo contra `Scan_001.pdf`, planilha pesada contra texto
+  corrido, versões plantadas contra documento único.
+- **`R9.2` (benchmark público) sai de "registrado e não feito" para a onda 1.**
+  O argumento do dossiê é o certo e ficou mais forte: nenhum dos dois setups
+  *possui* esse número. É o único árbitro que não pertence a ninguém.
+
+**O que não muda, e é regra escrita:** número do sintético e de benchmark público
+**não substituem a condição C** (`docs/colaboracao.md` §4, regra 7). O que muda é
+o que o dourado corporativo decide. Ele deixa de ser a autoridade que escolhe peso
+global e passa a ser duas coisas mais honestas:
+
+1. **Piso de regressão** deste acervo — 62 perguntas, recall@1 0,551, que nenhuma
+   mudança pode derrubar sem justificativa.
+2. **Um perfil entre N** que o autotune tem de satisfazer, ao lado dos sintéticos.
+
+**`F4-D` não morre; muda de forma.** Deixa de ser "escrever perguntas até cobrir o
+acervo" e passa a ser: declarar a cobertura como limitação conhecida em todo
+relatório que a use, e manter as 62 como piso. As 11 de reunião continuam valendo
+pelo que mediram — recall@1 0,091 e `exato` 0,000 são o sinal que originou o peso
+por tipo de fonte, e esse sinal não depende de haver mais perguntas.
+
+### Ordem revisada
 
 | Onda | Pacotes | Por que aqui |
 |---|---|---|
-| **1** | **`F4-D`** (dourado que cubra o acervo) · `R9.3` (porta de latência, com a baseline acima) · `R8.1`/`F6-A` (empacotamento) | O dourado destrava cinco pacotes; a porta é a régua de duas ondas; o empacotamento não depende de nada |
-| **2** | `R1.3`+`F4-P` (família e peso por tipo de fonte, num PR de ranking) · `R1.4` (quarentena) · `R5.2` (orçamento de recursos) | Qualidade em base real e sobrevivência em máquina desconhecida |
-| **3** | `R3.2` (dois passes) · `R4.1` (ANN) · `R3.3` (quantização INT8) | Escala, medida contra a porta da onda 1 |
-| **4** | `R3.1` (ablação de modelo) + `R2.1` (contexto no chunk) | Um rebuild coordenado paga os dois — e agora com dourado que cobre o acervo |
-| **5** | `F4-L`/`R1.1` (legado) · `F4-O`/`R1.2` (OCR) · `F4-W`/`R5.1` (watcher) | As décadas de acervo |
-| **6** | `R6.2` (rerank v2) · `R7.1`/`R7.2` (tools e descriptions) · `R6.3` (tempo/pasta, agora P2) | Precisão e agência |
-| **7** | `R8.2`/`F6-B` (MCPB + wizard) · `R9.1` (dourados multi-perfil) | O produto |
+| **1** | `R9.1` (dourados multi-perfil) · `R9.2` (benchmark público) · `R9.3` (porta de latência, com a baseline acima) · `R8.1`/`F6-A` (empacotamento) | **Instrumento antes de conclusão.** Nenhum destes decide ranking; os três primeiros são a régua que as ondas seguintes vão usar, e o quarto não depende de nada |
+| **2** | `R6.1` (autotune, peso por base) · `R1.3`+`F4-P` (família por ranking e peso por tipo de fonte) | O ranking deixa de ter número global. Medido nos multi-perfil **e** no dourado corporativo, que vira piso |
+| **3** | `R1.4` (quarentena) · `R5.2` (orçamento de recursos) · `R3.2` (dois passes) | Sobreviver e ser útil em máquina desconhecida |
+| **4** | `R4.1` (ANN) · `R3.3` (quantização INT8) | Escala, medida contra a porta da onda 1 |
+| **5** | `R3.1` (ablação de modelo) + `R2.1` (contexto no chunk) | Um rebuild coordenado paga os dois — e agora com régua multi-perfil, não com um acervo só |
+| **6** | `F4-L`/`R1.1` (legado) · `F4-O`/`R1.2` (OCR) · `F4-W`/`R5.1` (watcher) · `F4-S` (SharePoint) | As décadas de acervo |
+| **7** | `R6.2` (rerank v2) · `R7.1`/`R7.2` (tools e descriptions) · `R6.3` (tempo/pasta, P2) | Precisão e agência |
+| **8** | `R8.2`/`F6-B` (MCPB + wizard) | O produto |
 
-`R4.3`, `R6.4`, `R9.2` e a §11 do dossiê ficam **registrados e não feitos**, como
+Duas perguntas que a onda 1 tem de responder **antes** de escrever código, e que
+o dossiê não dimensiona:
+
+- **`R9.2` cabe nesta máquina?** O subconjunto PT do MIRACL tem corpus e conjunto
+  de consultas próprios; indexá-lo aqui custa tempo de embedding que compete com
+  o acervo real, e o índice dele não pode se misturar ao corporativo (invariante
+  7 — base própria, diretório próprio). Medir o custo e declarar antes de adotar.
+- **`R9.1` gera corpus ou gerador?** Versionar 4 perfis × ~80 documentos é peso no
+  repositório; versionar **o gerador** e produzir o corpus na hora é o padrão que
+  `eval/sintetico/` já segue. Manter o padrão.
+
+`R4.3`, `R6.4` e a §11 do dossiê ficam **registrados e não feitos**, como
 o próprio dossiê pede.
 
 ### O que fica fora, e por quê
