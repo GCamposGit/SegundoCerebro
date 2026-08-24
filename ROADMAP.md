@@ -772,7 +772,12 @@ privada do desktop **não** trava nenhum destes:
 | # | Pacote | Dono | Onda | Começa já? |
 |---|--------|------|:---:|------------|
 | F4-M | `[base.exclude.papel]` + `Meetings/` por papel | notebook | — | ✅ **fechado** (PR #10) |
-| R9.1 + C5.b | Perfis sintéticos: **gerador + seed + manifesto**, corpus nunca commitado | **desktop** | **1** | **sim, agora** |
+| ~~R9.1 + C5.b~~ | **Absorvido pelo `E1`** em 24/08/2026. O gerador passou a ser do **notebook** — ver a seção de pacotes E e [`docs/avaliacao-pacote-e1.md`](docs/avaliacao-pacote-e1.md) | notebook | 2 | **o desktop não pega este** |
+| E5 | **IC bootstrap em toda métrica** — `Δ ± IC95`, teste pareado, regra de adoção | notebook | **1** | **sim, agora — é o próximo** |
+| E1 + E2 | Gerador sintético endurecido (7 condições do laudo) + matriz de armadilhas | notebook | 2 | depois da `F4-P` |
+| E3 | Protocolo de três camadas + test-set selado (`seed + caps`) | acordo | 3 | depois do `E1` |
+| E4 | Red-team por fase, modelo DynaBench | notebook | 4 | no fecho da fase corrente |
+| Q1 · Q2 | CI com lint/format/types/cov · `pyproject` como fonte única | qualquer | — | **sim** — eixo ortogonal, não decide ranking |
 | C5.a | Porta de custo do MIRACL: smoke de throughput → `docs/custo-miracl.md` | **desktop** | **1** | **sim, agora** |
 | F6-A / R8.1 | `pip install` sem `PYTHONPATH=src`; matriz 3×SO no CI | **desktop** | **1** | ✅ **fechado** (PR #14) |
 | R8.1.b | `tests/test_pacote.py`: achar o script pelo `sysconfig`, e pular fora do CI em vez de falhar | notebook | 3 | sim — não bloqueia nada |
@@ -782,8 +787,8 @@ privada do desktop **não** trava nenhum destes:
 | C6 | Família de versões ≠ grupo de formatos (**subordina R1.3**) | notebook (ranking) + desktop (hash/MinHash no censo) | 2 | depois da onda 1 |
 | C3.a | Peso da coluna `caminho` no bm25 | notebook | 2 | ✅ **fechado, hipótese refutada** — ver [`docs/ablacao-c3a-pesos-fts.md`](docs/ablacao-c3a-pesos-fts.md) |
 | F4-P.0 | O eval mede o caminho entregue (`buscar_chunks`), aditivo | notebook | 2 | ✅ **fechado** — ver [`docs/ablacao-caminho-entregue.md`](docs/ablacao-caminho-entregue.md) |
-| F4-P | **Reconciliar os dois caminhos**: sinal de nome em `buscar_chunks`, sem votar em reunião | notebook | 2 | **sim, agora** — as duas colunas existem |
-| R6.1 | Autotune: peso por base, fábrica vira prior | notebook | 2 | mecanismo já; critério de generalização espera `R9.1` |
+| F4-P | **Reconciliar os dois caminhos**: sinal de nome em `buscar_chunks`, sem votar em reunião | notebook | 2 | **depois do `E5`** — decide sobre n=11 e n=12; o IC é o que diz se o delta existe |
+| R6.1 | Autotune: peso por base, fábrica vira prior | notebook | 2 | mecanismo já; critério de generalização espera o `E1` (era `R9.1`) |
 | C7.a · C7.d | Fórmula sem cache (recálculo LibreOffice) · rota do CSV | **desktop** | 3 | **sim** — não depende da onda 1 |
 | R1.4 · R5.2 · R3.2 | Quarentena · orçamento de recursos · dois passes | **desktop** | 3 | **sim** — nenhum depende da onda 1 |
 | R4.1 · R3.3 | ANN · quantização INT8 | desktop | 4 | depois da porta de latência |
@@ -1249,6 +1254,146 @@ da §11 do dossiê e do fim do complemento ficam **registrados e não feitos**.
   lê. Reabrir quando existir um terceiro contribuidor — que é o gatilho que o
   próprio item nomeia.
 
+---
+
+## A arquitetura de avaliação resiliente — pacotes E1–E6
+
+> **Acrescentado em 24/08/2026.** Fonte:
+> [`docs/relatorio-avaliacao-resiliente.md`](docs/relatorio-avaliacao-resiliente.md),
+> que declara substituir `R9.1`/`R9.2` do dossiê e `C5` do complemento. O pacote
+> de código que veio com ele foi **executado** antes de entrar no plano — o laudo
+> é [`docs/avaliacao-pacote-e1.md`](docs/avaliacao-pacote-e1.md), e ele muda a
+> ordem.
+
+### O diagnóstico, que o repositório confirma
+
+O relatório aponta duas coisas com nome na literatura de IR, e as duas têm
+evidência aqui dentro:
+
+- **Viés de coleção.** O dourado real foi escrito a partir de um acervo só, e
+  `docs/ablacao-bm25-com-nome.md` já declarava o viés de origem das perguntas.
+  Peso de fusão varrido nesse acervo é peso de *aquele* acervo — foi exatamente o
+  que `docs/dourado-cobertura.md` concluiu em 24/08, por conta própria e antes do
+  relatório existir.
+- **Ruído maior que o ganho.** Com 45 perguntas no escopo, mover duas move
+  recall@1 em 4,4 p.p. Vários ganhos já celebrados em ablação são dessa ordem —
+  o reranking da F2 vale +0,011 de nDCG@5.
+
+O que o relatório **não** propõe, e é o acerto: descartar o dourado real. Ele é
+rebaixado de juiz único a camada de regressão, com a série F1→F2 intacta.
+
+### As três camadas
+
+| Camada | O que é | Papel |
+|---|---|---|
+| 1 | dourado real, congelado como `dourado-v1` | **regressão** — bloqueia merge, nunca decide arquitetura sozinho |
+| 2 | sintético gerado por código, dev-set + test-set selado | **decisão** — cobre a matriz de armadilhas |
+| 3 | benchmark externo amostrado (MIRACL-PT, `C5`) | **alarme** — nunca decide; detecta endogamia do gerador |
+
+Regra de adoção que isto instala, e que vai para o `ARCHITECTURE.md` com o `E3`:
+**feature entra se ganha na camada 2 na fatia que ela mira, sem regredir nenhuma
+outra fatia além do ruído, e sem regredir a camada 1.**
+
+### Os pacotes
+
+| # | Pacote | Dono | Onda | Estado |
+|---|---|---|:---:|---|
+| E1 | Gerador de corpus sintético como código versionado | **notebook** (assumido em 24/08) | 2 | **conferido e reprovado como veio** — ver o laudo |
+| E2 | Matriz de armadilhas: fatia ↔ pacote do roadmap | notebook | 2 | veio junto do E1; precisa de duas fatias novas |
+| E3 | Protocolo de três camadas + set selado | acordo entre setups | 3 | não começou |
+| E4 | Loop adversarial por fase (red-team de agente) | notebook | 4 | não começou |
+| E5 | **Rigor estatístico mínimo — IC bootstrap** | notebook | **1** | **é o próximo** |
+| E6 | Preservação e uso honesto da base real | notebook | contínuo | parcialmente já feito |
+
+`E1` absorve `R9.1`+`C5.b`; `E3` absorve `C5`; `E5` **altera o harness que todas
+as ablações R/C pendentes usam**.
+
+### O laudo do E1 muda a ordem, e o motivo é uma medição
+
+O relatório manda instrumento antes de conclusão, e a leitura ingênua disso seria
+`E1` antes de `F4-P`. **A execução do gerador desmente essa ordem.** Medido em
+24/08 com `grupo_de_pergunta` de `eval/fonte.py` sobre as 260 perguntas que o
+gerador produz:
+
+```
+grupo de fonte: {'escritório': 234, 'misto': 26}
+fatia de idioma: {'não declarado': 260}
+```
+
+O alvo declarado da `F4-P` é o grupo `reunião`, e o corpus sintético **não tem
+nenhuma pergunta de reunião nem de email** — nem `.msg`, nem `.eml`, nem `.vtt`,
+nem pasta de transcrição. A fatia cross-lingual sai de tamanho zero porque
+`idioma_fonte` nunca é emitido, que é o defeito contra o qual
+`eval/golden/README.md` escreveu contrato no mesmo dia.
+
+Rodar o `E1` antes da `F4-P` não protegeria a `F4-P` de nada. O que protege é o
+intervalo de confiança sobre o dourado corporativo, que já é o piso declarado —
+e ele é o `E5`, o item mais barato da lista inteira.
+
+**Ordem adotada: `E5` → `F4-P` → `E1` endurecido.**
+
+### O que o E1 tem de satisfazer para entrar
+
+Sete condições, todas vindas do laudo, todas verificáveis:
+
+1. `--n-por-fatia 30` **termina** — o espaço de siglas tem 26 elementos e o
+   gerador entra em laço infinito em `i = 26`. Teto explícito, erro em vez de
+   laço, e um teste que roda no `n` do `E5` e não no `n` que passa.
+2. Emitir `idioma` **e** `idioma_fonte` no vocabulário fechado do harness
+   (`pt`/`en`/`misto`/`indefinido`). `pt->en` não é código de idioma.
+3. Fatia de **reunião** e fatia de **email**, com a interseção cross-lingual: 3
+   das 11 perguntas de reunião do dourado real cruzam idioma, e a fatia sintética
+   tem de cruzar os dois eixos em vez de somá-los.
+4. Distribuição de formato calibrada pelo censo (`E6.1`), não 80% `.txt` contra
+   os 74% PDF+DOCX do acervo real.
+5. O selo do `E3` é **seed + caps**: o hash do manifesto muda conforme
+   `python-docx` esteja instalado, e hoje isso é indetectável sem ler `caps`.
+6. Nenhuma lista de nome real em arquivo versionado — reusar
+   `tests/test_saneamento.termos()`, que lê de fora do Git.
+7. Adaptador para o formato do harness, com `armadilha_fatia` como **terceiro**
+   eixo de recorte: `fatia` fica reservado ao idioma, para não reescrever `C4.5`.
+
+### O que fica registrado e não feito
+
+- **GAN / conjunto adaptativo contínuo.** O relatório já rejeita, e com o
+  argumento certo: treinar gerador contra recuperador produz pergunta patológica
+  sem valor de produto. O `E4` adota o modelo DynaBench — degraus versionados,
+  com filtro de razoabilidade.
+- **Substituir o dourado real.** Congelar, não trocar. É `E3.1` e é inegociável:
+  trocar o recuperador canônico ou a régua canônica apaga a comparabilidade entre
+  fases, que é a razão de o harness ter sido construído antes dos recuperadores.
+
+---
+
+## O guia de engenharia — pacotes Q1–Q10
+
+> **Acrescentado em 24/08/2026.** Fonte:
+> [`docs/guia-engenharia-5-estrelas.md`](docs/guia-engenharia-5-estrelas.md).
+> Eixo **ortogonal** ao dos pacotes R/C/E: nenhum Q decide ranking, nenhum passa
+> pelo invariante 4. Por isso não entram na fila de ondas acima — correm em
+> paralelo, e o critério é "um sênior clonando o repo a frio consegue sozinho".
+
+| # | Pacote | Dono | Prioridade |
+|---|---|---|:---:|
+| Q1 | CI ganha lint, format, types e coverage (a config do `ruff` não está commitada e os 95 `noqa` são carga de culto) | qualquer | **P0** |
+| Q2 | `pyproject` como fonte única: `dependencies = []` contradiz o `requirements.txt` | desktop (é `R8.1`) | **P0** |
+| Q3 | Teto de tamanho de módulo como regra de processo IA — decomposição só oportunista | cada um no seu | P1 |
+| Q4 | Política escrita de `except Exception` (os 34 `BLE001`) | qualquer | P1 |
+| Q5 | Property-based (`consulta_fts`, `chave_de_familia`), e2e do protocolo MCP, smoke de mutação | notebook + desktop | P1 |
+| Q6 | `CONTRIBUTING`, `SECURITY`, template de PR, `pip-audit` | qualquer | P1 |
+| Q7 | Tag e CHANGELOG por fase fechada | qualquer | P2 |
+| Q8 | `docs/README.md` com índice temático — 67 arquivos sem sumário | notebook | P2 |
+| Q9 | `docs/processo-ia.md`: o contrato de fronteira entre agentes como peça pública | acordo | P1 |
+| Q10 | Observabilidade local do servidor (SQLite, nunca remota) | notebook | P2 |
+
+Dois avisos para quem pegar:
+
+- **`Q2` já andou.** `F6-A`/`R8.1` fechou no PR #14 e o pacote instala com
+  `pip install -e .`. O que sobra é o lockfile e os extras — e `R8.1.b`, que é o
+  defeito de `_script()` achar o console script pelo `sys.executable`.
+- **`Q6` item pre-commit não se faz**, pelo mesmo motivo já registrado na §10 do
+  complemento: um pre-commit com a lista de nomes embutida seria o próprio
+  vazamento. `tests/test_saneamento.py` já resolve, e melhor.
 ---
 
 ## F4 — Grafo derivado, SharePoint e automação

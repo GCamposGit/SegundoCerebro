@@ -326,12 +326,70 @@ inventar. Então `R6.1` entrega o mecanismo medido no corporativo e declara o
 critério de generalização como pendente de `R9.1`, em vez de dar o pacote por
 fechado com meia prova.
 
+### O pacote E entrou no plano, e o notebook assumiu o gerador (24/08/2026)
+
+Chegaram dois documentos novos:
+[`relatorio-avaliacao-resiliente.md`](relatorio-avaliacao-resiliente.md) (pacotes
+E1–E6, que declaram substituir `R9.1`/`R9.2` e `C5`) e
+[`guia-engenharia-5-estrelas.md`](guia-engenharia-5-estrelas.md) (Q1–Q10, eixo de
+qualidade de engenharia, ortogonal ao ranking). Os dois estão absorvidos no
+`ROADMAP.md`.
+
+Junto veio o código do `E1`. O notebook **executou** antes de planejar, e o laudo
+é [`avaliacao-pacote-e1.md`](avaliacao-pacote-e1.md): oito achados, todos de
+execução. Os três que mudam o trabalho do desktop:
+
+- **`--n-por-fatia 30` não termina.** O espaço de siglas tem 26 elementos, não
+  26³ — 7, 11 e 17 são coprimos de 26, então `b mod 26` é bijeção. Em `i = 26` o
+  laço não sai. A suíte do zip passa porque todo teste usa `n ≤ 11`. É a lição do
+  `schtasks` da F3.5-D outra vez.
+- **A fatia cross-lingual sai de tamanho zero.** `idioma_fonte` nunca é emitido, e
+  `idioma: "pt->en"` não é código aceito — `carregar_perguntas` levanta
+  `ValueError`. É palavra por palavra o que o contrato de `R9.1` avisou em
+  `eval/golden/README.md` no mesmo dia.
+- **Zero perguntas de reunião e de email**, medido: `{'escritório': 234,
+  'misto': 26}`. Sem `.msg`, `.eml`, `.vtt` nem pasta de transcrição.
+
+**Quem faz o quê a partir de agora:**
+
+- **O gerador (`eval/gerador/`) passou a ser do notebook.** `R9.1` + `C5.b` estão
+  absorvidos pelo `E1` e saíram da fila do desktop — **não pegar**. É o mesmo
+  padrão do `C3.a` com `store.py`: o notebook pega, entrega no PR, e o dono volta
+  a ser combinável depois. O motivo de ser aqui é que o `E1` só serve se medir
+  reunião, email e cross-lingual, e os três recortes (`eval/fonte.py`,
+  `eval/idioma.py`, o harness) são do notebook.
+- **`C5.a` (porta de custo do MIRACL) continua do desktop**, sem mudança. Ele
+  vira a camada 3 do protocolo `E3` — alarme, nunca decisão.
+- **`E6.1` precisa do censo do desktop.** As distribuições de formato, tamanho e
+  profundidade de pasta parametrizam o gerador. Hoje o corpus sintético é 80%
+  `.txt` contra os 74% PDF+DOCX do acervo real, e mede um caminho de código que o
+  produto quase não executa.
+
+**Ordem que o notebook segue, e o motivo de não ser a do relatório.** O relatório
+manda instrumento antes de conclusão, e lido ingenuamente isso seria `E1` antes de
+`F4-P`. A execução desmente: o sintético não mede nenhum dos dois grupos que a
+`F4-P` decide, então rodá-lo antes não protegeria a `F4-P` de nada. O que protege
+é o intervalo de confiança sobre o dourado corporativo, que já é o piso declarado.
+
+**`E5` → `F4-P` → `E1` endurecido.**
+
+**Paths que o notebook declara agora:** `eval/metrics.py`, `eval/harness.py` e os
+`eval/test_*.py` (pacote `E5`); depois `retrieve/hybrid.py` e `index/store.py` só
+em `buscar_chunks` (pacote `F4-P`); depois `eval/gerador/*` (pacote `E1`). O
+`ROADMAP.md` foi editado neste PR e está devolvido.
+
+Um recado sobre os pacotes **Q**: são ortogonais e nenhum decide ranking, então
+não entram na fila de ondas e podem correr a qualquer momento dos dois lados.
+`Q2` é do desktop e já andou no PR #14 — sobra o lockfile, os extras e `R8.1.b`.
+
 ### Agora — desktop
 
 **Cinco pacotes prontos para começar, nenhum bloqueado por nada.** A ordem é
 sugestão; os três primeiros são a onda 1 e destravam as ondas 4 e 5.
 
-1. **R9.1 + C5.b — perfis sintéticos.** Quatro perfis (`juridico`, `financeiro`,
+1. ~~**R9.1 + C5.b — perfis sintéticos.**~~ **Absorvido pelo `E1` em 24/08/2026 e assumido pelo notebook** — ver a seção acima e [`avaliacao-pacote-e1.md`](avaliacao-pacote-e1.md). **Não pegar.** O que sobra para o desktop aqui é `E6.1`: as distribuições do censo que parametrizam o gerador. O texto original fica abaixo porque o contrato do perfil bilíngue continua valendo, agora como condição de entrada do `E1`.
+
+   Quatro perfis (`juridico`, `financeiro`,
    `pessoal` com nomes ruins tipo `Scan_001.pdf`, `engenharia`) + um bilíngue
    PT/EN. **O perfil bilíngue tem contrato desde 24/08:** o dourado gerado emite
    `idioma` e `idioma_fonte` (formato em `eval/golden/README.md`). Sem os dois
