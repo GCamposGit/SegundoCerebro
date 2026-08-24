@@ -75,15 +75,24 @@ nomeada e `--porta` exige `--maquina`.
 
 | Passada | p95 de `search` | contexto |
 |---|---:|---|
-| 3 rodadas, máquina descansada | **1 840 ms** | n=186 |
+| 3 rodadas, máquina fria de verdade | **1 515 ms** | n=186, acrescentada ao rodar a porta do `C3.a` |
+| 3 rodadas, máquina descansada | 1 840 ms | n=186 |
 | 1 rodada, máquina descansada | 1 916 ms | n=62 |
 | 3 rodadas, logo após outra passada | 2 713 ms | n=186 |
 | 1 rodada, logo após outra passada | 2 847 ms | n=62 |
 | 3 rodadas, logo após outra passada | 2 877 ms | n=186 |
 | interleavada com reranking | 4 394 ms | ver correção 3 |
 
-Entre a mais fria e a mais quente há **1,6×**, e entre a fria e a contaminada,
-**2,4×**. Nenhuma linha de código mudou entre elas.
+Entre a mais fria e a mais quente há **1,9×**, e entre a fria e a contaminada,
+**2,9×**. Nenhuma linha de código mudou entre elas.
+
+A primeira linha entrou em 24/08/2026, ao rodar a porta antes de fundir o `C3.a`
+(que **não** toca o caminho de consulta com a configuração padrão). Ela não
+corrige nada acima: **amplia** a faixa para baixo, e é o argumento inteiro deste
+documento aparecendo mais uma vez. Se o piso desta máquina tivesse sido ajustado à
+passada de 1 840 ms — que na hora parecia "a fria" —, a régua já estaria 18% acima
+do que a máquina realmente faz descansada, e a próxima passada quente reprovaria
+uma mudança inocente. **Piso na ponta quente, sempre**, e a faixa se lê como faixa.
 
 E a deriva **não é dentro da passada**: numa passada de três rodadas as p50
 saíram 1 404 → 1 394 → 1 310 ms, amplitude de 7%. O que decide o regime é o que

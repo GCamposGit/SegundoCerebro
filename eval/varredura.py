@@ -26,7 +26,6 @@ a configuração que mais erra onde a fase promete acertar.
 from __future__ import annotations
 
 import argparse
-import sys
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -40,6 +39,7 @@ from .harness import (
     avaliar,
     carregar_perguntas,
     conferir_base,
+    entregar,
     resolver_dourado,
     verificar_escopo,
 )
@@ -291,12 +291,9 @@ def main(argv: list[str] | None = None) -> int:
     )
     relatorio = render(pontos, escolhido, contexto)
 
+    entregar(relatorio, args.out)
     if args.out:
-        args.out.parent.mkdir(parents=True, exist_ok=True)
-        args.out.write_text(relatorio, encoding="utf-8")
         log.info("relatório gravado em %s", args.out)
-    else:
-        sys.stdout.write(relatorio + "\n")
     return 0
 
 

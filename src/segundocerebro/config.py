@@ -72,12 +72,52 @@ class Pesos:
     lexical: float = 0.25
     nome: float = 0.5
 
+    fts_texto: float = 1.0
+    fts_trilha: float = 1.0
+    fts_caminho: float = 1.0
+    """Pesos de coluna do `bm25()`, **dentro** do ranqueador lexical.
+
+    Não são um quarto, quinto e sexto ranqueador: são a distribuição de voz
+    entre as três colunas do FTS5 (`texto`, `trilha`, `caminho`) que hoje sai
+    1/1/1, o padrão do SQLite. Ficam aqui porque quem lê `[base.pesos]` quer ver
+    num lugar só tudo que decide ordem.
+
+    `caminho` é o motivo de existirem (`C3.a`): valendo 1,0, o nome do arquivo
+    pontua dentro do bm25 **e** de novo na fusão pelo peso `nome`. O mesmo sinal
+    vota duas vezes, e num acervo de nomes ruins (`IMG_2034.pdf`) isso é ruído
+    dobrado. Os três em 1,0 preservam o SQL exato que mediu F1 a F4 — ver
+    `Store.buscar_lexical`.
+
+    São pesos de consulta: mudá-los **não** reindexa nada."""
+
     def validar(self, onde: str) -> None:
-        for campo, valor in (("denso", self.denso), ("lexical", self.lexical), ("nome", self.nome)):
+        for campo, valor in (
+            ("denso", self.denso),
+            ("lexical", self.lexical),
+            ("nome", self.nome),
+            ("fts_texto", self.fts_texto),
+            ("fts_trilha", self.fts_trilha),
+            ("fts_caminho", self.fts_caminho),
+        ):
             if valor < 0:
                 raise ErroDeConfig(f"{onde}: peso '{campo}' não pode ser negativo ({valor})")
         if not (self.denso or self.lexical or self.nome):
             raise ErroDeConfig(f"{onde}: os três pesos são zero — nenhum ranqueador ficaria ativo")
+        if self.lexical and not (self.fts_texto or self.fts_trilha or self.fts_caminho):
+            raise ErroDeConfig(
+                f"{onde}: o ranqueador lexical está ativo (peso {self.lexical:g}) e as três "
+                "colunas do bm25 estão em zero — ele não ordenaria nada"
+            )
+
+    @property
+    def colunas_fts(self) -> tuple[float, float, float] | None:
+        """Os pesos de coluna, ou `None` quando são o padrão do FTS5.
+
+        `None` de propósito, e não `(1.0, 1.0, 1.0)`: manda `buscar_lexical` usar
+        o `bm25(chunks_fts)` sem argumento, que é o SQL que produziu todos os
+        números de F1 a F4. Configuração intocada mede o caminho já medido."""
+        colunas = (self.fts_texto, self.fts_trilha, self.fts_caminho)
+        return None if colunas == (1.0, 1.0, 1.0) else colunas
 
 
 @dataclass(frozen=True)

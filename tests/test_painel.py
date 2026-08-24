@@ -92,8 +92,17 @@ def test_estado_lista_as_bases(cliente) -> None:
     assert [b["id"] for b in dados["bases"]] == ["trabalho", "pessoal"]
     trabalho = dados["bases"][0]
     assert trabalho["nome"] == "Acme Holding"
-    assert trabalho["pesos"] == {"denso": 1.0, "lexical": 0.25, "nome": 0.5}
     assert trabalho["indexada"] is False
+    # Todo campo de `Pesos`, e não uma lista escrita à mão: a lista congelada
+    # quebrou quando `C3.a` acrescentou os pesos de coluna do bm25, e quebrar é o
+    # melhor caso — o pior é a tela deixar de mostrar um peso que decide ordem e
+    # ninguém notar. `CAMPOS_DE_PESO` deriva da dataclass pelo mesmo motivo.
+    from segundocerebro.config import Pesos
+
+    assert set(trabalho["pesos"]) == set(Pesos.__dataclass_fields__)
+    assert trabalho["pesos"]["denso"] == 1.0
+    assert trabalho["pesos"]["lexical"] == 0.25
+    assert trabalho["pesos"]["nome"] == 0.5
 
 
 def test_sem_config_toml_o_painel_abre_e_descobre(tmp_path: Path, monkeypatch) -> None:
@@ -343,10 +352,17 @@ def test_perfis_trazem_pesos_e_o_custo_de_cada_um(cliente) -> None:
     """Cartão que só mostra ganho é propaganda."""
     perfis = cliente.get("/api/perfis", headers=cabecalho()).json()["perfis"]
 
+    from segundocerebro.config import Pesos
+
     assert {p["id"] for p in perfis} >= {"equilibrado", "codigo", "significado", "nome"}
     for p in perfis:
         assert p["custo"] and p["para_quem"]
-        assert set(p["pesos"]) == {"denso", "lexical", "nome"}
+        # Derivado da dataclass, não escrito à mão — ver
+        # `test_estado_lista_as_bases`. Os quatro perfis carregam os pesos de
+        # coluna do bm25 no padrão 1/1/1: `C3.a` mede se algum deles muda, e um
+        # perfil novo para acervo de nome ruim é decisão de `F4-P`, não daqui.
+        assert set(p["pesos"]) == set(Pesos.__dataclass_fields__)
+        assert Pesos(**p["pesos"]).colunas_fts is None
 
 
 def test_perfis_exigem_token(cliente) -> None:

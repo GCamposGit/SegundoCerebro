@@ -22,7 +22,6 @@ Comparability has two conditions that the flags exist to enforce:
 from __future__ import annotations
 
 import argparse
-import sys
 from pathlib import Path
 
 from segundocerebro.config import ErroDeConfig, carregar
@@ -37,6 +36,7 @@ from .harness import (
     avaliar,
     carregar_perguntas,
     conferir_base,
+    entregar,
     render_markdown,
     resolver_dourado,
     verificar_escopo,
@@ -290,12 +290,9 @@ def main(argv: list[str] | None = None) -> int:
 
     relatorio = render_markdown(resultado, titulo, contexto)
 
+    entregar(relatorio, args.out)
     if args.out:
-        args.out.parent.mkdir(parents=True, exist_ok=True)
-        args.out.write_text(relatorio, encoding="utf-8")
         log.info("relatório gravado em %s", args.out)
-    else:
-        sys.stdout.write(relatorio + "\n")
     return 0
 
 

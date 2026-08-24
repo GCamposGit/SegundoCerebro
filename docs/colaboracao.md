@@ -211,8 +211,92 @@ Onda 1 do notebook:
 Depois da onda 1: `C6` (família de versões ≠ grupo de formatos), `F4-P`+`C3.a`,
 `R6.1`. **Não começar `retrieve/*` antes** — a régua tem de existir primeiro.
 
-**O que o notebook pega agora:** `C6` (família de versões ≠ grupo de formatos),
-`F4-P`+`C3.a` e `R6.1` — a onda 2, agora que a régua da onda 1 existe.
+**O que o notebook pega agora:** `F4-P`, depois `C6` e `R6.1` — a onda 2, agora
+que a régua da onda 1 existe.
+
+`C3.a` **fechado em 24/08/2026, com a hipótese refutada** —
+[`ablacao-c3a-pesos-fts.md`](ablacao-c3a-pesos-fts.md). A dupla contagem do nome
+do arquivo existe no mecanismo e não é ela que produz o efeito: o grupo de reunião
+é **14× mais sensível** ao peso do ranqueador de nome que à coluna `caminho` do
+bm25, e zerar a coluna custa de 0,023 a 0,062 de MRR agregado. `fts_caminho` fica
+em 1,0.
+
+**Nada foi aplicado, e a régua da onda 1 é o motivo.** A primeira leitura desta
+varredura recomendou `nome = 0,25` — sobe agregado, nDCG@5 e reunião. Com a fatia
+cross-lingual na tabela, ele **derruba a ponte PT↔EN** (MRR 0,496 → 0,475), e a
+recomendação está retirada. O ranqueador de nome é sinal **agnóstico a idioma**:
+identificador, código e data casam igual em PT e EN, e o bm25 não casa `contrato`
+com `agreement`. Sem o recorte que `C4.5` construiu na onda 1, esta troca teria
+entrado em `main` como melhoria.
+
+Quatro coisas que a onda 2 herda:
+
+- **A linha de base de `F4-P` é a de hoje** (`nome` 0,5 · MRR 0,680 · recall@1
+  0,551 · reunião 0,287). O 0,5 saiu de um dourado sem perguntas de reunião e
+  precisava ser rederivado — e a rederivação o **reconfirmou**, por dois motivos
+  em vez de um.
+- **Teto de oráculo de +0,032** de MRR agregado para o peso por tipo de fonte, com
+  a folga toda na reunião: a referência já é o ótimo do escritório.
+- **3 das 11 perguntas de reunião são cross-lingual** — o teto não desconta isso, e
+  `F4-P` tem de medir a interseção.
+- **`fts_caminho = 0,3` é candidato registrado para a lacuna cross-lingual:** razão
+  do `C4.5` de 0,73 para 0,79 com as duas fatias subindo, custo zero por consulta,
+  contra as rotas caras que estavam previstas (`R3.1`, `R6.2`/`C4.2`). Uma pergunta
+  de doze — confirmar no perfil bilíngue do `R9.1`, que é do desktop.
+
+**Um recado para o desktop, sobre `R9.1`:** o perfil bilíngue passou a ter um
+segundo consumidor. Além do contrato de emitir `idioma` e `idioma_fonte`, é ele que
+vai dizer se o `fts_caminho = 0,3` se sustenta — aqui a fatia tem 12 perguntas e o
+efeito é de uma.
+
+Um pedaço de `C3.b–d` (expansão morfológica, frases, stoplist) **continua do
+desktop** na onda 6 e não foi tocado aqui — só `C3.a`.
+
+**Reportado e não corrigido, pela regra 8 da §4.** Depois do merge do PR #14,
+três testes de `tests/test_pacote.py` falhavam neste notebook. O notebook rodou
+`pip install -e .` como pedido — e **dois continuam vermelhos**, o que muda o
+diagnóstico. O `pip install` conserta `test_import_sem_pythonpath_de_system32`; os
+outros dois falham por um segundo defeito, independente:
+
+`_script()` usa `Path(sys.executable).parent` para achar o console script. Num
+venv isso acerta, porque o `python.exe` mora dentro de `Scripts/`. Numa instalação
+base do Windows, não: o `pip` põe os `.exe` em `sysconfig.get_path("scripts")`,
+que é `…\Python312\Scripts`, um nível abaixo do interpretador. Medido aqui: os
+quatro `.exe` existem, `segundocerebro-mcp.exe --help` roda de
+`C:\Windows\System32` sem `PYTHONPATH` e devolve 0, e o teste continua vermelho.
+**O CI passa porque roda em venv** — o acerto é coincidência de layout.
+
+Registrei como `R8.1.b` no `ROADMAP.md`, com a ordem: consertar a busca pelo
+script **antes** do `skipif`, senão o `skipif` mascara o defeito num setup onde o
+pacote está instalado e funcionando.
+
+**Ordem dentro da onda 2, e o motivo de não ser a da lista.** `C3.a` vem primeiro
+porque é a hipótese mais barata da onda e ela pode tornar as outras duas menores:
+se a dupla contagem do nome do arquivo explica a troca medida nas perguntas de
+reunião, a correção é um número de consulta, não uma classificação de documento
+no caminho de ranking. `R6.1` vem por último porque a grade do autotune tem de
+saber quais botões existem — `C3.a` e `F4-P` decidem isso.
+
+**Dois arquivos "um de cada vez" que o notebook pegou para o `C3.a`**, e devolve
+no merge:
+
+- `index/store.py`, só `buscar_lexical` — ganhou os pesos de coluna do `bm25()`.
+  O complemento já avisava que `store.py` é compartilhado e pedia combinar antes.
+  Nada do laço de indexação, nada de embedding.
+- schema de `config.py` — três campos novos em `[base.pesos]` (`fts_texto`,
+  `fts_trilha`, `fts_caminho`), todos em 1,0, que é o padrão do FTS5. **Não é
+  classe cara:** peso de coluna é de consulta e não reindexa nada.
+
+**A dependência que a fila declara e que o notebook não vai fingir que não existe.**
+A fila marca `F4-P` e `R6.1` como "depois de `R9.1`", e `R9.1` (perfis sintéticos)
+é do desktop e ainda não começou — não há branch. `C3.a` **não** depende dela: é
+medição no dourado corporativo. `F4-P` também mede aqui e o corporativo é o piso.
+Quem depende de verdade é o critério de aceite de `R6.1`, que pede dois acervos de
+características opostas (nome informativo contra `IMG_2034.pdf`) para provar que o
+autotune converge para pesos diferentes. Isso o notebook **não tem** e não pode
+inventar. Então `R6.1` entrega o mecanismo medido no corporativo e declara o
+critério de generalização como pendente de `R9.1`, em vez de dar o pacote por
+fechado com meia prova.
 
 ### Agora — desktop
 

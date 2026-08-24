@@ -82,3 +82,79 @@ def test_ndcg_idcg_limitado_por_k() -> None:
 def test_media() -> None:
     assert media([1.0, 0.0]) == 0.5
     assert media([]) == 0.0
+
+
+# --- entrega do relatório ----------------------------------------------------
+
+
+class _StdoutCp1252:
+    """Console do Windows: aceita ASCII no texto e qualquer byte no `buffer`."""
+
+    def __init__(self) -> None:
+        self.buffer = _Buffer()
+        self.texto: list[str] = []
+
+    def write(self, s: str) -> int:
+        s.encode("cp1252")  # levanta UnicodeEncodeError, como o console de verdade
+        self.texto.append(s)
+        return len(s)
+
+    def flush(self) -> None:
+        pass
+
+
+class _Buffer:
+    def __init__(self) -> None:
+        self.bytes = b""
+
+    def write(self, b: bytes) -> int:
+        self.bytes += b
+        return len(b)
+
+    def flush(self) -> None:
+        pass
+
+
+def test_relatorio_com_seta_nao_mata_o_processo_no_console(monkeypatch) -> None:
+    """O defeito de 24/08/2026: a porta de latência media tudo e morria ao imprimir.
+
+    `py -m eval.latencia --porta` rodou as três rodadas, montou o relatório e caiu
+    com `UnicodeEncodeError` num `→`, porque o stdout do console do Windows nasce
+    em cp1252. O pior modo de falha possível: o custo da medição já foi pago e o
+    que sai é traceback de codec em vez de número.
+    """
+    import sys
+
+    from eval.harness import entregar
+
+    falso = _StdoutCp1252()
+    monkeypatch.setattr(sys, "stdout", falso)
+
+    entregar("p95 1.840 → 2.877 ms · razão ≥ 0,80 · 6,8×", None)
+
+    assert "→" in falso.buffer.bytes.decode("utf-8")
+    assert not falso.texto, "não passou pelo caminho de texto, que é o que quebra"
+
+
+def test_entrega_em_arquivo_e_utf8(tmp_path) -> None:
+    from eval.harness import entregar
+
+    alvo = tmp_path / "sub" / "relatorio.md"
+    entregar("razão ≥ 0,80 → passa", alvo)
+
+    assert alvo.read_text(encoding="utf-8") == "razão ≥ 0,80 → passa"
+
+
+def test_entrega_sem_buffer_ainda_escreve(monkeypatch) -> None:
+    """Stdout capturado (pytest, notebook) não tem `.buffer` e já é unicode."""
+    import io
+    import sys
+
+    from eval.harness import entregar
+
+    falso = io.StringIO()
+    monkeypatch.setattr(sys, "stdout", falso)
+
+    entregar("com seta →", None)
+
+    assert falso.getvalue() == "com seta →\n"
