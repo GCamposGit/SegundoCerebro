@@ -113,20 +113,20 @@ docs/          decisões, ablações e métricas com número reprodutível
 ## Como rodar
 
 ```bash
-pip install -r requirements.txt
+pip install -e .
 
 # 1. Censo do acervo — quantos arquivos, de que tipo, antes de indexar
 cp census.example.toml census.toml   # preencher com as raízes reais
-py -m segundocerebro.census --config census.toml --out docs/censo.md
+segundocerebro-censo --config census.toml --out docs/censo.md
 
 # 2. Indexar
-py -m segundocerebro.index.indexer
+segundocerebro-indexar
 
 # 3. Servir via MCP
-py -m segundocerebro.mcp.server
+segundocerebro-mcp
 
 # 4. (opcional) Painel local para ajustar pesos sem código
-py -m segundocerebro.painel
+segundocerebro-painel
 ```
 
 Múltiplas bases (pessoal, trabalho, ...) e pesos de recuperação são
