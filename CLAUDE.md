@@ -475,13 +475,53 @@ Duas lições que valem além do pacote:
   diz "ligado em `search` **e** em `buscar_chunks`, para o que se mede ser o que se
   entrega". Vale conferir isso para todo sinal, não só para o próximo.
 
+**A arquitetura de avaliação resiliente entrou no plano em 24/08/2026 — pacotes
+E1–E6 e Q1–Q10.** Ler [`docs/relatorio-avaliacao-resiliente.md`](docs/relatorio-avaliacao-resiliente.md),
+[`docs/guia-engenharia-5-estrelas.md`](docs/guia-engenharia-5-estrelas.md) e, antes
+de tocar no gerador, o laudo [`docs/avaliacao-pacote-e1.md`](docs/avaliacao-pacote-e1.md).
+
+Três camadas: dourado real **congelado** como regressão (nunca decide arquitetura
+sozinho, e a série F1→F2 fica intacta), sintético gerado por código como camada de
+**decisão**, benchmark externo como **alarme**. `R9.1`+`C5.b` foram absorvidos pelo
+`E1`, e o gerador **passou a ser do notebook**.
+
+**O código do `E1` foi executado antes de entrar no plano, e reprovou como veio.**
+Oito achados, três que decidem a ordem:
+
+- **`--n-por-fatia 30`, o comando do próprio README, não termina.** O espaço de
+  siglas tem **26** elementos e não 26³ — 7, 11 e 17 são coprimos de 26, então
+  `b mod 26` é bijeção sobre a tripla. Em `i = 26` o `while True` não sai. **A
+  suíte que veio passa** porque todo teste usa `n ≤ 11`. É a lição do `schtasks`
+  da F3.5-D com outro nome: teste verde contra um caminho que a máquina não
+  executa. E o `n ≥ 30` que o `E5` exige para significância é inalcançável.
+- **A fatia cross-lingual sai de tamanho zero** — `{'não declarado': 260}` —
+  porque `idioma_fonte` nunca é emitido, e `idioma: "pt->en"` nem código de idioma
+  é. É palavra por palavra o que `eval/golden/README.md` avisou no mesmo dia que
+  aconteceria. Contrato escrito num dia e violado no outro só é pego executando.
+- **Zero perguntas de reunião e de email:** `{'escritório': 234, 'misto': 26}`.
+  Sem `.msg`, `.eml`, `.vtt` nem pasta de transcrição.
+
+**Esse último achado é o que reordena o trabalho, e contra a intuição.** O
+relatório manda instrumento antes de conclusão, e lido ingenuamente isso poria o
+`E1` na frente da `F4-P`. Mas o alvo declarado da `F4-P` é o grupo `reunião`, e o
+sintético não mede reunião nem cross-lingual: rodá-lo antes **não protegeria a
+`F4-P` de nada**. O que protege uma decisão sobre n=11 é o intervalo de confiança
+sobre o dourado corporativo, que já é o piso declarado — e ele é o `E5`, o item
+mais barato da lista inteira (~30 linhas, numpy já está lá).
+
+**Ordem adotada: `E5` → `F4-P` → `E1` endurecido.** As sete condições de entrada
+do `E1` estão no ROADMAP, e a que bloqueia merge é a sexta: a suíte que veio no zip
+carrega dez nomes de cliente por extenso num arquivo versionado, que é exatamente o
+anti-padrão que `tests/test_saneamento.py` existe para impedir — e a docstring dele
+já dizia que o teste com a lista embutida "seria o próprio vazamento".
+
 **Próximo passo:** `F4-P`, **reescopado pelo achado acima**. Deixou de ser afinação
 de peso e passou a ser a **reconciliação dos dois caminhos**: trazer o sinal de
 nome para `buscar_chunks` sem deixá-lo votar em documento de reunião. Alvo
 declarado — reunião ≥ **0,452** de MRR (o que o entregue já faz de graça) e
 cross-lingual voltando para recall@20 = **1,000** (o que só `search` faz hoje), sem
 perder o recall@1 de 0,551. O teto de oráculo de +0,032 **não vale**: foi calculado
-sobre `search`. Depois `C6` e `R6.1` — a onda 2 da §6 de `docs/colaboracao.md`.
+sobre `search`. **Antes dela vem o `E5`**, e o motivo está acima. Depois `E1`, `C6` e `R6.1`.
 Segue em
 aberto: `Meetings/` já indexado mas o resto da F4 (SharePoint, watcher, legado
 DOC/XLS) não, e a porta 3 — ver "onde o bm25 se paga". O multi-hop completo segue

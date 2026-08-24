@@ -114,3 +114,8 @@ docs/metricas-f2-sem-rerank.md
 docs/portas-f1-condicao-c.md
 docs/regressao-f1.md
 docs/traco-f3-uso-real.md
+
+# Pacote de código entregue por chat vira fonte no PR do pacote, não blob
+# em `docs/`. O zip do E1 (24/08/2026) foi conferido em
+# `docs/avaliacao-pacote-e1.md` e entra como `eval/gerador/` no PR do E1.
+docs/*.zip
