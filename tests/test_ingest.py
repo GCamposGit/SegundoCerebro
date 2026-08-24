@@ -21,8 +21,8 @@ from segundocerebro.ingest import reader as reader_mod
 from segundocerebro.ingest.document import BlockKind, ParseStatus
 from segundocerebro.ingest.parsers import parser_for, supported_extensions
 from segundocerebro.ingest.parsers.pdf import parse_pdf
-from segundocerebro.ingest.parsers.sheets import parse_xlsx
-from segundocerebro.ingest.parsers.slides import parse_pptx
+from segundocerebro.ingest.parsers.sheets import parse_xls, parse_xlsx
+from segundocerebro.ingest.parsers.slides import parse_ppt, parse_pptx
 from segundocerebro.ingest.parsers.text import blocos_de_markdown, decode, parse_markdown, parse_rtf, parse_texto
 from segundocerebro.ingest.parsers.word import _nivel, parse_docx
 from segundocerebro.ingest.reader import CloudOnlyFile, FileLocked, parse_file, read_bytes
@@ -494,6 +494,10 @@ def test_nenhum_parser_abre_arquivo(monkeypatch: pytest.MonkeyPatch) -> None:
     assert parse_xlsx(xlsx_bytes, "a.xlsx").blocks
     assert parse_pdf(pdf_bytes, "a.pdf").blocks
     assert parse_markdown(b"# t\ncorpo", "a.md").blocks
+    assert parse_ppt(pptx_bytes, "a.ppt").blocks
+    assert parse_xls(
+        b"<html><table><tr><td>CT-VCE-2024-0142</td></tr></table></html>", "a.xls"
+    ).blocks
 
 
 def test_placeholder_de_nuvem_e_recusado(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -732,3 +736,159 @@ def test_arquivo_apagado_entre_a_varredura_e_a_leitura_vira_sumiu(tmp_path: Path
     assert resultado.status is ParseStatus.GONE
     assert resultado.status is not ParseStatus.ERROR
     assert resultado.doc is None
+
+
+# --- F4-L: extensão que mente (HTML / criptografado / codepage / PPTX) --------
+#
+# Medido na passada de legado: `.xls` que é HTML ou SpreadsheetML, `.xls`
+# criptografado, `xlrd` recusando codepage, `.ppt` que é PPTX. Sem o tratamento,
+# os dois primeiros derrubam o parser; o PPTX-como-ppt vira `sem_parser` porque
+# `ooxml` não tem parser sem ambiguidade no despachante. Vocabulário: VCE.
+
+
+def _biff(tipo: int, payload: bytes) -> bytes:
+    import struct
+
+    return struct.pack("<HH", tipo, len(payload)) + payload
+
+
+def _xls_ole_com_registros(*registros: bytes) -> bytes:
+    import struct
+
+    from cfb import escrever_cfb
+
+    bof = _biff(0x0809, struct.pack("<HHHHHH", 0x0600, 0x0005, 0x0DBB, 0x07CC, 0, 0))
+    eof = _biff(0x000A, b"")
+    return escrever_cfb({"Workbook": bof + b"".join(registros) + eof})
+
+
+def test_html_salvo_como_xls_extrai_celulas() -> None:
+    html = (
+        b"<html><table>"
+        b"<tr><td>Contrato</td><td>Valor</td></tr>"
+        b"<tr><td>CT-VCE-2024-0142</td><td>148500</td></tr>"
+        b"</table></html>"
+    )
+    doc = parse_xls(html, "orcamento.xls")
+    texto = "\n".join(b.text for b in doc.blocks)
+    assert "CT-VCE-2024-0142" in texto
+    assert doc.meta["conteudo_real"] == "html"
+
+
+def test_html_salvo_como_xls_nao_vira_sem_parser(tmp_path: Path) -> None:
+    html = (
+        b"<html><table><tr><td>PO-VCE-007</td></tr></table></html>"
+    )
+    alvo = tmp_path / "politica.xls"
+    alvo.write_bytes(html)
+    resultado = parse_file(str(alvo))
+    assert resultado.status is ParseStatus.OK
+    assert resultado.status is not ParseStatus.UNSUPPORTED
+    assert resultado.doc is not None
+    assert "PO-VCE-007" in resultado.doc.blocks[0].text
+
+
+def test_spreadsheetml_salvo_como_xls_extrai_aba() -> None:
+    xml = (
+        '<?xml version="1.0"?>'
+        '<Workbook xmlns="urn:schemas-microsoft-com:office:spreadsheet"'
+        ' xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet">'
+        '<Worksheet ss:Name="Orcamento"><Table>'
+        "<Row><Cell><Data ss:Type=\"String\">Contrato</Data></Cell>"
+        "<Cell><Data ss:Type=\"String\">Valor</Data></Cell></Row>"
+        "<Row><Cell><Data ss:Type=\"String\">CT-VCE-2024-0142</Data></Cell>"
+        "<Cell><Data ss:Type=\"Number\">148500</Data></Cell></Row>"
+        "</Table></Worksheet></Workbook>"
+    ).encode()
+    doc = parse_xls(xml, "orcamento.xls")
+    texto = "\n".join(b.text for b in doc.blocks)
+    assert "CT-VCE-2024-0142" in texto
+    assert doc.meta["conteudo_real"] == "xml"
+    assert any("Orcamento" in (b.heading_path or ()) for b in doc.blocks) or any(
+        "Orcamento" in b.text for b in doc.blocks
+    )
+
+
+def test_xls_criptografado_biff_vira_erro_com_detalhe(tmp_path: Path) -> None:
+    import struct
+
+    filepass = _biff(0x002F, struct.pack("<HHHH", 1, 0, 1, 0) + b"\x00" * 16)
+    dados = _xls_ole_com_registros(filepass)
+    alvo = tmp_path / "secreto.xls"
+    alvo.write_bytes(dados)
+
+    with pytest.raises(ValueError, match="criptografada"):
+        parse_xls(dados, "secreto.xls")
+
+    resultado = parse_file(str(alvo))
+    assert resultado.status is ParseStatus.ERROR
+    assert resultado.status is not ParseStatus.UNSUPPORTED
+    assert "criptograf" in resultado.detail.lower()
+
+
+def test_xls_ole_com_encrypted_package_vira_erro_com_detalhe(tmp_path: Path) -> None:
+    from cfb import escrever_cfb
+
+    dados = escrever_cfb({"EncryptedPackage": b"x" * 80, "EncryptionInfo": b"y" * 20})
+    alvo = tmp_path / "agile.xls"
+    alvo.write_bytes(dados)
+    resultado = parse_file(str(alvo))
+    assert resultado.status is ParseStatus.ERROR
+    assert resultado.status is not ParseStatus.UNSUPPORTED
+    assert "criptograf" in resultado.detail.lower()
+
+
+def test_xls_assertionerror_sem_mensagem_vira_erro_com_detalhe(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Achado do notebook: xlrd levanta AssertionError vazio num .xls real."""
+    import xlrd
+
+    def recusa(*args, **kwargs):  # noqa: ANN002, ANN003
+        raise AssertionError()
+
+    monkeypatch.setattr(xlrd, "open_workbook", recusa)
+    dados = _xls_ole_com_registros()
+    with pytest.raises(ValueError, match="xlrd recusou"):
+        parse_xls(dados, "quebrado.xls")
+
+    alvo = tmp_path / "quebrado.xls"
+    alvo.write_bytes(dados)
+    resultado = parse_file(str(alvo))
+    assert resultado.status is ParseStatus.ERROR
+    assert resultado.status is not ParseStatus.UNSUPPORTED
+    assert "xlrd recusou" in resultado.detail
+    assert "sem mensagem" in resultado.detail
+
+
+def test_xls_codepage_recusada_abre_com_cp1252() -> None:
+    import struct
+
+    codepage = _biff(0x0042, struct.pack("<H", 0xABCD))
+    dados = _xls_ole_com_registros(codepage)
+    doc = parse_xls(dados, "legado.xls")
+    assert doc.meta["formato"] == "xls"
+
+
+def test_pptx_salvo_como_ppt_nao_vira_sem_parser(tmp_path: Path) -> None:
+    dados = bytes_pptx()
+    doc = parse_ppt(dados, "deck.ppt")
+    assert any("Copilot" in b.text for b in doc.blocks)
+    assert doc.meta["conteudo_real"] == "pptx"
+
+    alvo = tmp_path / "deck.ppt"
+    alvo.write_bytes(dados)
+    resultado = parse_file(str(alvo))
+    assert resultado.status is ParseStatus.OK
+    assert resultado.status is not ParseStatus.UNSUPPORTED
+    assert resultado.natureza is not None
+    assert resultado.natureza.extensao_mente
+
+
+def test_ppt_que_nao_e_ole2_vira_erro_nao_sem_parser(tmp_path: Path) -> None:
+    alvo = tmp_path / "lixo.ppt"
+    alvo.write_bytes(b"isto nao e um ppt")
+    resultado = parse_file(str(alvo))
+    assert resultado.status is ParseStatus.ERROR
+    assert resultado.status is not ParseStatus.UNSUPPORTED
+    assert "OLE2" in resultado.detail
