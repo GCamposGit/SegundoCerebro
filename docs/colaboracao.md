@@ -18,7 +18,7 @@ em `eval/sintetico/`.
 
 | Dono | Arquivos | Por quê |
 |------|----------|---------|
-| Desktop | `index/embeddings.py`, laço/pipeline de `index/indexer.py`, `index/esforco.py`, `index/smoke_cuda.py`, `requirements-gpu.txt` se existir, `docs/` de F3.6 e de estimativa | Velocidade, não ranking |
+| Desktop | `index/embeddings.py`, laço/pipeline de `index/indexer.py`, `index/esforco.py`, `index/smoke_cuda.py`, `index/prioridade.py`, `index/estimativa.py`, `ingest/parsers/ole_texto.py`, `requirements-gpu.txt` se existir, `docs/` de F3.6, de estimativa e de prioridade | Velocidade e política de fila, não ranking |
 | Notebook | `retrieve/*`, `eval/*` **exceto** o exemplo sintético, docs gitignorados do acervo real, padrões de peso em `config.py` | Invariante 4 mora aqui |
 | Um de cada vez | `mcp/server.py`, `painel/*`, schema de `config.py`, `ROADMAP.md` | Branch dedicada, merge, o outro puxa |
 | Um de cada vez, **por formato** | `ingest/parsers/*` | Os dois lados precisam de formato novo. O dono é por arquivo de parser, declarado na §6 antes de começar |
@@ -28,7 +28,7 @@ Mudança que toca ranking **e** o laço do indexador = **dois PRs**, não um.
 
 `ingest/parsers/*` entrou na tabela em 23/08/2026 porque a regra antiga
 (“parser é do notebook, laço é do desktop”) não sobreviveu ao encontro dos PRs
-#5 e #6: o notebook escreveu `email.py`, o desktop escreveu `ole_texto.py`, e os
+#5 e #6: o notebook escreveu `mail.py`, o desktop escreveu `ole_texto.py`, e os
 dois mexeram no despachante. Não houve conflito, e foi sorte. O dono é do
 **arquivo de parser**, não da pasta; o despachante (`parsers/__init__.py`,
 `supported_extensions()`) é “um de cada vez” como `mcp/server.py`.
@@ -108,12 +108,17 @@ localmente nos dois setups e só confundem: `git branch -vv` mostra
 Nunca force-push em `main`. Nunca deixe o agente “limpar o histórico” de uma
 branch compartilhada.
 
+**Stash não é versão.** Entrega que ficou só no stash desta máquina não existe
+para o outro lado — foi o que atrasou a fila em ondas até o PR #6. Cada fase
+termina em commit na branch e PR; o notebook (e o desktop) só vê o que está em
+`main`.
+
 Teste que precisa de GPU ou do encoder real usa o marker `modelo` (já existe)
 ou um marker `cuda` — fora da suíte padrão.
 
 ---
 
-## 4. As oito regras que evitam retrabalho
+## 4. As nove regras que evitam retrabalho
 
 1. **Padrão de ranking não muda** sem o notebook medir antes/depois no
    conjunto corporativo.
@@ -135,6 +140,8 @@ ou um marker `cuda` — fora da suíte padrão.
    `docs/estimativa-de-indexacao.md`; quem edita o arquivo é o dono dele. Vale
    nos dois sentidos. Feito assim em `docs/ablacao-f4-meetings.md` — a regra só
    registra o que já funcionou.
+9. **O Git é a única cópia.** Stash, working tree suja e `config.toml` local
+   não contam como entrega. Se não está em `main`, o outro computador não tem.
 
 ---
 
@@ -168,9 +175,10 @@ em [`docs/portabilidade-f36.md`](portabilidade-f36.md).
 
 ## 6. O que cada lado faz nesta fase
 
-**Estado em 23/08/2026.** F1, F2, F3, F3.5 e F3.6 fechadas. F4 **em curso**, e é
-a única fase aberta. `main` = `677fa22`, 676 testes verdes, PRs #2 a #6
-mergeados. Índice corporativo do notebook: **1.828 documentos, 97.981 trechos**.
+**Estado em 24/08/2026.** F1, F2, F3, F3.5 e F3.6 fechadas. F4 **em curso**, e é
+a única fase aberta. `main` = `677fa22`, PRs #2 a #6 mergeados. Suíte padrão
+neste desktop depois do #6: **732** verdes (`tests/` + `eval/`). Índice
+corporativo do notebook: **1.828 documentos, 97.981 trechos**.
 
 Histórico das entregas fechadas (smoke CUDA, pipeline, sintético, portabilidade,
 rerank na GPU, perfil leve, limites por tipo, painel 18787, grafo, `neighbors`,
@@ -212,11 +220,28 @@ watcher, e a porta 3 (“onde o bm25 se paga”). Multi-hop completo segue em 1 
 
 ### Aberto — desktop
 
-A definir pelo desktop nesta rodada. O que o notebook **pede** que não comece
-antes de combinar: mexer em `[padrao]`, em `Chunking`, em `model_id`, ou em
-`retrieve/*`.
+**1. Estimativa em pasta de arquivo pequeno.** Achado do notebook em
+`Meetings/` (regra 8, `docs/ablacao-f4-meetings.md`): a semente de `.txt` está
+dez vezes baixa (496 s/MB, perto do DOCX), e com arquivos de ~19 kB o custo é
+overhead por documento, não por byte. A barra chegou a pedir dezenas de dias
+numa passada de horas. O arquivo a corrigir é
+[`docs/estimativa-de-indexacao.md`](estimativa-de-indexacao.md) e
+`index/estimativa.py` — dono: desktop. Não é `[padrao]`.
+
+**2. Suíte que trava — não fica lenta — com a passada viva.** Os testes de
+`eval/` esperam a trava de escrita do SQLite sem timeout. Pausar com
+`comando.txt` fecha a suíte; o CI nunca vê, porque lá não há índice real. Falta
+mensagem ou recusa explícita, para o próximo não gastar quarenta minutos.
+
+**3. Não começar** `[padrao]`, `Chunking`, `model_id`, `retrieve/*`, nem
+reabrir o laço do `indexer.py` enquanto o notebook corta `Meetings/` por papel.
 
 ### Aberto — os dois, e precisa de acordo
+
+**`[base.excluir]` por padrão de nome.** Proposta do notebook para andaime e
+PDF redundante em `Meetings/`: a exclusão mora na configuração da base, não no
+laço. O desktop **concorda com o lugar** (config, não `indexer.py`). O schema
+de `config.py` é “um de cada vez”: quem for escrever o PR declara antes.
 
 **Nome real em documento público.** `docs/colaboracao.md` citava o nome de um
 cliente real ao explicar o `parser=` do #6 (corrigido neste PR para “a base
@@ -267,3 +292,4 @@ seção 1?** Se sim, pede mudança. Se não, o CI decide.
 | Os dois editarem `ROADMAP.md` no mesmo dia | decisão perdida no merge |
 | Commitar perguntas ou caminhos do acervo novo privado | o mesmo vazamento que tirou o dourado corporativo do Git |
 | Começar o pipeline GPU antes do smoke | dias de código sobre runtime que o Maxwell não carrega |
+| Deixar a entrega só no stash | o outro computador não tem; as ondas ficaram cegas até o #6 |

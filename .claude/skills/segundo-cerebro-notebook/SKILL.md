@@ -25,10 +25,11 @@ O outro lado é Grok Build no desktop (duas 980 Ti, corpus privado dele,
 4. Declare na primeira resposta: setup=notebook, branch, fase, o que não vai
    tocar.
 
-## Estado em 23/08/2026
+## Estado em 24/08/2026
 
-`main` = `677fa22`, 676 testes verdes. F1, F2, F3, F3.5 e F3.6 fechadas; **F4 é
-a única fase aberta**. Índice corporativo: 1.828 documentos, 97.981 trechos.
+Os números vivos (`main`, testes, tamanho do índice) estão na §6 de
+`docs/colaboracao.md`. F1, F2, F3, F3.5 e F3.6 fechadas; **F4 é a única fase
+aberta**.
 
 A lista de “o que o desktop já fez” saiu daqui de propósito: envelheceu duas
 vezes em três dias e passou a contradizer a §6. Ela vive na §6 de
