@@ -19,9 +19,11 @@ por mim durante a F1**:
    intercambiáveis. A ordem da varredura é alfabética por pasta e as pastas não
    têm composição parecida.
 
-A unidade de trabalho é **byte ponderado por formato**, porque é o único preditor
-disponível *antes* de abrir o arquivo — e abrir para estimar custaria o mesmo que
-indexar.
+A unidade de trabalho é **byte ponderado por formato mais um intercepto por
+arquivo**, porque o byte é o único preditor disponível *antes* de abrir o
+arquivo — e abrir para estimar custaria o mesmo que indexar. Sem o intercepto,
+uma pasta de milhares de `.txt` de ~19 kB faz a barra pedir dezenas de dias:
+o custo real é overhead por documento, e a calibragem por byte infla o restante.
 """
 
 from __future__ import annotations
@@ -36,12 +38,18 @@ SEGUNDOS_POR_MB: dict[str, float] = {
     "pptx": 3.8,
     "pdf": 48.7,
     "xlsx": 487.2,
+    "txt": 496.0,
+    "csv": 496.0,
+    "md": 496.0,
+    "markdown": 496.0,
     "docx": 522.5,
 }
-"""Medianas medidas sobre 1.419 documentos com duração observada.
+"""Medianas de s/MB. pptx/pdf/xlsx/docx: run de 13–16/08/2026, 1.419 documentos.
 
-Um megabyte de PPTX é quase todo imagem e vira 8 chunks; um de DOCX é texto puro
-e vira centenas. Daí os 137× entre o menor e o maior coeficiente.
+`.txt`/`.csv`/`.md`: 496 s/MB medido em 23/08/2026 no acervo corporativo
+(`docs/ablacao-f4-meetings.md`, 819 transcrições). A semente antiga (50, a do
+PDF) prometia 13 min e o real foram horas: um megabyte de transcrição é texto
+puro, como o DOCX (522), não como o PDF.
 
 São **semente**, não verdade: valem para esta máquina, este corpus e o
 `e5-large`. Trocar qualquer um dos três invalida a tabela, e é por isso que o
@@ -49,6 +57,19 @@ estimador recalibra sozinho durante o run."""
 
 SEGUNDOS_POR_MB_PADRAO = 50.0
 """Para extensão sem coeficiente medido. Perto do PDF, que é metade do acervo."""
+
+SEGUNDOS_POR_DOCUMENTO = 15.0
+"""Intercepto por arquivo, em segundos, na CPU.
+
+Medido em 23/08/2026: 819 `.txt` de ~19 kB a 24,5 s cada. A parte por byte
+(496 s/MB × 0,019 MB ≈ 9,4 s) não fecha a conta — sobram ~15 s de abrir, parse,
+commit. Sem isto, a calibragem `medido/previsto` explode (previsto ≈ 1 s,
+medido 24 s) e multiplica o restante de PDF/DOCX por dezenas: a barra pede
+67 dias numa passada de horas.
+
+Não divide por `FATOR_GPU`: o intercepto é E/S e SQLite, não o encoder. A
+calibragem recusa o outlier se a GPU for bem mais rápida; o restante grande
+não herda o fator."""
 
 FATOR_GPU = 28.0
 """Semente CPU ÷ tempo medido neste desktop, 19/08/2026.
@@ -152,9 +173,9 @@ def _semente(extensao: str) -> float:
 
 
 def peso_de(rel: str, tamanho: int) -> float:
-    """Trabalho estimado de um arquivo, em segundos."""
+    """Trabalho estimado de um arquivo, em segundos: intercepto + byte ponderado."""
     extensao = rel.rsplit(".", 1)[-1].lower() if "." in rel else ""
-    return _semente(extensao) * (tamanho / 1e6)
+    return SEGUNDOS_POR_DOCUMENTO + _semente(extensao) * (tamanho / 1e6)
 
 
 @dataclass(frozen=True)
