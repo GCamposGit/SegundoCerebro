@@ -41,6 +41,8 @@ from .harness import (
     resolver_dourado,
     verificar_escopo,
 )
+from .idioma import conferir as conferir_idioma
+from .idioma import idiomas_das_fontes
 
 log = get_logger("eval")
 
@@ -153,6 +155,34 @@ def _montar(args, cfg):  # noqa: ANN001
     return retriever, f"Métricas F1 — {retriever.nome}", contexto, store, set(universo)
 
 
+def _conferir_idioma(perguntas, store) -> None:  # noqa: ANN001
+    """A anotação de idioma contra o índice, quando há índice.
+
+    As duas espécies são tratadas de forma diferente de propósito. `divergente`
+    sai uma a uma, porque cada uma é uma pergunta na fatia errada. `sem_anotacao`
+    sai como **contagem**: numa base recém-anotada elas são dezenas, e sessenta
+    linhas de aviso idêntico treinam quem lê a ignorar o bloco inteiro — junto
+    com a linha de `divergente` que estivesse no meio.
+
+    O baseline por nome não abre índice e não confere nada. É o preço de a fatia
+    ser anotação estática, e é o preço certo: a alternativa era o baseline não
+    ter fatia nenhuma.
+    """
+    if store is None:
+        return
+    divergencias = conferir_idioma(perguntas, idiomas_das_fontes(store, perguntas))
+    sem = [d for d in divergencias if d.especie == "sem_anotacao"]
+    for d in divergencias:
+        if d.especie == "divergente":
+            log.error("idioma/divergente: %s — %s", d.id, d.detalhe)
+    if sem:
+        log.warning(
+            "idioma/sem_anotacao: %d perguntas ficam fora da fatia cross-lingual — "
+            "`py -m eval.idioma --base <id> --escrever` anota",
+            len(sem),
+        )
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="eval.rodar", description="Avalia um recuperador sobre o conjunto dourado")
     parser.add_argument("--base", help="qual base avaliar (ver config.toml)")
@@ -250,6 +280,7 @@ def main(argv: list[str] | None = None) -> int:
     for d in verificar_escopo(perguntas, universo, universo_de_conteudo=store is not None):
         nivel = log.error if d.especie == "silenciosa" else log.warning
         nivel("escopo/%s: %s — %s", d.especie, d.id, d.detalhe)
+    _conferir_idioma(perguntas, store)
 
     try:
         resultado = avaliar(retriever, perguntas)

@@ -323,6 +323,34 @@ Cinco coisas desta entrega que valem para as fases seguintes:
   Toda métrica de F1 e F2 mediu um corpus 39% menor que o disco. Nenhuma conclusão
   muda (cada uma declara seu corpus), mas é o próximo número a decidir.
 
+**F4 — fatia cross-lingual (C4.5) entregue em 24/08/2026.** Ler
+`docs/fatia-cross-lingual.md`. O harness recorta toda medição em `mesma-língua`
+contra `cross-lingual`, e o recorte acusou o que a média escondia: recall@1
+**0.625** mesma-língua contra **0.333** cross-lingual, razão em recall@5 **0.73**
+contra o 0.80 do critério. O acervo é 15% inglês (284 de 1.900 documentos com
+conteúdo) e um quinto do dourado cruza idioma.
+
+```bash
+py -m eval.idioma --base padrao --escrever   # anota idioma/idioma_fonte no dourado
+```
+
+Três coisas desta entrega que valem para as fases seguintes:
+
+- **recall@20 é 1.000 na fatia cross-lingual.** O documento certo é alcançado e
+  **mal ordenado** — sintoma de ranqueador cego dentro da fusão, não de busca que
+  não encontra. Dois dos três votos (bm25 e nome) são cegos a idioma por
+  construção: FTS5 não casa `contrato` com `agreement`. É a pergunta que `F4-P`
+  herda.
+- **Anotação estática, não derivada do índice — porque o baseline por nome não
+  abre índice.** Calcular a fatia no relatório a faria sumir do lado F0 de toda
+  comparação entre fases, que é a razão de o harness existir. O preço (anotação
+  envelhece) se paga com `conferir()`, que confronta anotação e índice a cada
+  `eval.rodar`.
+- **Os dois defeitos do detector eram de normalização, não de vocabulário.** `as`
+  faltava na lista inglesa, e `só` perde o acento e vira a palavra inglesa `so`.
+  Os dois faziam o texto pontuar para o idioma errado **proporcionalmente ao
+  tamanho**. Nenhum apareceu na leitura; os dois apareceram no teste.
+
 **Próximo passo:** decidir sobre `Meetings/` (1.010 documentos, horas de
 indexação), o que resta da F4 (SharePoint, watcher, legado DOC/XLS) e a porta 3 —
 ver "onde o bm25 se paga". O multi-hop completo segue em 1 de 5, e há a primitiva

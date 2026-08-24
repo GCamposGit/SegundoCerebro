@@ -20,6 +20,8 @@ Uma pergunta por linha, JSON:
 | `fontes` | Caminhos **relativos à raiz**, com `/` como separador. O harness normaliza para o separador do sistema |
 | `validada` | `true` quando o usuário confirmou pergunta **e** fonte. Rascunho meu = `false` |
 | `notas` | Por que a pergunta existe e que armadilha ela cobre |
+| `idioma` | Idioma da **pergunta**: `pt` · `en`. Ausente = detectar do texto |
+| `idioma_fonte` | Idioma da(s) **fonte(s)**: `pt` · `en` · `misto` · `indefinido`. Ausente = fora da fatia |
 
 Os caminhos usam `/` mesmo no Windows para não precisar escapar `\` em JSON.
 
@@ -37,6 +39,48 @@ está falhando:
 
 Mistura alvo em 50 perguntas: ~15 `exato`, ~20 `semantica`, ~8 `temporal`,
 ~7 `multihop`.
+
+## Por que existem os dois campos de idioma
+
+O acervo é bilíngue. Medido em 24/08/2026: **284 dos 1.900 documentos com
+conteúdo estão em inglês**, e **12 das 62 perguntas** apontam para um deles a
+partir de uma pergunta em português. A ponte entre os dois idiomas mora num
+ranqueador só — o denso é multilíngue e alinhado, o bm25 é cego a idioma por
+construção, porque FTS5 não casa `contrato` com `agreement`.
+
+Sem o recorte, uma troca de modelo denso que quebrasse **só** essa ponte subiria
+na média agregada e ninguém veria: a fatia mesma-língua é quatro vezes maior e a
+esconderia. É a lacuna que `C4.5` fecha.
+
+Os dois campos não funcionam igual, e a assimetria é deliberada:
+
+- **`idioma`** tem detecção de reserva — o texto da pergunta está no arquivo.
+  Anote à mão só o que o detector não decide: consulta curta feita de sigla e
+  número. É 1 das 62 aqui.
+- **`idioma_fonte`** **não** tem. Detectá-lo no relatório exigiria índice
+  aberto, e o baseline por nome não abre índice — a fatia sumiria justamente do
+  lado F0 da comparação entre fases, que é a razão de o harness existir. Quem
+  preenche é o comando abaixo, uma vez, lendo o índice; depois disso a anotação
+  é estática e conferível em diff, como `fora_de_escopo`.
+
+```bash
+py -m eval.idioma --base padrao              # só relata a fatia
+py -m eval.idioma --base padrao --escrever   # grava a anotação
+```
+
+`eval.rodar` reconfere a anotação contra o índice a cada medição e reclama de
+duas coisas: anotação faltando (contagem, porque numa base nova são dezenas) e
+anotação **divergente** do que o índice mostra (uma a uma, porque cada uma é uma
+pergunta na fatia errada).
+
+Fonte que não dá para decidir — PDF digitalizado sem texto, documento metade em
+cada idioma — fica `indefinido` ou `misto`, e o par sai das duas fatias em vez
+de entrar na errada. Aparece com o n na coluna `não declarado`.
+
+**Para quem gera conjunto dourado sintético** (`R9.1`, perfil bilíngue): emitir
+os dois campos já preenchidos é o que faz o perfil medir a ponte. Um corpus
+bilíngue sem `idioma_fonte` produz uma fatia cross-lingual de tamanho zero e um
+relatório que parece aprovado.
 
 ## Regras ao escrever perguntas
 

@@ -63,6 +63,12 @@ desktop.ini
 # o sistema.
 eval/golden/perguntas.jsonl
 eval/golden/empresas.jsonl
+# Padrao, e nao so o nome exato: `eval.idioma --escrever` grava por arquivo
+# temporario (`perguntas.jsonl.tmp`), e uma queda no meio da escrita deixaria
+# esse arquivo — com o acervo real dentro — fora de qualquer regra. E a mesma
+# licao de `docs/metricas-*.md` e de `config.toml.*`: lista por nome falha em
+# silencio no arquivo seguinte.
+eval/golden/perguntas.jsonl.*
 
 # Relatório por pergunta **sempre** cita nome de arquivo do acervo — é o que ele
 # é. Por isso `docs/metricas-*.md` é padrão e não lista: lista por nome falha em

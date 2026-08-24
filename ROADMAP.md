@@ -775,7 +775,7 @@ privada do desktop **não** trava nenhum destes:
 | R9.1 + C5.b | Perfis sintéticos: **gerador + seed + manifesto**, corpus nunca commitado | **desktop** | **1** | **sim, agora** |
 | C5.a | Porta de custo do MIRACL: smoke de throughput → `docs/custo-miracl.md` | **desktop** | **1** | **sim, agora** |
 | F6-A / R8.1 | `pip install` sem `PYTHONPATH=src`; matriz 3×SO no CI | **desktop** | **1** | **sim, agora** |
-| C4.5 | Fatia cross-lingual no harness (`mesma-língua` vs `cross-lingual`) | notebook | **1** | **sim, agora** |
+| C4.5 | Fatia cross-lingual no harness (`mesma-língua` vs `cross-lingual`) | notebook | **1** | ✅ **fechado** — ver [`docs/fatia-cross-lingual.md`](docs/fatia-cross-lingual.md) |
 | R9.3 | Porta de latência, sobre índice inflado | notebook define, **desktop infla o índice** | **1** | **sim, agora** |
 | C1 | Política de particionamento + description gerada do censo | acordo; texto no `ARCHITECTURE.md` | **1** | **sim** — combinar quem escreve |
 | C6 | Família de versões ≠ grupo de formatos (**subordina R1.3**) | notebook (ranking) + desktop (hash/MinHash no censo) | 2 | depois da onda 1 |
@@ -837,6 +837,33 @@ chunk), `R3.1` (ablação de modelo), `R6.1` (autotune), `R6.2` (rerank v2) e
 Medir qualquer um deles hoje é medir um quarto do acervo e chamar de decisão. Por
 isso **`F4-D` entra na onda 1**, à frente de tudo que ela destrava. É a correção
 mais importante que a medição faz na §12 do dossiê.
+
+### A fatia cross-lingual, medida — `C4.5` fechado em 24/08/2026
+
+O complemento chamava a falta de recorte bilíngue de "lacuna: regressão bilíngue
+hoje passaria invisível". Medido: a lacuna escondia **uma queda de 47% em
+recall@1**.
+
+| Fatia | n | recall@1 | recall@5 | MRR@10 |
+|---|---:|---:|---:|---:|
+| mesma-língua | 44 | 0.625 | 0.852 | 0.750 |
+| **cross-lingual** | **12** | **0.333** | **0.625** | **0.496** |
+
+Razão em recall@5 **0.73**, contra o **0.80** que o próprio `C4.5` pede. O acervo
+é 15% inglês (284 de 1.900 documentos com conteúdo) e um quinto do dourado cruza
+idioma — não é caso de borda. E o perfil localiza o defeito: recall@20 é **1.000**
+na fatia cross-lingual, então o documento certo é **alcançado e mal ordenado**,
+que é o sintoma de ranqueador cego na fusão, não de busca que não encontra.
+
+Três consequências para a fila, e nenhuma delas muda ranking hoje:
+
+- `R3.1` e `R6.2` deixam de poder ser decididos pela média. `eval.ablacao_f2`
+  passou a emitir MRR mesma-língua e cross-lingual lado a lado.
+- `F4-P` (onda 2) herda a pergunta de qual ranqueador paga a conta — dois dos
+  três votos da fusão (bm25 e nome) são cegos a idioma por construção.
+- `R9.1` ganha contrato: o perfil bilíngue **tem** de emitir `idioma` e
+  `idioma_fonte` no dourado gerado. Sem eles a fatia sai de tamanho zero e o
+  relatório parece aprovado. Formato em `eval/golden/README.md`.
 
 ### As portas de latência, com linha de base medida
 

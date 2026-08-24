@@ -190,11 +190,15 @@ acervo — é parar de escolher peso global a partir de qualquer acervo único. 
 
 Onda 1 do notebook:
 
-1. **C4.5** — fatia cross-lingual no harness: todo relatório passa a recortar
-   `mesma-língua` vs `cross-lingual`. `eval/*`, sem tocar ranking.
+1. ~~**C4.5**~~ — **fechado em 24/08/2026**. O harness recorta `mesma-língua` vs
+   `cross-lingual` em todo relatório, e `eval.ablacao_f2` ganhou as duas colunas
+   de MRR. Medido: **recall@1 0.625 mesma-língua contra 0.333 cross-lingual**,
+   razão em recall@5 **0.73** contra o 0.80 do critério. Ver
+   [`fatia-cross-lingual.md`](fatia-cross-lingual.md).
 2. **R9.3** — porta de latência. Linha de base já medida em 24/08: `search` sem
    rerank **p50 1.145 ms / p95 1.418 ms**; com rerank de 10 candidatos, p50
    8.019 ms. O notebook define a porta; o índice inflado vem do desktop.
+   **É o que o notebook pega agora.**
 
 Depois da onda 1: `C6` (família de versões ≠ grupo de formatos), `F4-P`+`C3.a`,
 `R6.1`. **Não começar `retrieve/*` antes** — a régua tem de existir primeiro.
@@ -206,7 +210,12 @@ sugestão; os três primeiros são a onda 1 e destravam as ondas 4 e 5.
 
 1. **R9.1 + C5.b — perfis sintéticos.** Quatro perfis (`juridico`, `financeiro`,
    `pessoal` com nomes ruins tipo `Scan_001.pdf`, `engenharia`) + um bilíngue
-   PT/EN. **Versionar gerador + seed + manifesto** com hash do *texto extraído*;
+   PT/EN. **O perfil bilíngue tem contrato desde 24/08:** o dourado gerado emite
+   `idioma` e `idioma_fonte` (formato em `eval/golden/README.md`). Sem os dois
+   campos a fatia cross-lingual sai de tamanho zero e o relatório parece
+   aprovado — o harness não os detecta sozinho, e o porquê está em
+   [`fatia-cross-lingual.md`](fatia-cross-lingual.md).
+   **Versionar gerador + seed + manifesto** com hash do *texto extraído*;
    corpus gerado vai para o `.gitignore`. É o padrão que `eval/sintetico/` já
    segue — não commitar corpus. Determinismo obrigatório: seed única, iteração
    ordenada, sem depender de locale.
