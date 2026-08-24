@@ -25,7 +25,9 @@ numpy>=2.0,<3
 
 # F2 e adiante
 mcp>=2.0,<3
-# watchdog
+
+# F4-W — observador de disco. Processo à parte; não entra no laço do indexador.
+watchdog==6.0.0
 
 # F3.5 — painel de ajuste. O painel não usa FastAPI porque `starlette` e
 # `uvicorn` já vêm com o `mcp`: validação por pydantic e OpenAPI não pagam dez
