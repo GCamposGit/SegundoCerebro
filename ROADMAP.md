@@ -766,18 +766,19 @@ Int8 na CPU continua sendo alavanca do notebook, não desta fase.
 Dois pacotes só voam juntos se as listas de path **não se intersectam**.
 `ingest/parsers/__init__.py` (despachante) é o mesmo contrato de `mcp/server.py`.
 
-**Fila agora** (24/08/2026). A passada OLE da Bain no desktop **não** trava
-nenhum destes:
+**Fila agora**, atualizada em 24/08/2026 pelo notebook. A passada OLE na base
+privada do desktop **não** trava nenhum destes:
 
 | # | Pacote | Dono | Começa já? |
 |---|--------|------|------------|
-| F4-M | `[base.excluir]` + `Meetings/` por papel | notebook | **sim** |
+| F4-M | `[base.exclude.papel]` + `Meetings/` por papel | notebook | ✅ **fechado** (PR #10) |
+| F4-D | Dourado que cubra o acervo — 18% hoje | notebook | **em curso**, lote do usuário pendente |
 | F4-L | OLE que mente a extensão (HTML/criptografado/codepage) | desktop | **sim** |
 | F4-W | Watcher (processo à parte, não o laço) | desktop | **sim** |
 | F6-A | `pip install` sem `PYTHONPATH=src` | desktop | **sim** |
-| F4-O | OCR de PDF digitalizado | a combinar (despachante) | depois de F4-M mergear |
-| F4-S | SharePoint = pasta sincronizada, só política e tela | notebook | depois de F4-M (painel) |
-| F4-P | Porta 3, bm25 | notebook | precisa do dourado **depois** de Meetings |
+| F4-O | OCR de PDF digitalizado | a combinar (despachante) | **sim** — F4-M mergeou |
+| F4-S | SharePoint = pasta sincronizada, só política e tela | notebook | **sim** — F4-M soltou o painel |
+| F4-P | Porta 3, bm25 **e peso de nome por tipo de fonte** | notebook | depois do lote do usuário em F4-D |
 | F6-B | Primeira base no painel, zero terminal | quem não estiver no painel | depois de F4-M ou F4-S |
 | F5 | Segundo usuário, ACL | ninguém | gatilho: segundo usuário real |
 
@@ -793,8 +794,8 @@ com o traço real de uso fica claro quais arestas o modelo aproveita.
 > critério de saída estão cumpridas para esta parte: métricas da F2 **idênticas**
 > (recall@1 0,667, MRR 0,787, nDCG@5 0,793) e o caso plano → norma respondível só
 > pela aresta. MSG/EML e legado OLE **entraram**. Falta desta fase, em pacotes:
-> F4-M (Meetings), F4-W (watcher), F4-S (SharePoint pasta sincronizada), F4-L
-> (OLE que mente), F4-O (OCR).
+> F4-W (watcher), F4-S (SharePoint pasta sincronizada), F4-L (OLE que mente),
+> F4-O (OCR) e F4-D (dourado que cubra o acervo). F4-M fechou em 24/08.
 >
 > **O "só" foi verificado, não presumido.** A norma não aparece em `search` com
 > k=10, nem k=20, nem quando a consulta nomeia a norma. A razão é estrutural:
@@ -877,11 +878,26 @@ grafo derivado carrega informação que a busca sozinha não alcança.
 ### Pacotes que fecham a F4
 
 Cada um é um PR. Saída da fase: F4-M medido no dourado + F4-W verde na suíte +
-F4-S documentado no painel. F4-O (OCR) pode ficar para depois se o orçamento
+F4-S documentado no painel. **F4-M cumpriu a sua parte em 24/08** — e ao cumprir
+mostrou que o dourado cobria 18% do índice, o que abriu a `F4-D`. F4-O (OCR) pode ficar para depois se o orçamento
 da porta 5 continuar a tratar digitalizado como fora de escopo — mas o leigo
 com scanner não espera.
 
-#### F4-M — `[base.excluir]` e `Meetings/` por papel — **notebook**
+#### F4-M — `Meetings/` por papel — **notebook** — ✅ FECHADO em 24/08/2026
+
+> **Entregue no PR #10**, e com uma diferença que a medição impôs: não é
+> `[base.excluir]` por padrão de nome, é **`[[base.exclude.papel]]` com escopo de
+> pasta**. Glob solto casa pelo nome em qualquer lugar da raiz, e dois arquivos
+> com a forma exata do relatório redundante moram fora da árvore de reuniões — um
+> deles a única cópia do seu assunto. O glob o apagaria em silêncio.
+>
+> Medido: enumeração 2.619 → 2.156, `Meetings/` 1.014 → 551, baseline com
+> métricas idênticas, índice e corpus enumerado **iguais** (2.156 dos dois lados).
+> Recall@1 0,635 → **0,656** nas 48 perguntas de então. As três renderizações
+> **ficaram** no índice: cortá-las por nome apagaria 15 reuniões.
+>
+> O que **não** foi cumprido é a cláusula do `eval/`, e ela virou pacote próprio:
+> ver `F4-D`. Ver [`docs/ablacao-f4-meetings.md`](docs/ablacao-f4-meetings.md).
 
 O levantamento está em [`docs/ablacao-f4-meetings.md`](docs/ablacao-f4-meetings.md).
 Não continuar a passada pausada: o que estava em voo é andaime (`_context.txt`).
@@ -897,9 +913,36 @@ Não continuar a passada pausada: o que estava em voo é andaime (`_context.txt`
 - **Paralelo à indexação do desktop:** sim. Schema é “um de cada vez”: enquanto
   este PR não mergear, o desktop **não** edita `config.py` nem `painel/*`
 
+#### F4-D — Dourado que cubra o acervo — **notebook**
+
+> **Aberto em 24/08/2026, por medição, não por plano.** Depois de `Meetings/`
+> fechar, o índice tem 1.900 documentos alcançáveis em **30 pastas de topo**, e as
+> 51 perguntas do dourado apontavam para 63 fontes **numa pasta só**: 18,2% de
+> cobertura. As duas maiores pastas do acervo não podiam ganhar pergunta nenhuma —
+> só competir como distrator. Isso torna qualquer crescimento de corpus
+> negativo por construção, e foi o que se viu quando `Meetings/` entrou.
+>
+> Leitura completa, método e números em
+> [`docs/dourado-cobertura.md`](docs/dourado-cobertura.md).
+
+- **Toca:** `eval/golden/perguntas.jsonl` (não versionado), `docs/` de dourado.
+  Nada de código
+- **Não toca:** `retrieve/*`, indexador, parsers, `config.py`
+- **Feito:** 11 perguntas de reunião, fonte conferida renderização por
+  renderização. Medem recall@1 **0,091** e recall@20 **1,000** — a resposta está
+  sempre no top 20 e quase nunca no primeiro lugar. O grupo `exato` mede
+  **0,000** em recall@1
+- **Falta:** o lote do usuário na maior pasta do acervo (25,8% do índice, zero
+  perguntas hoje), e uma multi-hop entre reunião e documento
+- **Saída:** cobertura acima de metade do índice e um número por grupo de fonte,
+  para a `F4-P` decidir peso com o corpus inteiro na mesa
+- **Regra de método, para o número não medir o autor:** escolher o documento por
+  enumeração antes de escrever a pergunta, ler o texto **já indexado**, conferir
+  a fonte trecho por trecho, e só então rodar o eval
+
 #### F4-L — OLE que mente — **desktop**
 
-Parsers existem. O que a passada da Bain mostrou: `.xls` que é HTML ou está
+Parsers existem. O que a passada na base privada do desktop mostrou: `.xls` que é HTML ou está
 criptografado, `.ppt` que não é OLE2, `xlrd` recusando codepage. Status vira
 `erro` com detalhe; não volta a `sem_parser`.
 
@@ -927,7 +970,7 @@ Processo à parte. Não é o laço do indexador: observa a raiz e dispara
   `retrieve/*`, schema de `config.py`
 - **Saída:** criar/alterar um `.txt` em `tmp_path` dispara indexação; placeholder
   de nuvem **não** é aberto; dois watchers no mesmo índice recusam pela trava
-- **Paralelo:** sim. Não precisa do índice Bain
+- **Paralelo:** sim. Não precisa do índice privado do desktop
 
 #### F4-S — SharePoint via pasta sincronizada — **notebook** (depois de F4-M)
 
@@ -951,15 +994,25 @@ versão + despachante. Dois PRs se o OCR entrar no laço e no ranking.
 - **Saída:** um PDF sem camada de texto vira trechos; as três perguntas perdem
   a anotação `ocr` **só** com número antes/depois no corporativo
 
-#### F4-P — Porta 3, onde o bm25 se paga — **notebook**
+#### F4-P — Porta 3, o bm25 e o peso de nome por tipo de fonte — **notebook**
 
-Só depois de Meetings no índice e no dourado. Ranking não muda sem número.
+Só depois do lote de perguntas do usuário em `F4-D`. Ranking não muda sem número.
+
+O escopo cresceu por medição em 24/08. Nas 11 perguntas de reunião, **desligar o
+ranqueador de nome sobe o MRR 60%** (0,287 → 0,459) e o recall@1 três vezes
+(0,091 → 0,273); no conjunto inteiro ele continua se pagando (recall@1 0,551
+contra 0,534). Ou seja: o peso certo do nome provavelmente **não é um número só**,
+é peso por tipo de fonte — no documento de escritório o identificador está no
+nome, na transcrição o nome só tem assunto e data. `n = 11` é sinal, não decisão.
 
 - **Toca:** `retrieve/*`, `eval/*`, pesos da base corporativa — **não** `[padrao]`
   sem o desktop saber
 - **Não toca:** indexador, parsers
-- **Saída:** decisão registrada: bm25 no padrão ou perfil `significado`, com
-  armadilhas medidas
+- **Braços a medir:** bm25 no padrão; peso de nome por tipo de fonte; família de
+  renderização **colapsando irmãs no ranking** (não escolhendo por nome — a ordem
+  de preferência por nome foi medida e está errada, ver `docs/dourado-cobertura.md`)
+- **Saída:** decisão registrada, com armadilhas medidas e um número por grupo
+  de fonte
 
 ---
 

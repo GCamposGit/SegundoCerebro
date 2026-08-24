@@ -112,7 +112,17 @@ motivador. **Só olhar a distribuição real acha.**
 
 Consequência: a escolha entre renderizações **não é** exclusão por nome. É
 preferência por reunião — `reconciled` > `enhanced` > `diarized` > `transcript`,
-a melhor que existir. Isso é a forma de uma **família de versão**, que já existe
+a melhor que existir.
+
+> **Retratado em 24/08/2026.** Essa ordem de preferência está **errada**, e o
+> pressuposto de "três renderizações do mesmo áudio" também. Medido em
+> [`docs/dourado-cobertura.md`](dourado-cobertura.md): a `transcript` tem mais
+> texto em 128 de 144 reuniões, a preferida por nome fica abaixo de 60% do texto
+> da mais completa em 56 delas — e ainda assim **4 de 11 perguntas novas só são
+> respondíveis pela conciliada**, porque ela é outra passada de transcrição, mais
+> fiel, não um resumo. Nenhuma renderização pode ser descartada por regra. A
+> família continua valendo; o mecanismo é **colapsar irmãs no ranking**, com
+> todas no índice. Isso é a forma de uma **família de versão**, que já existe
 em `retrieve/familias.py` e custa zero por consulta; entra como braço medido no
 dourado corporativo, não como corte de indexação. As três renderizações ficam
 indexadas: são 540 arquivos de texto puro, o barato desta pasta.
@@ -287,7 +297,13 @@ o resultado é assimétrico de um jeito que só arquivo real mostra:
 | `.xls` | 3 | **2** | **172** | 1 `erro` |
 
 O caminho de bytes puros do `.doc` extraiu 3 trechos de 1 de 4 arquivos; o `.xls`
-por `xlrd` extraiu 172 trechos de 2 de 3. Mesma família de formato, mesma decisão
+por `xlrd` extraiu 172 trechos de 2 de 3.
+
+> **Corrigido em 24/08/2026, depois de olhar o conteúdo:** os 3 trechos do `.doc`
+> **não são texto**. São bytes decodificados como caracteres largos — mojibake
+> CJK dentro do índice e do FTS. Contar trecho não é conferir extração, e a
+> diferença é entre "extração fraca" e "ruído indexado". Ver
+> [`docs/dourado-cobertura.md`](dourado-cobertura.md). Mesma família de formato, mesma decisão
 de "sem COM", resultados a uma ordem de grandeza de distância. **Três de sete
 arquivos de Office legado viraram conteúdo**, e é o primeiro número real que essa
 prioridade tem.
