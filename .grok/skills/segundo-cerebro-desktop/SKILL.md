@@ -36,9 +36,21 @@ neste clone: 732 verdes (`tests/` + `eval/`).
 A lista de entregas fechadas vive na §6 de `colaboracao.md`, num lugar só.
 Não repetir aqui — envelhece.
 
-**O que está na sua mão agora:** pacotes F4-L (OLE que mente), F4-W (watcher)
-e F6-A (`pip install` sem `PYTHONPATH`). A indexação da base privada deste desktop corre no fundo e
-**não** é desculpa para ficar ocioso. **Não** pegar F4-M (`config.py`, painel).
+**O que está na sua mão agora:** a §6 de `colaboracao.md`, sempre — e não esta
+linha, que envelhece. Em 24/08/2026 são **cinco pacotes prontos**, nenhum
+bloqueado: `R9.1`+`C5.b` (perfis sintéticos: gerador, seed e manifesto — corpus
+**não** vai para o Git), `C5.a` (porta de custo do MIRACL antes de baixar
+qualquer coisa), `F6-A` (empacotamento), `C7.a`/`C7.d` (planilha com fórmula sem
+cache e CSV na rota errada) e a leva `F4-L`/`F4-W`/`R1.4`/`R5.2`/`R3.2`.
+
+A especificação está em `docs/dossie-melhorias.md` e
+`docs/dossie-complemento-update-devs.md`; a **ordem, o dono e a porta** estão no
+`ROADMAP.md`, junto das premissas dos dois documentos que a medição corrigiu.
+Ler o ROADMAP antes de pegar pacote — sete premissas não bateram.
+
+`config.py` e `painel/*` estão livres desde o merge do F4-M, e continuam "um de
+cada vez": declare na §6 antes de pegar. **Não** implementar `R1.3` — está
+absorvido por `C6`, que é do notebook.
 
 ## Você pode
 

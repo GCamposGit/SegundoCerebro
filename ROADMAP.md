@@ -772,22 +772,29 @@ privada do desktop **não** trava nenhum destes:
 | # | Pacote | Dono | Onda | Começa já? |
 |---|--------|------|:---:|------------|
 | F4-M | `[base.exclude.papel]` + `Meetings/` por papel | notebook | — | ✅ **fechado** (PR #10) |
-| R9.1 | Dourados sintéticos multi-perfil (gerador, não corpus) | qualquer | **1** | **sim** — é o instrumento |
-| R9.2 | Benchmark público como árbitro externo | notebook | **1** | **sim**, depois de dimensionar o custo |
-| R9.3 | Porta de latência, com a baseline medida | notebook define, desktop infla o índice | **1** | **sim** — é a régua das ondas 4 e 5 |
-| F6-A / R8.1 | `pip install` sem `PYTHONPATH=src` | desktop | **1** | **sim** — não depende de nada |
-| R6.1 | Autotune: peso por base, prior de fábrica | notebook | 2 | depois de R9.1 |
-| F4-P + R1.3 | Família por ranking **e** peso de nome por tipo de fonte | notebook | 2 | depois de R9.1 |
-| R1.4 · R5.2 · R3.2 | Quarentena · orçamento de recursos · dois passes | desktop | 3 | **sim** — nenhum depende da onda 1 |
+| R9.1 + C5.b | Perfis sintéticos: **gerador + seed + manifesto**, corpus nunca commitado | **desktop** | **1** | **sim, agora** |
+| C5.a | Porta de custo do MIRACL: smoke de throughput → `docs/custo-miracl.md` | **desktop** | **1** | **sim, agora** |
+| F6-A / R8.1 | `pip install` sem `PYTHONPATH=src`; matriz 3×SO no CI | **desktop** | **1** | **sim, agora** |
+| C4.5 | Fatia cross-lingual no harness (`mesma-língua` vs `cross-lingual`) | notebook | **1** | **sim, agora** |
+| R9.3 | Porta de latência, sobre índice inflado | notebook define, **desktop infla o índice** | **1** | **sim, agora** |
+| C1 | Política de particionamento + description gerada do censo | acordo; texto no `ARCHITECTURE.md` | **1** | **sim** — combinar quem escreve |
+| C6 | Família de versões ≠ grupo de formatos (**subordina R1.3**) | notebook (ranking) + desktop (hash/MinHash no censo) | 2 | depois da onda 1 |
+| F4-P + C3.a | Peso da coluna `caminho` no bm25 **e** peso por tipo de fonte | notebook | 2 | depois de R9.1 |
+| R6.1 | Autotune: peso por base, fábrica vira prior | notebook | 2 | depois de R9.1 |
+| C7.a · C7.d | Fórmula sem cache (recálculo LibreOffice) · rota do CSV | **desktop** | 3 | **sim** — não depende da onda 1 |
+| R1.4 · R5.2 · R3.2 | Quarentena · orçamento de recursos · dois passes | **desktop** | 3 | **sim** — nenhum depende da onda 1 |
 | R4.1 · R3.3 | ANN · quantização INT8 | desktop | 4 | depois da porta de latência |
-| R3.1 + R2.1 | Ablação de modelo + contexto no chunk (um rebuild só) | desktop roda, notebook mede | 5 | depois da régua multi-perfil |
+| R3.1 + C4.1 + R2.1 | Modelo (com fatia cross-lingual) + contexto no chunk — **um rebuild só** | desktop roda, notebook mede | 5 | depois da régua multi-perfil |
+| C7.b · C7.c | Cartão de modelo de planilha; número é payload no modelo | desktop | 5 | — |
+| C2 + C3.b–d | Glossário automático do corpus + reescrita lexical (mesmo ponto de código) | desktop extrai, notebook mede | 6 | — |
 | F4-L / R1.1 | OLE que mente + conversor de legado | desktop | 6 | **sim** — não bloqueia nada |
-| F4-O / R1.2 | OCR de PDF digitalizado | a combinar (despachante) | 6 | **sim** — F4-M mergeou |
+| F4-O / R1.2 | OCR de PDF digitalizado | a combinar (despachante) | 6 | **sim** |
 | F4-W / R5.1 | Watcher, com camada USN Journal | desktop | 6 | **sim** |
-| F4-S | SharePoint = pasta sincronizada, só política e tela | notebook | 6 | **sim** — F4-M soltou o painel |
-| R6.2 · R7.1 · R7.2 · R6.3 | Rerank v2 · tools de navegação · descriptions · tempo/pasta | notebook | 7 | — |
-| F6-B / R8.2 | Primeira base sem terminal, empacotada como MCPB | quem não estiver no painel | 8 | depois de F6-A |
-| F4-D | Cobertura do dourado real | notebook | — | **reescopado**: vira piso de regressão e limitação declarada, não fila de perguntas |
+| F4-S | SharePoint = pasta sincronizada, só política e tela | notebook | 6 | **sim** |
+| R6.2+C4.2 · R7.1 · R7.2+C6.a · R6.3 | Rerank v2 · tools · descriptions · tempo/pasta | notebook | 7 | — |
+| F6-B / R8.2 | Primeira base sem terminal, MCPB, com a UX de C1 | quem não estiver no painel | 8 | depois de F6-A |
+| F4-D | Cobertura do dourado real | notebook | — | **reescopado**: piso de regressão e limitação declarada, não fila de perguntas |
+| R1.3 | Dedup e near-dup | — | — | **absorvido por C6** |
 | F5 | Segundo usuário, ACL | ninguém | — | gatilho: segundo usuário real |
 
 Os pacotes `R*` são de [`docs/dossie-melhorias.md`](docs/dossie-melhorias.md); a
@@ -933,6 +940,84 @@ o dossiê não dimensiona:
 
 `R4.3`, `R6.4` e a §11 do dossiê ficam **registrados e não feitos**, como
 o próprio dossiê pede.
+
+---
+
+## O complemento C1–C7, conferido no código
+
+> **Acrescentado em 24/08/2026 pelo notebook.**
+> [`docs/dossie-complemento-update-devs.md`](dossie-complemento-update-devs.md)
+> traz sete pacotes `C<n>` e, ao contrário do dossiê original, **lê o código**.
+> Mesma regra de antes: a especificação mora lá, o `ROADMAP.md` assume ordem,
+> dono e porta.
+
+**Quatro afirmações de código foram conferidas e as quatro batem.** Isso é
+incomum e muda o peso do documento:
+
+| Afirmação | Conferido |
+|---|---|
+| `bm25(chunks_fts)` roda **sem pesos de coluna**, e as colunas são `texto, trilha, caminho` | ✅ `store.py:136` e `store.py:620` |
+| `data_only=True` faz planilha nunca aberta pelo Excel vir com célula vazia | ✅ `sheets.py:377`; o aviso já existe em `sheets.py:420` |
+| `.csv` está registrado no parser de **texto puro**, junto de `.txt` | ✅ `text.py:109` |
+| `chave_de_familia` inclui a extensão, e `g045` é o motivo | ✅ `familias.py:77-86`, com o raciocínio na docstring |
+
+**Duas correções de dimensionamento**, nenhuma fatal:
+
+- **`C7.d` cita "o censo real tem 85 CSVs somando 492 MB".** Esse número vem de
+  [`docs/estatisticas-arquivos-por-extensao.md`](estatisticas-arquivos-por-extensao.md),
+  que é a varredura de **um disco inteiro** (224.850 arquivos, 642 GB) e não de
+  uma base — o próprio `prioridade-de-indexacao.md` avisa isso. Lá são 85 CSVs e
+  **216,90 MB**, não 492. No acervo corporativo, medido agora: **2 arquivos
+  `.csv`/`.tsv`, ~0 MB**. A correção de rota continua certa — CSV no parser de
+  texto perde o cabeçalho depois da primeira janela — mas o P0 dela não vem
+  daqui. E `.tsv` **não é** extensão suportada hoje: o pacote a acrescenta.
+- **`C1` cita "multi-hop, recall@1 0.200".** Hoje é **0,250** no escopo (6
+  perguntas). Continua sendo o tipo mais fraco, que é o que o argumento precisa.
+
+### O encaixe que vale mais que os dois documentos separados
+
+`C3.a` descreve um mecanismo: o nome do arquivo pontua **duas vezes** — dentro do
+bm25, pela coluna `caminho`, e de novo na fusão, pelo `RanqueadorDeNome` com peso
+0,5. Em [`docs/dourado-cobertura.md`](dourado-cobertura.md) o notebook mediu o
+**efeito**: desligar o ranqueador de nome sobe o MRR das perguntas de reunião em
+60% e piora o resto.
+
+São a mesma coisa vista dos dois lados, e nenhum dos dois documentos sabia do
+outro. **A primeira coisa que `F4-P` deve varrer é o peso da coluna `caminho` no
+bm25** — se a dupla contagem explica o efeito, a correção é mais barata e mais
+geral que um peso por tipo de fonte.
+
+### Subordinações que o complemento declara, e que valem
+
+- **`C6` subordina `R1.3`.** Conferido: MinHash a 0,85 fundiria o que
+  `familias.py` separa de propósito, e reintroduziria o `g045` por outra porta.
+  Não implementar `R1.3` antes de `C6`.
+- **`C5` condiciona `R9.2` e muda o empacotamento de `R9.1`.** É a resposta às
+  duas perguntas que a onda 1 já tinha em aberto neste arquivo: MIRACL só
+  amostrado, atrás de porta de custo, desktop-only, índice descartável — e o
+  sintético versiona **gerador + seed + manifesto de hash do texto extraído**,
+  nunca corpus.
+- **`C4` altera `R3.1`, `R6.2` e `R9.1`.** A fatia cross-lingual é instrumento:
+  sobe para a onda 1 junto de `R9.1`. O resto de `C4` viaja com os pacotes que
+  ele altera.
+- **`C7` casa com `R1.1`** — mesmo binário do LibreOffice serve conversão de
+  legado e recálculo de fórmula.
+
+### Ordem, com C1–C7 dentro
+
+| Onda | Pacotes | Por que aqui |
+|---|---|---|
+| **1** | `R9.1`+`C5.b` (gerador, seed, manifesto) · `C4.5` (fatia cross-lingual no harness) · `R9.3` (porta de latência) · `C5.a` (porta de custo do MIRACL) · `R8.1`/`F6-A` (empacotamento) · `C1` (política de particionamento + description por censo) | **Instrumento e política antes de conclusão.** Nenhum decide ranking |
+| **2** | `C6` (família de versões ≠ grupo de formatos) · `F4-P`+`C3.a` (peso da coluna `caminho` e peso por tipo de fonte) · `R6.1` (autotune) | O ranking deixa de ter número global — e `C6` vem antes de `R1.3` |
+| **3** | `C7.a`+`C7.d` (fórmula sem cache, rota do CSV) · `R1.4` (quarentena) · `R5.2` (orçamento) · `R3.2` (dois passes) | Perda silenciosa de conteúdo e sobrevivência em máquina desconhecida |
+| **4** | `R4.1` (ANN) · `R3.3` (quantização) | Escala, contra a porta da onda 1 |
+| **5** | `R3.1`+`C4.1` (modelo, com fatia cross-lingual) · `R2.1` (contexto no chunk) · `C7.b`/`C7.c` (cartão de modelo) | Um rebuild coordenado paga os três primeiros |
+| **6** | `C2`+`C3.b–d` (glossário automático e reescrita lexical, mesmo ponto de código) · `F4-L`/`R1.1` · `F4-O`/`R1.2` · `F4-W`/`R5.1` · `F4-S` | Vocabulário do corpus e as décadas de acervo |
+| **7** | `R6.2`+`C4.2` (rerank v2, cross-lingual) · `R7.1`/`R7.2`+`C6.a` (tools, descriptions, `anteriores`) · `R6.3` | Precisão e agência |
+| **8** | `R8.2`/`F6-B` (MCPB + wizard, com a UX de `C1`) | O produto |
+
+`R4.3`, `R6.4`, `R1.3` (absorvido por `C6`) e as anti-recomendações consolidadas
+da §11 do dossiê e do fim do complemento ficam **registrados e não feitos**.
 
 ### O que fica fora, e por quê
 
