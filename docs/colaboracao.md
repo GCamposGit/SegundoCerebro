@@ -183,26 +183,71 @@ de path não se cruzarem.
 
 ### Agora — notebook
 
-**F4-M.** `[base.excluir]` + cortar `Meetings/` por papel. Schema de
-`config.py`, filtro em `iter_files`/`census.py`, testes. **Não** o laço do
-indexador. Enquanto este PR não mergear, o desktop não edita `config.py` nem
-`painel/*`.
+**F4-M fechado** (PR #10) e **F4-D reescopado** (PR #15): o dourado real cobre
+25% do índice, e a resposta adotada **não** é escrever mais perguntas para este
+acervo — é parar de escolher peso global a partir de qualquer acervo único. Ver
+[`docs/dourado-cobertura.md`](dourado-cobertura.md) e o `ROADMAP.md`.
 
-Medir OLE no dourado corporativo é depois da passada; não bloqueia o F4-M.
+Onda 1 do notebook:
+
+1. **C4.5** — fatia cross-lingual no harness: todo relatório passa a recortar
+   `mesma-língua` vs `cross-lingual`. `eval/*`, sem tocar ranking.
+2. **R9.3** — porta de latência. Linha de base já medida em 24/08: `search` sem
+   rerank **p50 1.145 ms / p95 1.418 ms**; com rerank de 10 candidatos, p50
+   8.019 ms. O notebook define a porta; o índice inflado vem do desktop.
+
+Depois da onda 1: `C6` (família de versões ≠ grupo de formatos), `F4-P`+`C3.a`,
+`R6.1`. **Não começar `retrieve/*` antes** — a régua tem de existir primeiro.
 
 ### Agora — desktop
 
-A passada de legado da base privada do desktop segue no fundo (`leve`, GPU 1).
-Código, em paralelo:
+**Cinco pacotes prontos para começar, nenhum bloqueado por nada.** A ordem é
+sugestão; os três primeiros são a onda 1 e destravam as ondas 4 e 5.
 
-1. **F4-L** — `.xls` HTML/criptografado, `.ppt` que não é OLE2, codepage do
-   `xlrd`. `sheets.py` / `ole_texto.py` / `slides.py`. Sobe versão de parser se
-   o texto mudar.
-2. **F4-W** — `index/watcher.py` **arquivo novo**. Não reescreve o laço.
-3. **F6-A** — `pyproject.toml` para `pip install -e .` sem `PYTHONPATH`.
+1. **R9.1 + C5.b — perfis sintéticos.** Quatro perfis (`juridico`, `financeiro`,
+   `pessoal` com nomes ruins tipo `Scan_001.pdf`, `engenharia`) + um bilíngue
+   PT/EN. **Versionar gerador + seed + manifesto** com hash do *texto extraído*;
+   corpus gerado vai para o `.gitignore`. É o padrão que `eval/sintetico/` já
+   segue — não commitar corpus. Determinismo obrigatório: seed única, iteração
+   ordenada, sem depender de locale.
+2. **C5.a — porta de custo do MIRACL.** Smoke de throughput **antes** de baixar
+   qualquer coisa, publicado em `docs/custo-miracl.md`. Regra já acordada: custo
+   por modelo acima de ~12 h (uma noite) ⇒ MIRACL sai da ablação, com a decisão
+   registrada. Se entrar: amostrado, desktop-only, índice em diretório
+   descartável — **nunca** uma `[[base]]` (invariante 7).
+3. **F6-A / R8.1 — empacotamento.** `[project.dependencies]` com pins
+   (`fastembed>=0.8,<0.9` — a lição do pooling CLS→mean já foi paga),
+   `requirements.txt` vira lockfile de CI, extras `[gpu]`/`[ocr]`, matriz
+   `windows`+`ubuntu`+`macos` no CI. Alvo: `pip install` + um comando sobe o
+   servidor em venv limpa, sem `PYTHONPATH`.
+4. **C7.a + C7.d — perda silenciosa em planilha.** `data_only=True` faz planilha
+   nunca aberta pelo Excel vir com célula vazia: o Equity Value simplesmente não
+   entra no índice. O aviso já existe em `sheets.py:420`; falta a rota de
+   recálculo via LibreOffice headless — **mesmo binário do R1.1**. E `.csv` está
+   registrado no parser de texto (`text.py:109`): depois da primeira janela as
+   linhas ficam órfãs sem cabeçalho. Rota própria no pipeline de planilha.
+   *Dimensionamento honesto:* no acervo corporativo são **2 CSVs**; os 85 do
+   complemento vêm da varredura de disco inteiro, não de uma base.
+5. **F4-L, F4-W, R1.4, R5.2, R3.2** — como já estavam, mais quarentena de
+   arquivo venenoso, orçamento adaptativo de recursos e indexação em dois passes.
 
-**Não começar** `[padrao]`, `Chunking`, `model_id`, `retrieve/*`, `config.py`,
-`painel/*` (estão com o F4-M).
+**Não começar** `[padrao]`, `Chunking`, `model_id`, `retrieve/*` — e **não
+implementar `R1.3`**: o complemento mostrou que MinHash a 0,85 fundiria o que
+`familias.py` separa de propósito e reintroduziria o `g045`. `R1.3` está
+absorvido por `C6`, que é do notebook.
+
+`config.py` e `painel/*` estão **livres** desde o merge do F4-M — mas continuam
+"um de cada vez": declare aqui antes de pegar.
+
+### Os dois documentos de recomendação
+
+[`dossie-melhorias.md`](dossie-melhorias.md) (R1–R10) e
+[`dossie-complemento-update-devs.md`](dossie-complemento-update-devs.md) (C1–C7)
+são a especificação de cada pacote. **Ler o `ROADMAP.md` junto**: as premissas dos
+dois foram conferidas contra o índice real, e sete não bateram — inclusive duas
+que invertiam qual subconjunto do dourado é o mais fraco. As seções são "O dossiê
+de melhorias, conferido contra o índice real" e "O complemento C1–C7, conferido no
+código".
 
 ### Não é de ninguém, daqui
 

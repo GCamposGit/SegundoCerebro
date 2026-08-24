@@ -769,18 +769,266 @@ Dois pacotes só voam juntos se as listas de path **não se intersectam**.
 **Fila agora**, atualizada em 24/08/2026 pelo notebook. A passada OLE na base
 privada do desktop **não** trava nenhum destes:
 
-| # | Pacote | Dono | Começa já? |
-|---|--------|------|------------|
-| F4-M | `[base.exclude.papel]` + `Meetings/` por papel | notebook | ✅ **fechado** (PR #10) |
-| F4-D | Dourado que cubra o acervo — 18% hoje | notebook | **em curso**, lote do usuário pendente |
-| F4-L | OLE que mente a extensão (HTML/criptografado/codepage) | desktop | **sim** |
-| F4-W | Watcher (processo à parte, não o laço) | desktop | **sim** |
-| F6-A | `pip install` sem `PYTHONPATH=src` | desktop | **sim** |
-| F4-O | OCR de PDF digitalizado | a combinar (despachante) | **sim** — F4-M mergeou |
-| F4-S | SharePoint = pasta sincronizada, só política e tela | notebook | **sim** — F4-M soltou o painel |
-| F4-P | Porta 3, bm25 **e peso de nome por tipo de fonte** | notebook | depois do lote do usuário em F4-D |
-| F6-B | Primeira base no painel, zero terminal | quem não estiver no painel | depois de F4-M ou F4-S |
-| F5 | Segundo usuário, ACL | ninguém | gatilho: segundo usuário real |
+| # | Pacote | Dono | Onda | Começa já? |
+|---|--------|------|:---:|------------|
+| F4-M | `[base.exclude.papel]` + `Meetings/` por papel | notebook | — | ✅ **fechado** (PR #10) |
+| R9.1 + C5.b | Perfis sintéticos: **gerador + seed + manifesto**, corpus nunca commitado | **desktop** | **1** | **sim, agora** |
+| C5.a | Porta de custo do MIRACL: smoke de throughput → `docs/custo-miracl.md` | **desktop** | **1** | **sim, agora** |
+| F6-A / R8.1 | `pip install` sem `PYTHONPATH=src`; matriz 3×SO no CI | **desktop** | **1** | **sim, agora** |
+| C4.5 | Fatia cross-lingual no harness (`mesma-língua` vs `cross-lingual`) | notebook | **1** | **sim, agora** |
+| R9.3 | Porta de latência, sobre índice inflado | notebook define, **desktop infla o índice** | **1** | **sim, agora** |
+| C1 | Política de particionamento + description gerada do censo | acordo; texto no `ARCHITECTURE.md` | **1** | **sim** — combinar quem escreve |
+| C6 | Família de versões ≠ grupo de formatos (**subordina R1.3**) | notebook (ranking) + desktop (hash/MinHash no censo) | 2 | depois da onda 1 |
+| F4-P + C3.a | Peso da coluna `caminho` no bm25 **e** peso por tipo de fonte | notebook | 2 | depois de R9.1 |
+| R6.1 | Autotune: peso por base, fábrica vira prior | notebook | 2 | depois de R9.1 |
+| C7.a · C7.d | Fórmula sem cache (recálculo LibreOffice) · rota do CSV | **desktop** | 3 | **sim** — não depende da onda 1 |
+| R1.4 · R5.2 · R3.2 | Quarentena · orçamento de recursos · dois passes | **desktop** | 3 | **sim** — nenhum depende da onda 1 |
+| R4.1 · R3.3 | ANN · quantização INT8 | desktop | 4 | depois da porta de latência |
+| R3.1 + C4.1 + R2.1 | Modelo (com fatia cross-lingual) + contexto no chunk — **um rebuild só** | desktop roda, notebook mede | 5 | depois da régua multi-perfil |
+| C7.b · C7.c | Cartão de modelo de planilha; número é payload no modelo | desktop | 5 | — |
+| C2 + C3.b–d | Glossário automático do corpus + reescrita lexical (mesmo ponto de código) | desktop extrai, notebook mede | 6 | — |
+| F4-L / R1.1 | OLE que mente + conversor de legado | desktop | 6 | **sim** — não bloqueia nada |
+| F4-O / R1.2 | OCR de PDF digitalizado | a combinar (despachante) | 6 | **sim** |
+| F4-W / R5.1 | Watcher, com camada USN Journal | desktop | 6 | **sim** |
+| F4-S | SharePoint = pasta sincronizada, só política e tela | notebook | 6 | **sim** |
+| R6.2+C4.2 · R7.1 · R7.2+C6.a · R6.3 | Rerank v2 · tools · descriptions · tempo/pasta | notebook | 7 | — |
+| F6-B / R8.2 | Primeira base sem terminal, MCPB, com a UX de C1 | quem não estiver no painel | 8 | depois de F6-A |
+| F4-D | Cobertura do dourado real | notebook | — | **reescopado**: piso de regressão e limitação declarada, não fila de perguntas |
+| R1.3 | Dedup e near-dup | — | — | **absorvido por C6** |
+| F5 | Segundo usuário, ACL | ninguém | — | gatilho: segundo usuário real |
+
+Os pacotes `R*` são de [`docs/dossie-melhorias.md`](docs/dossie-melhorias.md); a
+especificação de cada um mora lá, e as premissas conferidas estão na seção
+seguinte.
+
+---
+
+## O dossiê de melhorias, conferido contra o índice real
+
+> **Acrescentado em 24/08/2026 pelo notebook.** `docs/dossie-melhorias.md` é uma
+> avaliação externa do repositório com 30 pacotes `R<seção>.<n>`. A
+> **especificação de cada pacote mora lá e não é repetida aqui** — repetir lista
+> longa em dois arquivos já envelheceu duas vezes neste projeto (a §6 de
+> `docs/colaboracao.md` conta a história). O que o `ROADMAP.md` assume é o que
+> ele já era dono: **ordem, dono, porta de saída** — e as premissas que a
+> medição mudou.
+
+O dossiê foi lido contra o acervo corporativo em 24/08/2026, índice com **2.156
+documentos e 98.326 trechos**. Sete premissas foram conferidas; **quatro batem,
+três não**, e duas delas mudam prioridade.
+
+| Premissa do dossiê | Medido aqui | Efeito |
+|---|---|---|
+| "corpus dev: 434 docs / 11.208 chunks" | **2.156 / 98.326** | O ponto de partida da extrapolação é 8× maior. A direção (1000×) continua de pé |
+| "10–30% dos PDFs são imagem" | **5,6%** — 37 de 665 | `R1.2` (OCR) segue P0 **pelo produto**, não por volume local. O ganho aqui é de 3 perguntas do dourado |
+| "`pyproject.toml` declara `dependencies = []`" | ✅ verdade | `R8.1` confirmado como pré-requisito |
+| "busca vetorial é flat (exata)" | ✅ verdade — nenhum `create_index` no `store.py` | `R4.1` confirmado |
+| "`.pytest_cache/` versionado" | ❌ **falso** — está no `.gitignore:7` e `git ls-files` não o lista | Item 1 da §10 do dossiê sai |
+| "escritas pelo usuário: o subconjunto mais fraco, recall@1 0,500" | ❌ **é o mais forte: 0,667**, acima do rascunho (0,538) | A motivação de `R2.1` muda: o fraco é `multihop` (0,250) |
+| "perguntas temporais: recall@1 0,500" | ❌ **0,714**, e 1,000 em recall@3/@5/@10 — o melhor tipo | `R6.3` cai de P1 para P2: filtro de tempo é bom para acervo de décadas, mas não resolve fraqueza medida |
+
+### A dependência que o dossiê não podia ver
+
+Cinco pacotes do dossiê pedem "número no dourado real": `R2.1` (contexto no
+chunk), `R3.1` (ablação de modelo), `R6.1` (autotune), `R6.2` (rerank v2) e
+`R6.3` (tempo/pasta). **O dourado cobre 25% do índice** — 63 das 74 fontes numa
+única pasta de topo, de 30 (ver [`docs/dourado-cobertura.md`](docs/dourado-cobertura.md)).
+
+Medir qualquer um deles hoje é medir um quarto do acervo e chamar de decisão. Por
+isso **`F4-D` entra na onda 1**, à frente de tudo que ela destrava. É a correção
+mais importante que a medição faz na §12 do dossiê.
+
+### As portas de latência, com linha de base medida
+
+`R9.3` propõe portas sem baseline. Medido em 24/08/2026, 25 consultas do dourado,
+índice de 98.326 trechos, CPU de 15 W:
+
+| | p50 | p95 |
+|---|---:|---:|
+| `search` sem reranking | **1.145 ms** | **1.418 ms** |
+| `search` com reranking (10 candidatos) | 8.019 ms | 9.538 ms |
+
+Duas consequências. A porta proposta de **300 ms sem rerank** está **4,7× à
+frente do que a máquina faz hoje**, num índice **50× menor** que o alvo — o que
+confirma `R4.1`/`R3.3` como P0 e dá o número que eles têm de bater. E a meta de
+**"rerank de 30 candidatos em <500 ms em CPU de 4 núcleos"** de `R6.2` está a
+**19× de distância com 10 candidatos**: não é alcançável com cross-encoder em
+CPU, e o pacote precisa escolher entre GPU (a rota da F3.6) ou outra classe de
+reranqueador. Registrado para não virar promessa.
+
+### O que o dossiê chama de novo e já existe aqui
+
+- **`R1.3`, metade "dedup exato"**: já feito. O `sha256` marca `duplicado` sem
+  reembeddar — **156 documentos** hoje, 7,2% do índice. O que falta é a outra
+  metade: near-dup e **política de ranking por família**.
+- **`R1.3`, metade "família"**: encontra o achado de
+  [`docs/dourado-cobertura.md`](docs/dourado-cobertura.md) — as renderizações de
+  reunião são o caso real, e a medição já matou a regra ingênua: escolher a irmã
+  por nome erra, porque 4 de 11 perguntas só são respondíveis pela renderização
+  **menor**. O mecanismo é colapsar irmãs no ranking. Os dois viram um pacote só.
+- **`R6.1` (autotune)**: o dossiê o justifica por acervos *diferentes*. A medição
+  daqui é mais forte — o peso já está errado **dentro de um acervo só**:
+  desligar o ranqueador de nome sobe o MRR das perguntas de reunião em 60% e
+  piora o resto. Isso é `F4-P`, que sobe de onda por causa disso.
+- **`R5.1` (watcher USN)**: é o `F4-W`, com uma camada a mais que vale a pena.
+- **`R8.1`**: é o `F6-A`. **`R8.2`**: é o `F6-B`, ampliado para MCPB.
+- **`R1.1`/`R1.2`**: são `F4-L` e `F4-O`, com solução proposta.
+
+### A decisão que reordena tudo: não escolher peso global de acervo nenhum
+
+**24/08/2026, decisão do usuário.** O problema que a medição encontrou — o dourado
+real cobre 25% do índice — tem duas respostas possíveis, e a errada é a óbvia.
+
+A óbvia é **escrever mais perguntas para este acervo**. Ela conserta a cobertura e
+não conserta o viés: o resultado continua sendo um número desta máquina, deste
+corpus, com nome de arquivo excepcionalmente informativo. O alvo do produto é
+acervo genérico em máquina desconhecida.
+
+A resposta adotada é **parar de escolher peso global a partir de qualquer acervo
+único**. Isso muda o papel de três pacotes:
+
+- **`R6.1` (autotune) deixa de ser "a feature que mata o overfitting" e passa a
+  ser a arquitetura de ranking.** Os pesos de fábrica viram *prior*; cada base
+  ajusta os seus com perguntas geradas do próprio acervo. Se o peso é por base, a
+  cobertura do dourado de **um** acervo deixa de ser o gargalo que era.
+- **`R9.1` (dourados sintéticos multi-perfil) vira o instrumento principal**, não
+  um item de onda 7. É o que prova generalização: perfis com características
+  opostas — nome informativo contra `Scan_001.pdf`, planilha pesada contra texto
+  corrido, versões plantadas contra documento único.
+- **`R9.2` (benchmark público) sai de "registrado e não feito" para a onda 1.**
+  O argumento do dossiê é o certo e ficou mais forte: nenhum dos dois setups
+  *possui* esse número. É o único árbitro que não pertence a ninguém.
+
+**O que não muda, e é regra escrita:** número do sintético e de benchmark público
+**não substituem a condição C** (`docs/colaboracao.md` §4, regra 7). O que muda é
+o que o dourado corporativo decide. Ele deixa de ser a autoridade que escolhe peso
+global e passa a ser duas coisas mais honestas:
+
+1. **Piso de regressão** deste acervo — 62 perguntas, recall@1 0,551, que nenhuma
+   mudança pode derrubar sem justificativa.
+2. **Um perfil entre N** que o autotune tem de satisfazer, ao lado dos sintéticos.
+
+**`F4-D` não morre; muda de forma.** Deixa de ser "escrever perguntas até cobrir o
+acervo" e passa a ser: declarar a cobertura como limitação conhecida em todo
+relatório que a use, e manter as 62 como piso. As 11 de reunião continuam valendo
+pelo que mediram — recall@1 0,091 e `exato` 0,000 são o sinal que originou o peso
+por tipo de fonte, e esse sinal não depende de haver mais perguntas.
+
+### Ordem revisada
+
+| Onda | Pacotes | Por que aqui |
+|---|---|---|
+| **1** | `R9.1` (dourados multi-perfil) · `R9.2` (benchmark público) · `R9.3` (porta de latência, com a baseline acima) · `R8.1`/`F6-A` (empacotamento) | **Instrumento antes de conclusão.** Nenhum destes decide ranking; os três primeiros são a régua que as ondas seguintes vão usar, e o quarto não depende de nada |
+| **2** | `R6.1` (autotune, peso por base) · `R1.3`+`F4-P` (família por ranking e peso por tipo de fonte) | O ranking deixa de ter número global. Medido nos multi-perfil **e** no dourado corporativo, que vira piso |
+| **3** | `R1.4` (quarentena) · `R5.2` (orçamento de recursos) · `R3.2` (dois passes) | Sobreviver e ser útil em máquina desconhecida |
+| **4** | `R4.1` (ANN) · `R3.3` (quantização INT8) | Escala, medida contra a porta da onda 1 |
+| **5** | `R3.1` (ablação de modelo) + `R2.1` (contexto no chunk) | Um rebuild coordenado paga os dois — e agora com régua multi-perfil, não com um acervo só |
+| **6** | `F4-L`/`R1.1` (legado) · `F4-O`/`R1.2` (OCR) · `F4-W`/`R5.1` (watcher) · `F4-S` (SharePoint) | As décadas de acervo |
+| **7** | `R6.2` (rerank v2) · `R7.1`/`R7.2` (tools e descriptions) · `R6.3` (tempo/pasta, P2) | Precisão e agência |
+| **8** | `R8.2`/`F6-B` (MCPB + wizard) | O produto |
+
+Duas perguntas que a onda 1 tem de responder **antes** de escrever código, e que
+o dossiê não dimensiona:
+
+- **`R9.2` cabe nesta máquina?** O subconjunto PT do MIRACL tem corpus e conjunto
+  de consultas próprios; indexá-lo aqui custa tempo de embedding que compete com
+  o acervo real, e o índice dele não pode se misturar ao corporativo (invariante
+  7 — base própria, diretório próprio). Medir o custo e declarar antes de adotar.
+- **`R9.1` gera corpus ou gerador?** Versionar 4 perfis × ~80 documentos é peso no
+  repositório; versionar **o gerador** e produzir o corpus na hora é o padrão que
+  `eval/sintetico/` já segue. Manter o padrão.
+
+`R4.3`, `R6.4` e a §11 do dossiê ficam **registrados e não feitos**, como
+o próprio dossiê pede.
+
+---
+
+## O complemento C1–C7, conferido no código
+
+> **Acrescentado em 24/08/2026 pelo notebook.**
+> [`docs/dossie-complemento-update-devs.md`](dossie-complemento-update-devs.md)
+> traz sete pacotes `C<n>` e, ao contrário do dossiê original, **lê o código**.
+> Mesma regra de antes: a especificação mora lá, o `ROADMAP.md` assume ordem,
+> dono e porta.
+
+**Quatro afirmações de código foram conferidas e as quatro batem.** Isso é
+incomum e muda o peso do documento:
+
+| Afirmação | Conferido |
+|---|---|
+| `bm25(chunks_fts)` roda **sem pesos de coluna**, e as colunas são `texto, trilha, caminho` | ✅ `store.py:136` e `store.py:620` |
+| `data_only=True` faz planilha nunca aberta pelo Excel vir com célula vazia | ✅ `sheets.py:377`; o aviso já existe em `sheets.py:420` |
+| `.csv` está registrado no parser de **texto puro**, junto de `.txt` | ✅ `text.py:109` |
+| `chave_de_familia` inclui a extensão, e `g045` é o motivo | ✅ `familias.py:77-86`, com o raciocínio na docstring |
+
+**Duas correções de dimensionamento**, nenhuma fatal:
+
+- **`C7.d` cita "o censo real tem 85 CSVs somando 492 MB".** Esse número vem de
+  [`docs/estatisticas-arquivos-por-extensao.md`](estatisticas-arquivos-por-extensao.md),
+  que é a varredura de **um disco inteiro** (224.850 arquivos, 642 GB) e não de
+  uma base — o próprio `prioridade-de-indexacao.md` avisa isso. Lá são 85 CSVs e
+  **216,90 MB**, não 492. No acervo corporativo, medido agora: **2 arquivos
+  `.csv`/`.tsv`, ~0 MB**. A correção de rota continua certa — CSV no parser de
+  texto perde o cabeçalho depois da primeira janela — mas o P0 dela não vem
+  daqui. E `.tsv` **não é** extensão suportada hoje: o pacote a acrescenta.
+- **`C1` cita "multi-hop, recall@1 0.200".** Hoje é **0,250** no escopo (6
+  perguntas). Continua sendo o tipo mais fraco, que é o que o argumento precisa.
+
+### O encaixe que vale mais que os dois documentos separados
+
+`C3.a` descreve um mecanismo: o nome do arquivo pontua **duas vezes** — dentro do
+bm25, pela coluna `caminho`, e de novo na fusão, pelo `RanqueadorDeNome` com peso
+0,5. Em [`docs/dourado-cobertura.md`](dourado-cobertura.md) o notebook mediu o
+**efeito**: desligar o ranqueador de nome sobe o MRR das perguntas de reunião em
+60% e piora o resto.
+
+São a mesma coisa vista dos dois lados, e nenhum dos dois documentos sabia do
+outro. **A primeira coisa que `F4-P` deve varrer é o peso da coluna `caminho` no
+bm25** — se a dupla contagem explica o efeito, a correção é mais barata e mais
+geral que um peso por tipo de fonte.
+
+### Subordinações que o complemento declara, e que valem
+
+- **`C6` subordina `R1.3`.** Conferido: MinHash a 0,85 fundiria o que
+  `familias.py` separa de propósito, e reintroduziria o `g045` por outra porta.
+  Não implementar `R1.3` antes de `C6`.
+- **`C5` condiciona `R9.2` e muda o empacotamento de `R9.1`.** É a resposta às
+  duas perguntas que a onda 1 já tinha em aberto neste arquivo: MIRACL só
+  amostrado, atrás de porta de custo, desktop-only, índice descartável — e o
+  sintético versiona **gerador + seed + manifesto de hash do texto extraído**,
+  nunca corpus.
+- **`C4` altera `R3.1`, `R6.2` e `R9.1`.** A fatia cross-lingual é instrumento:
+  sobe para a onda 1 junto de `R9.1`. O resto de `C4` viaja com os pacotes que
+  ele altera.
+- **`C7` casa com `R1.1`** — mesmo binário do LibreOffice serve conversão de
+  legado e recálculo de fórmula.
+
+### Ordem, com C1–C7 dentro
+
+| Onda | Pacotes | Por que aqui |
+|---|---|---|
+| **1** | `R9.1`+`C5.b` (gerador, seed, manifesto) · `C4.5` (fatia cross-lingual no harness) · `R9.3` (porta de latência) · `C5.a` (porta de custo do MIRACL) · `R8.1`/`F6-A` (empacotamento) · `C1` (política de particionamento + description por censo) | **Instrumento e política antes de conclusão.** Nenhum decide ranking |
+| **2** | `C6` (família de versões ≠ grupo de formatos) · `F4-P`+`C3.a` (peso da coluna `caminho` e peso por tipo de fonte) · `R6.1` (autotune) | O ranking deixa de ter número global — e `C6` vem antes de `R1.3` |
+| **3** | `C7.a`+`C7.d` (fórmula sem cache, rota do CSV) · `R1.4` (quarentena) · `R5.2` (orçamento) · `R3.2` (dois passes) | Perda silenciosa de conteúdo e sobrevivência em máquina desconhecida |
+| **4** | `R4.1` (ANN) · `R3.3` (quantização) | Escala, contra a porta da onda 1 |
+| **5** | `R3.1`+`C4.1` (modelo, com fatia cross-lingual) · `R2.1` (contexto no chunk) · `C7.b`/`C7.c` (cartão de modelo) | Um rebuild coordenado paga os três primeiros |
+| **6** | `C2`+`C3.b–d` (glossário automático e reescrita lexical, mesmo ponto de código) · `F4-L`/`R1.1` · `F4-O`/`R1.2` · `F4-W`/`R5.1` · `F4-S` | Vocabulário do corpus e as décadas de acervo |
+| **7** | `R6.2`+`C4.2` (rerank v2, cross-lingual) · `R7.1`/`R7.2`+`C6.a` (tools, descriptions, `anteriores`) · `R6.3` | Precisão e agência |
+| **8** | `R8.2`/`F6-B` (MCPB + wizard, com a UX de `C1`) | O produto |
+
+`R4.3`, `R6.4`, `R1.3` (absorvido por `C6`) e as anti-recomendações consolidadas
+da §11 do dossiê e do fim do complemento ficam **registrados e não feitos**.
+
+### O que fica fora, e por quê
+
+- **§10 item 1** (`.pytest_cache`): falso, ver tabela acima.
+- **§10 item 6** (pre-commit que bloqueia nome real): já existe, e melhor —
+  `tests/test_saneamento.py` roda na suíte e a lista de nomes **não** mora no
+  repositório. Um pre-commit com a lista embutida seria o próprio vazamento.
+- **§10 item 7** (ADRs): o `docs/colaboracao.md` já é a fonte única e está sendo
+  seguido. Converter agora troca um arquivo que funciona por sete que ninguém
+  lê. Reabrir quando existir um terceiro contribuidor — que é o gatilho que o
+  próprio item nomeia.
 
 ---
 
