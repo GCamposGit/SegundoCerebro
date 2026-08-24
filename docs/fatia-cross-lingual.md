@@ -78,6 +78,23 @@ construção**, porque FTS5 não casa `contrato` com `agreement`; e o ranqueador
 nome herda o idioma do nome do arquivo. Numa consulta cross-lingual, dois dos
 três votos da fusão votam no idioma errado.
 
+> **Correção de 24/08/2026 — este diagnóstico vale em `search`, e não vale no
+> caminho que o cliente recebe.** A ferramenta `search` do MCP chama
+> `buscar_chunks`, onde o `RanqueadorDeNome` **não participa**. Medido lá, o
+> recall@20 cross-lingual é **0,750**, não 1,000: três das doze perguntas não são
+> alcançadas de jeito nenhum no top-20. Para um quarto da fatia, no produto, **é
+> sim busca que não encontra** — "alcançado e mal ordenado" é metade do problema.
+>
+> A causa fecha com o que o `C3.a` isolou por outro caminho: o ranqueador de nome
+> é a ponte **agnóstica a idioma** (identificador, código, data e nome próprio
+> casam nos dois idiomas), e tirá-lo da fusão tira a ponte. Aqui o parágrafo acima
+> diz que ele "herda o idioma do nome do arquivo" — verdade para as palavras do
+> nome, e enganoso para o que decide: o que atravessa idioma é a parte do nome que
+> **não é palavra**.
+>
+> Ver [`ablacao-caminho-entregue.md`](ablacao-caminho-entregue.md). É `F4-P` quem
+> reconcilia os dois caminhos.
+
 ## O que este número não prova
 
 - **São 12 perguntas.** Chegam para acusar direção, não para escolher peso. O

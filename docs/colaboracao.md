@@ -249,6 +249,34 @@ segundo consumidor. Além do contrato de emitir `idioma` e `idioma_fonte`, é el
 vai dizer se o `fts_caminho = 0,3` se sustenta — aqui a fatia tem 12 perguntas e o
 efeito é de uma.
 
+### `F4-P.0` — o eval passou a medir o caminho entregue (24/08/2026)
+
+Achado ao começar o `F4-P`, com três consultas no índice real, antes de escrever
+uma linha dele: **a ferramenta `search` do MCP chama `buscar_chunks`, onde o
+`RanqueadorDeNome` não participa.** Mudar `peso_nome` de 0,5 para 0 não altera
+nada ali, e altera a ordem em `search` em todas. O peso do nome é **inerte em
+produção**, e `painel/medir.py:79` herda a cegueira.
+
+`eval/entregue.py` + `--entregue` no `eval.rodar` medem o caminho entregue, de
+forma **aditiva** — `search` continua sendo a série F0 → F4, porque trocar o
+recuperador canônico apagaria a comparabilidade entre fases. Leitura em
+[`ablacao-caminho-entregue.md`](ablacao-caminho-entregue.md).
+
+**O que o desktop precisa saber:**
+
+- **Nada mudou no produto.** Nenhuma linha de `mcp/server.py` ou do caminho de
+  consulta. Só existe medição nova.
+- **O achado de manchete de `C4.5` foi corrigido**, e isso muda o alvo de `C4.2`
+  (rerank cross-lingual, onda 7): *"recall@20 é 1.000, o documento é alcançado e
+  mal ordenado"* vale só em `search`. No caminho entregue é **0,750** — três das
+  doze perguntas cross-lingual não são alcançadas no top-20. Quem for atacar
+  cross-lingual precisa saber que, no produto, parte do problema é alcance e não
+  ordenação.
+- **Vale conferir o mesmo para todo sinal**, dos dois lados, e a verificação é
+  barata: varie o peso e veja se a saída muda. O princípio já estava escrito em
+  `ablacao-familias.md` desde 16/08 e não tinha sido aplicado fora dele.
+- `F4-P` foi **reescopado** e o teto de +0,032 caiu — era calculado sobre `search`.
+
 Um pedaço de `C3.b–d` (expansão morfológica, frases, stoplist) **continua do
 desktop** na onda 6 e não foi tocado aqui — só `C3.a`.
 
