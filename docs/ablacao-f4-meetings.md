@@ -209,3 +209,105 @@ tem de recuperar, e ele agora existe antes da mudança em vez de depois.
 0,618, nDCG 0,663 na raiz completa. Nenhum dos 463 arquivos cortados vencia
 alguma pergunta, o que é a confirmação mais simples de que eles não eram fonte de
 nada.
+
+## O depois: a passada fechou
+
+24/08/2026, 02:07. Passada completa, com a regra de papel ligada e
+`--pular-planilha-acima-de 40`. **2.129 documentos vistos, 248 processados, 81
+removidos pela reconciliação** (1.056 trechos de andaime, relatório e banco), e o
+índice em **2.156 documentos, 98.326 trechos** depois da repescagem do legado
+(98.154 antes dela).
+
+A reconciliação removeu exatamente o que a previsão dizia — 81 de 1.828, 4,4%,
+sem `--forcar-reconciliacao`. Vale registrar que a previsão foi feita antes, com
+o mesmo `iter_files` e o mesmo `_precisa_indexar` que a passada usa: 81 remoções,
+409 nunca indexados e 16 repescados, contra 81 e 248 processados medidos. A
+diferença de 409+16 para 248 é `duplicado`, que o registro conta como processado
+sem reembeddar.
+
+**Índice e corpus enumerado agora são o mesmo conjunto:** 2.156 dos dois lados,
+zero documentos com parser fora do registro e zero linhas do registro fora da
+enumeração. A frase "o corpus é 63% maior que o índice", que veio do fechamento do
+email, deixa de valer.
+
+`Meetings/` no índice, depois do corte: **551 documentos, 5.598 trechos**, e só
+conteúdo — 189 `transcript`, 179 `reconciled`, 152 `diarized`, 20 `enhanced`, 11
+notas pessoais. Zero andaime, zero relatório. E **156 `duplicado`** por sha256
+(106 em `09. Meetings/`, 50 em `Meetings/`): as cópias entre as duas árvores
+entraram sem reembeddar, que é o que a fila em ondas prometia.
+
+### O número
+
+Condição C, corporativo, 24/08/2026. `hibrido`, sem reranking, glossário de teste,
+48 perguntas no escopo. `docs/metricas-f4-meetings-depois.md` (gitignorado).
+
+| Passada | docs | recall@1 | recall@3 | recall@5 | recall@10 | MRR@10 | nDCG@5 |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| fechamento do email | 1.608 | 0,635 | — | 0,872 | 0,913 | 0,774 | 0,782 |
+| um terço de `Meetings/` | 1.828 | 0,635 | 0,802 | 0,833 | 0,927 | 0,765 | 0,759 |
+| **`Meetings/` completo, cortado** | **2.156** | **0,656** | 0,792 | 0,833 | 0,927 | 0,771 | 0,764 |
+
+A última linha foi medida **duas vezes**, antes e depois de a repescagem do legado
+entrar com 172 trechos, e deu **exatamente igual** nas nove colunas. Não é
+coincidência a favor: é a confirmação direta de que o dourado não alcança `.doc`
+nem `.xls`, dito na seção seguinte.
+
+Fechar a passada **desfez parte da queda do meio do caminho** e ainda ganhou o
+topo: recall@1 sobe 0,635 → **0,656**, MRR 0,765 → 0,771, nDCG@5 0,759 → 0,764.
+Contra o fechamento do email, o saldo de indexar a pasta inteira é recall@1
+**+0,021** e recall@10 **+0,014**, contra recall@5 **−0,039** e nDCG@5 **−0,018**.
+
+**A inspeção por pergunta diz de quem é o ganho, e ele é limpo:** os acertos em
+primeira posição vão de 32 para 33, **`g001` ganha o 1º lugar e nenhuma pergunta
+o perde**. `g036` continua sendo a única sem acerto no top 20, como antes — é o
+caso já declarado "não é de ninguém" na §6.
+
+Ou seja: a pasta paga em recall@1 e custa em recall@5, e o custo é o que a regra
+de família tem de recuperar. O número de antes (0,872 de recall@5 antes de
+qualquer transcrição) é o teto a perseguir, e agora ele está escrito.
+
+### O que ainda não é medível
+
+O corte por papel e a passada não movem o legado no dourado, e é melhor dizer
+por quê do que apresentar um número vazio: **o conjunto dourado não tem nenhuma
+fonte `.doc`, `.xls`, `.ppt` ou `.rtf`.** As 51 perguntas apontam para `.docx`
+(29), `.pdf` (23), `.xlsx` (4), `.md` (3), `.msg` (2) e `.pptx` (2). A §6 pedia
+"medir a repescagem do legado no dourado corporativo"; a resposta honesta é que
+essa medição é vazia até existir pergunta cuja fonte seja um desses formatos —
+e escrever a pergunta é o passo que falta, não rodar o eval.
+
+## A repescagem do legado, medida em arquivo de verdade
+
+A §6 dizia que os `.doc`/`.xls` "entram sozinhos na próxima passada". Entraram — e
+o resultado é assimétrico de um jeito que só arquivo real mostra:
+
+| Formato | arquivos | `ok` | trechos | resto |
+|---|---:|---:|---:|---|
+| `.doc` | 4 | **1** | 3 | 3 `vazio` ("nenhum texto extraível") |
+| `.xls` | 3 | **2** | **172** | 1 `erro` |
+
+O caminho de bytes puros do `.doc` extraiu 3 trechos de 1 de 4 arquivos; o `.xls`
+por `xlrd` extraiu 172 trechos de 2 de 3. Mesma família de formato, mesma decisão
+de "sem COM", resultados a uma ordem de grandeza de distância. **Três de sete
+arquivos de Office legado viraram conteúdo**, e é o primeiro número real que essa
+prioridade tem.
+
+> Achado para o dono de `ingest/parsers/ole_texto.py` e `sheets.py`
+> (`docs/colaboracao.md` §1) — registrado aqui, não corrigido lá. Dois pontos:
+> o `.doc` por bytes acerta 1 de 4 neste acervo, e `xlrd==1.2.0` levanta
+> `AssertionError` **sem mensagem** num `.xls` real, o que é o pior diagnóstico
+> possível para quem for depurar.
+
+### E a lição operacional, que não é do parser
+
+Os três `.xls` estavam como `erro: ModuleNotFoundError: No module named 'xlrd'`.
+O `xlrd==1.2.0` **está** declarado no `requirements.txt` desde a entrega do legado
+— só não estava instalado nesta máquina. O `import xlrd` é dentro da função, então
+nada falha ao subir: o sintoma aparece um documento por vez, como `erro` no
+registro, e a passada segue verde.
+
+É a mesma forma da lição de 19/08 sobre `schtasks`: **o teste que passa não prova
+que a máquina faz.** Aqui o teste nem chega perto — a suíte lista `.xls` entre as
+extensões suportadas sem nunca abrir um. Um `pip install -r requirements.txt`
+depois de puxar `main` resolveria; um teste marcado que abra um `.xls` mínimo de
+verdade evitaria a próxima vez.
