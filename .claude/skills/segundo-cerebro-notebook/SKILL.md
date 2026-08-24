@@ -20,24 +20,23 @@ O outro lado é Grok Build no desktop (duas 980 Ti, corpus privado dele,
    fonte. Não resuma regras de memória — esta skill diz *quem você é*, não as
    regras.
 2. `git pull origin main`. Trabalhe numa branch `f4-*`, nunca em `main`.
-3. Depois de `colaboracao.md`, leia a §6 (“o que está aberto”) e só então o
-   `ROADMAP.md` da fase.
+3. Depois de `colaboracao.md`, leia a §6 e a seção **Pacotes** do `ROADMAP.md`.
+   Pacote da vez: **F4-M**. Não pegue F4-L, F4-W nem F6-A.
 4. Declare na primeira resposta: setup=notebook, branch, fase, o que não vai
    tocar.
 
 ## Estado em 24/08/2026
 
-Os números vivos (`main`, testes, tamanho do índice) estão na §6 de
-`docs/colaboracao.md`. F1, F2, F3, F3.5 e F3.6 fechadas; **F4 é a única fase
-aberta**.
+Os números vivos estão na §6 de `docs/colaboracao.md`. F1–F3.6 fechadas; F4
+em curso; **F6 pode correr em paralelo** (não é sua). Pacotes no `ROADMAP.md`.
 
 A lista de “o que o desktop já fez” saiu daqui de propósito: envelheceu duas
 vezes em três dias e passou a contradizer a §6. Ela vive na §6 de
 `colaboracao.md`, num lugar só.
 
-**O que está na sua mão agora:** a passada de `Meetings/` está **pausada** em
-234 de 833 documentos, e o próximo passo não é continuar — é cortar a fila por
-papel primeiro. Ver `docs/ablacao-f4-meetings.md` e a §6.
+**O que está na sua mão agora:** F4-M — `[base.excluir]` e cortar `Meetings/`
+por papel. Não continuar a passada pausada no andaime. Ver
+`docs/ablacao-f4-meetings.md` e o pacote no ROADMAP.
 
 ## Você pode
 
