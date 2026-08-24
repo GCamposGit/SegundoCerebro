@@ -44,7 +44,7 @@ from typing import Any
 
 from .census import DEFAULT_EXCLUDE_DIRS, DEFAULT_EXCLUDE_GLOBS
 from .census import Config as CensoConfig
-from .census import RootSpec
+from .census import RoleExclusion, RootSpec
 from .logger import get_logger
 
 log = get_logger("config")
@@ -350,6 +350,11 @@ class Base:
     raizes: tuple[RootSpec, ...] = ()
     exclude_dirs: tuple[str, ...] = DEFAULT_EXCLUDE_DIRS
     exclude_globs: tuple[str, ...] = DEFAULT_EXCLUDE_GLOBS
+    exclude_roles: tuple[RoleExclusion, ...] = ()
+    """Exclusão por papel: padrão de nome com escopo de pasta. Ver
+    `census.RoleExclusion` — existe porque glob solto casa pelo nome em qualquer
+    lugar da raiz, e um arquivo de papel redundante dentro de uma pasta pode ser
+    a única cópia fora dela."""
     pesos: Pesos = Pesos()
     busca: Busca = Busca()
     chunking: Chunking = Chunking()
@@ -378,6 +383,7 @@ class Base:
         cfg = CensoConfig(roots=list(self.raizes))
         cfg.exclude_dirs = self.exclude_dirs
         cfg.exclude_globs = self.exclude_globs
+        cfg.role_exclusions = self.exclude_roles
         return cfg
 
     def validar(self) -> None:
@@ -536,17 +542,62 @@ def _secao(fonte: Mapping[str, Any], chave: str, herdado, tipo):  # noqa: ANN001
     return replace(herdado, **bruto)
 
 
-def _excludes(fonte: Mapping[str, Any], atuais: tuple[tuple[str, ...], tuple[str, ...]]):  # noqa: ANN202
+CHAVES_DE_EXCLUDE = ("dirs", "globs", "papel")
+
+
+def _papeis(bruto: Any, onde: str) -> tuple[RoleExclusion, ...]:  # noqa: ANN401
+    """`papel` é uma lista de regras `{ dirs, globs }`.
+
+    Aceita as duas escritas que o TOML permite para a mesma coisa: tabela em
+    linha dentro de `[base.exclude]`, ou `[[base.exclude.papel]]` repetido.
+    """
+    if bruto is None:
+        return ()
+    if isinstance(bruto, Mapping):
+        bruto = [bruto]
+    if not isinstance(bruto, list):
+        raise ErroDeConfig(f"em {onde}, 'papel' precisa ser uma lista de regras")
+    regras = []
+    for i, item in enumerate(bruto, start=1):
+        if not isinstance(item, Mapping):
+            raise ErroDeConfig(f"em {onde}, a regra de papel #{i} não é uma tabela")
+        desconhecidas = set(item) - {"dirs", "globs"}
+        if desconhecidas:
+            raise ErroDeConfig(
+                f"em {onde}, na regra de papel #{i}, chave desconhecida: "
+                f"{', '.join(sorted(desconhecidas))} (conhecidas: dirs, globs)"
+            )
+        globs = tuple(str(g) for g in item.get("globs", ()))
+        if not globs:
+            # Sem glob a regra não exclui nada, e uma regra que não faz nada é
+            # pior que erro: parece proteção e não é.
+            raise ErroDeConfig(f"em {onde}, a regra de papel #{i} não declara 'globs'")
+        regras.append(RoleExclusion(globs=globs, dirs=tuple(str(d) for d in item.get("dirs", ()))))
+    return tuple(regras)
+
+
+def _excludes(  # noqa: ANN202
+    fonte: Mapping[str, Any],
+    atuais: tuple[tuple[str, ...], tuple[str, ...], tuple[RoleExclusion, ...]],
+    onde: str = "[exclude]",
+):
     """Somam-se às exclusões técnicas padrão, nunca as substituem."""
-    dirs, globs = atuais
+    dirs, globs, papeis = atuais
     bruto = fonte.get("exclude")
     if not bruto:
-        return dirs, globs
+        return dirs, globs, papeis
+    desconhecidas = set(bruto) - set(CHAVES_DE_EXCLUDE)
+    if desconhecidas:
+        raise ErroDeConfig(
+            f"em {onde}, chave desconhecida em 'exclude': {', '.join(sorted(desconhecidas))} "
+            f"(conhecidas: {', '.join(CHAVES_DE_EXCLUDE)})"
+        )
     if "dirs" in bruto:
         dirs = dirs + tuple(bruto["dirs"])
     if "globs" in bruto:
         globs = globs + tuple(bruto["globs"])
-    return dirs, globs
+    papeis = papeis + _papeis(bruto.get("papel"), onde)
+    return dirs, globs, papeis
 
 
 def _base_de(dados: Mapping[str, Any], padrao: Base, indice: int) -> Base:
@@ -554,7 +605,11 @@ def _base_de(dados: Mapping[str, Any], padrao: Base, indice: int) -> Base:
     if not id_:
         raise ErroDeConfig(f"a base #{indice} não tem 'id'")
 
-    dirs, globs = _excludes(dados, (padrao.exclude_dirs, padrao.exclude_globs))
+    dirs, globs, papeis = _excludes(
+        dados,
+        (padrao.exclude_dirs, padrao.exclude_globs, padrao.exclude_roles),
+        f"base '{id_}'",
+    )
     return Base(
         id=str(id_),
         nome=str(dados.get("nome", "")),
@@ -566,6 +621,7 @@ def _base_de(dados: Mapping[str, Any], padrao: Base, indice: int) -> Base:
         raizes=_raizes(dados.get("raizes"), f"base '{id_}'"),
         exclude_dirs=dirs,
         exclude_globs=globs,
+        exclude_roles=papeis,
         pesos=_secao(dados, "pesos", padrao.pesos, Pesos),
         busca=_secao(dados, "busca", padrao.busca, Busca),
         chunking=_secao(dados, "chunking", padrao.chunking, Chunking),
@@ -655,6 +711,7 @@ def _do_censo(caminho: Path) -> Config:
             raizes=tuple(censo.roots),
             exclude_dirs=tuple(censo.exclude_dirs),
             exclude_globs=tuple(censo.exclude_globs),
+            exclude_roles=tuple(censo.role_exclusions),
         ),
         caminho.parent,
     )
@@ -721,12 +778,17 @@ def como_toml(cfg: Config, raiz: Path | None = None) -> dict[str, Any]:
 
         extras_dirs = tuple(d for d in b.exclude_dirs if d not in DEFAULT_EXCLUDE_DIRS)
         extras_globs = tuple(g for g in b.exclude_globs if g not in DEFAULT_EXCLUDE_GLOBS)
-        if extras_dirs or extras_globs:
+        if extras_dirs or extras_globs or b.exclude_roles:
             entrada["exclude"] = {}
             if extras_dirs:
                 entrada["exclude"]["dirs"] = list(extras_dirs)
             if extras_globs:
                 entrada["exclude"]["globs"] = list(extras_globs)
+            if b.exclude_roles:
+                entrada["exclude"]["papel"] = [
+                    {"dirs": list(r.dirs), "globs": list(r.globs)} if r.dirs else {"globs": list(r.globs)}
+                    for r in b.exclude_roles
+                ]
 
         for chave, valor, referencia in (
             ("pesos", b.pesos, Pesos()),
@@ -860,12 +922,15 @@ def carregar(
         )
 
     padrao_bruto = dados.get("padrao", {})
-    dirs, globs = _excludes(padrao_bruto, (DEFAULT_EXCLUDE_DIRS, DEFAULT_EXCLUDE_GLOBS))
+    dirs, globs, papeis = _excludes(
+        padrao_bruto, (DEFAULT_EXCLUDE_DIRS, DEFAULT_EXCLUDE_GLOBS, ()), "[padrao]"
+    )
     padrao = Base(
         id=BASE_UNICA,
         modelo=str(padrao_bruto.get("modelo", Base.modelo)),
         exclude_dirs=dirs,
         exclude_globs=globs,
+        exclude_roles=papeis,
         pesos=_secao(padrao_bruto, "pesos", Pesos(), Pesos),
         busca=_secao(padrao_bruto, "busca", Busca(), Busca),
         chunking=_secao(padrao_bruto, "chunking", Chunking(), Chunking),

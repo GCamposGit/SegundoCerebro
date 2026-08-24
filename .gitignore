@@ -27,6 +27,13 @@ docs/censo*.json
 census.toml
 config.toml
 config.local.*
+# Cópia de segurança de configuração local: `config.toml.bak-...` é o arquivo que
+# alguém cria antes de mexer, e ele tem os mesmos caminhos reais que o original.
+# Padrão e não lista, pela mesma razão de `docs/metricas-*.md` — nome a nome
+# falha em silêncio no arquivo seguinte. Não alcança `config.example.toml` nem
+# `config.sintetico.toml`, que são publicáveis.
+census.toml.*
+config.toml.*
 .painel.json
 
 # Índices de bases além da padrão (/index/ já está coberto acima)

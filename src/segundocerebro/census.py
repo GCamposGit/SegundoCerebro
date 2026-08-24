@@ -83,19 +83,62 @@ class RootSpec:
     path: Path
 
 
+@dataclass(frozen=True)
+class RoleExclusion:
+    """Exclusão por padrão de nome, mas só dentro de certas pastas.
+
+    Um glob solto em `exclude_globs` casa pelo nome do arquivo em qualquer lugar
+    da raiz, e isso **não** basta para pasta cujos arquivos carregam o *papel* no
+    nome. Medido em 24/08/2026 (`docs/ablacao-f4-meetings.md`): o aplicativo de
+    reuniões nomeia o relatório renderizado `*_relatorio.pdf`, e dois arquivos
+    com exatamente essa forma moram fora da árvore de reuniões — um deles é a
+    única cópia da sua reunião, sem transcrição em lugar nenhum. Escopo por pasta
+    mantém fora os 178 relatórios redundantes e deixa esse um dentro; o glob
+    solto o descartaria em silêncio, que é o pior modo de falha possível.
+
+    `dirs` são prefixos de caminho relativos à raiz, com `/`. Vazio quer dizer
+    "qualquer pasta", e aí a regra é equivalente a um glob solto.
+    """
+
+    globs: tuple[str, ...] = ()
+    dirs: tuple[str, ...] = ()
+
+    def covers(self, rel_dir: str) -> bool:
+        if not self.dirs:
+            return True
+        target = rel_dir.replace("\\", "/").strip("/").lower()
+        for d in self.dirs:
+            prefix = d.replace("\\", "/").strip("/").lower()
+            if not prefix or target == prefix or target.startswith(prefix + "/"):
+                return True
+        return False
+
+    def matches(self, name: str, rel_dir: str) -> bool:
+        if not self.covers(rel_dir):
+            return False
+        return _casa_algum(name, self.globs)
+
+
+def _casa_algum(name: str, globs: tuple[str, ...]) -> bool:
+    return any(fnmatch.fnmatch(name, g) or fnmatch.fnmatch(name.lower(), g.lower()) for g in globs)
+
+
 @dataclass
 class Config:
     roots: list[RootSpec] = field(default_factory=list)
     exclude_dirs: tuple[str, ...] = DEFAULT_EXCLUDE_DIRS
     exclude_globs: tuple[str, ...] = DEFAULT_EXCLUDE_GLOBS
+    role_exclusions: tuple[RoleExclusion, ...] = ()
     top: int = 15
 
     def excluded_dir(self, name: str) -> bool:
         lowered = name.lower()
         return any(lowered == d.lower() for d in self.exclude_dirs)
 
-    def excluded_file(self, name: str) -> bool:
-        return any(fnmatch.fnmatch(name, g) or fnmatch.fnmatch(name.lower(), g.lower()) for g in self.exclude_globs)
+    def excluded_file(self, name: str, rel_dir: str = "") -> bool:
+        if _casa_algum(name, self.exclude_globs):
+            return True
+        return any(r.matches(name, rel_dir) for r in self.role_exclusions)
 
 
 @dataclass
@@ -317,9 +360,9 @@ def iter_files(root: RootSpec, cfg: Config, sink: Census | None = None) -> Itera
     and access errors go to `sink` when one is given.
     """
     base = str(root.path)
-    stack: list[tuple[str, int, str]] = [(caminho_estendido(base), 0, "")]
+    stack: list[tuple[str, int, str, str]] = [(caminho_estendido(base), 0, "", "")]
     while stack:
-        directory, depth, top_folder = stack.pop()
+        directory, depth, top_folder, rel_dir = stack.pop()
         try:
             entries = list(os.scandir(directory))
         except OSError as exc:
@@ -350,12 +393,19 @@ def iter_files(root: RootSpec, cfg: Config, sink: Census | None = None) -> Itera
                     continue
                 if sink is not None:
                     sink.dirs += 1
-                stack.append((entry.path, depth + 1, top_folder or entry.name))
+                stack.append(
+                    (
+                        entry.path,
+                        depth + 1,
+                        top_folder or entry.name,
+                        f"{rel_dir}/{entry.name}" if rel_dir else entry.name,
+                    )
+                )
                 continue
 
             if not stat.S_ISREG(st.st_mode):
                 continue
-            if cfg.excluded_file(entry.name):
+            if cfg.excluded_file(entry.name, rel_dir):
                 if sink is not None:
                     sink.excluded_files += 1
                 continue
@@ -537,6 +587,7 @@ def load_config(path: Path) -> Config:
     [exclude]
     dirs = ["Backups"]
     globs = ["*.bak"]
+    papel = [{ dirs = ["Meetings"], globs = ["*_relatorio.pdf"] }]
     """
     import tomllib
 
@@ -555,6 +606,18 @@ def load_config(path: Path) -> Config:
         cfg.exclude_dirs = DEFAULT_EXCLUDE_DIRS + tuple(exclude["dirs"])
     if "globs" in exclude:
         cfg.exclude_globs = DEFAULT_EXCLUDE_GLOBS + tuple(exclude["globs"])
+    # `papel` também aqui, e não só em `config.py`: este é o caminho que o
+    # baseline do eval usa, e ele tem de enumerar o MESMO universo que o
+    # indexador. Duas listas de exclusão divergentes medem escala e creditam ao
+    # ranqueador — é o erro que o comentário do próprio census.toml previne.
+    papel = exclude.get("papel")
+    if papel:
+        if isinstance(papel, dict):
+            papel = [papel]
+        cfg.role_exclusions = tuple(
+            RoleExclusion(globs=tuple(r.get("globs", ())), dirs=tuple(r.get("dirs", ())))
+            for r in papel
+        )
     return cfg
 
 
