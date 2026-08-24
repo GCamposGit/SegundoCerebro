@@ -24,7 +24,6 @@ qualidade esconde a decisão que importa.
 from __future__ import annotations
 
 import argparse
-import sys
 import time
 from collections.abc import Callable
 from dataclasses import dataclass
@@ -33,7 +32,7 @@ from pathlib import Path
 from segundocerebro.logger import get_logger
 from segundocerebro.retrieve.hybrid import BuscaHibrida
 
-from .harness import KS_NDCG, Resultado, avaliar, carregar_perguntas, conferir_base, verificar_escopo
+from .harness import KS_NDCG, Resultado, avaliar, carregar_perguntas, conferir_base, entregar, verificar_escopo
 from .idioma import CROSS_LINGUAL, MESMA_LINGUA
 
 log = get_logger("eval.ablacao_f2")
@@ -333,12 +332,9 @@ def main(argv: list[str] | None = None) -> int:
     )
     relatorio = render(medidas, contexto, referencia)
 
+    entregar(relatorio, args.out)
     if args.out:
-        args.out.parent.mkdir(parents=True, exist_ok=True)
-        args.out.write_text(relatorio, encoding="utf-8")
         log.info("relatório gravado em %s", args.out)
-    else:
-        sys.stdout.write(relatorio + "\n")
     return 0
 
 

@@ -16,7 +16,6 @@ escondendo que a pergunta mais difícil do conjunto deixou de ser respondida.
 from __future__ import annotations
 
 import argparse
-import sys
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -25,7 +24,7 @@ from segundocerebro.index.embeddings import MODELO_PADRAO
 from segundocerebro.logger import get_logger
 from segundocerebro.retrieve.hybrid import CANDIDATOS
 
-from .harness import Resultado, ResultadoPergunta, avaliar, carregar_perguntas
+from .harness import Resultado, ResultadoPergunta, avaliar, carregar_perguntas, entregar
 
 log = get_logger("eval.comparar")
 
@@ -232,12 +231,9 @@ def main(argv: list[str] | None = None) -> int:
         f"{len(perguntas)} perguntas no escopo.\n\n" + "\n\n".join(contexto_partes),
     )
 
+    entregar(relatorio, args.out)
     if args.out:
-        args.out.parent.mkdir(parents=True, exist_ok=True)
-        args.out.write_text(relatorio, encoding="utf-8")
         log.info("relatório gravado em %s", args.out)
-    else:
-        sys.stdout.write(relatorio + "\n")
     return 0
 
 

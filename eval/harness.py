@@ -9,6 +9,7 @@ across phases. That comparability is the whole point of building this first.
 from __future__ import annotations
 
 import json
+import sys
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -599,3 +600,39 @@ def render_markdown(resultado: Resultado, titulo: str, contexto: str = "") -> st
     add("")
 
     return "\n".join(linhas)
+
+
+def entregar(relatorio: str, out: Path | None) -> None:
+    """Grava o relatório no arquivo, ou no stdout — os dois em UTF-8.
+
+    Existe por um defeito medido em 24/08/2026: `py -m eval.latencia --porta`
+    rodou as três rodadas inteiras, montou o relatório e **morreu ao imprimir**,
+    com `UnicodeEncodeError` num `→`. O `--out` sempre declarou
+    `encoding="utf-8"`; o stdout não, e no console do Windows ele nasce em
+    cp1252. Todo relatório daqui usa `→`, `≥` e `×`, então a porta que existe
+    para barrar regressão não conseguia relatar nada — e o modo de falha é o pior
+    possível: a medição custou minutos e o processo cai depois dela, com traceback
+    de codec em vez de número.
+
+    O `.mcp.json` já resolvia isso para o servidor com `PYTHONIOENCODING=utf-8`,
+    e é por isso que o defeito nunca apareceu ali. Não vale exigir a variável de
+    quem roda o eval à mão: a régua tem de funcionar do jeito que o `README`
+    manda rodar.
+
+    Escreve em `sys.stdout.buffer` em vez de reconfigurar o `sys.stdout` do
+    processo — reconfigurar é estado global e afetaria quem mais escrevesse ali.
+    O `flush` antes evita que o texto já bufferizado saia depois dos bytes.
+    """
+    if out is not None:
+        out.parent.mkdir(parents=True, exist_ok=True)
+        out.write_text(relatorio, encoding="utf-8")
+        return
+    texto = relatorio + "\n"
+    fluxo = getattr(sys.stdout, "buffer", None)
+    if fluxo is None:
+        # stdout capturado (pytest, notebook): já é unicode, não há codec no meio.
+        sys.stdout.write(texto)
+        return
+    sys.stdout.flush()
+    fluxo.write(texto.encode("utf-8"))
+    fluxo.flush()

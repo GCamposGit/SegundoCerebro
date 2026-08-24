@@ -32,6 +32,7 @@ def _item(
     grupo: str,
     posicao: int | None,
     armadilha: bool = False,
+    idioma_fonte: str = "pt",
 ) -> ResultadoPergunta:
     """Uma pergunta que acertou na posição `posicao` (1-based), ou nunca."""
     fonte = "Meetings/daily.docx" if grupo == REUNIAO else "Projetos/contrato.pdf"
@@ -42,6 +43,8 @@ def _item(
         fontes=(fonte,),
         validada=True,
         armadilha=armadilha,
+        idioma="pt",
+        idioma_fonte=idioma_fonte,
     )
     recall = {k: (1.0 if posicao is not None and posicao <= k else 0.0) for k in (*KS_PADRAO, 10)}
     return ResultadoPergunta(
@@ -149,6 +152,51 @@ def test_empate_prefere_menos_caminho_e_menos_nome() -> None:
     assert REGRA([ref, caro, barato]).escolhido is barato
 
 
+def _ponto_bilingue(
+    triplo: tuple[float, float, float],
+    *,
+    cross: list[int | None],
+    mesma: list[int | None],
+) -> Ponto:
+    """Ponto com as duas fatias de idioma povoadas, para a guarda ter o que ver."""
+    itens = [
+        _item(f"c{i}", grupo=ESCRITORIO, posicao=p, idioma_fonte="en")
+        for i, p in enumerate(cross)
+    ]
+    itens += [
+        _item(f"m{i}", grupo=REUNIAO, posicao=p, idioma_fonte="pt") for i, p in enumerate(mesma)
+    ]
+    itens += [_item(f"a{i}", grupo=ESCRITORIO, posicao=1, armadilha=True) for i in range(5)]
+    itens += [_item("x0", grupo=ESCRITORIO, posicao=None, armadilha=True)]
+    return Ponto(*triplo, Resultado(retriever="t", ks=KS_PADRAO, itens=itens))
+
+
+def test_regra_recusa_quem_sobe_a_media_e_quebra_a_ponte_pt_en() -> None:
+    """A guarda de `C4.5` dentro da varredura, e o motivo de a régua vir antes.
+
+    Dois dos três votos da fusão são cegos a idioma por construção, e a fatia
+    mesma-língua é quatro vezes maior — mexer no peso deles pode quebrar **só** a
+    ponte e passar na média.
+    """
+    ref = _ponto_bilingue(REFERENCIA, cross=[1, 1, 2], mesma=[3, 3, 3, 3, 3, 3])
+    quebra = _ponto_bilingue((1.0, 1.0, 0.25), cross=[9, 9, 9], mesma=[1, 1, 1, 1, 1, 1])
+
+    assert quebra.resultado.mrr() > ref.resultado.mrr(), "sobe a média, que é a armadilha"
+    assert quebra.mrr_da_fatia("cross-lingual") < ref.mrr_da_fatia("cross-lingual")
+
+    veredito = REGRA([ref, quebra])
+
+    assert veredito.escolhido is None
+
+
+def test_razao_cross_lingual_e_zero_sem_as_duas_fatias() -> None:
+    """Sem as duas povoadas não há razão; devolver 1,0 faria a porta passar por ausência."""
+    so_mesma = _ponto(REFERENCIA, reuniao=[1], escritorio=[1])
+
+    assert so_mesma.n_da_fatia("cross-lingual") == 0
+    assert so_mesma.razao_cross_lingual == 0.0
+
+
 def test_empate_em_trilha_prefere_nao_mexer() -> None:
     """O empate que a regra declarada não sabia desfazer, em 24/08/2026.
 
@@ -199,3 +247,45 @@ def test_relatorio_traz_a_grade_inteira() -> None:
 
     assert texto.count("| 0.5 |") + texto.count("| 1 |") >= 3
     assert "referência" in texto
+
+
+def test_motivo_nomeia_o_criterio_que_eliminou() -> None:
+    """O veredito mentia quando a guarda cross-lingual entrou como terceiro critério.
+
+    A mensagem era fixa e citava dois critérios; braços que mantinham porta e
+    agregado e perdiam a ponte PT↔EN eram relatados como se tivessem quebrado a
+    porta. Relatório que dá o motivo errado é pior que relatório sem motivo.
+    """
+    ref = _ponto_bilingue(REFERENCIA, cross=[1, 1, 2], mesma=[3, 3, 3, 3, 3, 3])
+    quebra = _ponto_bilingue((1.0, 1.0, 0.25), cross=[9, 9, 9], mesma=[1, 1, 1, 1, 1, 1])
+
+    motivo = REGRA([ref, quebra]).motivo
+
+    assert "cross-lingual" in motivo
+    assert "porta 3" in motivo and "agregado" in motivo, "diz o que os braços mantiveram"
+
+
+def test_relatorio_negativo_por_cross_lingual_explica_a_ponte() -> None:
+    ref = _ponto_bilingue(REFERENCIA, cross=[1, 1, 2], mesma=[3, 3, 3, 3, 3, 3])
+    quebra = _ponto_bilingue((1.0, 1.0, 0.25), cross=[9, 9, 9], mesma=[1, 1, 1, 1, 1, 1])
+    pontos = [ref, quebra]
+
+    texto = render(pontos, REGRA(pontos), "contexto")
+
+    assert "agnóstico a idioma" in texto
+    assert "três lados" in texto
+
+
+def test_razao_sobe_quando_o_denominador_cai_e_a_tabela_mostra_os_dois() -> None:
+    """Razão melhor com mesma-língua pior é regressão disfarçada de avanço."""
+    ref = _ponto_bilingue(REFERENCIA, cross=[5, 9, 9], mesma=[1, 1, 1, 1, 1, 1])
+    disfarce = _ponto_bilingue((1.0, 0.0, 0.5), cross=[5, 9, 9], mesma=[1, 1, 1, 9, 9, 9])
+
+    # A ponte não melhorou em nada: o recall@5 cross-lingual é o mesmo nos dois.
+    assert disfarce.recall5_da_fatia("cross-lingual") == ref.recall5_da_fatia("cross-lingual")
+    assert disfarce.recall5_da_fatia("mesma-língua") < ref.recall5_da_fatia("mesma-língua")
+    assert disfarce.razao_cross_lingual > ref.razao_cross_lingual
+
+    texto = render([ref, disfarce], REGRA([ref, disfarce]), "contexto")
+
+    assert "r@5 cross" in texto and "r@5 mesma" in texto

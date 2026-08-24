@@ -50,6 +50,23 @@ A média agregada da mesma passada é recall@1 **0.551** — o piso de regressã
 o `ROADMAP.md` já registra. Ela não mostra nada disto: a fatia mesma-língua é
 quase quatro vezes maior e a esconde por construção.
 
+> **Emenda de 24/08/2026 — a razão sozinha não serve como porta.** A varredura do
+> `C3.a` produziu o contraexemplo dentro de uma grade só: dois braços com
+> recall@5 cross-lingual **idêntico** (0.708), e o que tem a fatia mesma-língua
+> **pior** (0.875) marca razão 0.81 e passa, enquanto o melhor nas duas fatias
+> (0.898) marca 0.79 e reprova. A maneira mais fácil de fechar esta lacuna é
+> degradar o lado grande, e a razão aplaude. O critério precisa de um **piso
+> absoluto** ao lado dela — *recall@5 cross-lingual ≥ X **e** razão ≥ 0.80*. O
+> recorte está certo e é o que tornou isto visível; a forma do critério, não. Ver
+> [`ablacao-c3a-pesos-fts.md`](ablacao-c3a-pesos-fts.md). Quem muda o critério é
+> `F4-P`, dono da decisão de ranking.
+>
+> Da mesma varredura, e é a resposta parcial à pergunta que esta seção deixou em
+> aberto: **`fts_caminho = 0.3` leva a razão de 0.73 a 0.79 com as duas fatias
+> subindo**, a custo zero por consulta e sem trocar modelo — onde as rotas
+> previstas eram `R3.1` (rebuild) e `R6.2`/`C4.2` (6,9× de latência). É uma
+> pergunta de doze, então é pista; confirmar no perfil bilíngue do `R9.1`.
+
 O sinal recupera em recall@10 (0.875 contra 0.932) e chega a **1.000 em
 recall@20**. Isso localiza o defeito: **o documento certo está sendo alcançado, e
 está sendo mal ordenado.** É o perfil de quem tem um ranqueador cego no meio da

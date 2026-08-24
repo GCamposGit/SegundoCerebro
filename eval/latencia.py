@@ -469,12 +469,11 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901
         py -m eval.latencia --base padrao --maquina notebook-15w --porta
     """
     import argparse
-    import sys
-
+    
     from segundocerebro.config import ErroDeConfig, carregar
     from segundocerebro.logger import get_logger
 
-    from .harness import GOLDEN, carregar_perguntas, resolver_dourado
+    from .harness import GOLDEN, carregar_perguntas, entregar, resolver_dourado
 
     log = get_logger("eval.latencia")
 
@@ -590,12 +589,9 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901
         medicao, ambiente, violacoes, portas, args.maquina, candidatos=candidatos_rerank
     )
 
+    entregar(relatorio, args.out)
     if args.out:
-        args.out.parent.mkdir(parents=True, exist_ok=True)
-        args.out.write_text(relatorio, encoding="utf-8")
         log.info("relatório gravado em %s", args.out)
-    else:
-        sys.stdout.write(relatorio + "\n")
 
     for a in medicao.amostras:
         log.info("%-14s p50 %7.1f ms  p95 %7.1f ms  n=%d", a.operacao, a.p50, a.p95, a.n)

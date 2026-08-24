@@ -221,30 +221,54 @@ do arquivo existe no mecanismo e não é ela que produz o efeito: o grupo de reu
 bm25, e zerar a coluna custa de 0,023 a 0,062 de MRR agregado. `fts_caminho` fica
 em 1,0.
 
-Em troca, dois resultados que a onda 2 herda:
+**Nada foi aplicado, e a régua da onda 1 é o motivo.** A primeira leitura desta
+varredura recomendou `nome = 0,25` — sobe agregado, nDCG@5 e reunião. Com a fatia
+cross-lingual na tabela, ele **derruba a ponte PT↔EN** (MRR 0,496 → 0,475), e a
+recomendação está retirada. O ranqueador de nome é sinal **agnóstico a idioma**:
+identificador, código e data casam igual em PT e EN, e o bm25 não casa `contrato`
+com `agreement`. Sem o recorte que `C4.5` construiu na onda 1, esta troca teria
+entrado em `main` como melhoria.
 
-- **`nome = 0,25` domina o 0,5 que está no ar** (MRR +0,004, nDCG@5 +0,013,
-  reunião +0,122, porta 3 intacta). O 0,5 saiu da varredura de 13/08, num dourado
-  **sem nenhuma pergunta de reunião** — quando a régua cresce, o ótimo anterior
-  tem de ser rederivado, não herdado. Não apliquei: quem decide o peso do nome é
-  `F4-P`, e mudar duas vezes em dois dias quebra a linha de base dele.
-- **`F4-P` começa com teto de oráculo de +0,020** de MRR agregado sobre o melhor
-  global. Se a implementação real ficar perto de 0,004, o peso global resolveu.
+Quatro coisas que a onda 2 herda:
+
+- **A linha de base de `F4-P` é a de hoje** (`nome` 0,5 · MRR 0,680 · recall@1
+  0,551 · reunião 0,287). O 0,5 saiu de um dourado sem perguntas de reunião e
+  precisava ser rederivado — e a rederivação o **reconfirmou**, por dois motivos
+  em vez de um.
+- **Teto de oráculo de +0,032** de MRR agregado para o peso por tipo de fonte, com
+  a folga toda na reunião: a referência já é o ótimo do escritório.
+- **3 das 11 perguntas de reunião são cross-lingual** — o teto não desconta isso, e
+  `F4-P` tem de medir a interseção.
+- **`fts_caminho = 0,3` é candidato registrado para a lacuna cross-lingual:** razão
+  do `C4.5` de 0,73 para 0,79 com as duas fatias subindo, custo zero por consulta,
+  contra as rotas caras que estavam previstas (`R3.1`, `R6.2`/`C4.2`). Uma pergunta
+  de doze — confirmar no perfil bilíngue do `R9.1`, que é do desktop.
+
+**Um recado para o desktop, sobre `R9.1`:** o perfil bilíngue passou a ter um
+segundo consumidor. Além do contrato de emitir `idioma` e `idioma_fonte`, é ele que
+vai dizer se o `fts_caminho = 0,3` se sustenta — aqui a fatia tem 12 perguntas e o
+efeito é de uma.
 
 Um pedaço de `C3.b–d` (expansão morfológica, frases, stoplist) **continua do
 desktop** na onda 6 e não foi tocado aqui — só `C3.a`.
 
-**Reportado e não corrigido, pela regra 8 da §4:** depois do merge do PR #14
-(`f6-pacote-pip`), três testes de `tests/test_pacote.py` falham neste notebook —
-`test_import_sem_pythonpath_de_system32`, `test_script_mcp_help_sem_pythonpath` e
-`test_scripts_painel_e_indexar_existem`. Reproduzem em worktree limpa de `main`,
-sem nenhuma mudança do notebook, e a causa é simples: **esta máquina nunca rodou
-`pip install -e .`**, e os três testes pressupõem os entry points instalados. O
-arquivo é do desktop e o pacote é `F6-A`, então quem decide é o dono: ou o teste
-salta quando o pacote não está instalado (`pytest.skip`, como a docstring já
-insinua ao dizer que "a suíte do CI instala o pacote"), ou fica exigindo o
-`pip install` e o notebook o faz. Hoje a suíte não é verde num clone que só usa
-`PYTHONPATH=src`, que é a instrução do `README`.
+**Reportado e não corrigido, pela regra 8 da §4.** Depois do merge do PR #14,
+três testes de `tests/test_pacote.py` falhavam neste notebook. O notebook rodou
+`pip install -e .` como pedido — e **dois continuam vermelhos**, o que muda o
+diagnóstico. O `pip install` conserta `test_import_sem_pythonpath_de_system32`; os
+outros dois falham por um segundo defeito, independente:
+
+`_script()` usa `Path(sys.executable).parent` para achar o console script. Num
+venv isso acerta, porque o `python.exe` mora dentro de `Scripts/`. Numa instalação
+base do Windows, não: o `pip` põe os `.exe` em `sysconfig.get_path("scripts")`,
+que é `…\Python312\Scripts`, um nível abaixo do interpretador. Medido aqui: os
+quatro `.exe` existem, `segundocerebro-mcp.exe --help` roda de
+`C:\Windows\System32` sem `PYTHONPATH` e devolve 0, e o teste continua vermelho.
+**O CI passa porque roda em venv** — o acerto é coincidência de layout.
+
+Registrei como `R8.1.b` no `ROADMAP.md`, com a ordem: consertar a busca pelo
+script **antes** do `skipif`, senão o `skipif` mascara o defeito num setup onde o
+pacote está instalado e funcionando.
 
 **Ordem dentro da onda 2, e o motivo de não ser a da lista.** `C3.a` vem primeiro
 porque é a hipótese mais barata da onda e ela pode tornar as outras duas menores:

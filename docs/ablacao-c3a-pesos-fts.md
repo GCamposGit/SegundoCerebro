@@ -1,10 +1,10 @@
 # Pesos de coluna do bm25 — `C3.a` fechado em 24/08/2026
 
-Primeiro pacote da onda 2. **A hipótese foi refutada e a varredura achou coisa
-melhor:** a dupla contagem do nome do arquivo existe no mecanismo, mas não é ela
-que produz o efeito de que era acusada — e o peso do ranqueador de nome na fusão,
-escolhido em 13/08, está alto porque foi escolhido antes de existir na régua o
-grupo que ele prejudica.
+Primeiro pacote da onda 2, e o resultado não é um sim nem um não: **os dois
+critérios vivos do projeto discordam sobre o mesmo peso.** Pela regra declarada,
+nada passa e a hipótese está refutada. Pela régua que a onda 1 acabou de
+construir, `fts_caminho = 0,3` é a coisa mais barata já medida a mexer o critério
+cross-lingual — e é uma pergunta de doze, então é pista e não resultado.
 
 Evidência regenerável em `docs/metricas-c3a-pesos-fts.md` (fora do Git, pelo
 padrão `docs/metricas-*.md`). Instrumento em `eval/varredura_fts.py`, grade e
@@ -16,7 +16,7 @@ py -m eval.varredura_fts --base padrao --glossario eval/glossario-teste.toml --o
 
 Condição: 59 perguntas no escopo, 2.156 documentos, 98.326 chunks, `e5-large`,
 200 candidatos por ranqueador, **reranking desligado nos 18 braços**. Corpus da
-medição: corporativo.
+medição: corporativo. 18 braços em ~4 min, com memo na fronteira do `Store`.
 
 ## A pergunta
 
@@ -29,161 +29,186 @@ votos do mesmo sinal, numa arquitetura cuja lição mais repetida é que o que s
 O complemento descreveu esse mecanismo em `C3.a`. Em
 [`dourado-cobertura.md`](dourado-cobertura.md) o notebook mediu o **efeito**:
 desligar o ranqueador de nome sobe o MRR das perguntas de reunião 60% e piora o
-resto. Os dois textos foram escritos sem saber um do outro, e o `ROADMAP.md`
-tirou daí a ordem da onda 2: *se a dupla contagem explica o efeito, a correção é
-mais barata e mais geral que um peso por tipo de fonte.*
+resto. O `ROADMAP.md` tirou daí a ordem da onda 2: *se a dupla contagem explica o
+efeito, a correção é mais barata e mais geral que um peso por tipo de fonte.*
 
-Ela não explica.
+Ela não explica. E o que a grade achou no lugar é mais interessante.
 
-## O que a grade mostrou
+## O veredito pela regra declarada: nada passa
 
-18 braços: `caminho` ∈ {0; 0,3; 1,0} × `trilha` ∈ {0,5; 1,0} × `nome` ∈ {0; 0,25;
-0,5}. A coluna `texto` fica em 1,0 e isso não perde ponto — `bm25()` é linear nos
-pesos e a fusão RRF ordena por posição, então escalar os três dá a mesma ordem.
+> **2 braços mantêm a porta 3 e o MRR agregado, e todos pioram a fatia
+> cross-lingual** (referência 0,496).
 
-| trilha | caminho | nome | recall@1 | recall@10 | MRR@10 | nDCG@5 | MRR reunião (n=11) | MRR escritório (n=46) | armadilhas |
-|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| 0,5 | 0 | 0 | 0,449 | 0,873 | 0,593 | 0,618 | 0,464 | 0,617 | 5 de 6 |
-| 1 | 0 | 0 | 0,466 | 0,890 | 0,606 | 0,625 | 0,464 | 0,633 | 5 de 6 |
-| 0,5 | 0,3 | 0 | 0,534 | 0,890 | 0,658 | 0,676 | 0,464 | 0,700 | 5 de 6 |
-| 1 | 0,3 | 0 | 0,534 | 0,890 | 0,657 | 0,675 | 0,464 | 0,699 | 5 de 6 |
-| 1 | 1 | 0 | 0,534 | 0,898 | 0,668 | 0,693 | 0,459 | 0,714 | 5 de 6 |
-| 0,5 | 1 | 0 | 0,534 | 0,898 | 0,668 | 0,692 | 0,455 | 0,715 | 5 de 6 |
-| 0,5 | 0 | 0,25 | 0,525 | 0,881 | 0,661 | 0,680 | 0,414 | 0,717 | 5 de 6 |
-| 1 | 0 | 0,25 | 0,525 | 0,881 | 0,661 | 0,680 | 0,414 | 0,717 | 5 de 6 |
-| 0,5 | 0,3 | 0,25 | 0,534 | 0,898 | 0,677 | 0,694 | 0,414 | 0,737 | 5 de 6 |
-| 1 | 0,3 | 0,25 | 0,534 | 0,898 | 0,677 | 0,694 | 0,414 | 0,737 | 5 de 6 |
-| 0,5 | 1 | 0,25 | 0,551 | 0,898 | 0,684 | **0,700** | 0,409 | 0,747 | 5 de 6 |
-| **1** | **1** | **0,25** | **0,551** | **0,898** | **0,684** | 0,696 | **0,409** | **0,747** | **5 de 6** ← |
-| 0,5 | 0 | 0,5 | 0,483 | 0,907 | 0,650 | 0,668 | 0,299 | 0,730 | 5 de 6 |
-| 1 | 0 | 0,5 | 0,483 | 0,907 | 0,647 | 0,666 | 0,299 | 0,726 | 5 de 6 |
-| 0,5 | 0,3 | 0,5 | 0,517 | 0,907 | 0,670 | 0,685 | 0,293 | 0,757 | 5 de 6 |
-| 1 | 0,3 | 0,5 | 0,517 | 0,907 | 0,671 | 0,692 | 0,293 | 0,758 | 5 de 6 |
-| 0,5 | 1 | 0,5 | 0,534 | 0,907 | 0,672 | 0,676 | 0,287 | 0,761 | 5 de 6 |
-| 1 | 1 | 0,5 | 0,551 | 0,907 | 0,680 | 0,682 | 0,287 | 0,761 | 5 de 6 · **referência** |
+A guarda cross-lingual não estava na regra da primeira corrida — entrou depois,
+declarada como emenda na docstring de `REGRA`, porque a onda 1 tinha acabado de
+construir exatamente esse recorte e medir sem ele seria ter feito a régua e não
+usado. Ela é o critério que eliminou os dois candidatos, e o motivo está na leitura 3.
 
-Email (n=2) e `misto` (n=0) ficam fora das colunas de grupo porque duas perguntas
-não medem nada; as duas entram no agregado de 59.
+## As quatro leituras
 
-## Quatro leituras, na ordem em que importam
+### 1. Em MRR e recall@1, a coluna `caminho` se paga — a hipótese está refutada
 
-### 1. A coluna `caminho` se paga, e é monotônica
+Mais é melhor, em todos os níveis de `nome`:
 
-Mais é melhor, em todos os níveis de `nome`. Zerá-la custa MRR agregado:
+| nível de `nome` | MRR com caminho 0 | 0,3 | 1,0 | recall@1 com caminho 0 | 0,3 | 1,0 |
+|---|---:|---:|---:|---:|---:|---:|
+| 0 | 0,606 | 0,657 | **0,668** | 0,466 | 0,534 | **0,534** |
+| 0,25 | 0,661 | 0,677 | **0,684** | 0,525 | 0,534 | **0,551** |
+| 0,5 | 0,647 | 0,671 | **0,680** | 0,483 | 0,517 | **0,551** |
 
-| nível de `nome` | caminho 0 | 0,3 | 1,0 | o que zerar custa |
-|---|---:|---:|---:|---:|
-| 0 | 0,606 | 0,657 | 0,668 | **−0,062** |
-| 0,25 | 0,661 | 0,677 | 0,684 | −0,023 |
-| 0,5 | 0,647 | 0,671 | 0,680 | −0,033 |
+Zerar a coluna custa até 0,062 de MRR e 6,8 pontos de recall@1. **A hipótese de
+que a coluna `caminho` seja ruído dobrado está refutada neste acervo.**
 
-E em recall@1 o preço é maior ainda: 0,551 → 0,483 com `nome` em 0,5. **A
-hipótese de que a coluna `caminho` seja ruído dobrado está refutada neste
-acervo.** Ela fica em 1,0, e `C3.a` não muda nada no FTS.
+### 2. Mas o que ela cobra é recall@5, e isso não estava na hipótese
 
-### 2. Os dois votos não são o mesmo sinal — e é isso que mata a atribuição
+O mesmo eixo, olhado um k adiante, inverte:
 
-O grupo de reunião é praticamente **cego** ao peso da coluna `caminho` e muito
-sensível ao peso do ranqueador de nome:
+| `caminho` (com `nome` 0,5) | recall@1 | **recall@5** | recall@10 | MRR@10 | nDCG@5 |
+|---:|---:|---:|---:|---:|---:|
+| 1,0 (referência) | **0,551** | 0,797 | 0,907 | **0,680** | 0,682 |
+| 0,3 | 0,517 | **0,847** | 0,907 | 0,671 | **0,692** |
+| 0 | 0,483 | 0,831 | 0,907 | 0,647 | 0,668 |
 
-| eixo | amplitude do MRR de reunião |
-|---|---:|
-| mexer `caminho` de 0 a 1,0 (em cada nível de `nome`) | 0,005 a 0,012 |
-| mexer `nome` de 0 a 0,5 (com `caminho` em 1,0) | **0,172** |
+`recall@10` é **idêntico** nos três: não se ganha nem se perde documento, só se
+reordena dentro do top-10. O que a coluna `caminho` faz é empurrar o documento que
+casa **por nome** para o primeiro lugar, e no caminho ela expulsa do top-5 três
+documentos que casam por conteúdo. `caminho = 0,3` tem o **maior recall@5 da grade
+inteira** — 0,847 contra 0,797, três perguntas.
 
-**14 vezes mais sensível ao ranqueador da fusão que à coluna do bm25.** O
-mecanismo que `C3.a` descreve é real — o nome está nos dois lugares — mas as duas
-contagens não são intercambiáveis, e o efeito medido em `dourado-cobertura.md`
-pertence quase inteiro ao ranqueador dedicado.
+É uma troca de produto, não um ótimo: um agente que lê o 1º resultado quer 1,0;
+um que lê cinco e compõe `search` → `neighbors` quer 0,3. Como este servidor
+existe para o segundo caso, a troca merece decisão explícita em `F4-P` — não é
+para ser resolvida aqui.
 
-A explicação plausível, registrada como hipótese e não como achado: dentro do
-bm25 o `caminho` só pontua quando os termos da consulta **aparecem** nele, e
-disputa o mesmo score com o conteúdo; o `RanqueadorDeNome` produz uma ordenação
-**completa** e independente por semelhança de nome, e transcrição tem nome feito
-de assunto e data — casa com qualquer pergunta que repita a palavra do assunto.
-Um vota quando tem o que dizer; o outro vota sempre.
+### 3. O ranqueador de nome é uma ponte entre idiomas, e baixá-lo a derruba
 
-### 3. O que paga é `nome = 0,25`, e ele domina o que está no ar
+Aqui está o que eliminou os candidatos, e é achado próprio:
 
-| | referência (`nome` 0,5) | `nome` 0,25 | Δ |
+| `nome` (com `caminho` 1,0) | MRR cross-lingual (n=12) |
+|---:|---:|
+| 0,5 (referência) | **0,496** |
+| 0,25 | 0,475 |
+| 0 | 0,461 |
+
+Monotônico, e o mecanismo é claro: **o nome do arquivo é um sinal agnóstico a
+idioma.** Identificador, código de contrato, data e nome próprio casam igual em
+português e inglês, enquanto o bm25 é cego por construção — FTS5 não casa
+`contrato` com `agreement`. Dos três votos da fusão, o nome é uma das duas únicas
+pontes PT↔EN que existem, e a outra é o denso.
+
+Isto **corrige** o que a primeira leitura desta varredura afirmou. `nome = 0,25`
+sobe o MRR agregado (+0,004), o nDCG@5 (+0,013) e o MRR de reunião (+0,122), e por
+isso foi descrito como dominante. Ele não domina: **derruba a ponte em 0,021**, e
+a fatia mesma-língua, quatro vezes maior, esconde a conta na média. É a mesma
+classe de erro que `C4.5` existe para fechar, cometida com o instrumento do `C4.5`
+disponível e não usado.
+
+### 4. E a ponte prefere `caminho` baixo — pelo motivo oposto
+
+| `caminho` (com `nome` 0,5) | r@5 cross (n=12) | r@5 mesma (n=44) | razão `C4.5` |
+|---:|---:|---:|---:|
+| 1,0 (referência) | 0,625 | 0,852 | **0,73** |
+| 0,3 | **0,708** | **0,898** | 0,79 |
+| 0 | **0,708** | 0,875 | 0,81 |
+
+**As duas fatias sobem**, então não é artefato de denominador — foi a dúvida que
+motivou imprimir os dois recall@5 crus ao lado da razão. Uma pergunta cross-lingual
+a mais entra no top-5 (+0,083 em n=12 é exatamente uma), e nenhuma mesma-língua
+sai.
+
+Isso importa além do pacote: [`fatia-cross-lingual.md`](fatia-cross-lingual.md)
+deixou a lacuna cross-lingual aberta apontando para `F4-P`, e as rotas previstas
+para ela eram trocar o modelo denso (`R3.1`) ou pôr um reranqueador multilíngue
+(`R6.2`/`C4.2`) — as duas caras, as duas com rebuild ou com 6,9× de latência. Um
+**peso de coluna de consulta** move o critério 6 pontos a custo zero.
+
+**Uma pergunta de doze é pista, não resultado.** O lugar de confirmar é o perfil
+bilíngue do `R9.1`, onde a fatia terá tamanho. Registrado como candidato, não como
+decisão.
+
+## O critério do `C4.5` é satisfazível piorando o denominador, e esta grade prova
+
+O critério de aceite de `C4.5` é razão ≥ 0,80. Dois braços desta grade:
+
+| braço | r@5 cross | r@5 mesma | razão | passa? |
+|---|---:|---:|---:|:--:|
+| trilha 1, caminho 0,3, nome 0,5 | 0,708 | **0,898** | 0,79 | **não** |
+| trilha 0,5, caminho 0,3, nome 0,5 | 0,708 | 0,875 | **0,81** | **sim** |
+
+Mesma ponte — recall@5 cross-lingual **idêntico**, 0,708. O segundo passa porque é
+**pior** na fatia mesma-língua. O braço melhor nas duas fatias reprova; o pior numa
+delas aprova.
+
+Não é sofisma: é o que uma razão faz quando é usada como porta. `C4.5` acertou em
+criar o recorte — sem ele nada disto seria visível —, e a **forma** do critério
+precisa de um piso absoluto ao lado da razão, por exemplo *recall@5 cross-lingual
+≥ X **e** razão ≥ 0,80*. Sem o piso, a maneira mais fácil de fechar a lacuna é
+degradar o lado grande. Fica registrado aqui e apontado de `fatia-cross-lingual.md`;
+quem muda o critério é `F4-P`, que é dono da decisão de ranking.
+
+## O que `F4-P` herda
+
+**A referência já é o ótimo do escritório.** Com `nome` 0,5 o MRR de escritório é
+0,761, o maior da grade. Então **toda** a folga do peso por tipo de fonte está no
+grupo de reunião: dar-lhe `nome = 0` (MRR 0,459 contra 0,287) põe o agregado em
+**0,712**, ou **+0,032** sobre a referência.
+
+Três ressalvas, e a terceira é nova:
+
+- **É teto de oráculo.** Supõe rotear pelo grupo da **fonte esperada**, que o
+  recuperador não sabe; ele só pode ponderar o grupo do **documento candidato**.
+- **n = 11** no grupo de reunião. Sinal, não decisão.
+- **3 das 11 perguntas de reunião são cross-lingual.** Medido no cruzamento
+  grupo × fatia. Então baixar `nome` na reunião tira a ponte de 27% do próprio
+  grupo que se quer melhorar, e o teto de +0,032 **não** desconta isso. `F4-P`
+  tem de medir a interseção, não só os dois eixos.
+
+Cruzamento completo, no escopo de 59:
+
+| | mesma-língua | cross-lingual | não declarado |
 |---|---:|---:|---:|
-| recall@1 | 0,551 | 0,551 | ±0 |
-| recall@10 | 0,907 | 0,898 | −0,009 |
-| MRR@10 | 0,680 | 0,684 | **+0,004** |
-| nDCG@5 | 0,682 | 0,696 | **+0,013** |
-| MRR reunião | 0,287 | 0,409 | **+0,122** (+43%) |
-| MRR escritório | 0,761 | 0,747 | −0,014 |
-| armadilhas | 5 de 6 | 5 de 6 | ±0 |
+| escritório | 36 | 9 | 1 |
+| reunião | 6 | 3 | 2 |
+| email | 2 | 0 | 0 |
 
-Um único recuo: recall@10 cai 0,009 — uma pergunta que estava entre a 6ª e a 10ª
-posição sai do top-10. Contra isso, o grupo de reunião ganha 43% de MRR e a porta
-3 não se move.
+## Por que 0,5 não é o número errado, ao contrário do que eu disse antes
 
-### 4. Por que 0,5 estava alto: foi escolhido antes de a régua ter o grupo
+O peso 0,5 do nome saiu da varredura de 13/08/2026
+([`varredura-pesos-f1.md`](varredura-pesos-f1.md)), num conjunto dourado **sem
+nenhuma pergunta de reunião** — as 11 entraram com a `F4-M`, e `Meetings/` só foi
+indexado depois. A primeira leitura desta varredura concluiu daí que o ótimo tinha
+envelhecido e que 0,25 o substituía.
 
-O peso 0,5 saiu da varredura de 13/08/2026 (`varredura-pesos-f1.md`), e naquele
-conjunto dourado **não havia nenhuma pergunta de reunião** — as 11 entraram com a
-`F4-M`, e os documentos de `Meetings/` só foram indexados depois (eram parte dos
-1.010 que nunca tinham sido indexados). O ótimo de 13/08 estava certo para a régua
-de 13/08.
-
-É a lição desta ablação, e ela não é sobre nome de arquivo: **quando a régua
-cresce, o ótimo anterior tem de ser rederivado, não herdado.** Nenhum alarme
-dispara sozinho — a configuração continua medindo bem no agregado, porque o grupo
-novo é minoria. Foi o recorte que a mostrou, do mesmo jeito que o recorte
-cross-lingual mostrou a queda de 47% que a média escondia (`C4.5`).
-
-## O teto de `F4-P`, medido antes de `F4-P` começar
-
-A grade dá de graça o quanto ainda sobra para o peso por tipo de fonte. O melhor
-que ele pode fazer é dar a cada grupo o seu ótimo — reunião com `nome` 0
-(**0,459**) e escritório com `nome` 0,5 (**0,761**):
-
-| configuração | MRR agregado |
-|---|---:|
-| referência, `nome` 0,5 | 0,680 |
-| melhor global, `nome` 0,25 | 0,684 |
-| **teto do peso por tipo de fonte** | **0,704** |
-
-São **+0,020 sobre o melhor global** e +0,024 sobre a referência. Para comparar:
-o reranking vale +0,011 de nDCG@5 e custa 6,9× no tempo de consulta. Então `F4-P`
-vale a pena — e agora tem um teto contra o qual se conferir, em vez de descobrir
-depois de implementado que o ganho era de 0,004.
-
-Duas ressalvas que fazem parte do número:
-
-- **É um teto de oráculo.** Ele supõe rotear pelo grupo da **fonte esperada**, que
-  o recuperador não sabe. O que ele pode ponderar é o grupo do **documento
-  candidato**, que é coisa diferente e mais fraca. O teto é otimista de
-  propósito: serve para decidir se vale construir, não para prometer resultado.
-- O global 0,25 já captura **71%** do ganho disponível no grupo de reunião, a
-  custo zero e sem código novo no caminho de ranking.
+A metade certa dessa conclusão: **quando a régua cresce, o ótimo anterior tem de
+ser rederivado, não herdado** — e nenhum alarme dispara sozinho, porque o grupo
+novo é minoria e o agregado continua bonito. A metade errada: rederivar não deu
+0,25. Deu 0,5 de novo, agora por dois motivos em vez de um — escritório **e**
+ponte PT↔EN —, com a reunião como preço declarado. Ótimo reconfirmado por razão
+diferente da original é resultado, não empate.
 
 ## O que entrou no código
 
 - `Store.buscar_lexical` aceita pesos de coluna: `bm25(chunks_fts, ?, ?, ?)`.
   `None` mantém o `bm25(chunks_fts)` **sem argumento**, que é o SQL que produziu
   todos os números de F1 a F4 — passar `(1,1,1)` daria o mesmo número por um
-  caminho de código não medido, e essa troca já custou caro aqui.
+  caminho de código não medido.
 - `config.Pesos` ganhou `fts_texto`, `fts_trilha` e `fts_caminho`, em 1,0. Peso de
   **consulta**: mudar não reindexa nada, e por isso não é classe cara. O painel os
   expõe sem uma linha nova — `CAMPOS_DE_PESO` deriva da dataclass, e a regra
   "salvar exige ter medido" passou a valer para eles de graça.
 - `eval/fonte.py` — o recorte por tipo de fonte, em todo relatório do harness.
-- `eval/memo.py` — memória na fronteira do `Store`, para 18 braços caberem em
-  4 minutos em vez de horas.
+- `eval/memo.py` — memória na fronteira do `Store`, 18 braços em 4 min.
 
 **Os pesos ficam na configuração e não viram constante nova.** Este acervo tem
 nome de arquivo informativo; o próximo pode ser `IMG_2034.pdf`, e aí a leitura 1
-provavelmente se inverte. É o argumento de `R6.1`, e é por isso que o botão
-existe mesmo com a hipótese refutada aqui.
+provavelmente se inverte. É o argumento de `R6.1`, e é por isso que o botão existe
+mesmo com a hipótese refutada aqui.
 
 ## A validação que dá confiança no instrumento
 
-O recorte por tipo de fonte é **derivado** do caminho da fonte, não anotado — e a
-primeira versão errou. Depois de corrigida, o braço de referência e o braço
-`nome = 0` reproduzem `dourado-cobertura.md` **exatamente**, em quatro números
-medidos de forma independente:
+O recorte por tipo de fonte é **derivado** do caminho da fonte, não anotado. Depois
+de corrigido, o braço de referência e o braço `nome = 0` reproduzem
+`dourado-cobertura.md` **exatamente**, em quatro números independentes:
 
 | | aqui | `dourado-cobertura.md` |
 |---|---:|---:|
@@ -192,52 +217,46 @@ medidos de forma independente:
 | 11 de reunião, com nome — MRR | 0,287 | 0,287 |
 | 11 de reunião, sem nome — MRR | 0,459 | 0,459 |
 
-Isso prova duas coisas de uma vez: a regra derivada reencontra a seleção feita à
-mão, e o caminho de código novo — pesos de coluna, memo de varredura — não moveu
-número nenhum.
+A regra derivada reencontra a seleção feita à mão, e o caminho de código novo —
+pesos de coluna, memo de varredura — não moveu número nenhum.
 
-## Os dois defeitos que a primeira passada expôs
+## Os defeitos que as corridas expuseram
 
-Ficam registrados porque são de classe repetida, não de descuido.
+Quatro, todos registrados porque são de classe repetida.
 
 **O recorte media 10 perguntas de reunião onde já se sabia que eram 11.** A regra
 exigia a palavra no começo de um segmento de caminho, e **14 dos 36 segmentos de
-pasta distintos** do dourado real começam com prefixo de ordenação — `09. `,
-`10 - `, `260722_`. São 39%, e não é peculiaridade de um acervo: é como pasta de
-trabalho é nomeada. O número menor era plausível, então passaria.
+pasta distintos** do dourado começam com prefixo de ordenação — `09. `, `10 - `,
+`260722_`. São 39%, e não é peculiaridade de um acervo: é como pasta de trabalho é
+nomeada. O número menor era plausível, então passaria. Exatamente a classe dos
+cinco defeitos do grafo da `F4`: *o mesmo nome escrito de outra forma não liga.*
 
-É exatamente a classe dos cinco defeitos do grafo da `F4`: *o mesmo nome escrito
-de outra forma não liga, e cada grafia produz o seu próprio resultado plausível.*
-O que pegou aqui foi o mesmo que pegou lá — conferir contra a distribuição real, e
-contra um número já medido por outro caminho.
-
-De brinde, o meu próprio teste escondia um segundo caso: `reuni[oõ]` **não casa
-`Reunião`**, porque depois de `reuni` vem `ã`. O teste passava porque usava
-`Reuniões`. Vocabulário de teste que cobre só a grafia que funciona não é teste.
+**Meu próprio teste escondia um segundo caso:** `reuni[oõ]` **não casa `Reunião`**,
+porque depois de `reuni` vem `ã`. O teste passava porque usava `Reuniões`.
+Vocabulário de teste que cobre só a grafia que funciona não é teste.
 
 **O desempate da regra era cego a um eixo.** Dois braços mediram idêntico com
 `trilha` 0,5 e 1,0, e a escolha caiu na ordem da grade — sorte, não desenho, a
-mesma frase que `eval/varredura.py` já registrou uma vez. O desempate passou a
-preferir **não mexer** no peso que mediu plano. A emenda é posterior à corrida e
-está declarada como tal na docstring de `REGRA`; ela só age entre braços já
-empatados no que a regra otimiza, então não pode inverter conclusão — e nesta
-corrida ela reduz o ganho relatado (nDCG@5 0,700 → 0,696) em vez de aumentá-lo.
+mesma frase que `eval/varredura.py` já registrou uma vez. Passou a preferir **não
+mexer** no peso que mediu plano.
+
+**O veredito passou a dar o motivo errado quando a guarda entrou.** A mensagem
+citava dois critérios de forma fixa; com o terceiro, braços que mantinham porta e
+agregado e perdiam a ponte eram relatados como se tivessem quebrado a porta.
+Relatório que dá o motivo errado é pior que relatório sem motivo — a peneira agora
+é em etapas e nomeia o critério que eliminou.
 
 ## Decisão
 
-1. **`fts_caminho` e `fts_trilha` ficam em 1,0.** `C3.a` não muda o FTS neste
-   acervo. O botão fica, porque acervo de nome ruim é outra história e é `R6.1`
-   que vai medi-la.
-2. **`nome = 0,25` é recomendação medida, e não foi aplicada aqui.** Domina 0,5
-   em tudo que a porta e o relatório olham, mas quem decide o peso do nome é
-   `F4-P`, que começa agora e pode escolher peso por tipo de fonte. Mudar duas
-   vezes em dois dias quebraria a comparabilidade da própria linha de base de
-   `F4-P`. Para aplicar antes disso, na base corporativa e **não** em `[padrao]`:
-
-   ```toml
-   [base.pesos]
-   nome = 0.25
-   ```
-3. **`F4-P` começa com teto declarado:** +0,020 de MRR agregado sobre o melhor
-   global, oráculo e otimista. Se a implementação real ficar perto de 0,004, o
-   peso global resolveu e o mecanismo não se paga.
+1. **Nada muda na configuração.** `fts_texto`, `fts_trilha` e `fts_caminho` ficam
+   em 1,0, e `nome` fica em 0,5. Pela regra declarada nenhum braço passa, e a
+   recomendação de `nome = 0,25` da primeira leitura está **retirada**: ela derruba
+   a ponte PT↔EN.
+2. **`fts_caminho = 0,3` fica registrado como candidato**, não aplicado, com o
+   preço à vista: −0,034 de recall@1 e −0,009 de MRR contra +0,050 de recall@5,
+   +0,010 de nDCG@5 e a razão `C4.5` de 0,73 para 0,79. Quem decide é `F4-P`, e a
+   decisão é de produto: o primeiro resultado ou os cinco primeiros.
+3. **O critério de aceite de `C4.5` precisa de um piso absoluto** ao lado da razão.
+   Esta grade contém o contraexemplo.
+4. **`F4-P` começa com teto de +0,032**, oráculo, e com a interseção medida: 3 das
+   11 perguntas de reunião são cross-lingual, e o teto não desconta isso.

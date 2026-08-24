@@ -774,7 +774,8 @@ privada do desktop **não** trava nenhum destes:
 | F4-M | `[base.exclude.papel]` + `Meetings/` por papel | notebook | — | ✅ **fechado** (PR #10) |
 | R9.1 + C5.b | Perfis sintéticos: **gerador + seed + manifesto**, corpus nunca commitado | **desktop** | **1** | **sim, agora** |
 | C5.a | Porta de custo do MIRACL: smoke de throughput → `docs/custo-miracl.md` | **desktop** | **1** | **sim, agora** |
-| F6-A / R8.1 | `pip install` sem `PYTHONPATH=src`; matriz 3×SO no CI | **desktop** | **1** | **sim, agora** |
+| F6-A / R8.1 | `pip install` sem `PYTHONPATH=src`; matriz 3×SO no CI | **desktop** | **1** | ✅ **fechado** (PR #14) |
+| R8.1.b | `tests/test_pacote.py`: achar o script pelo `sysconfig`, e pular fora do CI em vez de falhar | notebook | 3 | sim — não bloqueia nada |
 | C4.5 | Fatia cross-lingual no harness (`mesma-língua` vs `cross-lingual`) | notebook | **1** | ✅ **fechado** — ver [`docs/fatia-cross-lingual.md`](docs/fatia-cross-lingual.md) |
 | R9.3 | Porta de latência, sobre índice inflado | notebook define, **desktop infla o índice** | **1** | ✅ **portas definidas** — ver [`docs/porta-de-latencia.md`](docs/porta-de-latencia.md); falta o índice inflado |
 | C1 | Política de particionamento + description gerada do censo | acordo; texto no `ARCHITECTURE.md` | **1** | **sim** — combinar quem escreve |
@@ -801,6 +802,31 @@ privada do desktop **não** trava nenhum destes:
 Os pacotes `R*` são de [`docs/dossie-melhorias.md`](docs/dossie-melhorias.md); a
 especificação de cada um mora lá, e as premissas conferidas estão na seção
 seguinte.
+
+**`R8.1.b` — o teste de pacote falha onde devia pular, e procura no lugar errado.**
+Levantado na revisão do [PR #14](https://github.com/GCamposGit/SegundoCerebro/pull/14)
+em 24/08/2026, não pedido como mudança naquele PR. **São dois defeitos e a ordem
+importa**, porque medir no notebook depois do merge mostrou que só o segundo era
+conhecido:
+
+1. **`_script()` procura no diretório errado no Windows fora de venv.** Ele usa
+   `Path(sys.executable).parent`, e o `pip` instala console script em
+   `sysconfig.get_path("scripts")` — que num venv é o mesmo diretório do
+   interpretador, e numa instalação base do Windows é `…\Python312\Scripts`, um
+   nível abaixo. Medido nesta máquina depois de `pip install -e .`: os quatro
+   `.exe` existem, `segundocerebro-mcp.exe --help` roda de `C:\Windows\System32`
+   sem `PYTHONPATH` e devolve 0 — e dois testes continuam vermelhos. O CI passa
+   porque roda em venv, o que faz o acerto ser coincidência de layout.
+2. **Falhar em vez de pular quando o pacote não está instalado.** Todo outro teste
+   dependente de ambiente aqui pula: `test_golden` sem `perguntas.jsonl`,
+   `test_saneamento` sem a lista, os markers `modelo` e `cuda`. O efeito é
+   `pytest` vermelho em máquina que ainda não migrou. O contra-argumento é bom e
+   fica registrado: pular esconderia um passo de instalação quebrado no CI. O
+   meio-termo é `skipif(not instalado and not os.environ.get("CI"))`.
+
+**Consertar o 1 antes do 2**, senão o `skipif` do 2 mascara o 1: a máquina teria o
+pacote instalado e funcionando, o teste pularia para sempre, e ninguém veria que a
+busca pelo script nunca esteve certa fora de venv.
 
 ---
 
@@ -919,49 +945,74 @@ E uma limitação declarada em vez de escondida: **a porta não roda no CI.** L�
 há acervo, índice nem encoder. Ela é local e manual, antes de fundir mudança de
 ranking. Automatizá-la depende do índice sintético inflado, que é do desktop.
 
-### A dupla contagem do nome, refutada — `C3.a` fechado em 24/08/2026
+### A dupla contagem do nome — `C3.a` fechado em 24/08/2026
 
 Leitura em [`docs/ablacao-c3a-pesos-fts.md`](docs/ablacao-c3a-pesos-fts.md);
 grade, referência, porta e regra em `eval/varredura_fts.py`, declaradas antes de
 rodar com a conclusão negativa junto. 18 braços em 4 minutos, condição C.
 
-O `C3.a` estava certo sobre o **mecanismo** — o nome do arquivo pontua dentro do
-bm25, pela coluna `caminho`, e de novo na fusão, pelo `RanqueadorDeNome` — e
-errado sobre o **efeito**. Nada do que `docs/dourado-cobertura.md` mediu vem da
-coluna do bm25:
+**Pela regra declarada, nada passa: nenhuma configuração muda.** Mas o resultado
+não é um "não" — é que **os dois critérios vivos do projeto discordam sobre o mesmo
+peso**, e isso só ficou visível porque a onda 1 construiu o recorte cross-lingual
+antes.
+
+O `C3.a` estava certo sobre o **mecanismo** e errado sobre o **efeito**. Nada do
+que `docs/dourado-cobertura.md` mediu vem da coluna do bm25:
 
 | eixo | amplitude do MRR das 11 perguntas de reunião |
 |---|---:|
 | `caminho` de 0 a 1,0 | 0,005 a 0,012 |
 | `nome` (fusão) de 0 a 0,5 | **0,172** |
 
-**14× mais sensível ao ranqueador da fusão que à coluna do bm25.** E a coluna
-`caminho` é monotônica para cima: zerá-la custa de 0,023 a 0,062 de MRR agregado,
-e 6,8 pontos de recall@1. Ela fica em 1,0 — `C3.a` não muda o FTS neste acervo.
+**14× mais sensível ao ranqueador da fusão que à coluna do bm25.** Em MRR e
+recall@1 a coluna `caminho` se paga: zerá-la custa até 0,062 de MRR e 6,8 pontos
+de recall@1. A hipótese está refutada nesses dois eixos.
 
-Três coisas que valem além do pacote:
+Cinco coisas que valem além do pacote:
 
-- **Quando a régua cresce, o ótimo anterior tem de ser rederivado, não herdado.**
-  O peso 0,5 do nome saiu da varredura de 13/08, num dourado **sem nenhuma
-  pergunta de reunião** — elas entraram com a `F4-M`, e `Meetings/` só foi
-  indexado depois. `nome = 0,25` domina 0,5 em recall@1 (empate), MRR (+0,004),
-  nDCG@5 (+0,013) e MRR de reunião (+0,122, ou +43%), com a porta 3 intacta.
-  Nenhum alarme dispara sozinho nesse caso: o grupo novo é minoria e o agregado
-  continua bonito. Foi o recorte que mostrou, como em `C4.5`.
-- **`F4-P` começa com teto medido, e é isso que a onda 1 comprou.** O melhor que o
-  peso por tipo de fonte pode dar é o ótimo de cada grupo — reunião com `nome` 0
-  (0,459) e escritório com 0,5 (0,761) —, o que põe o MRR agregado em **0,704**
-  contra 0,684 do melhor global. **+0,020**, e é teto de **oráculo**: supõe rotear
-  pelo grupo da fonte esperada, que o recuperador não sabe; ele só pode ponderar o
-  grupo do documento candidato. Se a implementação real ficar perto de 0,004, o
-  peso global resolveu e o mecanismo não se paga.
-- **Recorte por tipo de fonte é derivável; idioma de fonte não era.** O dourado já
-  carrega `fontes`, então o grupo sai do caminho e não envelhece — ao contrário de
-  `idioma_fonte`, que exige o índice e por isso é anotação estática (`C4.5`). A
-  regra derivada errou na primeira versão por causa de prefixo de ordenação de
-  pasta (`09. `, `10 - `, `260722_`): **14 dos 36 segmentos** do dourado real têm
-  um, e a regra media 10 reuniões onde já se sabia que eram 11. Corrigida, ela
-  reproduz `dourado-cobertura.md` em quatro números com três decimais.
+- **O ranqueador de nome é uma ponte entre idiomas, e ninguém tinha visto.** MRR
+  cross-lingual cai monotonicamente com o peso do nome: 0,496 → 0,475 → 0,461. O
+  nome do arquivo é sinal **agnóstico a idioma** — identificador, código, data e
+  nome próprio casam igual em PT e EN, enquanto o bm25 não casa `contrato` com
+  `agreement`. Dos três votos, o nome é uma das duas pontes que existem.
+  **Isto retira a recomendação de `nome = 0,25`**, que sobe agregado (+0,004),
+  nDCG@5 (+0,013) e reunião (+0,122) e derruba a ponte em 0,021 — a média esconde,
+  a fatia mostra.
+- **Ótimo reconfirmado por razão diferente é resultado.** O 0,5 saiu da varredura
+  de 13/08, num dourado **sem nenhuma pergunta de reunião**; rederivar era
+  obrigatório (**quando a régua cresce, o ótimo anterior não se herda**) e deu 0,5
+  outra vez, agora por dois motivos — escritório **e** ponte PT↔EN.
+- **A coluna `caminho` troca recall@1 por recall@5**, e isso não estava na
+  hipótese. Com `nome` 0,5: `caminho` 0,3 tem o **maior recall@5 da grade**
+  (0,847 contra 0,797), `recall@10` **idêntico** nos três, e recall@1 0,517 contra
+  0,551. Não se ganha documento, reordena-se dentro do top-10. É decisão de
+  produto — o primeiro resultado ou os cinco primeiros — e é de `F4-P`.
+- **`fts_caminho = 0,3` é a coisa mais barata já medida a mexer o critério
+  cross-lingual:** razão de 0,73 para 0,79 com as **duas** fatias subindo (r@5
+  cross 0,625 → 0,708, mesma 0,852 → 0,898), custo zero por consulta. As rotas
+  previstas para essa lacuna eram `R3.1` (rebuild) e `R6.2`/`C4.2` (6,9× de
+  latência). **É uma pergunta de doze** — pista, e o lugar de confirmar é o perfil
+  bilíngue de `R9.1`.
+- **O critério de aceite de `C4.5` é satisfazível piorando o denominador.** Dois
+  braços desta grade com recall@5 cross-lingual idêntico (0,708): o de fatia
+  mesma-língua **pior** (0,875) marca razão 0,81 e passa; o melhor nas duas (0,898)
+  marca 0,79 e reprova. O recorte está certo, a forma do critério não — precisa de
+  piso absoluto ao lado da razão.
+
+E o que `F4-P` herda de concreto: **a referência já é o ótimo do escritório** (MRR
+0,761, o maior da grade), então toda a folga do peso por tipo de fonte está na
+reunião — teto de **+0,032** de MRR agregado (0,680 → 0,712). Teto de **oráculo**,
+com n = 11, e **3 dessas 11 perguntas são cross-lingual**: baixar `nome` na reunião
+tira a ponte de 27% do grupo que se quer melhorar, e o teto não desconta isso.
+
+Sobre o instrumento: **recorte por tipo de fonte é derivável, idioma de fonte não
+era.** O dourado já carrega `fontes`, então o grupo sai do caminho e não envelhece —
+ao contrário de `idioma_fonte`, que exige o índice e por isso é anotação estática
+(`C4.5`). A regra derivada errou na primeira versão por prefixo de ordenação de
+pasta (`09. `, `10 - `, `260722_`): **14 dos 36 segmentos** do dourado real têm um,
+e ela media 10 reuniões onde já se sabia que eram 11. Corrigida, reproduz
+`dourado-cobertura.md` em quatro números com três decimais.
+
 
 ### O que o dossiê chama de novo e já existe aqui
 
@@ -1094,13 +1145,13 @@ outro. **A primeira coisa que `F4-P` deve varrer é o peso da coluna `caminho` n
 bm25** — se a dupla contagem explica o efeito, a correção é mais barata e mais
 geral que um peso por tipo de fonte.
 
-**Varrido em 24/08/2026, e a resposta é não.** O mecanismo é real e o efeito não é
-dele: o grupo de reunião é 14× mais sensível ao peso do ranqueador de nome que à
-coluna `caminho`, e zerar a coluna custa MRR em todos os níveis de `nome`. Ver
-[`docs/ablacao-c3a-pesos-fts.md`](docs/ablacao-c3a-pesos-fts.md). Em troca a
-varredura entregou coisa melhor que um "não": `nome = 0,25` domina o 0,5 de hoje,
-e `F4-P` ganhou um **teto de oráculo** de +0,020 de MRR agregado para se conferir
-contra.
+**Varrido em 24/08/2026, e a resposta é "depende do critério".** Em MRR e recall@1
+o mecanismo é real e o efeito não é dele — o grupo de reunião é 14× mais sensível
+ao peso do ranqueador de nome que à coluna `caminho`. No critério cross-lingual do
+`C4.5`, `fts_caminho = 0,3` é a coisa mais barata já medida a mexê-lo. Ver
+[`docs/ablacao-c3a-pesos-fts.md`](docs/ablacao-c3a-pesos-fts.md). Nada foi
+aplicado, e `F4-P` ganhou um **teto de oráculo** de +0,032 de MRR agregado, com a
+interseção medida: 3 das 11 perguntas de reunião são cross-lingual.
 
 ### Subordinações que o complemento declara, e que valem
 
@@ -1371,16 +1422,26 @@ nome, na transcrição o nome só tem assunto e data. `n = 11` é sinal, não de
 **O que `C3.a` já resolveu deste pacote, em 24/08/2026** — ver
 [`docs/ablacao-c3a-pesos-fts.md`](docs/ablacao-c3a-pesos-fts.md):
 
-- o braço "bm25 no padrão" está **medido e fechado**: `fts_caminho` e `fts_trilha`
-  ficam em 1,0, e a dupla contagem não é a causa do efeito;
+- o braço "bm25 no padrão" está **varrido**, com 18 configurações na mesa, e a
+  dupla contagem não é a causa do efeito. Nada mudou de padrão: `fts_caminho`,
+  `fts_trilha` e `nome` ficam como estavam;
 - o recorte por grupo de fonte **existe** (`eval/fonte.py`), sai em todo relatório
   do harness e reproduz `dourado-cobertura.md` com três decimais;
-- há um **teto de oráculo**: +0,020 de MRR agregado sobre o melhor peso global. Se
-  a implementação chegar perto de 0,004, o peso global resolveu e o mecanismo não
-  se paga. O teto é otimista de propósito — supõe rotear pelo grupo da fonte
-  esperada, e o recuperador só conhece o grupo do documento candidato;
-- e a linha de base a bater deixou de ser a referência de hoje: é `nome = 0,25`
-  (MRR 0,684 · nDCG@5 0,696 · reunião 0,409), não `nome = 0,5`.
+- **a linha de base a bater é a de hoje** — `nome = 0,5`, MRR 0,680, nDCG@5 0,682,
+  recall@1 0,551, reunião 0,287. A varredura confirmou o 0,5, por dois motivos em
+  vez de um: escritório **e** ponte PT↔EN;
+- há um **teto de oráculo de +0,032** de MRR agregado (0,680 → 0,712). A referência
+  já é o ótimo do escritório (MRR 0,761, o maior da grade), então toda a folga está
+  na reunião. Otimista de propósito: supõe rotear pelo grupo da fonte esperada, e o
+  recuperador só conhece o grupo do documento candidato;
+- **e a interseção que o teto não desconta: 3 das 11 perguntas de reunião são
+  cross-lingual.** Baixar `nome` na reunião tira a ponte de 27% do próprio grupo
+  que se quer melhorar. Medir a interseção, não só os dois eixos;
+- dois candidatos registrados e **não** aplicados, para `F4-P` decidir:
+  `fts_caminho = 0,3` (−0,034 de recall@1 e −0,009 de MRR contra +0,050 de
+  recall@5, +0,010 de nDCG@5 e razão `C4.5` 0,73 → 0,79) e o piso absoluto no
+  critério de aceite do `C4.5`, que esta grade mostrou ser satisfazível piorando o
+  denominador.
 
 - **Toca:** `retrieve/*`, `eval/*`, pesos da base corporativa — **não** `[padrao]`
   sem o desktop saber

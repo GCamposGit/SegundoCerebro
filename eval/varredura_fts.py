@@ -33,7 +33,6 @@ seriam horas por 3,4 pontos que não mudam de braço para braço.
 from __future__ import annotations
 
 import argparse
-import sys
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -41,6 +40,7 @@ from segundocerebro.logger import get_logger
 from segundocerebro.retrieve.hybrid import BuscaHibrida
 
 from .fonte import ESCRITORIO, REUNIAO
+from .idioma import CROSS_LINGUAL, MESMA_LINGUA
 from .harness import (
     GOLDEN,
     K_MRR,
@@ -48,6 +48,7 @@ from .harness import (
     avaliar,
     carregar_perguntas,
     conferir_base,
+    entregar,
     resolver_dourado,
     verificar_escopo,
 )
@@ -148,6 +149,31 @@ class Ponto:
     def n_do_grupo(self, grupo: str) -> int:
         return len(self.resultado.subgrupo(grupo_de_fonte=grupo))
 
+    def mrr_da_fatia(self, fatia: str) -> float:
+        return Resultado.mrr_de(self.resultado.subgrupo(fatia=fatia))
+
+    def n_da_fatia(self, fatia: str) -> int:
+        return len(self.resultado.subgrupo(fatia=fatia))
+
+    def recall5_da_fatia(self, fatia: str) -> float:
+        return Resultado.recall_de(self.resultado.subgrupo(fatia=fatia), 5)
+
+    @property
+    def razao_cross_lingual(self) -> float:
+        """recall@5 cross-lingual / mesma-língua — o critério de aceite de `C4.5`.
+
+        Zero quando falta uma das duas fatias: sem as duas povoadas não há razão a
+        calcular, e devolver 1,0 nesse caso faria a porta passar por ausência de
+        medição, que é o modo de falha que `C4.5` existe para fechar.
+
+        **Razão sobe também quando o denominador cai**, e aí não é melhora. Por
+        isso o relatório imprime os dois recall@5 ao lado dela: uma razão que
+        melhorou porque a fatia mesma-língua piorou é regressão disfarçada de
+        avanço, e nenhuma coluna de razão sozinha distingue as duas."""
+        mesma = self.recall5_da_fatia(MESMA_LINGUA)
+        cross = self.recall5_da_fatia(CROSS_LINGUAL)
+        return cross / mesma if mesma else 0.0
+
 
 @dataclass(frozen=True)
 class Veredito:
@@ -169,6 +195,15 @@ def REGRA(pontos: list[Ponto]) -> Veredito:  # noqa: N802 — é uma constante d
     superfície do nome é a que generaliza para o acervo de nomes ruins, que é o
     caso que `R6.1` vai encontrar.
 
+    **Guarda cross-lingual, acrescentada em 24/08/2026 depois da primeira corrida.**
+    Um braço não pode subir a média piorando a fatia `cross-lingual`. Dois dos três
+    votos da fusão — bm25 e nome — são cegos a idioma por construção, então mexer no
+    peso deles é exatamente o tipo de mudança que pode quebrar **só** a ponte PT↔EN;
+    e a fatia mesma-língua é quatro vezes maior, então a média a esconderia. É a
+    lacuna que `C4.5` fechou no harness, e não usá-la aqui seria ter construído a
+    régua da onda 1 e medido sem ela. Vale como critério de elegibilidade, não como
+    desempate: piorar a ponte desqualifica, não perde no critério de desempate.
+
     **Terceiro desempate, acrescentado em 24/08/2026 depois de a grade produzir um
     empate que a regra não sabia desfazer:** `trilha` mais perto da referência.
     A regra como declarada desempatava por `caminho` e `nome`, que são as duas
@@ -188,20 +223,36 @@ def REGRA(pontos: list[Ponto]) -> Veredito:  # noqa: N802 — é uma constante d
     alvo = referencia.mrr_do_grupo(REUNIAO)
     limite = alvo + margem(referencia.n_do_grupo(REUNIAO))
 
+    # Peneira em etapas, e não uma compreensão só, porque o relatório tem de dizer
+    # **qual** critério eliminou os candidatos. A primeira versão listava dois
+    # critérios numa mensagem fixa e passou a mentir no dia em que a guarda
+    # cross-lingual entrou como terceiro: o veredito dizia "não mantém a porta 3 e
+    # o agregado" sobre braços que mantinham os dois e perdiam a ponte PT↔EN.
+    outros = [p for p in pontos if not p.e_referencia]
+    passam_porta = [p for p in outros if p.elegivel]
+    passam_agregado = [p for p in passam_porta if p.resultado.mrr() >= referencia.resultado.mrr()]
     elegiveis = [
         p
-        for p in pontos
-        if p.elegivel and not p.e_referencia and p.resultado.mrr() >= referencia.resultado.mrr()
+        for p in passam_agregado
+        if p.mrr_da_fatia(CROSS_LINGUAL) >= referencia.mrr_da_fatia(CROSS_LINGUAL)
     ]
     candidatos = [p for p in elegiveis if p.mrr_do_grupo(REUNIAO) >= limite]
     if not candidatos:
-        if not elegiveis:
+        if not passam_porta:
+            motivo = f"nenhum braço mantém a porta 3 ({MINIMO_ARMADILHAS} de 6 armadilhas)"
+        elif not passam_agregado:
             motivo = (
-                "nenhum braço mantém a porta 3 e o MRR agregado da referência ao mesmo tempo"
+                f"{len(passam_porta)} braços mantêm a porta 3 e nenhum deles mantém o MRR "
+                f"agregado da referência ({referencia.resultado.mrr():.3f})"
+            )
+        elif not elegiveis:
+            motivo = (
+                f"{len(passam_agregado)} braços mantêm a porta 3 e o MRR agregado, e **todos "
+                f"pioram a fatia cross-lingual** (referência {referencia.mrr_da_fatia(CROSS_LINGUAL):.3f})"
             )
         else:
             motivo = (
-                f"{len(elegiveis)} braços mantêm porta e agregado, e nenhum sobe o MRR de "
+                f"{len(elegiveis)} braços passam os três critérios, e nenhum sobe o MRR de "
                 f"reunião além da margem de uma pergunta ({limite - alvo:.3f})"
             )
         return Veredito(None, referencia, motivo)
@@ -293,9 +344,12 @@ def render(pontos: list[Ponto], veredito: Veredito, contexto: str) -> str:
         "Toda ela, não só o vencedor: superfície plana e superfície com pico levam a",
         "conclusões diferentes, e a média sozinha não distingue as duas.",
         "",
-        "| trilha | caminho | nome | recall@1 | recall@10 | MRR@10 | nDCG@5 "
-        f"| MRR reunião (n={n_reuniao}) | MRR escritório (n={n_escritorio}) | armadilhas | |",
-        "|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|:--|",
+        "| trilha | caminho | nome | recall@1 | recall@5 | recall@10 | MRR@10 | nDCG@5 "
+        f"| MRR reunião (n={n_reuniao}) | MRR escritório (n={n_escritorio}) "
+        f"| MRR cross-lingual (n={ref.n_da_fatia(CROSS_LINGUAL)}) "
+        f"| r@5 cross | r@5 mesma (n={ref.n_da_fatia(MESMA_LINGUA)}) | razão C4.5 "
+        "| armadilhas | |",
+        "|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|:--|",
     ]
     for p in sorted(pontos, key=lambda x: (-x.mrr_do_grupo(REUNIAO), x.peso_caminho)):
         marcas = []
@@ -307,9 +361,13 @@ def render(pontos: list[Ponto], veredito: Veredito, contexto: str) -> str:
             marcas.append("porta")
         linhas.append(
             f"| {p.peso_trilha:g} | {p.peso_caminho:g} | {p.peso_nome:g} "
-            f"| {p.resultado.recall(1):.3f} | {p.resultado.recall(10):.3f} "
+            f"| {p.resultado.recall(1):.3f} | {p.resultado.recall(5):.3f} "
+            f"| {p.resultado.recall(10):.3f} "
             f"| {p.resultado.mrr():.3f} | {p.resultado.ndcg(k=5):.3f} "
             f"| {p.mrr_do_grupo(REUNIAO):.3f} | {p.mrr_do_grupo(ESCRITORIO):.3f} "
+            f"| {p.mrr_da_fatia(CROSS_LINGUAL):.3f} "
+            f"| {p.recall5_da_fatia(CROSS_LINGUAL):.3f} | {p.recall5_da_fatia(MESMA_LINGUA):.3f} "
+            f"| {p.razao_cross_lingual:.2f} "
             f"| {p.armadilhas} de 6 | {' '.join(marcas)} |"
         )
     linhas += [
@@ -322,14 +380,25 @@ def render(pontos: list[Ponto], veredito: Veredito, contexto: str) -> str:
             f"**Nada passa.** {veredito.motivo}.",
             "",
             "Pela regra declarada, a hipótese de `C3.a` está refutada **neste acervo**: a",
-            "dupla contagem existe no mecanismo e mexer nela não paga o preço aqui. `F4-P`",
-            "segue para o peso de nome por tipo de fonte, que é a via mais cara.",
+            "dupla contagem existe no mecanismo e mexer nela não paga o preço aqui.",
             "",
             "Isto não absolve a dupla contagem num acervo de nomes ruins — só diz que este",
             "acervo, de nome informativo, não a sente. É a diferença que `R9.1` mede quando",
             "os perfis sintéticos existirem, e o motivo de o peso ficar na configuração em",
             "vez de virar constante.",
         ]
+        if "cross-lingual" in veredito.motivo:
+            linhas += [
+                "",
+                "**E o critério que eliminou os candidatos não é o da hipótese.** Braços que",
+                "mantêm a porta 3 e sobem o MRR agregado existem, e todos pioram a ponte",
+                "PT↔EN. Isso é achado próprio, não detalhe de regra: o ranqueador de nome é",
+                "um sinal **agnóstico a idioma** — identificador, código, data e nome próprio",
+                "no nome do arquivo casam igual nos dois idiomas, enquanto o bm25 não casa",
+                "`contrato` com `agreement`. Baixar o peso do nome tira uma das poucas pontes",
+                "que existem, e a fatia mesma-língua, quatro vezes maior, esconde a conta na",
+                "média. `F4-P` herda uma troca de três lados, não de dois.",
+            ]
     else:
         e = veredito.escolhido
         linhas += [
@@ -349,6 +418,12 @@ def render(pontos: list[Ponto], veredito: Veredito, contexto: str) -> str:
             f"| MRR escritório | {ref.mrr_do_grupo(ESCRITORIO):.3f} "
             f"| {e.mrr_do_grupo(ESCRITORIO):.3f} "
             f"| {e.mrr_do_grupo(ESCRITORIO) - ref.mrr_do_grupo(ESCRITORIO):+.3f} |",
+            f"| MRR cross-lingual | {ref.mrr_da_fatia(CROSS_LINGUAL):.3f} "
+            f"| {e.mrr_da_fatia(CROSS_LINGUAL):.3f} "
+            f"| {e.mrr_da_fatia(CROSS_LINGUAL) - ref.mrr_da_fatia(CROSS_LINGUAL):+.3f} |",
+            f"| razão C4.5 (recall@5 cross / mesma) | {ref.razao_cross_lingual:.2f} "
+            f"| {e.razao_cross_lingual:.2f} "
+            f"| {e.razao_cross_lingual - ref.razao_cross_lingual:+.2f} |",
             f"| armadilhas | {ref.armadilhas} de 6 | {e.armadilhas} de 6 | |",
             "",
             "Como aplicar, sem tocar em `[padrao]` (que é compartilhado com o desktop):",
@@ -467,12 +542,9 @@ def main(argv: list[str] | None = None) -> int:
     )
     relatorio = render(pontos, veredito, contexto)
 
+    entregar(relatorio, args.out)
     if args.out:
-        args.out.parent.mkdir(parents=True, exist_ok=True)
-        args.out.write_text(relatorio, encoding="utf-8")
         log.info("relatório gravado em %s", args.out)
-    else:
-        sys.stdout.write(relatorio + "\n")
     return 0
 
 
