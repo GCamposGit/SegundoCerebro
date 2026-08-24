@@ -14,6 +14,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Protocol
 
+from .idioma import CROSS_LINGUAL, EN, FATIAS, INDEFINIDO, MESMA_LINGUA, MISTO, NAO_DECLARADO, PT, detectar
+from .idioma import fatia as fatia_de
 from .metrics import MODO_QUALQUER, MODO_TODAS, media, ndcg_at_k, recall_at_k, reciprocal_rank
 
 KS_PADRAO = (1, 3, 5, 10, 20)
@@ -94,6 +96,15 @@ diff; `verificar_escopo()` confere a anotação contra o índice e reclama das d
 divergências possíveis."""
 
 
+IDIOMAS_ACEITOS = (PT, EN, MISTO, INDEFINIDO)
+"""O que `idioma` e `idioma_fonte` aceitam.
+
+`misto` e `indefinido` são anotações legítimas e não sinônimos de vazio: vazio é
+"ninguém olhou", `indefinido` é "olhou-se e não há evidência". A fatia trata os
+três igual, mas o diff da anotação distingue os dois primeiros — e é o diff que
+diz se a cobertura da fatia está crescendo ou parada."""
+
+
 @dataclass(frozen=True)
 class Pergunta:
     id: str
@@ -106,6 +117,29 @@ class Pergunta:
     armadilha: bool = False
     fora_de_escopo: str = ""
     """Vazio = mensurável nesta fase. Senão, chave de `MOTIVOS_FORA_DE_ESCOPO`."""
+    idioma: str = ""
+    """Idioma da **pergunta**. Vazio = detectar do texto (`eval.idioma`).
+
+    A anotação existe para o caso que o detector não resolve e não deveria
+    fingir que resolve: consulta curta feita de sigla e número, sem palavra
+    funcional nenhuma. São 2 das 62 perguntas do acervo corporativo. Declarar é
+    melhor que baixar o limiar — baixar o limiar acerta essas duas e passa a
+    errar as outras sessenta em silêncio."""
+
+    idioma_fonte: str = ""
+    """Idioma da(s) **fonte(s)** esperada(s). Vazio = não declarado.
+
+    Este campo **não** tem detecção de reserva, e a assimetria é deliberada: o
+    texto da pergunta está aqui, o do documento não. Derivá-lo do índice na hora
+    do relatório custaria o que mais importa neste harness — o baseline por nome
+    não abre o índice, e a fatia deixaria de existir justamente no lado F0 da
+    comparação entre fases.
+
+    Quem preenche é `py -m eval.idioma --base X --escrever`, que lê o índice uma
+    vez e grava a anotação. Depois disso ela é estática, versionada e conferível
+    em diff, como `fora_de_escopo`. `eval.rodar` reconfere contra o índice e
+    reclama quando as duas divergem."""
+
     base: str = ""
     """A qual base esta pergunta pertence. Vazio = não declara.
 
@@ -122,6 +156,16 @@ class Pergunta:
     @property
     def no_escopo(self) -> bool:
         return not self.fora_de_escopo
+
+    @property
+    def idioma_efetivo(self) -> str:
+        """O idioma anotado, ou o detectado do texto da pergunta."""
+        return self.idioma or detectar(self.pergunta)
+
+    @property
+    def fatia(self) -> str:
+        """`mesma-língua`, `cross-lingual` ou `não declarado`."""
+        return fatia_de(self.idioma_efetivo, self.idioma_fonte)
 
 
 def carregar_perguntas(caminho: Path) -> list[Pergunta]:
@@ -141,12 +185,23 @@ def carregar_perguntas(caminho: Path) -> list[Pergunta]:
                 autoria=d.get("autoria", "rascunho"),
                 armadilha=bool(d.get("armadilha")),
                 fora_de_escopo=d.get("fora_de_escopo", ""),
+                idioma=d.get("idioma", ""),
+                idioma_fonte=d.get("idioma_fonte", ""),
                 base=d.get("base", ""),
             )
         )
     desconhecidos = {p.fora_de_escopo for p in perguntas if p.fora_de_escopo} - set(MOTIVOS_FORA_DE_ESCOPO)
     if desconhecidos:
         raise ValueError(f"motivo de fora_de_escopo não catalogado: {sorted(desconhecidos)}")
+    # `idioma: "pt-BR"` ou `idioma_fonte: "ingles"` não casariam com nada e a
+    # pergunta cairia calada em `não declarado` — o mesmo modo de falha que a
+    # fatia existe para acabar. Vocabulário fechado, erro alto.
+    codigos = {c for p in perguntas for c in (p.idioma, p.idioma_fonte) if c} - set(IDIOMAS_ACEITOS)
+    if codigos:
+        raise ValueError(
+            f"código de idioma não reconhecido: {sorted(codigos)} — "
+            f"use um de {sorted(IDIOMAS_ACEITOS)}"
+        )
     return perguntas
 
 
@@ -213,13 +268,28 @@ class Resultado:
     def ndcg_de(itens: Sequence[ResultadoPergunta], k: int = K_NDCG) -> float:
         return media(i.ndcg[k] for i in itens)
 
-    def subgrupo(self, autoria: str | None = None, armadilha: bool | None = None) -> list[ResultadoPergunta]:
+    def subgrupo(
+        self,
+        autoria: str | None = None,
+        armadilha: bool | None = None,
+        fatia: str | None = None,
+    ) -> list[ResultadoPergunta]:
         return [
             i
             for i in self.itens
             if (autoria is None or i.pergunta.autoria == autoria)
             and (armadilha is None or i.pergunta.armadilha == armadilha)
+            and (fatia is None or i.pergunta.fatia == fatia)
         ]
+
+    def por_fatia(self) -> list[tuple[str, list[ResultadoPergunta]]]:
+        """As três fatias de idioma, **inclusive as vazias**.
+
+        Fatia com n=0 aparece na tabela com o zero à mostra em vez de sumir. É a
+        diferença entre "medimos e não há par cross-lingual neste acervo" e "a
+        fatia não foi calculada", que um relatório sem a linha não distingue —
+        e a segunda é exatamente a lacuna que C4.5 existe para fechar."""
+        return [(f, self.subgrupo(fatia=f)) for f in FATIAS]
 
     def restrito_ao_escopo(self) -> "Resultado":
         """Same result, keeping only the questions this phase can answer.
@@ -421,6 +491,47 @@ def render_markdown(resultado: Resultado, titulo: str, contexto: str = "") -> st
         vals = " | ".join(f"{Resultado.recall_de(itens, k):.3f}" for k in no_escopo.ks)
         ndcgs = " | ".join(f"{Resultado.ndcg_de(itens, k):.3f}" for k in KS_NDCG)
         add(f"| {rotulo} | {len(itens)} | {vals} | {Resultado.mrr_de(itens):.3f} | {ndcgs} |")
+    add("")
+
+    add("## Por idioma — mesma-língua contra cross-lingual")
+    add("")
+    add("O acervo é bilíngue e a arquitetura aposta em uma ponte só: o ranqueador denso")
+    add("é multilíngue e alinhado entre idiomas, enquanto o bm25 é cego a idioma por")
+    add("construção — FTS5 não casa `contrato` com `agreement`. Sem este recorte, uma")
+    add("regressão que quebrasse **só** a ponte PT↔EN passaria com a média agregada")
+    add("intacta, porque o lado mesma-língua é maioria e a esconderia.")
+    add("")
+    add("`não declarado` é o par cujo idioma de pergunta ou de fonte não foi decidido —")
+    add("anotação ausente, ou texto sem evidência de idioma. Ele **não** é somado a")
+    add("nenhuma das duas fatias; aparece com o n para a cobertura ficar visível.")
+    add("")
+    add("| Fatia | n | " + " | ".join(f"recall@{k}" for k in no_escopo.ks) + f" | MRR@{K_MRR} | {CABECALHO_NDCG} |")
+    add(_alinhamento(no_escopo.ks))
+    for rotulo, itens in no_escopo.por_fatia():
+        if not itens:
+            add(f"| {rotulo} | 0 | " + " | ".join("—" for _ in no_escopo.ks) + " | — | " + " | ".join("—" for _ in KS_NDCG) + " |")
+            continue
+        vals = " | ".join(f"{Resultado.recall_de(itens, k):.3f}" for k in no_escopo.ks)
+        ndcgs = " | ".join(f"{Resultado.ndcg_de(itens, k):.3f}" for k in KS_NDCG)
+        add(f"| {rotulo} | {len(itens)} | {vals} | {Resultado.mrr_de(itens):.3f} | {ndcgs} |")
+    add("")
+    mesma = no_escopo.subgrupo(fatia=MESMA_LINGUA)
+    cross = no_escopo.subgrupo(fatia=CROSS_LINGUAL)
+    if mesma and cross:
+        base_recall = Resultado.recall_de(mesma, 5)
+        razao = Resultado.recall_de(cross, 5) / base_recall if base_recall else 0.0
+        # Ponto e não vírgula decimal: a tabela logo acima usa `{:.3f}`, e o
+        # relatório inteiro é assim. Uma frase com vírgula embaixo de uma coluna
+        # com ponto lê como duas medições diferentes.
+        add(
+            f"Razão cross-lingual / mesma-língua em recall@5: **{razao:.2f}**. "
+            "O critério de aceite de `C4.5` é **>= 0.80**."
+        )
+    else:
+        add(
+            "Sem as duas fatias povoadas não há razão a calcular. "
+            "`py -m eval.idioma --base <id> --escrever` anota `idioma_fonte` a partir do índice."
+        )
     add("")
 
     falhas = no_escopo.sem_nenhum_acerto

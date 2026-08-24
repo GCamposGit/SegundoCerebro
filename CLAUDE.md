@@ -323,6 +323,67 @@ Cinco coisas desta entrega que valem para as fases seguintes:
   Toda métrica de F1 e F2 mediu um corpus 39% menor que o disco. Nenhuma conclusão
   muda (cada uma declara seu corpus), mas é o próximo número a decidir.
 
+**F4 — fatia cross-lingual (C4.5) entregue em 24/08/2026.** Ler
+`docs/fatia-cross-lingual.md`. O harness recorta toda medição em `mesma-língua`
+contra `cross-lingual`, e o recorte acusou o que a média escondia: recall@1
+**0.625** mesma-língua contra **0.333** cross-lingual, razão em recall@5 **0.73**
+contra o 0.80 do critério. O acervo é 15% inglês (284 de 1.900 documentos com
+conteúdo) e um quinto do dourado cruza idioma.
+
+```bash
+py -m eval.idioma --base padrao --escrever   # anota idioma/idioma_fonte no dourado
+```
+
+Três coisas desta entrega que valem para as fases seguintes:
+
+- **recall@20 é 1.000 na fatia cross-lingual.** O documento certo é alcançado e
+  **mal ordenado** — sintoma de ranqueador cego dentro da fusão, não de busca que
+  não encontra. Dois dos três votos (bm25 e nome) são cegos a idioma por
+  construção: FTS5 não casa `contrato` com `agreement`. É a pergunta que `F4-P`
+  herda.
+- **Anotação estática, não derivada do índice — porque o baseline por nome não
+  abre índice.** Calcular a fatia no relatório a faria sumir do lado F0 de toda
+  comparação entre fases, que é a razão de o harness existir. O preço (anotação
+  envelhece) se paga com `conferir()`, que confronta anotação e índice a cada
+  `eval.rodar`.
+- **Os dois defeitos do detector eram de normalização, não de vocabulário.** `as`
+  faltava na lista inglesa, e `só` perde o acento e vira a palavra inglesa `so`.
+  Os dois faziam o texto pontuar para o idioma errado **proporcionalmente ao
+  tamanho**. Nenhum apareceu na leitura; os dois apareceram no teste.
+
+**F4 — porta de latência (R9.3) entregue em 24/08/2026.** Ler
+`docs/porta-de-latencia.md`. Instrumento em `eval/latencia.py`, portas em
+`eval/portas-latencia.toml`. **Todo o orçamento de latência é `search`**: p95
+entre **1.840 e 2.877 ms** conforme o estado térmico, contra 0,9–2,8 ms de
+`read_note` e 1,6–2,1 ms de `neighbors`, que passam o alvo de produto por mais de
+uma ordem de grandeza.
+
+```bash
+py -m eval.latencia --base padrao --maquina notebook-15w --rodadas 3 --porta
+```
+
+Quatro coisas desta entrega que valem para as fases seguintes:
+
+- **Duas portas, não uma.** Porta que a máquina reprova no dia em que é escrita
+  não guarda nada — fica vermelha para sempre e ninguém repara quando piora. O
+  alvo de produto (300 ms) fica como dívida declarada de `R4.1`/`R3.3`; o piso de
+  regressão é **por máquina nomeada**, e `--porta` recusa rodar sem `--maquina`.
+- **Número sem máquina é mentira, e sem estado térmico também.** Cinco passadas
+  do mesmo código no mesmo índice deram p95 de 1.840 a 2.877 ms — **1,6×** —
+  conforme o notebook estivesse descansado ou saturado. Isso reconcilia a linha
+  de base de 1.145 ms que o ROADMAP registrava: ela não estava errada, estava sem
+  protocolo. O piso desta máquina fica de propósito na ponta quente, porque gate
+  que pisca vermelho por causa do ventilador é desligado em uma semana.
+- **Um braço por passada.** Medir `search` e `search+rerank` no mesmo laço dava
+  4.394 ms contra 2.713 ms isolado — o cross-encoder satura o pacote térmico e o
+  braço barato paga a conta do caro. **O número contaminado é plausível**, então
+  passaria. Mesma família do defeito anterior: a primeira versão media
+  `recursos.busca`, que herda o reranker da base, e chamava aquilo de "sem rerank".
+- **`R6.2` tem meta impossível, com número.** Reranquear custa **~761 ms por par**
+  neste CPU; os "30 candidatos em <500 ms" do pacote são ~22,8 s, **46× a meta**.
+  Não é ajuste, é a classe do modelo — `R6.2` escolhe entre GPU (F3.6) ou outro
+  reranqueador.
+
 **Próximo passo:** decidir sobre `Meetings/` (1.010 documentos, horas de
 indexação), o que resta da F4 (SharePoint, watcher, legado DOC/XLS) e a porta 3 —
 ver "onde o bm25 se paga". O multi-hop completo segue em 1 de 5, e há a primitiva

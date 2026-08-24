@@ -775,8 +775,8 @@ privada do desktop **não** trava nenhum destes:
 | R9.1 + C5.b | Perfis sintéticos: **gerador + seed + manifesto**, corpus nunca commitado | **desktop** | **1** | **sim, agora** |
 | C5.a | Porta de custo do MIRACL: smoke de throughput → `docs/custo-miracl.md` | **desktop** | **1** | **sim, agora** |
 | F6-A / R8.1 | `pip install` sem `PYTHONPATH=src`; matriz 3×SO no CI | **desktop** | **1** | **sim, agora** |
-| C4.5 | Fatia cross-lingual no harness (`mesma-língua` vs `cross-lingual`) | notebook | **1** | **sim, agora** |
-| R9.3 | Porta de latência, sobre índice inflado | notebook define, **desktop infla o índice** | **1** | **sim, agora** |
+| C4.5 | Fatia cross-lingual no harness (`mesma-língua` vs `cross-lingual`) | notebook | **1** | ✅ **fechado** — ver [`docs/fatia-cross-lingual.md`](docs/fatia-cross-lingual.md) |
+| R9.3 | Porta de latência, sobre índice inflado | notebook define, **desktop infla o índice** | **1** | ✅ **portas definidas** — ver [`docs/porta-de-latencia.md`](docs/porta-de-latencia.md); falta o índice inflado |
 | C1 | Política de particionamento + description gerada do censo | acordo; texto no `ARCHITECTURE.md` | **1** | **sim** — combinar quem escreve |
 | C6 | Família de versões ≠ grupo de formatos (**subordina R1.3**) | notebook (ranking) + desktop (hash/MinHash no censo) | 2 | depois da onda 1 |
 | F4-P + C3.a | Peso da coluna `caminho` no bm25 **e** peso por tipo de fonte | notebook | 2 | depois de R9.1 |
@@ -838,23 +838,81 @@ Medir qualquer um deles hoje é medir um quarto do acervo e chamar de decisão. 
 isso **`F4-D` entra na onda 1**, à frente de tudo que ela destrava. É a correção
 mais importante que a medição faz na §12 do dossiê.
 
-### As portas de latência, com linha de base medida
+### A fatia cross-lingual, medida — `C4.5` fechado em 24/08/2026
 
-`R9.3` propõe portas sem baseline. Medido em 24/08/2026, 25 consultas do dourado,
-índice de 98.326 trechos, CPU de 15 W:
+O complemento chamava a falta de recorte bilíngue de "lacuna: regressão bilíngue
+hoje passaria invisível". Medido: a lacuna escondia **uma queda de 47% em
+recall@1**.
 
-| | p50 | p95 |
-|---|---:|---:|
-| `search` sem reranking | **1.145 ms** | **1.418 ms** |
-| `search` com reranking (10 candidatos) | 8.019 ms | 9.538 ms |
+| Fatia | n | recall@1 | recall@5 | MRR@10 |
+|---|---:|---:|---:|---:|
+| mesma-língua | 44 | 0.625 | 0.852 | 0.750 |
+| **cross-lingual** | **12** | **0.333** | **0.625** | **0.496** |
 
-Duas consequências. A porta proposta de **300 ms sem rerank** está **4,7× à
-frente do que a máquina faz hoje**, num índice **50× menor** que o alvo — o que
-confirma `R4.1`/`R3.3` como P0 e dá o número que eles têm de bater. E a meta de
-**"rerank de 30 candidatos em <500 ms em CPU de 4 núcleos"** de `R6.2` está a
-**19× de distância com 10 candidatos**: não é alcançável com cross-encoder em
-CPU, e o pacote precisa escolher entre GPU (a rota da F3.6) ou outra classe de
-reranqueador. Registrado para não virar promessa.
+Razão em recall@5 **0.73**, contra o **0.80** que o próprio `C4.5` pede. O acervo
+é 15% inglês (284 de 1.900 documentos com conteúdo) e um quinto do dourado cruza
+idioma — não é caso de borda. E o perfil localiza o defeito: recall@20 é **1.000**
+na fatia cross-lingual, então o documento certo é **alcançado e mal ordenado**,
+que é o sintoma de ranqueador cego na fusão, não de busca que não encontra.
+
+Três consequências para a fila, e nenhuma delas muda ranking hoje:
+
+- `R3.1` e `R6.2` deixam de poder ser decididos pela média. `eval.ablacao_f2`
+  passou a emitir MRR mesma-língua e cross-lingual lado a lado.
+- `F4-P` (onda 2) herda a pergunta de qual ranqueador paga a conta — dois dos
+  três votos da fusão (bm25 e nome) são cegos a idioma por construção.
+- `R9.1` ganha contrato: o perfil bilíngue **tem** de emitir `idioma` e
+  `idioma_fonte` no dourado gerado. Sem eles a fatia sai de tamanho zero e o
+  relatório parece aprovado. Formato em `eval/golden/README.md`.
+
+### As portas de latência — `R9.3` fechado em 24/08/2026
+
+O instrumento é `eval/latencia.py`, as portas moram em
+`eval/portas-latencia.toml` e o raciocínio inteiro em
+[`docs/porta-de-latencia.md`](docs/porta-de-latencia.md). Falta só o índice
+inflado de 1M trechos, que é do desktop.
+
+**São duas portas, e essa é a primeira correção que a medição faz na proposta.**
+Uma porta que a máquina reprova no dia em que é escrita não guarda nada — fica
+vermelha para sempre e ninguém repara quando piora. Então: `produto` é o alvo
+hardware-neutro, hoje reprovado, que `R4.1` e `R3.3` têm de alcançar; `regressão`
+é o que **cada máquina nomeada** faz hoje, mais margem, e é a única que falha.
+
+Medido na condição C, índice de 98.326 trechos, braço isolado, CPU de 15 W:
+
+| Operação | p50 | p95 | porta de produto | distância |
+|---|---:|---:|---:|---:|
+| `search` | 1.363 – 2.506 ms | **1.840 – 2.877 ms** | 300 ms | **6,1× a 9,6×** |
+| `search+rerank` (10 cand.) | 10.119 ms | **11.331 ms** | 800 ms | **14,2×** |
+| `read_note` | 0,3 – 0,4 ms | 0,9 – 2,8 ms | 100 ms | passa por 36× |
+| `neighbors` | 0,2 ms | 1,6 – 2,1 ms | 100 ms | passa por 48× |
+
+**Todo o orçamento de latência é `search`** — os outros dois passam por mais de
+uma ordem de grandeza em qualquer regime.
+
+Três coisas que a medição mudou, e que valem além deste pacote:
+
+- **A faixa é o estado térmico, não ruído.** Cinco passadas do mesmo código no
+  mesmo índice deram p95 entre 1.840 e 2.877 ms — **1,6×** — conforme o notebook
+  estivesse descansado ou saturado. Isto **reconcilia a linha de base de 1.145 ms
+  que este arquivo registrava**: ela não estava errada, estava sem protocolo, e
+  por isso não era reproduzível. É o problema de `R9.3` demonstrado no próprio
+  número do projeto.
+- **Um braço por passada.** Medir `search` e `search+rerank` no mesmo laço dava
+  4.394 ms para o braço barato contra 2.713 ms sozinho — 53%, porque o
+  cross-encoder satura o pacote térmico. O número contaminado é plausível, então
+  passaria.
+- **`R6.2` tem meta impossível, e agora dá para dizer por quê.** Reranquear custa
+  **~761 ms por par** neste CPU. Os "30 candidatos em <500 ms" do pacote são
+  ~22,8 s, **46× a meta** — não é ajuste, é a classe do modelo. `R6.2` escolhe
+  entre GPU (F3.6) ou outro reranqueador.
+
+`overview` **não entra** nas portas: o dossiê lhe dá 200 ms e ele não existe (é
+`R7.1`, onda 7). Porta de ferramenta ausente mede zero e reporta aprovado.
+
+A próxima medição que falta é a **decomposição de `search`** — quanto é encoder,
+quanto é varredura densa, quanto é bm25 e nome. Sem ela, "ANN resolve" é
+hipótese. É a primeira coisa que `R4.1` deve medir.
 
 ### O que o dossiê chama de novo e já existe aqui
 

@@ -34,6 +34,7 @@ from segundocerebro.logger import get_logger
 from segundocerebro.retrieve.hybrid import BuscaHibrida
 
 from .harness import KS_NDCG, Resultado, avaliar, carregar_perguntas, conferir_base, verificar_escopo
+from .idioma import CROSS_LINGUAL, MESMA_LINGUA
 
 log = get_logger("eval.ablacao_f2")
 
@@ -165,6 +166,22 @@ class Medida:
         """O subconjunto sem viés de construção — 39 das 45 vieram de nomes de arquivo."""
         return Resultado.mrr_de(self.resultado.subgrupo(autoria="usuario"))
 
+    @property
+    def cross_mrr(self) -> float | None:
+        """MRR da fatia cross-lingual, ou `None` quando ela está vazia.
+
+        `None` e não zero: braço cujo dourado não tem par cross-lingual não é um
+        braço que falhou na ponte entre idiomas, e imprimir 0,000 nessa coluna
+        diria que falhou. Uma tabela de ablação com um zero inventado é pior que
+        uma com um travessão — o travessão faz perguntar, o zero não."""
+        itens = self.resultado.subgrupo(fatia=CROSS_LINGUAL)
+        return Resultado.mrr_de(itens) if itens else None
+
+    @property
+    def mesma_lingua_mrr(self) -> float | None:
+        itens = self.resultado.subgrupo(fatia=MESMA_LINGUA)
+        return Resultado.mrr_de(itens) if itens else None
+
 
 def medir(store, embedder, base, perguntas, threads: int) -> list[Medida]:  # noqa: ANN001
     medidas: list[Medida] = []
@@ -220,8 +237,8 @@ def render(medidas: list[Medida], contexto: str, referencia: str) -> str:
         "## A tabela",
         "",
         f"| Recuperador | o que acrescenta | recall@1 | recall@5 | recall@10 | MRR@10 | {ndcg_cols} "
-        "| armadilhas | multi-hop | usuário MRR | s/consulta |",
-        "|---|---|---:|---:|---:|---:|" + "---:|" * (len(KS_NDCG) + 4),
+        "| armadilhas | multi-hop | usuário MRR | MRR mesma-língua | MRR cross-lingual | s/consulta |",
+        "|---|---|---:|---:|---:|---:|" + "---:|" * (len(KS_NDCG) + 6),
         referencia,
     ]
     melhor_ndcg5 = max(m.resultado.ndcg(k=5) for m in medidas)
@@ -233,6 +250,8 @@ def render(medidas: list[Medida], contexto: str, referencia: str) -> str:
             f"| {destaque}{m.braco.rotulo}{destaque} | {m.braco.fator} "
             f"| {num(r.recall(1))} | {num(r.recall(5))} | {num(r.recall(10))} | {num(r.mrr())} "
             f"| {ndcgs} | {m.armadilhas} de 6 | {m.multihop} de 5 | {num(m.usuario_mrr)} "
+            f"| {num(m.mesma_lingua_mrr) if m.mesma_lingua_mrr is not None else '—'} "
+            f"| {num(m.cross_mrr) if m.cross_mrr is not None else '—'} "
             f"| {num(m.segundos_por_consulta, 2)} |"
         )
     linhas += [
@@ -242,6 +261,13 @@ def render(medidas: list[Medida], contexto: str, referencia: str) -> str:
         "fontes. A coluna `usuário MRR` é o subconjunto das 6 perguntas escritas de",
         "memória: as outras 39 nasceram de nomes de arquivo e favorecem, por construção,",
         "quem lê nome.",
+        "",
+        "As duas últimas colunas de MRR são a fatia de idioma (`C4.5`). O acervo é",
+        "bilíngue e a ponte PT↔EN mora num ranqueador só — o denso é multilíngue e",
+        "alinhado, o bm25 é cego a idioma por construção. Um braço que troque modelo ou",
+        "reranker pode subir na média e **cair** na coluna cross-lingual; sem as duas",
+        "colunas lado a lado essa troca passaria como ganho limpo. `—` significa fatia",
+        "vazia, não fatia zerada: o dourado desta base não tem par daquele lado.",
         "",
     ]
     return "\n".join(linhas)

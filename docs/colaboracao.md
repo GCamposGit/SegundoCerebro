@@ -190,14 +190,29 @@ acervo — é parar de escolher peso global a partir de qualquer acervo único. 
 
 Onda 1 do notebook:
 
-1. **C4.5** — fatia cross-lingual no harness: todo relatório passa a recortar
-   `mesma-língua` vs `cross-lingual`. `eval/*`, sem tocar ranking.
-2. **R9.3** — porta de latência. Linha de base já medida em 24/08: `search` sem
-   rerank **p50 1.145 ms / p95 1.418 ms**; com rerank de 10 candidatos, p50
-   8.019 ms. O notebook define a porta; o índice inflado vem do desktop.
+1. ~~**C4.5**~~ — **fechado em 24/08/2026**. O harness recorta `mesma-língua` vs
+   `cross-lingual` em todo relatório, e `eval.ablacao_f2` ganhou as duas colunas
+   de MRR. Medido: **recall@1 0.625 mesma-língua contra 0.333 cross-lingual**,
+   razão em recall@5 **0.73** contra o 0.80 do critério. Ver
+   [`fatia-cross-lingual.md`](fatia-cross-lingual.md).
+2. ~~**R9.3**~~ — **portas definidas em 24/08/2026.** Instrumento em
+   `eval/latencia.py`, portas em `eval/portas-latencia.toml`, raciocínio em
+   [`porta-de-latencia.md`](porta-de-latencia.md). São **duas**: alvo de produto
+   (hoje reprovado, é o que `R4.1`/`R3.3` perseguem) e piso de regressão **por
+   máquina nomeada**. Medido: `search` p95 **1.840 – 2.877 ms** conforme o estado
+   térmico — a faixa reconcilia a linha de base de 1.145 ms que o ROADMAP
+   registrava, que estava sem protocolo.
+
+   **Falta o índice inflado de 1M trechos, que é do desktop.** Quando ele
+   existir, `py -m eval.latencia --base <id> --maquina <nome> --porta` mede lá e
+   grava um `[regressao.<maquina>]` próprio — o arquivo já aceita quantas
+   máquinas existirem, e um piso medido num setup **não** vale no outro.
 
 Depois da onda 1: `C6` (família de versões ≠ grupo de formatos), `F4-P`+`C3.a`,
 `R6.1`. **Não começar `retrieve/*` antes** — a régua tem de existir primeiro.
+
+**O que o notebook pega agora:** `C6` (família de versões ≠ grupo de formatos),
+`F4-P`+`C3.a` e `R6.1` — a onda 2, agora que a régua da onda 1 existe.
 
 ### Agora — desktop
 
@@ -206,7 +221,12 @@ sugestão; os três primeiros são a onda 1 e destravam as ondas 4 e 5.
 
 1. **R9.1 + C5.b — perfis sintéticos.** Quatro perfis (`juridico`, `financeiro`,
    `pessoal` com nomes ruins tipo `Scan_001.pdf`, `engenharia`) + um bilíngue
-   PT/EN. **Versionar gerador + seed + manifesto** com hash do *texto extraído*;
+   PT/EN. **O perfil bilíngue tem contrato desde 24/08:** o dourado gerado emite
+   `idioma` e `idioma_fonte` (formato em `eval/golden/README.md`). Sem os dois
+   campos a fatia cross-lingual sai de tamanho zero e o relatório parece
+   aprovado — o harness não os detecta sozinho, e o porquê está em
+   [`fatia-cross-lingual.md`](fatia-cross-lingual.md).
+   **Versionar gerador + seed + manifesto** com hash do *texto extraído*;
    corpus gerado vai para o `.gitignore`. É o padrão que `eval/sintetico/` já
    segue — não commitar corpus. Determinismo obrigatório: seed única, iteração
    ordenada, sem depender de locale.

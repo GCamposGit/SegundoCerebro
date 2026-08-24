@@ -1,0 +1,64 @@
+# Portas de latência — R9.3
+#
+# Duas espécies, e a distinção é a correção que a medição faz no R9.3 original.
+#
+# [produto.p95]  — o alvo. Hardware-neutro, hoje reprovado, e é o número que
+#                  R4.1 (ANN) e R3.3 (quantização INT8) têm de alcançar. Existe
+#                  para dizer quanto falta; nunca move o código de saída.
+#
+# [regressao.<maquina>.p95] — o que aquela máquina fazia quando o piso foi
+#                  medido, mais margem. É a porta que vale agora e a única que
+#                  pode falhar por culpa de alguém: `--porta` sai com 1.
+#
+# Uma porta só, absoluta, não funcionaria: a proposta do dossiê (300 ms) já é
+# reprovada por 9x num índice 10x menor que o alvo, e porta que nasce vermelha
+# não guarda nada — fica vermelha para sempre e ninguém repara quando piora.
+#
+# **Os limites moram numa tabela `p95` própria, e a descrição da máquina fora
+# dela.** Não é arrumação: com tudo no mesmo nível, `indice_chunks = 98326` fica
+# indistinguível de um limite de 98 segundos para uma operação chamada
+# `indice_chunks`. Uma linha que nunca dispara parece cobertura e não é — foi o
+# que a suíte pegou em 24/08/2026, dez minutos depois de o arquivo existir.
+#
+# Chave = nome da operação em `eval/latencia.py` OPERACOES; porta de operação
+# desconhecida é recusada por `eval/test_latencia.py`.
+#
+# Raciocínio completo e as medições: docs/porta-de-latencia.md
+
+[produto]
+origem = "docs/dossie-melhorias.md, R9.3"
+alvo = "CPU de 4 núcleos, 8 GB, índice de 1M+ trechos"
+
+[produto.p95]
+search = 300
+"search+rerank" = 800
+read_note = 100
+neighbors = 100
+
+# `overview` tem porta de 200 ms no dossiê e **não existe** — é R7.1, onda 7.
+# Não entra aqui: porta de ferramenta ausente mede zero e reporta aprovado.
+
+
+[regressao.notebook-15w]
+descricao = "i7-1355U, 15 W, 12 fios (10 para a busca), CPU, sem GPU"
+medido_em = "2026-08-24"
+indice_chunks = 98326
+protocolo = "conjunto dourado corporativo, um braço por passada, 3 descartadas no aquecimento"
+margem = "1,15x o pior p95 de 3 passadas independentes; ver docs/porta-de-latencia.md"
+
+[regressao.notebook-15w.p95]
+# Medido: p95 2 713 ms (n=186) e 2 877 ms (n=186) em passadas independentes.
+# 1,15x o pior = 3 309; arredondado para baixo, para 3 300.
+search = 3300
+
+# Medido: p95 11 331 ms (n=62), 10 candidatos — o que a base serve.
+"search+rerank" = 13000
+
+# Estes dois são **guarda de classe**, não detector fino de regressão: a p95 dos
+# dois é sub-milissegundo, e nessa escala o ruído do sistema operacional é maior
+# que qualquer sinal. Um piso apertado piscaria vermelho por escalonamento de
+# processo. O que 50 ms pega é o que importa aqui — uma mudança que troque a
+# consulta indexada por varredura, que custaria ordens de grandeza e não por
+# cento. Medido: read_note p95 0,9 ms, neighbors p95 2,1 ms.
+read_note = 50
+neighbors = 50
