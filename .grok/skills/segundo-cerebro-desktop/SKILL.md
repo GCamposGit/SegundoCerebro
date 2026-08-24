@@ -37,7 +37,7 @@ A lista de entregas fechadas vive na §6 de `colaboracao.md`, num lugar só.
 Não repetir aqui — envelhece.
 
 **O que está na sua mão agora:** pacotes F4-L (OLE que mente), F4-W (watcher)
-e F6-A (`pip install` sem `PYTHONPATH`). A indexação da Bain corre no fundo e
+e F6-A (`pip install` sem `PYTHONPATH`). A indexação da base privada deste desktop corre no fundo e
 **não** é desculpa para ficar ocioso. **Não** pegar F4-M (`config.py`, painel).
 
 ## Você pode

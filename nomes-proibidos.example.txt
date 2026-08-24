@@ -1,0 +1,18 @@
+# Nomes que não podem aparecer em arquivo versionado.
+#
+# Copie para `nomes-proibidos.txt` (na raiz, fora do Git) e escreva os nomes que
+# ESTE acervo conhece: cliente, fornecedor, projeto, pessoa. Um por linha.
+# `tests/test_saneamento.py` lê essa cópia e recusa a suíte se algum aparecer
+# num arquivo rastreado — no conteúdo ou no próprio nome do arquivo.
+#
+# A lista de verdade não entra no Git: um arquivo com os nomes por extenso seria
+# o próprio vazamento. Sem ela o teste pula, e o CI e um clone novo passam.
+#
+# Casa por palavra inteira e ignora caixa: `Acme` pega `ACME` e `acme`, e não
+# pega `acmefoo`. Evite termo curto ou comum — `via` casaria em meio texto.
+#
+# O vocabulário publicável é a empresa fictícia da VCE (docs/colaboracao.md §5).
+
+# Exemplos, no formato — troque pelos seus:
+Acme Holding
+Acme

@@ -637,14 +637,14 @@ def test_limites_por_tipo_sobrescrevem_o_padrao(tmp_path):
         tmp_path,
         """
         [[base]]
-        id = "bain"
+        id = "vce"
         [base.limites]
         csv = 5
         xlsx = 40
         txt = 0
         """,
     )
-    base = carregar(caminho, ambiente=SEM_AMBIENTE).base("bain", ambiente=SEM_AMBIENTE)
+    base = carregar(caminho, ambiente=SEM_AMBIENTE).base("vce", ambiente=SEM_AMBIENTE)
 
     assert base.limites.csv == 5
     assert base.limites.xlsx == 40

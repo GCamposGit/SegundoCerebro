@@ -93,8 +93,8 @@ trabalho é só o que tem parser.
 ## CLI
 
 ```bash
-py -m segundocerebro.index.indexer --base bain --perfil normal
-py -m segundocerebro.index.indexer --base bain --apenas-onda 1
+py -m segundocerebro.index.indexer --base vce --perfil normal
+py -m segundocerebro.index.indexer --base vce --apenas-onda 1
 ```
 
 A barra publica `onda`, `ondas` e `pasta` em `progresso.json`. Sem marcador novo.
