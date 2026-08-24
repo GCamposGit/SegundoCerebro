@@ -23,6 +23,11 @@ census-*.md
 docs/censo*.md
 docs/censo*.json
 
+# Lista local de nomes reais que a suíte recusa em arquivo versionado
+# (tests/test_saneamento.py). O arquivo com os nomes por extenso seria o próprio
+# vazamento — por isso ele fica fora, e só o `.example` é versionado.
+nomes-proibidos.txt
+
 # Configuração local com caminhos reais
 census.toml
 config.toml

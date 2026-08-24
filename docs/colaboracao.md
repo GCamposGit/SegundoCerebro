@@ -192,7 +192,8 @@ Medir OLE no dourado corporativo é depois da passada; não bloqueia o F4-M.
 
 ### Agora — desktop
 
-A Bain de legado segue no fundo (`leve`, GPU 1). Código, em paralelo:
+A passada de legado da base privada do desktop segue no fundo (`leve`, GPU 1).
+Código, em paralelo:
 
 1. **F4-L** — `.xls` HTML/criptografado, `.ppt` que não é OLE2, codepage do
    `xlrd`. `sheets.py` / `ole_texto.py` / `slides.py`. Sobe versão de parser se

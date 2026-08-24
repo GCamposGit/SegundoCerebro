@@ -766,8 +766,8 @@ Int8 na CPU continua sendo alavanca do notebook, não desta fase.
 Dois pacotes só voam juntos se as listas de path **não se intersectam**.
 `ingest/parsers/__init__.py` (despachante) é o mesmo contrato de `mcp/server.py`.
 
-**Fila agora** (24/08/2026). A passada OLE da Bain no desktop **não** trava
-nenhum destes:
+**Fila agora**, atualizada em 24/08/2026 pelo notebook. A passada OLE na base
+privada do desktop **não** trava nenhum destes:
 
 | # | Pacote | Dono | Começa já? |
 |---|--------|------|------------|
@@ -899,7 +899,7 @@ Não continuar a passada pausada: o que estava em voo é andaime (`_context.txt`
 
 #### F4-L — OLE que mente — **desktop**
 
-Parsers existem. O que a passada da Bain mostrou: `.xls` que é HTML ou está
+Parsers existem. O que a passada na base privada do desktop mostrou: `.xls` que é HTML ou está
 criptografado, `.ppt` que não é OLE2, `xlrd` recusando codepage. Status vira
 `erro` com detalhe; não volta a `sem_parser`.
 
@@ -927,7 +927,7 @@ Processo à parte. Não é o laço do indexador: observa a raiz e dispara
   `retrieve/*`, schema de `config.py`
 - **Saída:** criar/alterar um `.txt` em `tmp_path` dispara indexação; placeholder
   de nuvem **não** é aberto; dois watchers no mesmo índice recusam pela trava
-- **Paralelo:** sim. Não precisa do índice Bain
+- **Paralelo:** sim. Não precisa do índice privado do desktop
 
 #### F4-S — SharePoint via pasta sincronizada — **notebook** (depois de F4-M)
 
