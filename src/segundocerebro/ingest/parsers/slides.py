@@ -103,7 +103,20 @@ def parse_pptx(dados: bytes, nome: str) -> ParsedDoc:
 
 @register(".ppt")
 def parse_ppt(dados: bytes, nome: str) -> ParsedDoc:
-    """PowerPoint 97-2003. Bytes only — no COM, no temp file."""
+    """PowerPoint 97-2003. Bytes only — no COM, no temp file.
+
+    PPTX com extensão `.ppt` entra aqui, não no despachante: `ooxml` não tem
+    parser sem ambiguidade (`parser_for_familia` recusa), e o arquivo virava
+    `sem_parser` com o conteúdo à mostra. O tratamento mora no parser da
+    extensão que mentiu.
+    """
+    if dados.startswith(b"PK\x03\x04"):
+        doc = parse_pptx(dados, nome)
+        meta = dict(doc.meta)
+        meta["formato"] = "ppt"
+        meta["conteudo_real"] = "pptx"
+        return ParsedDoc(name=nome, blocks=doc.blocks, meta=meta)
+
     from .ole_texto import texto_de_ppt
 
     texto = texto_de_ppt(dados).strip()

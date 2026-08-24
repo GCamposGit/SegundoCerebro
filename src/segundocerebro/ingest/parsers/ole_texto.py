@@ -17,6 +17,15 @@ import struct
 
 LETRAS = set("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZÀÁÂÃÄÅÆÇÈÉÊËÌÍÎÏÑÒÓÔÕÖÙÚÛÜÝàáâãäåæçèéêëìíîïñòóôõöùúûüý0123456789")
 
+ASSINATURA_OLE = b"\xd0\xcf\x11\xe0\xa1\xb1\x1a\xe1"
+"""Magic do Compound File. Igual à de `natureza.ASSINATURAS`; duplicada para
+este módulo não importar o detector — parser não decide natureza."""
+
+
+def e_ole2(dados: bytes) -> bool:
+    """True só pela assinatura. Truncado ou corrompido ainda é 'parece OLE'."""
+    return dados.startswith(ASSINATURA_OLE)
+
 
 def _ole():
     import olefile
@@ -75,6 +84,8 @@ def texto_utf16_de_binario(dados: bytes, *, minimo: int = 4) -> str:
 
 
 def texto_de_doc(dados: bytes) -> str:
+    if not e_ole2(dados):
+        raise ValueError("conteúdo não é OLE2")
     olefile = _ole()
     ole = olefile.OleFileIO(io.BytesIO(dados))
     try:
@@ -119,6 +130,8 @@ def _ppt_registros(buf: bytes) -> list[str]:
 
 
 def texto_de_ppt(dados: bytes) -> str:
+    if not e_ole2(dados):
+        raise ValueError("conteúdo não é OLE2")
     olefile = _ole()
     ole = olefile.OleFileIO(io.BytesIO(dados))
     try:

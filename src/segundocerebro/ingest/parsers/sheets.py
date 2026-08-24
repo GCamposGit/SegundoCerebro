@@ -13,6 +13,7 @@ is recorded in the metadata rather than silently producing a blank document.
 
 from __future__ import annotations
 
+import html.parser
 import io
 import re
 from datetime import date, datetime
@@ -421,6 +422,243 @@ def _parse_xlsx(dados: bytes, nome: str) -> ParsedDoc:
     return ParsedDoc(name=nome, blocks=tuple(blocos), meta=meta)
 
 
+_MARCAS_DE_PLANILHA = (b"<html", b"<!doctype", b"<table", b"<?xml", b"<workbook")
+NS_SPREADSHEETML = "urn:schemas-microsoft-com:office:spreadsheet"
+
+
+def _parece_marcacao(dados: bytes) -> bool:
+    """HTML, SpreadsheetML ou tabela solta — o `.xls` que o Excel grava como web."""
+    if dados.startswith(b"\xff\xfe") or dados.startswith(b"\xfe\xff") or dados[:2] in (b"<\x00", b"\x00<"):
+        texto = dados.decode("utf-16", errors="ignore").lstrip().lower()
+        return texto.startswith(("<html", "<!doctype", "<table", "<?xml", "<workbook"))
+    cabeca = dados.lstrip(b"\xef\xbb\xbf \t\r\n")[:400].lower()
+    return any(cabeca.startswith(m) for m in _MARCAS_DE_PLANILHA)
+
+
+def _ole_criptografado(dados: bytes) -> bool:
+    """Office 2007+ agile encryption: OLE wrapping EncryptedPackage, not BIFF.
+
+    BIFF with FILEPASS still has a Workbook stream — xlrd raises
+    `Workbook is encrypted`, and `_abrir_xls` turns that into the same
+    Portuguese detail. This path exists because without it the registry
+    said `Can't find workbook in OLE2 compound document`.
+    """
+    from .ole_texto import e_ole2
+
+    if not e_ole2(dados):
+        return False
+    import olefile
+
+    try:
+        ole = olefile.OleFileIO(io.BytesIO(dados))
+    except Exception:  # noqa: BLE001 — magic matched, container didn't; xlrd reports
+        return False
+    try:
+        return ole.exists("EncryptedPackage") or ole.exists("EncryptionInfo")
+    finally:
+        ole.close()
+
+
+def _abrir_xls(dados: bytes, nome: str):  # noqa: ANN201 — Book do xlrd
+    import xlrd
+    from xlrd import XLRDError
+
+    try:
+        return xlrd.open_workbook(file_contents=dados, formatting_info=False)
+    except XLRDError as exc:
+        if "encrypted" in str(exc).lower():
+            raise ValueError("planilha criptografada; sem senha o conteúdo não é extraível") from exc
+        raise
+    except LookupError as exc:
+        detalhe = str(exc).lower()
+        if "codepage" not in detalhe and "unknown encoding" not in detalhe:
+            raise
+        log.info("%s: xlrd recusou a codepage (%s); nova tentativa com cp1252", nome, exc)
+        return xlrd.open_workbook(
+            file_contents=dados, formatting_info=False, encoding_override="cp1252"
+        )
+    except AssertionError as exc:
+        # Medido no corporativo: xlrd levanta AssertionError vazio num .xls
+        # real. Sem mensagem o registro gravava detalhe em branco e parecia
+        # parser mudo, não arquivo recusado.
+        motivo = str(exc).strip() or "sem mensagem"
+        raise ValueError(f"xlrd recusou o .xls ({motivo})") from exc
+
+
+def _local(tag: str) -> str:
+    return tag.rsplit("}", 1)[-1]
+
+
+def _attr(elem, nome: str) -> str | None:  # noqa: ANN001 — ElementTree
+    if nome in elem.attrib:
+        return elem.attrib[nome]
+    for chave, valor in elem.attrib.items():
+        if chave.endswith("}" + nome) or chave == nome:
+            return valor
+    return None
+
+
+class _TabelasHtml(html.parser.HTMLParser):
+    """Tabelas de um `.xls` que na verdade é HTML. Sem BeautifulSoup."""
+
+    def __init__(self) -> None:
+        super().__init__(convert_charrefs=True)
+        self.tabelas: list[list[list[str]]] = []
+        self.texto: list[str] = []
+        self._tabela: list[list[str]] | None = None
+        self._linha: list[str] | None = None
+        self._celula: list[str] | None = None
+        self._ignorar = 0
+
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+        tag = tag.lower()
+        if tag in ("script", "style"):
+            self._ignorar += 1
+            return
+        if self._ignorar:
+            return
+        if tag == "table":
+            self._tabela = []
+        elif tag == "tr" and self._tabela is not None:
+            self._linha = []
+        elif tag in ("td", "th") and self._linha is not None:
+            self._celula = []
+
+    def handle_endtag(self, tag: str) -> None:
+        tag = tag.lower()
+        if tag in ("script", "style") and self._ignorar:
+            self._ignorar -= 1
+            return
+        if self._ignorar:
+            return
+        if tag in ("td", "th") and self._celula is not None:
+            if self._linha is not None:
+                self._linha.append("".join(self._celula).strip())
+            self._celula = None
+        elif tag == "tr" and self._linha is not None:
+            if self._tabela is not None and any(self._linha):
+                self._tabela.append(self._linha)
+            self._linha = None
+        elif tag == "table" and self._tabela is not None:
+            if self._tabela:
+                self.tabelas.append(self._tabela)
+            self._tabela = None
+
+    def handle_data(self, data: str) -> None:
+        if self._ignorar:
+            return
+        if self._celula is not None:
+            self._celula.append(data)
+        elif self._tabela is None:
+            pedaco = data.strip()
+            if pedaco:
+                self.texto.append(pedaco)
+
+
+def _linhas_de_spreadsheetml(texto: str) -> list[tuple[str, list[tuple[int, list[str]]]]]:
+    import xml.etree.ElementTree as ET
+
+    raiz = ET.fromstring(texto)
+    saida: list[tuple[str, list[tuple[int, list[str]]]]] = []
+    for ws in raiz.iter():
+        if _local(ws.tag) != "Worksheet":
+            continue
+        nome = _attr(ws, "Name") or "Planilha"
+        linhas: list[tuple[int, list[str]]] = []
+        n_row = 0
+        for row in ws.iter():
+            if _local(row.tag) != "Row":
+                continue
+            n_row += 1
+            idx_row = int(_attr(row, "Index") or n_row)
+            n_row = idx_row
+            valores: list[str] = []
+            col = 0
+            for cell in row:
+                if _local(cell.tag) != "Cell":
+                    continue
+                col += 1
+                idx = int(_attr(cell, "Index") or col)
+                col = idx
+                if idx > MAX_COLUNAS:
+                    continue
+                while len(valores) < idx:
+                    valores.append("")
+                dados = [
+                    (c.text or "").strip()
+                    for c in cell.iter()
+                    if _local(c.tag) == "Data" and (c.text or "").strip()
+                ]
+                valores[idx - 1] = dados[0] if dados else ""
+            if _linha_util(valores):
+                linhas.append((idx_row, valores[:MAX_COLUNAS]))
+        if linhas:
+            saida.append((nome, linhas))
+    return saida
+
+
+def _parse_xls_marcacao(dados: bytes, nome: str) -> ParsedDoc:
+    """HTML ou SpreadsheetML 2003 com extensão `.xls`."""
+    from .text import decode
+
+    if dados.startswith((b"\xff\xfe", b"\xfe\xff")) or dados[:2] in (b"<\x00", b"\x00<"):
+        texto = dados.decode("utf-16", errors="replace")
+    else:
+        texto = decode(dados)
+
+    blocos: list[Block] = []
+    abas_truncadas: list[str] = []
+    abas_em_digesto: list[str] = []
+    digestos_parciais: list[str] = []
+    abas = 0
+    conteudo_real = "html"
+
+    if NS_SPREADSHEETML.encode() in dados[:8192] or "<Workbook" in texto[:800]:
+        try:
+            planilhas = _linhas_de_spreadsheetml(texto)
+        except Exception:  # noqa: BLE001 — XML mal formado cai no HTMLParser
+            planilhas = []
+        if planilhas:
+            conteudo_real = "xml"
+            abas = len(planilhas)
+            for titulo, linhas in planilhas:
+                _emitir_linhas_de_aba(
+                    titulo, linhas, blocos, abas_truncadas, digestos_parciais, abas_em_digesto
+                )
+
+    if not blocos:
+        parser = _TabelasHtml()
+        parser.feed(texto)
+        parser.close()
+        if parser.tabelas:
+            abas = len(parser.tabelas)
+            for i, tabela in enumerate(parser.tabelas, start=1):
+                titulo = "Planilha" if abas == 1 else f"Planilha {i}"
+                linhas = [(n, row[:MAX_COLUNAS]) for n, row in enumerate(tabela, start=1)]
+                _emitir_linhas_de_aba(
+                    titulo, linhas, blocos, abas_truncadas, digestos_parciais, abas_em_digesto
+                )
+        elif parser.texto:
+            abas = 1
+            blocos.append(
+                Block(
+                    heading_path=(),
+                    text="\n".join(parser.texto),
+                    locator="html",
+                    kind=BlockKind.SHEET,
+                )
+            )
+
+    meta = {"formato": "xls", "abas": str(abas), "conteudo_real": conteudo_real}
+    if abas_em_digesto:
+        meta["abas_em_digesto"] = ", ".join(sorted(set(abas_em_digesto)))
+    if digestos_parciais:
+        meta["digesto_parcial"] = ", ".join(sorted(set(digestos_parciais)))
+    if abas_truncadas:
+        meta["truncadas"] = ", ".join(sorted(set(abas_truncadas)))
+    return ParsedDoc(name=nome, blocks=tuple(blocos), meta=meta)
+
+
 def _formatar_xls(aba, linha: int, coluna: int) -> str:  # noqa: ANN001 — tipos do xlrd
     import xlrd
 
@@ -442,10 +680,19 @@ def _formatar_xls(aba, linha: int, coluna: int) -> str:  # noqa: ANN001 — tipo
 
 @register(".xls")
 def parse_xls(dados: bytes, nome: str) -> ParsedDoc:
-    """Excel 97-2003. Same block rules as xlsx — one row is not one chunk."""
-    import xlrd
+    """Excel 97-2003. Same block rules as xlsx — one row is not one chunk.
 
-    livro = xlrd.open_workbook(file_contents=dados, formatting_info=False)
+    Three lies this format tells, measured on the legacy pass: HTML (or
+    SpreadsheetML) saved as `.xls`, OLE wrapping EncryptedPackage, and a
+    CODEPAGE record xlrd cannot look up. The first two used to abort the
+    parser; the third too. Status is `erro` with a reason — never
+    `sem_parser`, which would hide a file we already know how to classify.
+    """
+    if _parece_marcacao(dados):
+        return _parse_xls_marcacao(dados, nome)
+    if _ole_criptografado(dados):
+        raise ValueError("planilha criptografada; sem senha o conteúdo não é extraível")
+    livro = _abrir_xls(dados, nome)
     blocos: list[Block] = []
     abas_truncadas: list[str] = []
     abas_em_digesto: list[str] = []
