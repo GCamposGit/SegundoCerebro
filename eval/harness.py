@@ -14,6 +14,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Protocol
 
+from .fonte import GRUPOS, grupo_de_pergunta
 from .idioma import CROSS_LINGUAL, EN, FATIAS, INDEFINIDO, MESMA_LINGUA, MISTO, NAO_DECLARADO, PT, detectar
 from .idioma import fatia as fatia_de
 from .metrics import MODO_QUALQUER, MODO_TODAS, media, ndcg_at_k, recall_at_k, reciprocal_rank
@@ -167,6 +168,14 @@ class Pergunta:
         """`mesma-língua`, `cross-lingual` ou `não declarado`."""
         return fatia_de(self.idioma_efetivo, self.idioma_fonte)
 
+    @property
+    def grupo_de_fonte(self) -> str:
+        """`escritório`, `reunião`, `email` ou `misto` — derivado de `fontes`.
+
+        Derivado e não anotado, ao contrário de `idioma_fonte`: o caminho da
+        fonte está aqui, então não há o que envelhecer. Ver `eval.fonte`."""
+        return grupo_de_pergunta(self.fontes)
+
 
 def carregar_perguntas(caminho: Path) -> list[Pergunta]:
     perguntas: list[Pergunta] = []
@@ -273,6 +282,7 @@ class Resultado:
         autoria: str | None = None,
         armadilha: bool | None = None,
         fatia: str | None = None,
+        grupo_de_fonte: str | None = None,
     ) -> list[ResultadoPergunta]:
         return [
             i
@@ -280,6 +290,7 @@ class Resultado:
             if (autoria is None or i.pergunta.autoria == autoria)
             and (armadilha is None or i.pergunta.armadilha == armadilha)
             and (fatia is None or i.pergunta.fatia == fatia)
+            and (grupo_de_fonte is None or i.pergunta.grupo_de_fonte == grupo_de_fonte)
         ]
 
     def por_fatia(self) -> list[tuple[str, list[ResultadoPergunta]]]:
@@ -290,6 +301,15 @@ class Resultado:
         fatia não foi calculada", que um relatório sem a linha não distingue —
         e a segunda é exatamente a lacuna que C4.5 existe para fechar."""
         return [(f, self.subgrupo(fatia=f)) for f in FATIAS]
+
+    def por_grupo_de_fonte(self) -> list[tuple[str, list[ResultadoPergunta]]]:
+        """Os quatro grupos de fonte, **inclusive os vazios**.
+
+        Mesmo argumento de `por_fatia`: grupo com n=0 aparece com o zero à
+        mostra. "Este acervo não tem email no dourado" e "o recorte por fonte
+        não foi calculado" são diagnósticos diferentes, e uma linha ausente não
+        os distingue."""
+        return [(g, self.subgrupo(grupo_de_fonte=g)) for g in GRUPOS]
 
     def restrito_ao_escopo(self) -> "Resultado":
         """Same result, keeping only the questions this phase can answer.
@@ -532,6 +552,30 @@ def render_markdown(resultado: Resultado, titulo: str, contexto: str = "") -> st
             "Sem as duas fatias povoadas não há razão a calcular. "
             "`py -m eval.idioma --base <id> --escrever` anota `idioma_fonte` a partir do índice."
         )
+    add("")
+
+    add("## Por tipo de fonte — onde o nome do arquivo ajuda e onde atrapalha")
+    add("")
+    add("Medido em 24/08/2026 e o motivo de o recorte existir: nas perguntas de reunião,")
+    add("**desligar o ranqueador de nome sobe o MRR 60%**, enquanto no conjunto inteiro ele")
+    add("continua se pagando. No documento de escritório o identificador **está** no nome;")
+    add("na transcrição o nome só tem assunto e data, e casa com qualquer pergunta que")
+    add("repita a palavra do assunto. Média agregada some com a troca inteira.")
+    add("")
+    add("O grupo é **derivado** do caminho da fonte (`eval/fonte.py`), não anotado — o")
+    add("dourado já carrega `fontes`, então não há anotação a envelhecer. `misto` é a")
+    add("pergunta cujas fontes caem em grupos diferentes: ela mede a **ponte** entre eles")
+    add("e não é somada a nenhum dos lados.")
+    add("")
+    add("| Grupo | n | " + " | ".join(f"recall@{k}" for k in no_escopo.ks) + f" | MRR@{K_MRR} | {CABECALHO_NDCG} |")
+    add(_alinhamento(no_escopo.ks))
+    for rotulo, itens in no_escopo.por_grupo_de_fonte():
+        if not itens:
+            add(f"| {rotulo} | 0 | " + " | ".join("—" for _ in no_escopo.ks) + " | — | " + " | ".join("—" for _ in KS_NDCG) + " |")
+            continue
+        vals = " | ".join(f"{Resultado.recall_de(itens, k):.3f}" for k in no_escopo.ks)
+        ndcgs = " | ".join(f"{Resultado.ndcg_de(itens, k):.3f}" for k in KS_NDCG)
+        add(f"| {rotulo} | {len(itens)} | {vals} | {Resultado.mrr_de(itens):.3f} | {ndcgs} |")
     add("")
 
     falhas = no_escopo.sem_nenhum_acerto

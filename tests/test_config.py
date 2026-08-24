@@ -525,6 +525,44 @@ def test_pesos_da_base_chegam_na_busca():
     assert not busca.usar_nome, "peso zero desliga o ranqueador, não entra com voz nula"
 
 
+def test_pesos_de_coluna_do_fts_chegam_na_busca():
+    """`C3.a`: a ponte dos pesos de coluna do bm25, que são de consulta."""
+    from segundocerebro.retrieve.hybrid import BuscaHibrida
+
+    base = Base(id="a", pesos=Pesos(fts_trilha=0.5, fts_caminho=0.3))
+    busca = BuscaHibrida.de_base(None, None, base)
+
+    assert busca.pesos_fts == (1.0, 0.5, 0.3)
+
+
+def test_pesos_de_coluna_padrao_nao_chegam_como_tripla():
+    """1/1/1 vira `None`, para o SQL ser o `bm25(chunks_fts)` que mediu F1 a F4.
+
+    Não é frescura: passar (1,1,1) daria o mesmo número por um caminho de código
+    que nunca foi medido, e é a classe de troca que já custou caro aqui.
+    """
+    from segundocerebro.retrieve.hybrid import BuscaHibrida
+
+    assert Pesos().colunas_fts is None
+    assert BuscaHibrida.de_base(None, None, Base(id="a")).pesos_fts is None
+
+
+def test_peso_de_coluna_negativo_e_recusado():
+    with pytest.raises(ErroDeConfig, match="fts_caminho"):
+        Pesos(fts_caminho=-0.1).validar("[base.pesos]")
+
+
+def test_lexical_ativo_com_as_tres_colunas_em_zero_e_recusado():
+    """Configuração que pede busca lexical e a deixa sem coluna nenhuma para ordenar."""
+    with pytest.raises(ErroDeConfig, match="colunas do bm25"):
+        Pesos(lexical=0.25, fts_texto=0, fts_trilha=0, fts_caminho=0).validar("[base.pesos]")
+
+
+def test_colunas_em_zero_passam_se_o_lexical_estiver_desligado():
+    """Sem ranqueador lexical não há bm25 a configurar — recusar seria zelo falso."""
+    Pesos(lexical=0, fts_texto=0, fts_trilha=0, fts_caminho=0).validar("[base.pesos]")
+
+
 def test_rerank_desligado_por_padrao():
     """Melhora a qualidade e custa 6,8× no tempo — o padrão é o tempo.
 

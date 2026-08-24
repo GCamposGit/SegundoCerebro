@@ -611,19 +611,40 @@ class Store:
             for i, linha in enumerate(linhas, start=1)
         ]
 
-    def buscar_lexical(self, texto: str, k: int) -> list[Acerto]:
+    def buscar_lexical(
+        self, texto: str, k: int, pesos_colunas: tuple[float, float, float] | None = None
+    ) -> list[Acerto]:
+        """Busca lexical. `pesos_colunas` são os pesos de `texto`, `trilha` e `caminho`.
+
+        `None` mantém `bm25(chunks_fts)` sem argumento — o padrão 1/1/1 do FTS5 e
+        o SQL exato que mediu tudo de F1 a F4. A alternativa (passar 1,1,1
+        sempre) daria o mesmo número em teoria e trocaria o caminho de código
+        medido por um equivalente não medido, o que já custou caro aqui.
+
+        Existe por causa de `C3.a`: com `caminho` valendo 1,0, o nome do arquivo
+        pontua **dentro** do bm25 e **de novo** na fusão, pelo `RanqueadorDeNome`.
+        O mesmo sinal vota duas vezes. Neste acervo, de nome informativo, isso
+        passa; num acervo de `IMG_2034.pdf` é ruído dobrado. O peso é de consulta,
+        não de índice — varrer não reindexa nada.
+        """
         expressao = consulta_fts(texto)
         if not expressao:
             return []
+        if pesos_colunas is None:
+            score = "bm25(chunks_fts)"
+            parametros: tuple[object, ...] = (expressao, k)
+        else:
+            score = "bm25(chunks_fts, ?, ?, ?)"
+            parametros = (*(float(p) for p in pesos_colunas), expressao, k)
         linhas = self.con.execute(
-            """
-            SELECT c.id AS id, bm25(chunks_fts) AS score
+            f"""
+            SELECT c.id AS id, {score} AS score
             FROM chunks_fts JOIN chunks c ON c.rowid = chunks_fts.rowid
             WHERE chunks_fts MATCH ?
             ORDER BY score
             LIMIT ?
             """,
-            (expressao, k),
+            parametros,
         ).fetchall()
         # bm25() do SQLite é negativo, mais negativo = melhor
         return [Acerto(id=l["id"], score=-float(l["score"]), posicao=i) for i, l in enumerate(linhas, start=1)]

@@ -132,6 +132,79 @@ def test_busca_lexical_ignora_acento(store: Store) -> None:
     assert store.buscar_lexical("classificacao inteligencia", 5)
 
 
+def test_pesos_de_coluna_do_bm25_invertem_nome_contra_conteudo(store: Store) -> None:
+    """`C3.a`: o mínimo que reproduz a dupla contagem do nome do arquivo.
+
+    Dois documentos sobre o mesmo termo. Num, ele está no **corpo**, num
+    parágrafo técnico; no outro, só no **nome do arquivo**. Com o padrão 1/1/1 do
+    FTS5 o segundo ganha — 1,52 contra 1,00 — e a razão não é ter um voto a mais:
+    é que `caminho` é um campo **curto**, e a normalização por comprimento do
+    bm25 premia o acerto no campo curto. O nome do arquivo não só vota dentro do
+    bm25, ele vota **amplificado**, antes de o `RanqueadorDeNome` votar de novo
+    na fusão.
+
+    Os oito documentos de enchimento existem para o IDF sair do degenerado: com
+    dois documentos os scores empatam em 1e-06 e a ordem vira desempate por
+    rowid, que não mede nada.
+    """
+    vetor = np.ones(DIM, dtype=np.float32) / np.sqrt(DIM)
+    corpo = (
+        "Este documento tecnico trata do contrato de energia e descreve as condicoes "
+        "de fornecimento, os prazos de vigencia, as penalidades aplicaveis e o "
+        "procedimento de reajuste anual acordado entre as partes envolvidas. "
+    ) * 3
+    chunks = [
+        chunk("conteudo", "pasta/laudo tecnico anexo iii.md", 0, corpo),
+        chunk("nome", "pasta/contrato de energia.md", 0, "Sumario executivo em uma linha."),
+        *(chunk(f"f{i}", f"pasta/nota {i}.md", 0, f"Assunto diverso numero {i}.") for i in range(8)),
+    ]
+    store.gravar_chunks(chunks, [vetor] * len(chunks), mtime=1.0)
+    store.commit()
+
+    padrao = [a.id for a in store.buscar_lexical("contrato", 5)]
+    sem_caminho = [a.id for a in store.buscar_lexical("contrato", 5, (1.0, 1.0, 0.0))]
+    pouco_caminho = [a.id for a in store.buscar_lexical("contrato", 5, (1.0, 1.0, 0.3))]
+
+    assert padrao[0] == "nome"
+    assert sem_caminho[0] == "conteudo"
+    assert "nome" not in sem_caminho[:1]
+    # 0,3 já basta para inverter: a coluna não precisa ser zerada para o corpo
+    # voltar à frente, o que importa porque zerar perde o acervo de nome bom.
+    assert pouco_caminho[0] == "conteudo"
+
+
+def test_pesos_de_coluna_nulos_mantem_o_sql_de_sempre(store: Store) -> None:
+    """`None` e (1,1,1) medem igual — e `None` é o SQL que produziu F1 a F4."""
+    vetor = np.ones(DIM, dtype=np.float32) / np.sqrt(DIM)
+    chunks = [
+        chunk("c1", "pasta/laudo tecnico.md", 0, "Este documento trata do contrato de energia."),
+        chunk("c2", "pasta/contrato de energia.md", 0, "Sumario executivo sem o termo no corpo."),
+    ]
+    store.gravar_chunks(chunks, [vetor, vetor], mtime=1.0)
+    store.commit()
+
+    assert [a.id for a in store.buscar_lexical("contrato", 5)] == [
+        a.id for a in store.buscar_lexical("contrato", 5, (1.0, 1.0, 1.0))
+    ]
+
+
+def test_peso_de_coluna_da_trilha_separa_secao_de_corpo(store: Store) -> None:
+    """A trilha é a terceira voz do bm25, e também é peso de consulta."""
+    vetor = np.ones(DIM, dtype=np.float32) / np.sqrt(DIM)
+    chunks = [
+        chunk("no_corpo", "a.md", 0, "O reajuste anual segue o indice contratado."),
+        chunk("na_trilha", "b.md", 0, "Texto neutro sem o termo.", trilha=("Reajuste",)),
+    ]
+    store.gravar_chunks(chunks, [vetor, vetor], mtime=1.0)
+    store.commit()
+
+    so_trilha = [a.id for a in store.buscar_lexical("reajuste", 5, (0.1, 1.0, 0.0))]
+    so_texto = [a.id for a in store.buscar_lexical("reajuste", 5, (1.0, 0.0, 0.0))]
+
+    assert so_trilha[0] == "na_trilha"
+    assert so_texto[0] == "no_corpo"
+
+
 def test_fts_acompanha_remocao(store: Store) -> None:
     c = chunk("c1", "a.md", 0, "termo-unico-xyz aparece aqui")
     store.gravar_chunks([c], [np.ones(DIM, dtype=np.float32) / np.sqrt(DIM)], mtime=1.0)

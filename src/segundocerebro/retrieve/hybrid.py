@@ -151,6 +151,7 @@ class BuscaHibrida:
         peso_denso: float = PESO_DENSO,
         peso_lexical: float = PESO_LEXICAL,
         peso_nome: float = PESO_NOME,
+        pesos_fts: tuple[float, float, float] | None = None,
         agrupar_familias: bool = AGRUPAR_FAMILIAS,
         glossario: Glossario | None = None,
         reranker=None,  # noqa: ANN001 — `rerank.Reranker`, opcional
@@ -167,6 +168,10 @@ class BuscaHibrida:
         self.peso_denso = peso_denso
         self.peso_lexical = peso_lexical
         self.peso_nome = peso_nome
+        # Pesos de coluna do bm25 (`texto`, `trilha`, `caminho`). `None` = padrão
+        # 1/1/1 do FTS5, que é o SQL medido de F1 a F4. Ver `C3.a` em
+        # `Store.buscar_lexical` e `config.Pesos.colunas_fts`.
+        self.pesos_fts = pesos_fts
         self.agrupar_familias = agrupar_familias
         # O denso **não** recebe a expansão de propósito: acrescentar sinônimo ao
         # texto move o vetor da consulta para a média dos termos, e o embedding
@@ -211,6 +216,7 @@ class BuscaHibrida:
             peso_denso=base.pesos.denso,
             peso_lexical=base.pesos.lexical,
             peso_nome=base.pesos.nome,
+            pesos_fts=getattr(base.pesos, "colunas_fts", None),
             agrupar_familias=getattr(base, "agrupar_familias", AGRUPAR_FAMILIAS),
             glossario=cls.glossario_de(base),
             reranker=cls.reranker_de(base),
@@ -276,7 +282,9 @@ class BuscaHibrida:
             de_denso = {a.id for a in acertos}
 
         if self.usar_lexical:
-            acertos = self.store.buscar_lexical(self.glossario.expandir(consulta), self.candidatos)
+            acertos = self.store.buscar_lexical(
+                self.glossario.expandir(consulta), self.candidatos, self.pesos_fts
+            )
             rankings.append([a.id for a in acertos])
             pesos.append(self.peso_lexical)
             de_lexical = {a.id for a in acertos}

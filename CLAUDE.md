@@ -384,10 +384,52 @@ Quatro coisas desta entrega que valem para as fases seguintes:
   Não é ajuste, é a classe do modelo — `R6.2` escolhe entre GPU (F3.6) ou outro
   reranqueador.
 
-**Próximo passo:** decidir sobre `Meetings/` (1.010 documentos, horas de
-indexação), o que resta da F4 (SharePoint, watcher, legado DOC/XLS) e a porta 3 —
-ver "onde o bm25 se paga". O multi-hop completo segue em 1 de 5, e há a primitiva
-para atacá-lo: o cliente compõe `search` → `neighbors`.
+**F4 — a dupla contagem do nome, refutada (`C3.a`) em 24/08/2026.** Ler
+`docs/ablacao-c3a-pesos-fts.md`. `Store.buscar_lexical` aceita pesos de coluna do
+`bm25()`, `[base.pesos]` ganhou `fts_texto`/`fts_trilha`/`fts_caminho`, e
+`eval/fonte.py` recorta todo relatório por **tipo de fonte** (reunião, email,
+escritório, misto), derivado do caminho da fonte.
+
+```bash
+py -m eval.varredura_fts --base padrao --glossario eval/glossario-teste.toml --out docs/metricas-c3a-pesos-fts.md
+```
+
+O nome do arquivo pontua duas vezes — na coluna `caminho` do FTS5 e no
+`RanqueadorDeNome` da fusão —, mas **as duas contagens não são intercambiáveis**.
+O grupo de reunião é **14× mais sensível** ao peso da fusão (amplitude 0,172) que
+à coluna do bm25 (0,005 a 0,012), e zerar a coluna custa de 0,023 a 0,062 de MRR
+agregado. `fts_caminho` fica em 1,0.
+
+Quatro coisas desta entrega que valem para as fases seguintes:
+
+- **Quando a régua cresce, o ótimo anterior tem de ser rederivado, não herdado.**
+  `nome = 0,25` domina o 0,5 que está no ar: MRR 0,680 → **0,684**, nDCG@5 0,682 →
+  **0,696**, MRR de reunião 0,287 → **0,409** (+43%), recall@1 igual, porta 3
+  intacta. O 0,5 saiu da varredura de 13/08, num dourado **sem nenhuma pergunta de
+  reunião** — elas entraram com a F4-M. Nenhum alarme dispara sozinho nesse caso:
+  o grupo novo é minoria e o agregado continua bonito.
+- **Teto medido antes de o pacote começar.** O melhor que o peso por tipo de fonte
+  pode dar põe o MRR agregado em **0,704** contra 0,684 do melhor global: +0,020,
+  e é teto de **oráculo** (supõe rotear pelo grupo da fonte esperada; o
+  recuperador só conhece o grupo do documento candidato). Se `F4-P` chegar perto
+  de 0,004, o peso global resolveu.
+- **Recorte derivável não se anota.** `idioma_fonte` precisa do índice e por isso é
+  anotação estática; grupo de fonte sai do caminho que o dourado já carrega. A
+  regra derivada errou na primeira versão por **prefixo de ordenação de pasta**
+  (`09. `, `10 - `, `260722_`): 14 dos 36 segmentos do dourado têm um, e ela media
+  10 reuniões onde já se sabia que eram 11 — número menor e plausível, então
+  passaria. Mesma classe dos cinco defeitos do grafo.
+- **Memo na fronteira do `Store`, não fusão paralela.** 18 braços em 4 minutos,
+  81% das buscas ao índice evitadas, e `BuscaHibrida` rodando inteira as 18 vezes.
+  Reimplementar a fusão offline seria mais rápido e seria o defeito de
+  `docs/porta-de-latencia.md` outra vez. `eval/test_memo.py` prova a equivalência.
+
+**Próximo passo:** `F4-P` (peso de nome por tipo de fonte, contra o teto de
++0,020), depois `C6` e `R6.1` — a onda 2 da §6 de `docs/colaboracao.md`. Segue em
+aberto: `Meetings/` já indexado mas o resto da F4 (SharePoint, watcher, legado
+DOC/XLS) não, e a porta 3 — ver "onde o bm25 se paga". O multi-hop completo segue
+em 1 de 5, e há a primitiva para atacá-lo: o cliente compõe `search` →
+`neighbors`.
 
 O que o corpus real ensinou e que não estava no plano — tratar na F1:
 famílias de versão (`_v6` não é o vigente), caminhos acima de 260 caracteres

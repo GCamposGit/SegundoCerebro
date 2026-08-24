@@ -211,8 +211,68 @@ Onda 1 do notebook:
 Depois da onda 1: `C6` (família de versões ≠ grupo de formatos), `F4-P`+`C3.a`,
 `R6.1`. **Não começar `retrieve/*` antes** — a régua tem de existir primeiro.
 
-**O que o notebook pega agora:** `C6` (família de versões ≠ grupo de formatos),
-`F4-P`+`C3.a` e `R6.1` — a onda 2, agora que a régua da onda 1 existe.
+**O que o notebook pega agora:** `F4-P`, depois `C6` e `R6.1` — a onda 2, agora
+que a régua da onda 1 existe.
+
+`C3.a` **fechado em 24/08/2026, com a hipótese refutada** —
+[`ablacao-c3a-pesos-fts.md`](ablacao-c3a-pesos-fts.md). A dupla contagem do nome
+do arquivo existe no mecanismo e não é ela que produz o efeito: o grupo de reunião
+é **14× mais sensível** ao peso do ranqueador de nome que à coluna `caminho` do
+bm25, e zerar a coluna custa de 0,023 a 0,062 de MRR agregado. `fts_caminho` fica
+em 1,0.
+
+Em troca, dois resultados que a onda 2 herda:
+
+- **`nome = 0,25` domina o 0,5 que está no ar** (MRR +0,004, nDCG@5 +0,013,
+  reunião +0,122, porta 3 intacta). O 0,5 saiu da varredura de 13/08, num dourado
+  **sem nenhuma pergunta de reunião** — quando a régua cresce, o ótimo anterior
+  tem de ser rederivado, não herdado. Não apliquei: quem decide o peso do nome é
+  `F4-P`, e mudar duas vezes em dois dias quebra a linha de base dele.
+- **`F4-P` começa com teto de oráculo de +0,020** de MRR agregado sobre o melhor
+  global. Se a implementação real ficar perto de 0,004, o peso global resolveu.
+
+Um pedaço de `C3.b–d` (expansão morfológica, frases, stoplist) **continua do
+desktop** na onda 6 e não foi tocado aqui — só `C3.a`.
+
+**Reportado e não corrigido, pela regra 8 da §4:** depois do merge do PR #14
+(`f6-pacote-pip`), três testes de `tests/test_pacote.py` falham neste notebook —
+`test_import_sem_pythonpath_de_system32`, `test_script_mcp_help_sem_pythonpath` e
+`test_scripts_painel_e_indexar_existem`. Reproduzem em worktree limpa de `main`,
+sem nenhuma mudança do notebook, e a causa é simples: **esta máquina nunca rodou
+`pip install -e .`**, e os três testes pressupõem os entry points instalados. O
+arquivo é do desktop e o pacote é `F6-A`, então quem decide é o dono: ou o teste
+salta quando o pacote não está instalado (`pytest.skip`, como a docstring já
+insinua ao dizer que "a suíte do CI instala o pacote"), ou fica exigindo o
+`pip install` e o notebook o faz. Hoje a suíte não é verde num clone que só usa
+`PYTHONPATH=src`, que é a instrução do `README`.
+
+**Ordem dentro da onda 2, e o motivo de não ser a da lista.** `C3.a` vem primeiro
+porque é a hipótese mais barata da onda e ela pode tornar as outras duas menores:
+se a dupla contagem do nome do arquivo explica a troca medida nas perguntas de
+reunião, a correção é um número de consulta, não uma classificação de documento
+no caminho de ranking. `R6.1` vem por último porque a grade do autotune tem de
+saber quais botões existem — `C3.a` e `F4-P` decidem isso.
+
+**Dois arquivos "um de cada vez" que o notebook pegou para o `C3.a`**, e devolve
+no merge:
+
+- `index/store.py`, só `buscar_lexical` — ganhou os pesos de coluna do `bm25()`.
+  O complemento já avisava que `store.py` é compartilhado e pedia combinar antes.
+  Nada do laço de indexação, nada de embedding.
+- schema de `config.py` — três campos novos em `[base.pesos]` (`fts_texto`,
+  `fts_trilha`, `fts_caminho`), todos em 1,0, que é o padrão do FTS5. **Não é
+  classe cara:** peso de coluna é de consulta e não reindexa nada.
+
+**A dependência que a fila declara e que o notebook não vai fingir que não existe.**
+A fila marca `F4-P` e `R6.1` como "depois de `R9.1`", e `R9.1` (perfis sintéticos)
+é do desktop e ainda não começou — não há branch. `C3.a` **não** depende dela: é
+medição no dourado corporativo. `F4-P` também mede aqui e o corporativo é o piso.
+Quem depende de verdade é o critério de aceite de `R6.1`, que pede dois acervos de
+características opostas (nome informativo contra `IMG_2034.pdf`) para provar que o
+autotune converge para pesos diferentes. Isso o notebook **não tem** e não pode
+inventar. Então `R6.1` entrega o mecanismo medido no corporativo e declara o
+critério de generalização como pendente de `R9.1`, em vez de dar o pacote por
+fechado com meia prova.
 
 ### Agora — desktop
 

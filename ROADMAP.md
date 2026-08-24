@@ -779,8 +779,9 @@ privada do desktop **não** trava nenhum destes:
 | R9.3 | Porta de latência, sobre índice inflado | notebook define, **desktop infla o índice** | **1** | ✅ **portas definidas** — ver [`docs/porta-de-latencia.md`](docs/porta-de-latencia.md); falta o índice inflado |
 | C1 | Política de particionamento + description gerada do censo | acordo; texto no `ARCHITECTURE.md` | **1** | **sim** — combinar quem escreve |
 | C6 | Família de versões ≠ grupo de formatos (**subordina R1.3**) | notebook (ranking) + desktop (hash/MinHash no censo) | 2 | depois da onda 1 |
-| F4-P + C3.a | Peso da coluna `caminho` no bm25 **e** peso por tipo de fonte | notebook | 2 | depois de R9.1 |
-| R6.1 | Autotune: peso por base, fábrica vira prior | notebook | 2 | depois de R9.1 |
+| C3.a | Peso da coluna `caminho` no bm25 | notebook | 2 | ✅ **fechado, hipótese refutada** — ver [`docs/ablacao-c3a-pesos-fts.md`](docs/ablacao-c3a-pesos-fts.md) |
+| F4-P | Peso de nome por tipo de fonte, com **teto medido** de +0,020 de MRR | notebook | 2 | **sim, agora** — o recorte por fonte já existe |
+| R6.1 | Autotune: peso por base, fábrica vira prior | notebook | 2 | mecanismo já; critério de generalização espera `R9.1` |
 | C7.a · C7.d | Fórmula sem cache (recálculo LibreOffice) · rota do CSV | **desktop** | 3 | **sim** — não depende da onda 1 |
 | R1.4 · R5.2 · R3.2 | Quarentena · orçamento de recursos · dois passes | **desktop** | 3 | **sim** — nenhum depende da onda 1 |
 | R4.1 · R3.3 | ANN · quantização INT8 | desktop | 4 | depois da porta de latência |
@@ -914,6 +915,54 @@ A próxima medição que falta é a **decomposição de `search`** — quanto é
 quanto é varredura densa, quanto é bm25 e nome. Sem ela, "ANN resolve" é
 hipótese. É a primeira coisa que `R4.1` deve medir.
 
+E uma limitação declarada em vez de escondida: **a porta não roda no CI.** Lá não
+há acervo, índice nem encoder. Ela é local e manual, antes de fundir mudança de
+ranking. Automatizá-la depende do índice sintético inflado, que é do desktop.
+
+### A dupla contagem do nome, refutada — `C3.a` fechado em 24/08/2026
+
+Leitura em [`docs/ablacao-c3a-pesos-fts.md`](docs/ablacao-c3a-pesos-fts.md);
+grade, referência, porta e regra em `eval/varredura_fts.py`, declaradas antes de
+rodar com a conclusão negativa junto. 18 braços em 4 minutos, condição C.
+
+O `C3.a` estava certo sobre o **mecanismo** — o nome do arquivo pontua dentro do
+bm25, pela coluna `caminho`, e de novo na fusão, pelo `RanqueadorDeNome` — e
+errado sobre o **efeito**. Nada do que `docs/dourado-cobertura.md` mediu vem da
+coluna do bm25:
+
+| eixo | amplitude do MRR das 11 perguntas de reunião |
+|---|---:|
+| `caminho` de 0 a 1,0 | 0,005 a 0,012 |
+| `nome` (fusão) de 0 a 0,5 | **0,172** |
+
+**14× mais sensível ao ranqueador da fusão que à coluna do bm25.** E a coluna
+`caminho` é monotônica para cima: zerá-la custa de 0,023 a 0,062 de MRR agregado,
+e 6,8 pontos de recall@1. Ela fica em 1,0 — `C3.a` não muda o FTS neste acervo.
+
+Três coisas que valem além do pacote:
+
+- **Quando a régua cresce, o ótimo anterior tem de ser rederivado, não herdado.**
+  O peso 0,5 do nome saiu da varredura de 13/08, num dourado **sem nenhuma
+  pergunta de reunião** — elas entraram com a `F4-M`, e `Meetings/` só foi
+  indexado depois. `nome = 0,25` domina 0,5 em recall@1 (empate), MRR (+0,004),
+  nDCG@5 (+0,013) e MRR de reunião (+0,122, ou +43%), com a porta 3 intacta.
+  Nenhum alarme dispara sozinho nesse caso: o grupo novo é minoria e o agregado
+  continua bonito. Foi o recorte que mostrou, como em `C4.5`.
+- **`F4-P` começa com teto medido, e é isso que a onda 1 comprou.** O melhor que o
+  peso por tipo de fonte pode dar é o ótimo de cada grupo — reunião com `nome` 0
+  (0,459) e escritório com 0,5 (0,761) —, o que põe o MRR agregado em **0,704**
+  contra 0,684 do melhor global. **+0,020**, e é teto de **oráculo**: supõe rotear
+  pelo grupo da fonte esperada, que o recuperador não sabe; ele só pode ponderar o
+  grupo do documento candidato. Se a implementação real ficar perto de 0,004, o
+  peso global resolveu e o mecanismo não se paga.
+- **Recorte por tipo de fonte é derivável; idioma de fonte não era.** O dourado já
+  carrega `fontes`, então o grupo sai do caminho e não envelhece — ao contrário de
+  `idioma_fonte`, que exige o índice e por isso é anotação estática (`C4.5`). A
+  regra derivada errou na primeira versão por causa de prefixo de ordenação de
+  pasta (`09. `, `10 - `, `260722_`): **14 dos 36 segmentos** do dourado real têm
+  um, e a regra media 10 reuniões onde já se sabia que eram 11. Corrigida, ela
+  reproduz `dourado-cobertura.md` em quatro números com três decimais.
+
 ### O que o dossiê chama de novo e já existe aqui
 
 - **`R1.3`, metade "dedup exato"**: já feito. O `sha256` marca `duplicado` sem
@@ -1045,6 +1094,14 @@ outro. **A primeira coisa que `F4-P` deve varrer é o peso da coluna `caminho` n
 bm25** — se a dupla contagem explica o efeito, a correção é mais barata e mais
 geral que um peso por tipo de fonte.
 
+**Varrido em 24/08/2026, e a resposta é não.** O mecanismo é real e o efeito não é
+dele: o grupo de reunião é 14× mais sensível ao peso do ranqueador de nome que à
+coluna `caminho`, e zerar a coluna custa MRR em todos os níveis de `nome`. Ver
+[`docs/ablacao-c3a-pesos-fts.md`](docs/ablacao-c3a-pesos-fts.md). Em troca a
+varredura entregou coisa melhor que um "não": `nome = 0,25` domina o 0,5 de hoje,
+e `F4-P` ganhou um **teto de oráculo** de +0,020 de MRR agregado para se conferir
+contra.
+
 ### Subordinações que o complemento declara, e que valem
 
 - **`C6` subordina `R1.3`.** Conferido: MinHash a 0,85 fundiria o que
@@ -1066,7 +1123,7 @@ geral que um peso por tipo de fonte.
 | Onda | Pacotes | Por que aqui |
 |---|---|---|
 | **1** | `R9.1`+`C5.b` (gerador, seed, manifesto) · `C4.5` (fatia cross-lingual no harness) · `R9.3` (porta de latência) · `C5.a` (porta de custo do MIRACL) · `R8.1`/`F6-A` (empacotamento) · `C1` (política de particionamento + description por censo) | **Instrumento e política antes de conclusão.** Nenhum decide ranking |
-| **2** | `C6` (família de versões ≠ grupo de formatos) · `F4-P`+`C3.a` (peso da coluna `caminho` e peso por tipo de fonte) · `R6.1` (autotune) | O ranking deixa de ter número global — e `C6` vem antes de `R1.3` |
+| **2** | ~~`C3.a`~~ (peso da coluna `caminho` — **fechado, refutado**) · `F4-P` (peso por tipo de fonte, teto medido de +0,020) · `C6` (família de versões ≠ grupo de formatos) · `R6.1` (autotune) | O ranking deixa de ter número global — e `C6` vem antes de `R1.3` |
 | **3** | `C7.a`+`C7.d` (fórmula sem cache, rota do CSV) · `R1.4` (quarentena) · `R5.2` (orçamento) · `R3.2` (dois passes) | Perda silenciosa de conteúdo e sobrevivência em máquina desconhecida |
 | **4** | `R4.1` (ANN) · `R3.3` (quantização) | Escala, contra a porta da onda 1 |
 | **5** | `R3.1`+`C4.1` (modelo, com fatia cross-lingual) · `R2.1` (contexto no chunk) · `C7.b`/`C7.c` (cartão de modelo) | Um rebuild coordenado paga os três primeiros |
@@ -1311,14 +1368,29 @@ contra 0,534). Ou seja: o peso certo do nome provavelmente **não é um número 
 é peso por tipo de fonte — no documento de escritório o identificador está no
 nome, na transcrição o nome só tem assunto e data. `n = 11` é sinal, não decisão.
 
+**O que `C3.a` já resolveu deste pacote, em 24/08/2026** — ver
+[`docs/ablacao-c3a-pesos-fts.md`](docs/ablacao-c3a-pesos-fts.md):
+
+- o braço "bm25 no padrão" está **medido e fechado**: `fts_caminho` e `fts_trilha`
+  ficam em 1,0, e a dupla contagem não é a causa do efeito;
+- o recorte por grupo de fonte **existe** (`eval/fonte.py`), sai em todo relatório
+  do harness e reproduz `dourado-cobertura.md` com três decimais;
+- há um **teto de oráculo**: +0,020 de MRR agregado sobre o melhor peso global. Se
+  a implementação chegar perto de 0,004, o peso global resolveu e o mecanismo não
+  se paga. O teto é otimista de propósito — supõe rotear pelo grupo da fonte
+  esperada, e o recuperador só conhece o grupo do documento candidato;
+- e a linha de base a bater deixou de ser a referência de hoje: é `nome = 0,25`
+  (MRR 0,684 · nDCG@5 0,696 · reunião 0,409), não `nome = 0,5`.
+
 - **Toca:** `retrieve/*`, `eval/*`, pesos da base corporativa — **não** `[padrao]`
   sem o desktop saber
 - **Não toca:** indexador, parsers
-- **Braços a medir:** bm25 no padrão; peso de nome por tipo de fonte; família de
-  renderização **colapsando irmãs no ranking** (não escolhendo por nome — a ordem
-  de preferência por nome foi medida e está errada, ver `docs/dourado-cobertura.md`)
-- **Saída:** decisão registrada, com armadilhas medidas e um número por grupo
-  de fonte
+- **Braços a medir:** peso de nome por tipo de fonte (pelo grupo do **documento**,
+  que é o que se sabe em tempo de consulta); família de renderização
+  **colapsando irmãs no ranking** (não escolhendo por nome — a ordem de
+  preferência por nome foi medida e está errada, ver `docs/dourado-cobertura.md`)
+- **Saída:** decisão registrada, com armadilhas medidas, um número por grupo de
+  fonte e a distância até o teto
 
 ---
 
