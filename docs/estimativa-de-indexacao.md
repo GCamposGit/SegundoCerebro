@@ -35,6 +35,22 @@ Quase 600× entre a mediana e o pior caso. "Documentos feitos ÷ total" é uma
 barra que anda em solavancos e mente nos dois sentidos: corre nas pastas de
 DOCX curtos e trava por horas numa planilha.
 
+O inverso também erra, e foi medido em 23/08/2026 numa pasta de 819 `.txt` de
+~19 kB (`docs/ablacao-f4-meetings.md`, corporativo, regra 8): **byte ponderado
+sozinho** promete 13 min (semente 50 s/MB) e o real são horas. Dois erros
+encadeados:
+
+1. A semente de extensão sem coeficiente era 50 s/MB (PDF). Transcrição é
+   texto puro: **496 s/MB**, a ordem do DOCX (522).
+2. Com arquivo de ~19 kB o custo é **overhead por documento** (~15 s de
+   abrir/parse/commit + ~9 s de byte). Previsto ≈ 1 s, medido 24,5 s: a
+   calibragem `medido/previsto` explode e multiplica o PDF que ainda falta.
+   A barra pediu 67 dias numa passada de ~4 h ativas.
+
+O modelo passou a ser `intercepto + s/MB × MB`. Byte ponderado continua o
+preditor certo para PDF/DOCX grandes; o intercepto impede a pasta de arquivo
+pequeno de contaminar o restante.
+
 ### 3. Usar tempo de parede
 
 64 h de parede contra ~39 h de trabalho efetivo neste run: **40% do relógio foi
@@ -68,7 +84,13 @@ registros consecutivos, descartando intervalos acima de 30 min):
 | `.pptx` | 124 | **3,8** | 2,84 | 8 |
 | `.pdf` | 602 | **48,7** | 1,69 | 16 |
 | `.xlsx` | 296 | **487,2** | 1,73 | 25 |
+| `.txt` `.csv` `.md` | 819 | **496** | — | 31 |
 | `.docx` | 353 | **522,5** | 2,50 | 7 |
+
+A linha `.txt` não é do run de 13–16/08: é a medição de 23/08 no corporativo
+(819 transcrições). Entra na semente porque a extensão sem coeficiente estava
+usando 50 e mentindo por um fator dez. `.csv` e `.md` herdam: são texto puro,
+não há medição própria.
 
 Duas leituras, e a segunda é a que desenha o estimador:
 

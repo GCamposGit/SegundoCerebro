@@ -20,6 +20,7 @@ cost debugging time if forgotten:
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 import re
 from collections.abc import Iterable, Sequence
@@ -33,6 +34,59 @@ from ..ingest.chunking import Chunk
 from ..logger import get_logger
 
 log = get_logger("index.store")
+
+NOME_DA_TRAVA = "indexacao.lock"
+"""Mesmo arquivo que `index.indexer.TravaDeIndice`. Duplicado de propósito:
+eval e a suíte precisam consultar a trava **sem** importar o indexador (GPU,
+encoder, laço)."""
+
+
+class IndiceEmEscrita(RuntimeError):
+    """Indexação viva neste diretório — o leitor recusa, não espera em silêncio."""
+
+
+def indexacao_viva(diretorio: Path) -> bool:
+    """Há um indexador vivo neste índice agora?
+
+    Não reimplementa o par pid+criação do `TravaDeIndice`: para recusar a suíte
+    basta o PID estar vivo. Falso positivo após reciclar PID é raro e o preço
+    é uma mensagem, não dois indexadores duplicando vetor.
+    """
+    marca = Path(diretorio) / NOME_DA_TRAVA
+    if not marca.exists():
+        return False
+    try:
+        bruto = marca.read_text(encoding="utf-8").strip()
+    except OSError:
+        return False
+    pid_texto, _, _ = bruto.partition(",")
+    if not pid_texto.isdigit():
+        return True
+    try:
+        os.kill(int(pid_texto), 0)
+    except OSError:
+        return False
+    except Exception:  # noqa: BLE001 — permissão: supor vivo
+        return True
+    return True
+
+
+def recusar_se_indexando(diretorio: Path) -> None:
+    """Levanta `IndiceEmEscrita` se a passada estiver viva.
+
+    Sem isto, `PRAGMA busy_timeout=15000` faz cada consulta da suíte esperar
+    15 s na trava de escrita do SQLite, em silêncio: 40 minutos sem uma linha.
+    Pausar o indexador (`comando.txt` = `pausar`) libera; esta função diz isso
+    em milissegundos.
+    """
+    if not indexacao_viva(diretorio):
+        return
+    comando = Path(diretorio) / "comando.txt"
+    raise IndiceEmEscrita(
+        f"o índice em {diretorio} está sendo escrito agora. "
+        f"Escreva 'pausar' em {comando} (ou cancele a passada) e rode de novo — "
+        "sem isso o SQLite espera a trava de escrita sem mensagem."
+    )
 
 ESQUEMA = """
 CREATE TABLE IF NOT EXISTS documentos (

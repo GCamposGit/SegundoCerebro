@@ -64,10 +64,15 @@ def _montar(args, cfg):  # noqa: ANN001
         return retriever, "Métricas F0 — baseline", contexto, None, retriever.universo
 
     from segundocerebro.index.embeddings import Embedder
-    from segundocerebro.index.store import Store
+    from segundocerebro.index.store import IndiceEmEscrita, Store, recusar_se_indexando
     from segundocerebro.retrieve.hybrid import BuscaHibrida
 
     indice = args.indice or args.base_cfg.indice
+    try:
+        recusar_se_indexando(indice)
+    except IndiceEmEscrita as erro:
+        log.error("%s", erro)
+        raise SystemExit(4) from erro
     embedder = Embedder(args.modelo or args.base_cfg.modelo, threads=args.threads)
     store = Store(indice, embedder.dim)
     estat = store.estatisticas()

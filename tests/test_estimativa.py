@@ -27,19 +27,28 @@ MB = 1_000_000
 
 
 def test_semente_cuda_nao_muda_a_tabela_cpu(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Hardware acelera a barra, não o coeficiente versionado da CPU."""
+    """Hardware acelera o encoder, não o intercepto de E/S."""
+    from segundocerebro.index.estimativa import SEGUNDOS_POR_DOCUMENTO
+
     monkeypatch.delenv("SEGUNDOCEREBRO_PROVIDER", raising=False)
     cpu = peso_de("a.pdf", MB)
     monkeypatch.setenv("SEGUNDOCEREBRO_PROVIDER", "cuda")
     gpu = peso_de("a.pdf", MB)
     assert gpu < cpu
-    assert cpu / gpu == pytest.approx(FATOR_GPU)
+    # Só a parte por MB cai 28×; o intercepto é o mesmo nos dois.
+    assert (cpu - SEGUNDOS_POR_DOCUMENTO) / (gpu - SEGUNDOS_POR_DOCUMENTO) == pytest.approx(
+        FATOR_GPU
+    )
 
 
 def test_formato_muda_o_peso_do_byte() -> None:
     """137× entre PPTX e DOCX por megabyte — imagem contra texto puro."""
+    from segundocerebro.index.estimativa import SEGUNDOS_POR_DOCUMENTO
+
     assert peso_de("a.pptx", MB) < peso_de("a.pdf", MB) < peso_de("a.xlsx", MB)
-    assert peso_de("a.docx", MB) / peso_de("a.pptx", MB) > 100
+    por_mb_docx = peso_de("a.docx", MB) - SEGUNDOS_POR_DOCUMENTO
+    por_mb_pptx = peso_de("a.pptx", MB) - SEGUNDOS_POR_DOCUMENTO
+    assert por_mb_docx / por_mb_pptx > 100
 
 
 def test_extensao_desconhecida_nao_vale_zero() -> None:
@@ -48,8 +57,13 @@ def test_extensao_desconhecida_nao_vale_zero() -> None:
     assert peso_de("sem_extensao", MB) > 0
 
 
-def test_peso_e_proporcional_ao_tamanho() -> None:
-    assert peso_de("a.pdf", 2 * MB) == pytest.approx(2 * peso_de("a.pdf", MB))
+def test_parte_por_megabyte_e_proporcional() -> None:
+    """O intercepto é fixo; dobrar o arquivo dobra só a parte por byte."""
+    um = peso_de("a.pdf", MB)
+    dois = peso_de("a.pdf", 2 * MB)
+    zero = peso_de("a.pdf", 0)
+    assert zero == pytest.approx(peso_de("b.docx", 0))
+    assert dois - um == pytest.approx(um - zero)
 
 
 # --- erro 1: denominador errado ----------------------------------------------
@@ -188,7 +202,36 @@ def test_faixa_humana_colapsa_quando_os_dois_lados_batem() -> None:
 
 def test_coeficientes_sao_os_medidos() -> None:
     """Se alguém mexer nestes números, é porque remediu — e o doc tem que mudar."""
-    assert SEGUNDOS_POR_MB == {"pptx": 3.8, "pdf": 48.7, "xlsx": 487.2, "docx": 522.5}
+    from segundocerebro.index.estimativa import SEGUNDOS_POR_DOCUMENTO
+
+    assert SEGUNDOS_POR_MB["pptx"] == 3.8
+    assert SEGUNDOS_POR_MB["pdf"] == 48.7
+    assert SEGUNDOS_POR_MB["xlsx"] == 487.2
+    assert SEGUNDOS_POR_MB["txt"] == 496.0
+    assert SEGUNDOS_POR_MB["docx"] == 522.5
+    assert SEGUNDOS_POR_DOCUMENTO == 15.0
+
+
+def test_txt_pequeno_nao_infla_o_restante_de_pdf() -> None:
+    """819 transcrições a 24,5 s não podem mandar o PDF que falta para 67 dias.
+
+    Sem intercepto, previsto ≈ 1 s e medido 24 s: a calibragem multiplica o
+    restante por ~25. Com intercepto, previsto ≈ medido e o PDF restante
+    continua na semente do PDF.
+    """
+    e = Estimador()
+    txts = [(f"{i}.txt", 19_000) for i in range(40)]
+    e.declarar([*txts, ("grande.pdf", 20 * MB)])
+    for i in range(40):
+        e.registrar(f"{i}.txt", 19_000, 24.5)
+    # Um PDF de 20 MB na semente CPU é minutos, não dias.
+    assert e.restante().p50 < 6 * 3600
+    assert e.restante().p90 < 24 * 3600
+
+
+def test_semente_txt_e_da_ordem_do_docx() -> None:
+    """Transcrição é texto puro; a semente 50 (PDF) era 10× baixa."""
+    assert peso_de("a.txt", MB) == pytest.approx(peso_de("a.docx", MB), rel=0.1)
 
 
 def test_arquivo_miudo_nao_joga_a_estimativa() -> None:
