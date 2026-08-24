@@ -781,7 +781,8 @@ privada do desktop **não** trava nenhum destes:
 | C1 | Política de particionamento + description gerada do censo | acordo; texto no `ARCHITECTURE.md` | **1** | **sim** — combinar quem escreve |
 | C6 | Família de versões ≠ grupo de formatos (**subordina R1.3**) | notebook (ranking) + desktop (hash/MinHash no censo) | 2 | depois da onda 1 |
 | C3.a | Peso da coluna `caminho` no bm25 | notebook | 2 | ✅ **fechado, hipótese refutada** — ver [`docs/ablacao-c3a-pesos-fts.md`](docs/ablacao-c3a-pesos-fts.md) |
-| F4-P | Peso de nome por tipo de fonte, com **teto medido** de +0,020 de MRR | notebook | 2 | **sim, agora** — o recorte por fonte já existe |
+| F4-P.0 | O eval mede o caminho entregue (`buscar_chunks`), aditivo | notebook | 2 | ✅ **fechado** — ver [`docs/ablacao-caminho-entregue.md`](docs/ablacao-caminho-entregue.md) |
+| F4-P | **Reconciliar os dois caminhos**: sinal de nome em `buscar_chunks`, sem votar em reunião | notebook | 2 | **sim, agora** — as duas colunas existem |
 | R6.1 | Autotune: peso por base, fábrica vira prior | notebook | 2 | mecanismo já; critério de generalização espera `R9.1` |
 | C7.a · C7.d | Fórmula sem cache (recálculo LibreOffice) · rota do CSV | **desktop** | 3 | **sim** — não depende da onda 1 |
 | R1.4 · R5.2 · R3.2 | Quarentena · orçamento de recursos · dois passes | **desktop** | 3 | **sim** — nenhum depende da onda 1 |
@@ -1013,6 +1014,58 @@ pasta (`09. `, `10 - `, `260722_`): **14 dos 36 segmentos** do dourado real têm
 e ela media 10 reuniões onde já se sabia que eram 11. Corrigida, reproduz
 `dourado-cobertura.md` em quatro números com três decimais.
 
+
+### O eval media o que o cliente não executa — `F4-P.0`, 24/08/2026
+
+Leitura em
+[`docs/ablacao-caminho-entregue.md`](docs/ablacao-caminho-entregue.md).
+Instrumento em `eval/entregue.py`, ligado por `--entregue`, **aditivo**: `search`
+segue sendo a série F0 → F4, porque trocar o recuperador canônico apagaria a
+comparabilidade entre fases.
+
+A ferramenta `search` do MCP chama `buscar_chunks` (`mcp/server.py:191`), onde o
+`RanqueadorDeNome` **não participa** — ele pontua documentos e não há posição de
+trecho honesta para dar a ele. Verificado no índice real, antes de escrever código:
+mudar `peso_nome` de 0,5 para 0 **não altera nada** em `buscar_chunks` e altera a
+ordem em `search` em todas as consultas. **O peso do nome é inerte em produção**, e
+`painel/medir.py:79` herda a cegueira — o controle do painel não move o número que
+o painel exige antes de salvar.
+
+No agregado os dois medem parecido, e é por isso que ninguém tinha reparado:
+
+| caminho | recall@1 | recall@5 | recall@10 | recall@20 | MRR@10 | nDCG@5 |
+|---|---:|---:|---:|---:|---:|---:|
+| `search` — a série | 0,551 | 0,797 | **0,907** | **0,955** | **0,680** | 0,682 |
+| `buscar_chunks` — o entregue | 0,551 | **0,805** | 0,881 | 0,921 | 0,671 | **0,693** |
+
+O recorte é que mostra, e ele corrige duas coisas:
+
+- **O caminho entregue é 3× melhor em reunião** — recall@1 **0,273** contra 0,091,
+  MRR **0,452** contra 0,287. Ele é, na prática, a configuração "sem ranqueador de
+  nome" que `docs/dourado-cobertura.md` mediu, e ganha isso de graça.
+- **E paga com a ponte PT↔EN.** O achado de manchete de `C4.5` — *"recall@20 é
+  1.000 na fatia cross-lingual: o documento é alcançado e mal ordenado, não é busca
+  que não encontra"* — **vale só em `search`**. No caminho entregue o recall@20
+  cross-lingual é **0,750**: três das doze não são alcançadas no top-20. Para um
+  quarto da fatia, no produto, é busca que não encontra. Corrigido em
+  [`docs/fatia-cross-lingual.md`](docs/fatia-cross-lingual.md).
+
+**Isto reescopa o `F4-P`** e invalida o teto de oráculo de +0,032, que foi
+calculado sobre `search`. O pacote deixa de ser afinação de peso e passa a ser a
+reconciliação: trazer o sinal de nome para o caminho de trecho **sem** deixá-lo
+votar em documento de reunião. Alvo declarado: reunião ≥ 0,452 de MRR e
+cross-lingual voltando a recall@20 = 1,000, sem perder o recall@1 de 0,551.
+
+Duas lições que valem além do pacote:
+
+- **Conferir qual caminho de código o produto executa vem antes de afinar peso
+  nele.** Custou três consultas e veio antes da primeira linha do `F4-P` — que
+  teria afinado um botão inerte contra um teto calculado no caminho errado.
+- **O princípio já estava escrito e não tinha sido aplicado.**
+  `docs/ablacao-familias.md` diz "ligado em `search` **e** em `buscar_chunks`, para
+  o que se mede ser o que se entrega". Vale conferir isso para **todo** sinal, não
+  só para o próximo — e a verificação é barata: variar o peso e ver se a saída
+  muda.
 
 ### O que o dossiê chama de novo e já existe aqui
 

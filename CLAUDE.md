@@ -436,10 +436,53 @@ pasta** (`09. `, `10 - `, `260722_`): 14 dos 36 segmentos do dourado têm um, e 
 media 10 reuniões onde já se sabia que eram 11 — número menor e plausível, então
 passaria. Mesma classe dos cinco defeitos do grafo.
 
-**Próximo passo:** `F4-P` (peso de nome por tipo de fonte, contra o teto de oráculo
-de **+0,032** e sabendo que **3 das 11 perguntas de reunião são cross-lingual** — a
-folga toda está na reunião, porque a referência já é o ótimo do escritório), depois
-`C6` e `R6.1` — a onda 2 da §6 de `docs/colaboracao.md`. Segue em
+**F4 — o eval passou a medir o caminho que o cliente recebe, em 24/08/2026.** Ler
+`docs/ablacao-caminho-entregue.md`. `eval/entregue.py` + `--entregue` no
+`eval.rodar`, **aditivo**: `search` continua sendo a série histórica F0→F4.
+
+```bash
+py -m eval.rodar --base padrao --retriever hibrido --sem-rerank --entregue --glossario eval/glossario-teste.toml --out docs/metricas-caminho-entregue.md
+```
+
+**São dois recuperadores, e o harness media o que o cliente não executa.** A
+ferramenta `search` do MCP chama `buscar_chunks` (`mcp/server.py:191`), onde o
+`RanqueadorDeNome` **não participa** — ele pontua documentos e não há posição de
+trecho honesta para dar a ele. Verificado no índice real antes de qualquer código:
+mudar `peso_nome` de 0,5 para 0 **não altera nada** em `buscar_chunks` e altera a
+ordem em `search` em todas as consultas. O peso do nome é **inerte em produção**.
+`painel/medir.py:79` herda a mesma cegueira.
+
+No agregado os dois medem parecido — recall@1 idêntico (0,551), o entregue ganha
+nDCG@5 (0,693 contra 0,682) e perde recall@10 (0,881 contra 0,907). **É o recorte
+que mostra**, e ele corrige duas coisas:
+
+- **O caminho entregue é 3× melhor em reunião** (recall@1 0,273 contra 0,091, MRR
+  0,452 contra 0,287): ele é, na prática, a configuração "sem ranqueador de nome"
+  que `docs/dourado-cobertura.md` mediu.
+- **E paga com a ponte PT↔EN.** O achado de manchete de
+  `docs/fatia-cross-lingual.md` — *"recall@20 é 1.000 na fatia cross-lingual, o
+  documento é alcançado e mal ordenado"* — **vale só em `search`**. No caminho
+  entregue é **0,750**: três das doze não são alcançadas no top-20. Para um quarto
+  da fatia, no produto, é busca que não encontra.
+
+Duas lições que valem além do pacote:
+
+- **Verificar qual caminho de código o produto executa vem antes de afinar peso
+  nele.** Isto foi achado ao começar o `F4-P`, com três consultas, antes de
+  escrever uma linha — e o `F4-P` teria afinado um botão que o cliente não lê,
+  contra um teto de oráculo (+0,032) calculado sobre o caminho errado.
+- **O princípio já estava escrito e não tinha sido aplicado.** `ablacao-familias.md`
+  diz "ligado em `search` **e** em `buscar_chunks`, para o que se mede ser o que se
+  entrega". Vale conferir isso para todo sinal, não só para o próximo.
+
+**Próximo passo:** `F4-P`, **reescopado pelo achado acima**. Deixou de ser afinação
+de peso e passou a ser a **reconciliação dos dois caminhos**: trazer o sinal de
+nome para `buscar_chunks` sem deixá-lo votar em documento de reunião. Alvo
+declarado — reunião ≥ **0,452** de MRR (o que o entregue já faz de graça) e
+cross-lingual voltando para recall@20 = **1,000** (o que só `search` faz hoje), sem
+perder o recall@1 de 0,551. O teto de oráculo de +0,032 **não vale**: foi calculado
+sobre `search`. Depois `C6` e `R6.1` — a onda 2 da §6 de `docs/colaboracao.md`.
+Segue em
 aberto: `Meetings/` já indexado mas o resto da F4 (SharePoint, watcher, legado
 DOC/XLS) não, e a porta 3 — ver "onde o bm25 se paga". O multi-hop completo segue
 em 1 de 5, e há a primitiva para atacá-lo: o cliente compõe `search` →

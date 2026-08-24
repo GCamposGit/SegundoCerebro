@@ -133,6 +133,18 @@ def _montar(args, cfg):  # noqa: ANN001
         "As métricas são no nível de **documento**: o conjunto dourado aponta arquivos, "
         "e cada documento é ranqueado pelo seu melhor trecho."
     )
+    if getattr(args, "entregue", False):
+        from .entregue import CaminhoEntregue
+
+        retriever = CaminhoEntregue(interno=retriever)
+        contexto += (
+            "\n**Caminho medido: o que o cliente MCP recebe** (`buscar_chunks`), e não"
+            " o `search` de nível de documento que o resto da série usa. A diferença que"
+            " importa: o `RanqueadorDeNome` **não participa** deste caminho — ele pontua"
+            " documentos, e não há posição de trecho honesta para dar a ele. Ver"
+            " `eval/entregue.py`."
+        )
+
     if getattr(args, "com_grafo", False):
         from .com_grafo import ComSaltoNoGrafo
 
@@ -221,6 +233,12 @@ def main(argv: list[str] | None = None) -> int:
         "--sem-rerank",
         action="store_true",
         help="desliga o reranking mesmo que a base o configure — é o braço de ablação",
+    )
+    parser.add_argument(
+        "--entregue",
+        action="store_true",
+        help="mede `buscar_chunks` (o que o MCP entrega) em vez de `search` (o que a "
+        "série histórica mede). Aditivo: não substitui a série",
     )
     parser.add_argument(
         "--com-grafo",
