@@ -753,3 +753,146 @@ def test_eval_recusa_base_inexistente(tmp_path, sem_env):
     cfg = tmp_path / "config.toml"
     cfg.write_text('[[base]]\nid = "a"\n', encoding="utf-8")
     assert main(["--config", str(cfg), "--base", "fantasma"]) == 2
+
+
+# --------------------------------------------------------------------------- #
+# Exclusão por papel — padrão de nome com escopo de pasta
+#
+# A §6 de docs/colaboracao.md pedia que a exclusão por papel morasse na
+# configuração da base, e não em código do indexador. Mora aqui. O escopo de
+# pasta é o que a medição de 24/08/2026 exigiu (docs/ablacao-f4-meetings.md):
+# glob solto casa pelo nome em qualquer lugar da raiz, e dois `*_relatorio.pdf`
+# fora da árvore de reuniões seriam descartados em silêncio — um deles a única
+# cópia da sua reunião.
+
+
+def test_papel_chega_no_censo_com_escopo_de_pasta(tmp_path):
+    caminho = escrever(
+        tmp_path,
+        """
+        [[base]]
+        id = "a"
+        raizes = [{ nome = "docs", caminho = 'C:\\Docs' }]
+
+        [[base.exclude.papel]]
+        dirs = ["Meetings", "09. Meetings"]
+        globs = ["*_relatorio.pdf", "*_context.txt"]
+        """,
+    )
+    censo = carregar(caminho, ambiente=SEM_AMBIENTE).base("a").censo()
+
+    assert len(censo.role_exclusions) == 1
+    assert censo.excluded_file("x_relatorio.pdf", "Meetings/reuniao-1")
+    assert censo.excluded_file("x_relatorio.pdf", "09. Meetings/reuniao-1")
+    assert not censo.excluded_file("x_relatorio.pdf", "02. Novos Negócios/Fibra")
+    assert not censo.excluded_file("x_transcript.txt", "Meetings/reuniao-1")
+
+
+def test_papel_aceita_tabela_em_linha(tmp_path):
+    """As duas escritas do TOML descrevem a mesma coisa e têm de dar no mesmo."""
+    caminho = escrever(
+        tmp_path,
+        """
+        [[base]]
+        id = "a"
+        [base.exclude]
+        globs = ["*.bak"]
+        papel = [{ dirs = ["Meetings"], globs = ["*_relatorio.pdf"] }]
+        """,
+    )
+    base = carregar(caminho, ambiente=SEM_AMBIENTE).base("a")
+
+    assert base.exclude_roles[0].dirs == ("Meetings",)
+    assert base.exclude_roles[0].globs == ("*_relatorio.pdf",)
+    assert "*.bak" in base.exclude_globs, "o glob solto continua valendo ao lado do papel"
+
+
+def test_papel_do_padrao_e_herdado_pelas_bases(tmp_path):
+    caminho = escrever(
+        tmp_path,
+        """
+        [[padrao.exclude.papel]]
+        dirs = ["Meetings"]
+        globs = ["*_context.txt"]
+
+        [[base]]
+        id = "a"
+
+        [[base]]
+        id = "b"
+        [[base.exclude.papel]]
+        globs = ["*.rascunho"]
+        """,
+    )
+    cfg = carregar(caminho, ambiente=SEM_AMBIENTE)
+
+    assert len(cfg.base("a").exclude_roles) == 1
+    # a base soma à herança, não substitui — igual a dirs e globs
+    assert len(cfg.base("b").exclude_roles) == 2
+
+
+def test_papel_sem_globs_e_erro(tmp_path):
+    """Regra que não exclui nada é pior que erro: parece proteção e não é."""
+    caminho = escrever(
+        tmp_path,
+        """
+        [[base]]
+        id = "a"
+        [[base.exclude.papel]]
+        dirs = ["Meetings"]
+        """,
+    )
+    with pytest.raises(ErroDeConfig, match="globs"):
+        carregar(caminho, ambiente=SEM_AMBIENTE)
+
+
+def test_papel_recusa_chave_desconhecida(tmp_path):
+    caminho = escrever(
+        tmp_path,
+        """
+        [[base]]
+        id = "a"
+        [[base.exclude.papel]]
+        pastas = ["Meetings"]
+        globs = ["*.pdf"]
+        """,
+    )
+    with pytest.raises(ErroDeConfig, match="pastas"):
+        carregar(caminho, ambiente=SEM_AMBIENTE)
+
+
+def test_exclude_recusa_chave_desconhecida(tmp_path):
+    """`papeis` em vez de `papel` seria ignorado em silêncio — e o corpus inteiro
+    entraria na fila sem ninguém notar."""
+    caminho = escrever(
+        tmp_path,
+        """
+        [[base]]
+        id = "a"
+        [base.exclude]
+        papeis = [{ globs = ["*.pdf"] }]
+        """,
+    )
+    with pytest.raises(ErroDeConfig, match="papeis"):
+        carregar(caminho, ambiente=SEM_AMBIENTE)
+
+
+def test_gravar_preserva_papel(tmp_path):
+    from segundocerebro.census import RoleExclusion
+
+    destino = tmp_path / "config.toml"
+    antes = Config(
+        bases=(
+            Base(
+                id="a",
+                exclude_roles=(
+                    RoleExclusion(globs=("*_relatorio.pdf",), dirs=("Meetings",)),
+                    RoleExclusion(globs=("*.rascunho",)),
+                ),
+            ),
+        )
+    )
+    gravar(antes, destino)
+
+    depois = carregar(destino, ambiente=SEM_AMBIENTE).base("a")
+    assert depois.exclude_roles == antes.bases[0].exclude_roles

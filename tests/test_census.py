@@ -294,3 +294,120 @@ def test_censo_percorre_pasta_com_caminho_acima_de_260(tmp_path: Path) -> None:
     finally:
         # tmp_path não consegue limpar sozinho uma árvore acima de 260
         shutil.rmtree(caminho_estendido(str(root)), ignore_errors=True)
+
+
+# --- Exclusão por papel: padrão de nome com escopo de pasta ------------------
+#
+# Medido em 24/08/2026 (`docs/ablacao-f4-meetings.md`): a pasta de saída do
+# aplicativo de reuniões nomeia o relatório renderizado `*_relatorio.pdf`, e
+# dois arquivos com essa mesma forma moram fora da árvore de reuniões — um deles
+# a única cópia da sua reunião. Glob solto o descartaria em silêncio, que é o
+# modo de falha que estes testes existem para travar.
+
+
+@pytest.fixture
+def corpus_com_papeis(tmp_path: Path) -> RootSpec:
+    root = tmp_path / "acervo"
+    (root / "Meetings" / "reuniao-1").mkdir(parents=True)
+    (root / "Meetings-2026").mkdir()
+    (root / "Negocios" / "Fibra").mkdir(parents=True)
+
+    (root / "Meetings" / "reuniao-1" / "x_260804_154113_relatorio.pdf").write_bytes(b"x" * 900)
+    (root / "Meetings" / "reuniao-1" / "x_260804_154113_transcript.txt").write_bytes(b"x" * 90)
+    (root / "Meetings" / "reuniao-1" / "x_260804_154113_context.txt").write_bytes(b"x" * 30)
+    (root / "Meetings-2026" / "y_260101_090000_relatorio.pdf").write_bytes(b"x" * 800)
+    (root / "Negocios" / "Fibra" / "z_260708_185914_Relatorio.pdf").write_bytes(b"x" * 700)
+    return RootSpec(name="acervo", path=root)
+
+
+def papeis_de_reuniao() -> tuple[census_mod.RoleExclusion, ...]:
+    return (
+        census_mod.RoleExclusion(
+            globs=("*_relatorio.pdf", "*_context.txt"),
+            dirs=("Meetings",),
+        ),
+    )
+
+
+def enumerados(corpus: RootSpec, cfg: Config) -> set[str]:
+    return {f.rel for f in census_mod.iter_files(corpus, cfg)}
+
+
+def test_papel_exclui_dentro_da_pasta_e_preserva_fora(corpus_com_papeis: RootSpec) -> None:
+    cfg = Config(roots=[corpus_com_papeis], role_exclusions=papeis_de_reuniao())
+
+    vistos = enumerados(corpus_com_papeis, cfg)
+
+    assert "Meetings/reuniao-1/x_260804_154113_relatorio.pdf" not in vistos
+    assert "Meetings/reuniao-1/x_260804_154113_context.txt" not in vistos
+    # o conteúdo da reunião fica
+    assert "Meetings/reuniao-1/x_260804_154113_transcript.txt" in vistos
+    # e o arquivo de mesma forma fora da árvore de reuniões NÃO sai
+    assert "Negocios/Fibra/z_260708_185914_Relatorio.pdf" in vistos
+
+
+def test_papel_nao_vaza_para_pasta_que_so_comeca_igual(corpus_com_papeis: RootSpec) -> None:
+    """`dirs = ["Meetings"]` não pode alcançar `Meetings-2026`.
+
+    Prefixo de string casaria; prefixo de *caminho* não. A diferença é uma pasta
+    inteira excluída por engano.
+    """
+    cfg = Config(roots=[corpus_com_papeis], role_exclusions=papeis_de_reuniao())
+
+    assert "Meetings-2026/y_260101_090000_relatorio.pdf" in enumerados(corpus_com_papeis, cfg)
+
+
+def test_papel_sem_dirs_vale_em_qualquer_pasta(corpus_com_papeis: RootSpec) -> None:
+    cfg = Config(
+        roots=[corpus_com_papeis],
+        role_exclusions=(census_mod.RoleExclusion(globs=("*_relatorio.pdf",)),),
+    )
+
+    vistos = enumerados(corpus_com_papeis, cfg)
+
+    assert not [v for v in vistos if v.lower().endswith("_relatorio.pdf")]
+
+
+def test_papel_casa_pasta_aninhada_e_ignora_caixa(corpus_com_papeis: RootSpec) -> None:
+    """Windows não distingue caixa em caminho, e o usuário digita como quiser."""
+    cfg = Config(
+        roots=[corpus_com_papeis],
+        role_exclusions=(
+            census_mod.RoleExclusion(globs=("*_transcript.txt",), dirs=("meetings/REUNIAO-1",)),
+        ),
+    )
+
+    assert "Meetings/reuniao-1/x_260804_154113_transcript.txt" not in enumerados(
+        corpus_com_papeis, cfg
+    )
+
+
+def test_papel_conta_como_excluido_no_censo(corpus_com_papeis: RootSpec) -> None:
+    resultado = run_census([corpus_com_papeis], Config(roots=[corpus_com_papeis], role_exclusions=papeis_de_reuniao()))
+
+    assert resultado.excluded_files == 2
+    assert resultado.total.files == 3
+
+
+def test_load_config_le_papel(tmp_path: Path) -> None:
+    caminho = tmp_path / "census.toml"
+    caminho.write_text(
+        """
+[[roots]]
+name = "acervo"
+path = 'C:\\acervo'
+
+[[exclude.papel]]
+dirs = ["Meetings", "09. Meetings"]
+globs = ["*_relatorio.pdf"]
+""",
+        encoding="utf-8",
+    )
+
+    cfg = load_config(caminho)
+
+    assert len(cfg.role_exclusions) == 1
+    assert cfg.role_exclusions[0].dirs == ("Meetings", "09. Meetings")
+    assert cfg.role_exclusions[0].globs == ("*_relatorio.pdf",)
+    # e as exclusões técnicas continuam valendo
+    assert "~$*" in cfg.exclude_globs

@@ -117,6 +117,30 @@ raizes = [
 [base.exclude]
 dirs = ["Backups"]
 
+# Exclusao por PAPEL: padrao de nome, mas so dentro de certas pastas.
+#
+# Existe para pasta cujos arquivos carregam o papel no nome — a saida de um
+# aplicativo, por exemplo, que para cada item deixa o conteudo, um andaime e um
+# relatorio renderizado do mesmo conteudo. Nem teto de MB nem extensao separam
+# esses tres: o que os separa e o sufixo do nome.
+#
+# O escopo de pasta NAO e enfeite. Medido em docs/ablacao-f4-meetings.md,
+# 24/08/2026: dois arquivos com a forma exata do relatorio redundante moravam
+# fora da arvore que os produz, e um deles era a unica copia do seu assunto. Glob
+# solto em `globs` casa pelo nome em qualquer lugar da raiz e o descartaria em
+# silencio; `papel` com `dirs` mantem fora os redundantes e deixa esse um dentro.
+#
+# `dirs` sao prefixos de caminho relativos a raiz, com `/`, insensiveis a caixa.
+# Sem `dirs`, a regra vale em qualquer pasta e equivale a um glob solto.
+# `globs` e obrigatorio: regra que nao exclui nada parece protecao e nao e.
+#
+# [[base.exclude.papel]]
+# dirs = ["Reunioes", "09. Reunioes"]
+# globs = ["*_contexto.txt", "*_relatorio.pdf"]
+#
+# A mesma regra existe em [[padrao.exclude.papel]], e a base soma a heranca em
+# vez de substituir — igual a `dirs` e `globs`.
+
 # Teto em MB por tipo, ao indexar. 0 = sem teto. Arquivo maior fica `adiado`
 # (não some) e não trava a GPU. Não é o tamanho do trecho — aquele está em
 # [padrao.chunking] e reindexa tudo. Padrão: 2 MB em .txt e .csv; o resto livre.
