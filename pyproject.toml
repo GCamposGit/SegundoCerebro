@@ -23,6 +23,11 @@ gpu = [
     "nvidia-cufft-cu11==10.9.0.58",
     "nvidia-curand-cu11==10.3.0.86",
 ]
+# Declared now so `pip install .[ocr]` is a real extra when F4-O lands.
+# Nothing in the default install or the dispatcher imports this yet.
+ocr = [
+    "rapidocr-onnxruntime>=1.3,<2",
+]
 
 [project.scripts]
 segundocerebro-censo = "segundocerebro.census:main"

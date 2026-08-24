@@ -25,3 +25,41 @@ jobs:
 
       - name: Run test suite
         run: python -m pytest tests/ eval/ -q
+
+  # R8.1: the layperson path is `pip install` + one command, on any OS.
+  # Full pytest stays on Windows — the corpus and the long-path/cloud
+  # attribute tests are of that machine. This job only proves the wheel
+  # imports and the entry point answers --help without PYTHONPATH.
+  install-smoke:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, ubuntu-latest, macos-latest]
+        python-version: ["3.12"]
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: "pip"
+
+      - name: Install package
+        run: pip install -e .
+
+      - name: Import without PYTHONPATH
+        shell: bash
+        run: |
+          unset PYTHONPATH
+          python -c "import segundocerebro; from segundocerebro.mcp.server import main"
+
+      - name: Entry point --help
+        shell: bash
+        run: |
+          unset PYTHONPATH
+          segundocerebro-mcp --help
+          segundocerebro-painel --help
+          segundocerebro-indexar --help
+          segundocerebro-censo --help

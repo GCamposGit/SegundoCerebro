@@ -35,7 +35,9 @@ def test_pyproject_le_dependencias_do_requirements() -> None:
     assert scripts["segundocerebro-mcp"].endswith("mcp.server:main")
     assert scripts["segundocerebro-painel"].endswith("painel.__main__:main")
     assert scripts["segundocerebro-indexar"].endswith("index.indexer:main")
-    assert "gpu" in pyproject["project"]["optional-dependencies"]
+    extras = pyproject["project"]["optional-dependencies"]
+    assert "gpu" in extras
+    assert "ocr" in extras
 
 
 def test_import_sem_pythonpath_de_system32() -> None:
