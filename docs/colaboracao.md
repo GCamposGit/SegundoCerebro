@@ -175,80 +175,33 @@ em [`docs/portabilidade-f36.md`](portabilidade-f36.md).
 
 ## 6. O que cada lado faz nesta fase
 
-**Estado em 24/08/2026.** F1, F2, F3, F3.5 e F3.6 fechadas. F4 **em curso**, e é
-a única fase aberta. `main` = `677fa22`, PRs #2 a #6 mergeados. Suíte padrão
-neste desktop depois do #6: **732** verdes (`tests/` + `eval/`). Índice
-corporativo do notebook: **1.828 documentos, 97.981 trechos**.
+**Estado em 24/08/2026.** F1–F3.6 fechadas. F4 **em curso**, F6 (primeiro uso
+leigo) **pode correr em paralelo**. `main` = `57d6f74` (PRs #2 a #9). O que
+está aberto não se lista aqui: virou **pacote** no `ROADMAP.md` (seção
+“Pacotes”). Esta seção só diz o que cada lado **pega agora**, para as listas
+de path não se cruzarem.
 
-Histórico das entregas fechadas (smoke CUDA, pipeline, sintético, portabilidade,
-rerank na GPU, perfil leve, limites por tipo, painel 18787, grafo, `neighbors`,
-`.msg`/`.eml`, versão de parser, fila em ondas, OLE legado) está nos PRs #2 a #6
-e nos `docs/` que cada um cita. Não repetir a lista aqui: ela envelheceu duas
-vezes em três dias. Esta seção passa a dizer só **o que está aberto**.
+### Agora — notebook
 
-### Aberto — notebook
+**F4-M.** `[base.excluir]` + cortar `Meetings/` por papel. Schema de
+`config.py`, filtro em `iter_files`/`census.py`, testes. **Não** o laço do
+indexador. Enquanto este PR não mergear, o desktop não edita `config.py` nem
+`painel/*`.
 
-**1. `Meetings/`, a passada que está pausada agora.** É o número que o
-fechamento do email deixou pendurado, e o levantamento está em
-[`docs/ablacao-f4-meetings.md`](ablacao-f4-meetings.md): 1.009 arquivos, **169
-reuniões**, 6,0 arquivos por reunião. A passada parou em **234 de 833**
-documentos (`index/comando.txt` = `pausar`), e o que ela estava indexando no
-momento da pausa é um `_context.txt` — **andaime**, o prompt que o aplicativo
-monta, não a reunião.
+Medir OLE no dourado corporativo é depois da passada; não bloqueia o F4-M.
 
-Por isso o próximo passo não é “continuar”: é **cortar a fila por papel** e só
-então continuar. O levantamento já mediu três redundâncias, todas antes de
-gastar a passada — 280 arquivos de andaime, 177 PDFs que são 188/188 redundantes
-com um `.txt` do próprio conjunto (381 dos 397 MB, 5 h a 11 h), e 263 duplicatas
-exatas entre `Meetings/` e `09. Meetings/`. Sobram as transcrições, e delas há
-**três renderizações do mesmo áudio** por reunião.
+### Agora — desktop
 
-Isto encosta na fila em ondas do desktop (#6) e é o primeiro caso real em que
-uma **regra de exclusão por papel dentro da pasta** não cabe em teto de MB nem
-em extensão. Proposta do notebook, a validar: a exclusão mora na configuração da
-base (`[base.excluir]` por padrão de nome), não em código do indexador — assim o
-notebook não reescreve `indexer.py`, que é do desktop.
+A Bain de legado segue no fundo (`leve`, GPU 1). Código, em paralelo:
 
-**2. Repescagem do legado com o parser do desktop.** O `ole_texto.py` do #6 e a
-versão de parser no registro do #5 se encontram: `_precisa_indexar` já repesca
-por `estado.parser != parser`, então os 10 `.doc`/`.xls` que a F4 tinha deixado
-fora entram sozinhos na próxima passada. Falta **medir** no dourado corporativo.
-Convergência não planejada dos dois lados — vale registrar que funcionou.
+1. **F4-L** — `.xls` HTML/criptografado, `.ppt` que não é OLE2, codepage do
+   `xlrd`. `sheets.py` / `ole_texto.py` / `slides.py`. Sobe versão de parser se
+   o texto mudar.
+2. **F4-W** — `index/watcher.py` **arquivo novo**. Não reescreve o laço.
+3. **F6-A** — `pyproject.toml` para `pip install -e .` sem `PYTHONPATH`.
 
-**3. O que resta da F4 depois disso:** SharePoint via pasta sincronizada,
-watcher, e a porta 3 (“onde o bm25 se paga”). Multi-hop completo segue em 1 de 5.
-
-### Aberto — desktop
-
-**1. Estimativa em pasta de arquivo pequeno.** Achado do notebook em
-`Meetings/` (regra 8, `docs/ablacao-f4-meetings.md`): a semente de `.txt` está
-dez vezes baixa (496 s/MB, perto do DOCX), e com arquivos de ~19 kB o custo é
-overhead por documento, não por byte. A barra chegou a pedir dezenas de dias
-numa passada de horas. O arquivo a corrigir é
-[`docs/estimativa-de-indexacao.md`](estimativa-de-indexacao.md) e
-`index/estimativa.py` — dono: desktop. Não é `[padrao]`.
-
-**2. Suíte que trava — não fica lenta — com a passada viva.** Os testes de
-`eval/` esperam a trava de escrita do SQLite sem timeout. Pausar com
-`comando.txt` fecha a suíte; o CI nunca vê, porque lá não há índice real. Falta
-mensagem ou recusa explícita, para o próximo não gastar quarenta minutos.
-
-**3. Não começar** `[padrao]`, `Chunking`, `model_id`, `retrieve/*`, nem
-reabrir o laço do `indexer.py` enquanto o notebook corta `Meetings/` por papel.
-
-### Aberto — os dois, e precisa de acordo
-
-**`[base.excluir]` por padrão de nome.** Proposta do notebook para andaime e
-PDF redundante em `Meetings/`: a exclusão mora na configuração da base, não no
-laço. O desktop **concorda com o lugar** (config, não `indexer.py`). O schema
-de `config.py` é “um de cada vez”: quem for escrever o PR declara antes.
-
-**Nome real em documento público.** `docs/colaboracao.md` citava o nome de um
-cliente real ao explicar o `parser=` do #6 (corrigido neste PR para “a base
-privada do desktop”). O repositório é público e a regra de saneamento do
-`CLAUDE.md` vale para os dois lados, não só para o acervo corporativo: nome de
-cliente, de fornecedor ou de projeto real não entra em doc, docstring nem
-mensagem de commit. O vocabulário de exemplo é a VCE.
+**Não começar** `[padrao]`, `Chunking`, `model_id`, `retrieve/*`, `config.py`,
+`painel/*` (estão com o F4-M).
 
 ### Não é de ninguém, daqui
 
@@ -293,3 +246,4 @@ seção 1?** Se sim, pede mudança. Se não, o CI decide.
 | Commitar perguntas ou caminhos do acervo novo privado | o mesmo vazamento que tirou o dourado corporativo do Git |
 | Começar o pipeline GPU antes do smoke | dias de código sobre runtime que o Maxwell não carrega |
 | Deixar a entrega só no stash | o outro computador não tem; as ondas ficaram cegas até o #6 |
+| Esperar a barra para escrever código | ociosidade; o parser com versão alcança o disco na passada seguinte |

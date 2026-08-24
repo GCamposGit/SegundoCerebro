@@ -1,7 +1,10 @@
 # Roadmap — Segundo Cérebro RAG
 
-Cada fase tem **critério de saída verificável**. Nenhuma fase começa antes da
-anterior passar no seu critério.
+Cada fase tem **critério de saída verificável**. Nenhuma fase *nova* começa
+antes da anterior passar no seu critério. O que **resta** de uma fase aberta
+entra em **pacotes** (ver abaixo): um PR, um dono, lista de paths fechada.
+Indexação de horas não é pacote e **não bloqueia** o próximo PR — parser com
+versão alcança o que já está no disco na passada seguinte.
 
 ---
 
@@ -743,6 +746,43 @@ Int8 na CPU continua sendo alavanca do notebook, não desta fase.
 
 ---
 
+## Pacotes — avançar enquanto a indexação corre
+
+> **Acrescentado em 24/08/2026.** Duas máquinas, indexações de horas e uma suíte
+> que trava se os dois mexem no mesmo arquivo. Fases F0–F3.6 estão fechadas; o
+> que sobra não é “esperar a barra”. É um PR por vez **por path**, em paralelo
+> entre os dois lados.
+
+**Regra de um pacote**
+
+| Campo | Valor |
+|-------|--------|
+| Dono | desktop **ou** notebook, nunca os dois |
+| Paths | lista fechada no PR; o outro lado não toca |
+| Saída | teste na suíte padrão (`tests/` + `eval/`, sem GPU, sem `perguntas.jsonl`) |
+| Indexação | o indexador segue no fundo. Código novo vale na **próxima** passada |
+| Schema / painel / `ROADMAP.md` | um de cada vez, como já era (`docs/colaboracao.md` §1) |
+
+Dois pacotes só voam juntos se as listas de path **não se intersectam**.
+`ingest/parsers/__init__.py` (despachante) é o mesmo contrato de `mcp/server.py`.
+
+**Fila agora** (24/08/2026). A passada OLE da Bain no desktop **não** trava
+nenhum destes:
+
+| # | Pacote | Dono | Começa já? |
+|---|--------|------|------------|
+| F4-M | `[base.excluir]` + `Meetings/` por papel | notebook | **sim** |
+| F4-L | OLE que mente a extensão (HTML/criptografado/codepage) | desktop | **sim** |
+| F4-W | Watcher (processo à parte, não o laço) | desktop | **sim** |
+| F6-A | `pip install` sem `PYTHONPATH=src` | desktop | **sim** |
+| F4-O | OCR de PDF digitalizado | a combinar (despachante) | depois de F4-M mergear |
+| F4-S | SharePoint = pasta sincronizada, só política e tela | notebook | depois de F4-M (painel) |
+| F4-P | Porta 3, bm25 | notebook | precisa do dourado **depois** de Meetings |
+| F6-B | Primeira base no painel, zero terminal | quem não estiver no painel | depois de F4-M ou F4-S |
+| F5 | Segundo usuário, ACL | ninguém | gatilho: segundo usuário real |
+
+---
+
 ## F4 — Grafo derivado, SharePoint e automação
 
 O que dá profundidade ao multi-hop. Deliberadamente **depois** da F3, porque só
@@ -752,7 +792,9 @@ com o traço real de uso fica claro quais arestas o modelo aproveita.
 > [`docs/ablacao-f4-grafo.md`](docs/ablacao-f4-grafo.md). As duas metades do
 > critério de saída estão cumpridas para esta parte: métricas da F2 **idênticas**
 > (recall@1 0,667, MRR 0,787, nDCG@5 0,793) e o caso plano → norma respondível só
-> pela aresta. Falta desta fase: SharePoint, watcher, MSG/EML e legado.
+> pela aresta. MSG/EML e legado OLE **entraram**. Falta desta fase, em pacotes:
+> F4-M (Meetings), F4-W (watcher), F4-S (SharePoint pasta sincronizada), F4-L
+> (OLE que mente), F4-O (OCR).
 >
 > **O "só" foi verificado, não presumido.** A norma não aparece em `search` com
 > k=10, nem k=20, nem quando a consulta nomeia a norma. A razão é estrutural:
@@ -792,17 +834,17 @@ com o traço real de uso fica claro quais arestas o modelo aproveita.
   constrói (medido na F2)
 - ✅ Grafo em SQLite (tabela `mencoes`); ferramenta `neighbors` andando por ele,
   com o **motivo** de cada ligação e peso por raridade do identificador
-- SharePoint corporativo via pasta sincronizada, com a política de placeholders
-  da F1 aplicada
-- Watcher para reindexação automática
 - ✅ **MSG/EML** — 48 `.msg` e um `.pdf` com conteúdo MIME saíram de `sem_parser`.
-  Legado DOC/XLS (10 arquivos) continua fora: mesmo container OLE, mas extrair
-  texto de `.doc` binário não é tabela de nomes de stream, e sem número no
-  dourado não há justificativa. Ver [`docs/ablacao-f4-email.md`](docs/ablacao-f4-email.md)
-- ✅ **Conjunto dourado ampliado** para as fontes novas: `g001`, `g011` e `g033`
-  perderam a anotação `fora_de_escopo: email`, e o motivo `email` saiu do catálogo
-  do harness junto com a entrega — motivo que sobrevive à própria correção é
-  desculpa disponível. Sobram três exclusões, todas `ocr`
+  Ver [`docs/ablacao-f4-email.md`](docs/ablacao-f4-email.md)
+- ✅ **Legado DOC/XLS/PPT/RTF** — parsers em bytes, sem COM (`ole_texto.py`,
+  `xlrd`). Qualidade abaixo de OOXML, aceito. O que falta não é “ter parser”:
+  é arquivo que **mente a extensão** (F4-L) e **número no dourado** (notebook).
+- ✅ Fila em ondas, versão de parser, estimativa com intercepto por documento
+- ✅ **Conjunto dourado ampliado** para email: `g001`, `g011` e `g033` perderam
+  `fora_de_escopo: email`. Sobram exclusões `ocr` (F4-O)
+
+O que **falta** da F4 virou pacote, não lista solta. Definição abaixo, depois da
+saída e do orçamento do email.
 
 **Saída:** métricas de F2 **não regridem** com o corpus ampliado, e existe uma
 pergunta multi-hop que **só** é respondível via `neighbors` — a prova de que o
@@ -831,6 +873,147 @@ grafo derivado carrega informação que a busca sozinha não alcança.
 > medida num corpus 39% menor que o disco. Nenhuma conclusão registrada muda (cada
 > uma diz qual corpus mediu), mas indexar isso é o próximo número a decidir, e é
 > decisão do usuário: custa horas.
+
+### Pacotes que fecham a F4
+
+Cada um é um PR. Saída da fase: F4-M medido no dourado + F4-W verde na suíte +
+F4-S documentado no painel. F4-O (OCR) pode ficar para depois se o orçamento
+da porta 5 continuar a tratar digitalizado como fora de escopo — mas o leigo
+com scanner não espera.
+
+#### F4-M — `[base.excluir]` e `Meetings/` por papel — **notebook**
+
+O levantamento está em [`docs/ablacao-f4-meetings.md`](docs/ablacao-f4-meetings.md).
+Não continuar a passada pausada: o que estava em voo é andaime (`_context.txt`).
+
+- **Toca:** schema de `config.py` (`[base.excluir]` por padrão de nome), filtro
+  em `census.py` / `iter_files` (não no laço do indexador), `config.example.toml`,
+  testes de config e de censo, `eval/` se o dourado ganhar pergunta de reunião
+- **Não toca:** `index/indexer.py`, `index/embeddings.py`, `retrieve/*` (salvo
+  se a medição pedir, e aí é outro PR), `ingest/parsers/*`
+- **Saída:** andaime e PDF redundante de reunião **não entram** na enumeração;
+  um teste com `tmp_path` prova o padrão; a passada corporativa de transcrições
+  (não de `_context`) fecha com número no dourado
+- **Paralelo à indexação do desktop:** sim. Schema é “um de cada vez”: enquanto
+  este PR não mergear, o desktop **não** edita `config.py` nem `painel/*`
+
+#### F4-L — OLE que mente — **desktop**
+
+Parsers existem. O que a passada da Bain mostrou: `.xls` que é HTML ou está
+criptografado, `.ppt` que não é OLE2, `xlrd` recusando codepage. Status vira
+`erro` com detalhe; não volta a `sem_parser`.
+
+- **Toca:** `ingest/parsers/sheets.py` (`.xls`), `ingest/parsers/ole_texto.py`,
+  `ingest/parsers/slides.py` (`.ppt` se o conteúdo for OOXML disfarçado),
+  testes em `tests/test_ingest.py` / fixture `tests/cfb.py`. **Sobe a versão do
+  parser** se o texto extraído mudar
+- **Não toca:** `mail.py`, despachante, `indexer.py`, `retrieve/*`, `config.py`
+- **Saída:** HTML-como-xls e PPTX-como-ppt não derrubam a passada; teste com
+  bytes sintéticos (VCE, sem arquivo real)
+- **Paralelo:** sim. A passada em curso usa o parser velho; a próxima repesca
+  por versão
+
+#### F4-W — Watcher — **desktop**
+
+Processo à parte. Não é o laço do indexador: observa a raiz e dispara
+`indexer --prefixo` / documento único. Sem IPC novo — o contrato é o de
+`comando.txt` + `progresso.json`.
+
+- **Toca:** `src/segundocerebro/index/watcher.py` (**arquivo novo**),
+  `tests/test_watcher.py`, `requirements.txt` (`watchdog`, hoje comentado),
+  um atalho em `scripts/` se precisar. Opcional: uma linha no painel **só
+  depois** de F4-M soltar o painel
+- **Não toca:** laço de `indexer.py` (chama o módulo, não reescreve),
+  `retrieve/*`, schema de `config.py`
+- **Saída:** criar/alterar um `.txt` em `tmp_path` dispara indexação; placeholder
+  de nuvem **não** é aberto; dois watchers no mesmo índice recusam pela trava
+- **Paralelo:** sim. Não precisa do índice Bain
+
+#### F4-S — SharePoint via pasta sincronizada — **notebook** (depois de F4-M)
+
+A política de placeholder já está no `reader.py` (F1). O que falta é o leigo
+entender e o painel mostrar “arquivo só na nuvem”. Graph API continua F5.
+
+- **Toca:** `painel/*` (depois de F4-M), docs de uso, talvez um status
+  `placeholder` mais visível na barra
+- **Não toca:** `indexer.py`, parsers
+- **Saída:** a tela distingue placeholder de arquivo local; teste sem OneDrive
+  real (atributo fabricado)
+
+#### F4-O — OCR — **a combinar** (depois de F4-M)
+
+Três perguntas do dourado ainda são `fora_de_escopo: ocr`. Parser novo = bump de
+versão + despachante. Dois PRs se o OCR entrar no laço e no ranking.
+
+- **Toca:** módulo novo em `ingest/parsers/`, uma linha no despachante, testes
+  com PDF sintético digitalizado (não o acervo)
+- **Não toca:** `retrieve/*` no mesmo PR
+- **Saída:** um PDF sem camada de texto vira trechos; as três perguntas perdem
+  a anotação `ocr` **só** com número antes/depois no corporativo
+
+#### F4-P — Porta 3, onde o bm25 se paga — **notebook**
+
+Só depois de Meetings no índice e no dourado. Ranking não muda sem número.
+
+- **Toca:** `retrieve/*`, `eval/*`, pesos da base corporativa — **não** `[padrao]`
+  sem o desktop saber
+- **Não toca:** indexador, parsers
+- **Saída:** decisão registrada: bm25 no padrão ou perfil `significado`, com
+  armadilhas medidas
+
+---
+
+## F6 — Primeiro uso em máquina desconhecida
+
+> **Acrescentada em 24/08/2026.** Não é a F5: não há segundo usuário, ACL nem
+> API paga. É o buraco entre “os dois setups usam o repo” e “um leigo instala
+> numa pasta qualquer e pergunta”. Pode **correr em paralelo com a F4** — não
+> precisa do dourado corporativo nem das 980 Ti.
+
+**Saída da fase:** numa máquina Windows sem o nosso `config.toml`, em ≤ 30 min,
+o usuário aponta uma pasta, espera a barra, liga um cliente MCP e recebe trecho
+com arquivo + seção. Sem editar `PYTHONPATH`. Sem saber o que é `sm_52`.
+
+### F6-A — Pacote pip — **desktop** (já)
+
+Hoje `pyproject.toml` declara o pacote mas `dependencies = []` e o servidor
+ainda pede `PYTHONPATH=src`. O leigo cai em `ModuleNotFoundError`, que o
+cliente MCP mostra como “não conecta”.
+
+- **Toca:** `pyproject.toml` (deps a partir de `requirements.txt`), scripts de
+  entrada (`segundocerebro-painel`, `segundocerebro-indexar`),
+  `requirements-gpu.txt` como extra `[gpu]`, teste de instalação em venv
+  fresco **sem** `PYTHONPATH`
+- **Não toca:** laço do indexador, `retrieve/*`, schema, painel
+- **Saída:** `pip install -e .` e `segundocerebro-mcp --base sintetico` sobe
+  do `C:\Windows\System32` como o teste do Claude Desktop já prova o bloco
+
+### F6-B — Estágio 0 do painel, zero terminal — **depois do painel livre**
+
+O painel já cria base e mostra custo. Falta o caminho único: pasta → indexar →
+botão “ligar no Claude Desktop / Grok”.
+
+- **Toca:** `painel/*` apenas
+- **Não toca:** ranking, `indexer.py`
+- **Saída:** um teste HTTP do estágio 0 que não exige GPU
+
+### F6-C — Hardware: CPU padrão, CUDA opcional — **desktop**
+
+- **Toca:** `index/smoke_cuda.py`, `index/esforco.py`, docs de F3.6, extra
+  `[gpu]`. **Não** põe `cuda` em `model_id`
+- **Não toca:** `retrieve/*`, chunking
+- **Saída:** numa máquina sem NVIDIA a indexação é CPU e a suíte padrão passa;
+  com GPU incompatível (CUDA 13, MiniLM-Q) o smoke recusa em português
+
+### F6-D — Uma página em português — **qualquer lado, arquivo novo**
+
+- **Toca:** `docs/comecar.md` (novo). Não reescrever `CLAUDE.md`
+- **Saída:** instalar, apontar pasta, esperar barra, perguntar. Sem jargão de
+  fase. O vocabulário de exemplo é a VCE
+
+**Teste da fase, numa máquina que não é a nossa:** Windows sem NVIDIA, pasta
+nova, corpus sintético, um cliente MCP. Enquanto isso não passou, não é
+produto — é o laboratório dos dois setups.
 
 ---
 

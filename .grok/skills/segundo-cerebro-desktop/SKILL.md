@@ -21,9 +21,9 @@ O outro lado é Claude Code no notebook, dono dos números corporativos.
 2. `git pull origin main`. Trabalhe numa branch `f36-*` ou `onboarding-*`,
    nunca em `main`. **Não deixe trabalho só no stash:** cada fase vira commit
    na branch e PR. O notebook só vê o que está em `main`.
-3. Depois de `colaboracao.md`, leia a §6 (“o que está aberto”) e só então o
-   `ROADMAP.md` da fase. Se precisar editar o ROADMAP, avise o notebook antes:
-   dois no mesmo dia perdem a decisão no merge.
+3. Depois de `colaboracao.md`, leia a §6 e a seção **Pacotes** do `ROADMAP.md`.
+   Um pacote = um PR = lista de paths. Não pegue pacote do notebook. Se precisar
+   editar o ROADMAP, avise antes.
 4. Declare na primeira resposta: setup=desktop, branch, fase, o que não vai
    tocar.
 
@@ -36,10 +36,9 @@ neste clone: 732 verdes (`tests/` + `eval/`).
 A lista de entregas fechadas vive na §6 de `colaboracao.md`, num lugar só.
 Não repetir aqui — envelhece.
 
-**O que está na sua mão agora:** estimativa em arquivo pequeno (semente de
-`.txt` e overhead por documento) e a suíte que trava no SQLite com a passada
-viva. Ver §6. **Não** reabrir o laço do indexador enquanto o notebook corta
-`Meetings/` por papel.
+**O que está na sua mão agora:** pacotes F4-L (OLE que mente), F4-W (watcher)
+e F6-A (`pip install` sem `PYTHONPATH`). A indexação da Bain corre no fundo e
+**não** é desculpa para ficar ocioso. **Não** pegar F4-M (`config.py`, painel).
 
 ## Você pode
 
