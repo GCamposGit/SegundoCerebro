@@ -59,6 +59,14 @@ def f_duplicatas(rng, n, ext):
     return docs, ps
 
 def f_cross_lingual(rng, n, ext):
+    """A unica fatia em que `idioma` e `idioma_fonte` divergem -- e o ponto dela.
+
+    As outras dez declaram `pt` nos dois. Declarar e diferente de omitir: com
+    `idioma_fonte` omitido, `harness.Pergunta.fatia` devolve `nao declarado` para
+    **todas**, a fatia cross-lingual sai de tamanho zero e o relatorio sai
+    parecendo aprovado -- que e o achado 3 do laudo, palavra por palavra o que o
+    `eval/golden/README.md` avisou que aconteceria.
+    """
     docs, ps = [], []
     for i in range(n):
         proj, emp = f"Projeto {V.PROJETOS[i % 10]}-X{i:02d}", rng.choice(V.EMPRESAS)
@@ -68,14 +76,14 @@ def f_cross_lingual(rng, n, ext):
                  f"a total budget of USD {orc:,} for {proj}. Vendor: {emp}.\n")
             d = mkdoc(f"04. Projetos/{proj}", "Steering committee memo", t, ext()); docs.append(d)
             ps.append(perg(f"q-cl-{i:03d}", "cross_lingual", f"Qual o orcamento total aprovado para o {proj}?",
-                           f"USD {orc:,}", [d.caminho], idioma="pt->en",
+                           f"USD {orc:,}", [d.caminho], idioma="pt", idioma_fonte="en",
                            armadilha="pergunta PT, documento EN", feature_alvo="C4/R3.1/R6.2"))
         else:
             m = rng.randrange(4, 36)
             t = f"RELATORIO DE PLANEJAMENTO R-CL-{i:03d}\n{proj}\nPrazo de conclusao estimado: {m} meses.\nFornecedora: {emp}.\n"
             d = mkdoc(f"04. Projetos/{proj}", "Relatorio de planejamento", t, ext()); docs.append(d)
             ps.append(perg(f"q-cl-{i:03d}", "cross_lingual", f"What is the estimated completion deadline for {proj}?",
-                           f"{m} meses", [d.caminho], idioma="en->pt",
+                           f"{m} meses", [d.caminho], idioma="en", idioma_fonte="pt",
                            armadilha="pergunta EN, documento PT", feature_alvo="C4/R3.1/R6.2"))
     return docs, ps
 

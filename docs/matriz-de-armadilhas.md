@@ -1,4 +1,4 @@
-# Matriz de armadilhas — gerador sintético (`E1`/`E2`) — v0.2
+# Matriz de armadilhas — gerador sintético (`E1`/`E2`) — v0.3
 
 Mapeamento fatia ↔ pacote do roadmap. **Toda ablação reporta a tabela por fatia;
 média agregada não decide nada** (protocolo `E3`).
@@ -58,14 +58,50 @@ CSVs de 4.000 linhas, por construção.
 ## Campos de cada pergunta (`perguntas.sintetico.jsonl`)
 
 ```
-id, fatia, pergunta, resposta_esperada, docs_relevantes,
-criterio (qualquer|todas), tipo, idioma, armadilha, feature_alvo, meta
+id, armadilha_fatia, pergunta, resposta_esperada, docs_relevantes,
+criterio (qualquer|todas), tipo, idioma, idioma_fonte, armadilha,
+feature_alvo, meta
 ```
 
 `meta` carrega `familia`, `docs_distratores`, `condicao`/`par_id`, `canonico`,
 `subtipo`. Métricas que saem daí sem mudar o harness: duplicatas@10
 (`meta.familia`), precisão contra distratores (`meta.docs_distratores`), Δ
-taxonomia vs plana (`meta.par_id`).
+taxonomia vs plana (`meta.par_id`). O adaptador os preserva no arquivo, fora de
+`Pergunta` — o harness ignora chave que não conhece.
+
+**`armadilha_fatia`, não `fatia`** (achado 8). São **três** eixos de recorte, com
+projeto deliberadamente diferente, e a colisão de nome obrigaria a reescrever o
+`C4.5`:
+
+| Eixo | Como nasce | Vazio no dourado real? |
+|---|---|---|
+| `fatia` (idioma) | derivado de `idioma` × `idioma_fonte` | não — anotado por `eval.idioma` |
+| `grupo_de_fonte` | derivado do caminho da fonte | não — sempre um dos quatro |
+| `armadilha_fatia` | **anotação por construção** — só o gerador sabe o que plantou | **sim**, e é correto |
+
+## O adaptador, e o eixo que não pode colapsar
+
+[`eval/adaptador_sintetico.py`](../eval/adaptador_sintetico.py) converte para o
+formato do harness e **recusa** um conjunto em que qualquer eixo declarado tenha
+pergunta no balde "não declarado":
+
+```bash
+py -m eval.adaptador_sintetico --entrada <dir do gerador> --saida <perguntas.jsonl>
+```
+
+A regra não é "≥ 2 baldes" — um corpus legitimamente monolíngue tem um balde só, e
+isso é verdade, não defeito. O que nunca é legítimo é a pergunta cair no balde que
+significa *ninguém preencheu*, porque ele não distingue "não se aplica" de
+"esqueceram". Medido em `--seed 42 --n-por-fatia 30`:
+
+| Eixo | Antes do `E1.b` | Depois |
+|---|---|---|
+| `fatia` | `{não declarado: 260}` | `{mesma-língua: 270, cross-lingual: 30}` |
+| `grupo_de_fonte` | `{escritório: 234, misto: 26}` | `{escritório: 270, misto: 30}` |
+| `armadilha_fatia` | não existia (colidia com `fatia`) | 10 baldes × 30 |
+
+`grupo_de_fonte` **continua sem `reunião` e sem `email`** — é a condição 3, e é do
+`E1.c`. Enquanto ela não fechar, este corpus não mede o grupo que a `F4-P` decide.
 
 ## O que o selo sela
 
@@ -89,17 +125,19 @@ as outras quatro são os pacotes seguintes:
 | 1 | `--n-por-fatia 30` termina, com teto que levanta erro | ✅ `E1.a` |
 | 5 | selo é seed + `caps` | ✅ `E1.a` |
 | 6 | nenhuma lista de nome real em arquivo versionado | ✅ `E1.a` |
-| 2 | emitir `idioma` **e** `idioma_fonte` no vocabulário fechado do harness | `E1.b` |
-| 7 | adaptador para `harness.Pergunta`, com `armadilha_fatia` como 3º eixo | `E1.b` |
+| 2 | emitir `idioma` **e** `idioma_fonte` no vocabulário fechado do harness | ✅ `E1.b` |
+| 7 | adaptador para `harness.Pergunta`, com `armadilha_fatia` como 3º eixo | ✅ `E1.b` |
 | 3 | fatia de reunião e de email, com a interseção cross-lingual | `E1.c` |
 | 4 | distribuição de formato calibrada pelo censo (`E6.1`) | `E1.c` |
 
-Enquanto a condição 2 não fechar, `idioma` carrega a **travessia** (`pt->en`), que
-não é código de idioma, e `idioma_fonte` não é emitido — então **a fatia
-cross-lingual sai de tamanho zero** e um relatório sobre este corpus sai parecendo
-aprovado. É o defeito exato contra o qual
-[`eval/golden/README.md`](../eval/golden/README.md) escreveu contrato em
-24/08/2026. Não usar este corpus para decidir nada de idioma antes do `E1.b`.
+A condição 2 fechou no `E1.b`, e o gerador passou a **não conseguir** emitir
+código inválido: `perg()` valida contra `harness.IDIOMAS_ACEITOS` na emissão, e
+`pt->en` levanta erro dizendo que travessia sai de cruzar os dois campos. Produtor
+que não emite inválido é melhor que consumidor que rejeita depois.
+
+**O que ainda impede este corpus de decidir a `F4-P`** é a condição 3: sem fatia
+de reunião e de email, o `grupo_de_fonte` só tem `escritório` e `misto`, e o alvo
+declarado da `F4-P` é `reunião`.
 
 ## Fora do escopo (extensões v0.3)
 
