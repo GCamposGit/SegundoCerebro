@@ -52,41 +52,55 @@ from collections import Counter
 from pathlib import Path
 
 from .harness import Pergunta, carregar_perguntas
-from .idioma import NAO_DECLARADO
 
-EIXOS_EXIGIDOS = ("fatia", "armadilha_fatia")
-"""Os eixos que o corpus sintético promete preencher, e que se conferem.
+CAMPOS_POR_EIXO = {
+    "fatia": ("idioma", "idioma_fonte"),
+    "armadilha_fatia": ("armadilha_fatia",),
+}
+"""Que **anotações** sustentam cada eixo — e é a anotação que se confere, não o balde.
 
-`fatia` é o recorte de idioma do `C4.5`; `armadilha_fatia` é o terceiro eixo do
-`E1`. `grupo_de_fonte` fica de fora porque ele é derivado do caminho e sempre
-devolve um dos quatro grupos — não existe balde "não declarado" para ele cair.
+`grupo_de_fonte` fica de fora porque é derivado do caminho e sempre devolve um
+dos quatro grupos: não existe balde de não-preenchido para ele cair.
+
+**A regra olha o campo e não o valor derivado, e essa distinção custou uma
+medição.** A primeira versão exigia que nenhuma pergunta caísse no balde
+`não declarado` de `fatia`. Ela reprovou a fatia `idioma_indeciso` do `E1.f` — e
+reprovou errado: `idioma.decidido()` **exclui** `misto` e `indefinido` de
+propósito, então uma pergunta corretamente anotada `idioma_fonte="misto"` cai em
+`não declarado` e isso é a resposta certa, não uma lacuna.
+
+O harness já dizia a diferença em uma linha: *vazio é "ninguém olhou",
+`indefinido` é "olhou-se e não há evidência"*. Conferir o balde confundia as duas;
+conferir o campo não confunde, e continua pegando o defeito original — com
+`idioma_fonte` nunca emitido, o campo fica **vazio**.
 """
 
-VAZIOS = frozenset({"", NAO_DECLARADO})
-"""O que conta como "ninguém preencheu". `não declarado` vem de
-`idioma.fatia()`, que o devolve quando qualquer um dos dois códigos falta."""
+EIXOS_EXIGIDOS = tuple(CAMPOS_POR_EIXO)
+"""Os eixos que o corpus sintético promete preencher, e que se conferem."""
 
 
 class EixoColapsado(ValueError):
-    """Um eixo declarado tem pergunta no balde de não preenchido."""
+    """Um eixo declarado tem pergunta sem a anotação que o sustenta."""
 
 
 def conferir_eixos(perguntas: list[Pergunta], eixos: tuple[str, ...] = EIXOS_EXIGIDOS) -> None:
     """Recusa um conjunto que mede menos do que declara.
 
-    Levanta `EixoColapsado` nomeando o eixo, quantas perguntas caíram no balde
-    vazio e um exemplo de id — porque "a fatia está vazia" sem o id manda quem
-    lê procurar em 300 linhas.
+    Levanta `EixoColapsado` nomeando o eixo, o campo em branco, quantas perguntas
+    e um exemplo de id — porque "a fatia está vazia" sem o id manda quem lê
+    procurar em seiscentas linhas.
     """
     for eixo in eixos:
-        vazias = [p.id for p in perguntas if getattr(p, eixo, "") in VAZIOS]
-        if vazias:
-            raise EixoColapsado(
-                f"eixo '{eixo}': {len(vazias)} de {len(perguntas)} perguntas no balde "
-                f"'não declarado' (ex.: {', '.join(vazias[:3])}). Um eixo que ninguém "
-                f"preenche não mede nada, e o relatório sai parecendo aprovado — foi o "
-                f"achado 3 do laudo do E1."
-            )
+        for campo in CAMPOS_POR_EIXO[eixo]:
+            vazias = [p.id for p in perguntas if not getattr(p, campo, "")]
+            if vazias:
+                raise EixoColapsado(
+                    f"eixo '{eixo}': {len(vazias)} de {len(perguntas)} perguntas sem "
+                    f"`{campo}` (ex.: {', '.join(vazias[:3])}). Um eixo que ninguém "
+                    f"anota não mede nada, e o relatório sai parecendo aprovado — foi o "
+                    f"achado 3 do laudo do E1. Anotar `misto`/`indefinido` é preencher; "
+                    f"deixar em branco, não."
+                )
 
 
 def censo_de_eixos(perguntas: list[Pergunta]) -> dict[str, Counter]:

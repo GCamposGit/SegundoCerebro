@@ -37,24 +37,57 @@ def test_a_fatia_cross_lingual_deixou_de_ter_tamanho_zero(tmp_path: Path) -> Non
 
     assert fatias[CROSS_LINGUAL] > 0, f"a fatia voltou a colapsar: {dict(fatias)}"
     assert fatias[MESMA_LINGUA] > 0, "declarar `pt` onde é `pt` também é obrigação"
-    assert "não declarado" not in fatias, dict(fatias)
+
+    # `não declarado` **pode** aparecer, e desde o `E1.f` aparece: `decidido()`
+    # exclui `misto` e `indefinido` de propósito. O que não pode é vir de campo em
+    # branco — a primeira versão deste teste proibia o balde inteiro e confundia
+    # "olhou-se e é indeciso" com "ninguém olhou", que é a distinção que o
+    # `harness.IDIOMAS_ACEITOS` documenta em uma linha.
+    indecisas = [p for p in perguntas if p.fatia == "não declarado"]
+    assert all(p.idioma and p.idioma_fonte for p in indecisas), (
+        [p.id for p in indecisas if not (p.idioma and p.idioma_fonte)]
+    )
 
 
 FATIAS_QUE_CRUZAM_IDIOMA = frozenset({"cross_lingual", "reuniao", "email"})
-"""As únicas fatias em que `idioma` e `idioma_fonte` podem divergir.
+"""As únicas fatias em que `idioma` e `idioma_fonte` **divergem entre `pt` e `en`**.
 
 `cross_lingual` é a fatia dedicada; `reuniao` e `email` cruzam **em parte**
 (`fatias.CRUZA_IDIOMA`, uma em cada três) porque é a interseção que o dourado
 real tem — 3 das 11 perguntas de reunião — e somar os dois eixos não a mede."""
 
+FATIAS_DE_IDIOMA_INDECISO = frozenset({"idioma_indeciso"})
+"""Onde `misto` e `indefinido` são legítimos.
+
+Separada da anterior de propósito: cruzar `pt`↔`en` e ser indeciso são coisas
+diferentes, e `idioma.decidido()` as trata diferente — o indeciso **não** conta
+como cross-lingual, para um documento metade PT metade EN não inflar a métrica
+que existe para achar a fraqueza da ponte."""
+
 
 def test_as_fatias_monolingues_declaram_pt_em_vez_de_omitir(tmp_path: Path) -> None:
     """Declarar `pt` é diferente de omitir, e é a omissão que mata a fatia."""
     perguntas = _gerado(tmp_path)
-    fora = [p for p in perguntas if p.armadilha_fatia not in FATIAS_QUE_CRUZAM_IDIOMA]
+    variam = FATIAS_QUE_CRUZAM_IDIOMA | FATIAS_DE_IDIOMA_INDECISO
+    fora = [p for p in perguntas if p.armadilha_fatia not in variam]
 
     assert fora, "sanidade: o corpus tem fatias monolíngues"
     assert all(p.idioma == "pt" and p.idioma_fonte == "pt" for p in fora)
+
+
+def test_indeciso_so_aparece_na_fatia_que_o_declara(tmp_path: Path) -> None:
+    """`misto`/`indefinido` fora da fatia que os declara é engano, não anotação.
+
+    Sem esta metade, uma fatia que errasse a anotação escaparia da conferência
+    cross-lingual sem nenhum sinal — e escapar é pior que errar, porque some da
+    tabela em vez de aparecer nela."""
+    perguntas = _gerado(tmp_path)
+    indecisos = {
+        p.armadilha_fatia for p in perguntas
+        if "misto" in (p.idioma, p.idioma_fonte) or "indefinido" in (p.idioma, p.idioma_fonte)
+    }
+
+    assert indecisos == set(FATIAS_DE_IDIOMA_INDECISO), sorted(indecisos)
 
 
 def test_so_as_tres_fatias_declaradas_cruzam_idioma(tmp_path: Path) -> None:
@@ -67,6 +100,9 @@ def test_so_as_tres_fatias_declaradas_cruzam_idioma(tmp_path: Path) -> None:
     cruzam = {p.armadilha_fatia for p in perguntas if p.fatia == CROSS_LINGUAL}
 
     assert cruzam <= FATIAS_QUE_CRUZAM_IDIOMA, f"fatia cruzando sem declarar: {cruzam}"
+    assert not (cruzam & FATIAS_DE_IDIOMA_INDECISO), (
+        "indeciso não pode contar como cross-lingual — é o que `decidido()` protege"
+    )
 
 
 def test_o_gerador_nao_consegue_emitir_travessia_como_idioma() -> None:

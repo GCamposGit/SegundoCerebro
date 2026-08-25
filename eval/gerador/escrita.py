@@ -198,4 +198,26 @@ def escrever(doc, raiz):  # noqa: ANN001
         return _marcar_placeholder(destino)
     else:
         raise ValueError(f"formato desconhecido: {formato}")
+
+    _datar(destino, doc.meta.get("mtime"))
     return True
+
+
+def _datar(destino: Path, marca: str | None) -> None:
+    """Fixa o mtime quando a fatia o declara. `AAAA-MM-DD`, UTC.
+
+    **O mtime é contrato, não enfeite.** `retrieve/familias.py` desempata família
+    de versão por número declarado e, na falta dele, por data — e o caso que criou
+    a regra é justamente a revisão **sem** `_vN` que é mais nova que a `_v6`. Sem
+    controlar o mtime, essa fatia mediria a ordem em que o gerador escreveu os
+    arquivos, que é acidente.
+
+    Fora daí o mtime fica o do sistema de arquivos, e é o certo: fingir data em
+    documento que não depende dela só criaria uma correlação inventada.
+    """
+    if not marca:
+        return
+    from datetime import datetime, timezone
+
+    quando = datetime.strptime(marca, "%Y-%m-%d").replace(tzinfo=timezone.utc).timestamp()
+    os.utime(caminho_estendido(destino), (quando, quando))

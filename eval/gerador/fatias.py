@@ -2,6 +2,9 @@
 Identificadores plantados sao unicos no corpus: gabarito perfeito por construcao."""
 from .nucleo import Doc, mkdoc, perg, moeda
 from .formatos import f_formatos
+from .ranking import (
+    f_chunk_hostil, f_familia_sem_numero, f_glossario, f_grafias, f_idioma_indeciso,
+)
 from .hostil import f_pasta_hostil
 from . import vocabulario as V
 
@@ -22,7 +25,7 @@ def f_nomes_ruins(rng, n, ext):
         docs.append(d)
         ps.append(perg(f"q-nr-{i:03d}", "nomes_ruins", f"Qual o valor total do contrato {cid}?",
                        moeda(valor), [d.caminho], armadilha="nome de arquivo nao informativo",
-                       feature_alvo="C3.a/R6.1"))
+                       feature_alvo="nomes/C3.a/R6.1"))
     return docs, ps
 
 def f_versoes(rng, n, ext):
@@ -42,7 +45,7 @@ def f_versoes(rng, n, ext):
             cams.append(d.caminho); docs.append(d)
         ps.append(perg(f"q-vs-{i:03d}", "versoes", f"Qual o valor da versao final da proposta {pid}?",
                        moeda(vals[-1]), [cams[-1]], armadilha="familia de versoes com valores divergentes",
-                       feature_alvo="C6/R1.3", familia=cams))
+                       feature_alvo="familias/C6/R1.3", familia=cams))
     return docs, ps
 
 def f_duplicatas(rng, n, ext):
@@ -57,7 +60,7 @@ def f_duplicatas(rng, n, ext):
                             ("Antigo/Documentos diversos", f"Copia de Ata reuniao {aid}")]:
             d = mkdoc(pasta, nome, t, e); cams.append(d.caminho); docs.append(d)
         ps.append(perg(f"q-dp-{i:03d}", "duplicatas", f"O que ficou decidido na reuniao registrada na {aid}?",
-                       dec, cams, armadilha="mesmo conteudo em 3 caminhos", feature_alvo="R1.3", canonico=cams[0]))
+                       dec, cams, armadilha="mesmo conteudo em 3 caminhos", feature_alvo="hybrid/R1.3", canonico=cams[0]))
     return docs, ps
 
 def f_cross_lingual(rng, n, ext):
@@ -79,14 +82,14 @@ def f_cross_lingual(rng, n, ext):
             d = mkdoc(f"04. Projetos/{proj}", "Steering committee memo", t, ext()); docs.append(d)
             ps.append(perg(f"q-cl-{i:03d}", "cross_lingual", f"Qual o orcamento total aprovado para o {proj}?",
                            f"USD {orc:,}", [d.caminho], idioma="pt", idioma_fonte="en",
-                           armadilha="pergunta PT, documento EN", feature_alvo="C4/R3.1/R6.2"))
+                           armadilha="pergunta PT, documento EN", feature_alvo="hybrid/C4/R3.1/R6.2"))
         else:
             m = rng.randrange(4, 36)
             t = f"RELATORIO DE PLANEJAMENTO R-CL-{i:03d}\n{proj}\nPrazo de conclusao estimado: {m} meses.\nFornecedora: {emp}.\n"
             d = mkdoc(f"04. Projetos/{proj}", "Relatorio de planejamento", t, ext()); docs.append(d)
             ps.append(perg(f"q-cl-{i:03d}", "cross_lingual", f"What is the estimated completion deadline for {proj}?",
                            f"{m} meses", [d.caminho], idioma="en", idioma_fonte="pt",
-                           armadilha="pergunta EN, documento PT", feature_alvo="C4/R3.1/R6.2"))
+                           armadilha="pergunta EN, documento PT", feature_alvo="hybrid/C4/R3.1/R6.2"))
     return docs, ps
 
 TETO_DE_SIGLAS = 26**3
@@ -153,14 +156,14 @@ def f_siglas(rng, n, ext):
             d2 = mkdoc("05. Politicas/TI", f"Norma {sg} TI", f"O {exp} Setorial ({sg}) estabelece {r2}.\n", ext())
             docs += [d1, d2]
             ps.append(perg(f"q-sg-{i:03d}", "siglas", f"No contexto da area Juridico, o que estabelece o {sg}?",
-                           regra, [d1.caminho], armadilha="sigla ambigua entre pastas", feature_alvo="C2",
+                           regra, [d1.caminho], armadilha="sigla ambigua entre pastas", feature_alvo="glossario/C2",
                            subtipo=sub, doc_conflitante=d2.caminho))
         elif sub == "nunca_definida":
             d = mkdoc("06. Operacoes/Relatorios", f"Relatorio operacional {sg} {i:03d}",
                       f"Conforme diretriz do {sg}, {regra}.\n", ext())
             docs.append(d)
             ps.append(perg(f"q-sg-{i:03d}", "siglas", f"O que a diretriz do {sg} exige?", regra, [d.caminho],
-                           armadilha="sigla usada mas nunca definida", feature_alvo="C2", subtipo=sub))
+                           armadilha="sigla usada mas nunca definida", feature_alvo="glossario/C2", subtipo=sub))
         else:
             nd, cams = (2 if sub == "definida_2x" else 1), []
             for k in range(nd):
@@ -170,7 +173,7 @@ def f_siglas(rng, n, ext):
             docs.append(mkdoc("06. Operacoes/Relatorios", f"Uso da sigla {sg} {i:03d}",
                               f"A revisao anual seguiu o {sg} sem ressalvas.\n", ext()))
             ps.append(perg(f"q-sg-{i:03d}", "siglas", f"O que estabelece o {sg}?", regra, cams,
-                           armadilha=f"sigla {sub}", feature_alvo="C2", subtipo=sub))
+                           armadilha=f"sigla {sub}", feature_alvo="glossario/C2", subtipo=sub))
     return docs, ps
 
 def f_planilha_despejo(rng, n, ext, linhas=4000):
@@ -190,7 +193,7 @@ def f_planilha_despejo(rng, n, ext, linhas=4000):
         ps.append(perg(f"q-pl-{i:03d}", "planilha_despejo",
                        f"Existe algum fornecedor chamado {nome}? Em qual municipio?", cid,
                        [f"07. Compras/base_fornecedores_{c:02d}.csv"],
-                       armadilha="1 linha relevante em 4000", feature_alvo="C7"))
+                       armadilha="1 linha relevante em 4000", feature_alvo="hybrid/C7"))
     return docs, ps
 
 def f_multihop(rng, n, ext):
@@ -206,7 +209,7 @@ def f_multihop(rng, n, ext):
         docs += [da, db]
         ps.append(perg(f"q-mh-{i:03d}", "multihop", f"Qual o valor do contrato que rege o {proj}?",
                        moeda(valor), [da.caminho, db.caminho], tipo="multihop", criterio="todas",
-                       armadilha="resposta exige encadear 2 documentos", feature_alvo="neighbors/grafo"))
+                       armadilha="resposta exige encadear 2 documentos", feature_alvo="grafo/neighbors"))
     return docs, ps
 
 def f_temporal(rng, n, ext):
@@ -221,11 +224,11 @@ def f_temporal(rng, n, ext):
         if i % 2 == 0:
             ps.append(perg(f"q-tp-{i:03d}", "temporal", f"Qual o limite de alcada vigente segundo a politica {pol}?",
                            moeda(lim[-1]*1000), [cams[-1]], tipo="temporal",
-                           armadilha="3 revisoes, so a ultima vale", feature_alvo="R6.3/C6", familia=cams))
+                           armadilha="3 revisoes, so a ultima vale", feature_alvo="familias/R6.3/C6", familia=cams))
         else:
             ps.append(perg(f"q-tp-{i:03d}", "temporal", f"Qual era o limite de alcada da politica {pol} em vigor em 2019?",
                            moeda(lim[0]*1000), [cams[0]], tipo="temporal",
-                           armadilha="pergunta pela versao antiga", feature_alvo="R6.3/C6", familia=cams))
+                           armadilha="pergunta pela versao antiga", feature_alvo="familias/R6.3/C6", familia=cams))
     return docs, ps
 
 def f_distratores(rng, n, ext):
@@ -243,7 +246,7 @@ def f_distratores(rng, n, ext):
             distr.append(d.caminho); docs.append(d)
         ps.append(perg(f"q-dt-{i:03d}", "distratores", f"Qual divergencia a auditoria {aid} identificou?",
                        achado, [alvo.caminho], tipo="semantica",
-                       armadilha="3 hard negatives na mesma pasta", feature_alvo="R6.2 rerank",
+                       armadilha="3 hard negatives na mesma pasta", feature_alvo="rerank/R6.2",
                        docs_distratores=distr))
     return docs, ps
 
@@ -260,7 +263,7 @@ def f_estrutura_pastas(rng, n, ext):
             docs.append(d)
             ps.append(perg(f"q-ep-{j:03d}", "estrutura_pastas", f"Quando foi inaugurada a unidade {uid}?",
                            data, [d.caminho], armadilha=f"condicao {cond}",
-                           feature_alvo="R2.1 contexto de pasta", condicao=cond, par_id=i))
+                           feature_alvo="nomes/R2.1", condicao=cond, par_id=i))
     return docs, ps
 
 CRUZA_IDIOMA = 3
@@ -322,7 +325,7 @@ def f_reuniao(rng, n, ext):
         ps.append(perg(f"q-rn-{i:03d}", "reuniao", pergunta, moeda(valor), [d.caminho],
                        idioma=idioma, idioma_fonte=idioma_fonte,
                        armadilha="identificador so na fala; nome do arquivo e data e hora",
-                       feature_alvo="F4-P/C3.a", cruza_idioma=cruzado))
+                       feature_alvo="nomes/F4-P/C3.a", cruza_idioma=cruzado))
     return docs, ps
 
 
@@ -389,5 +392,12 @@ FATIAS = [("nomes_ruins", f_nomes_ruins), ("versoes", f_versoes), ("duplicatas",
           # Cobertura de parser, garantida e nao sorteada (E1.d): a distribuicao
           # do censo serve ao realismo, e realismo nao garante cobertura --
           # `.pptm` sao 0,1% do acervo e arredondam para zero em metade das seeds.
+          # Fatias de ranking de 25/08/2026 (E1.f). Cada uma existe porque uma
+          # classe de defeito DOCUMENTADA neste repositorio nao tinha nada que a
+          # medisse -- nao sao hipoteses, sao episodios com data e post-mortem.
+          ("grafias", f_grafias), ("glossario", f_glossario),
+          ("familia_sem_numero", f_familia_sem_numero),
+          ("idioma_indeciso", f_idioma_indeciso),
+          ("chunk_hostil", f_chunk_hostil),
           ("formatos", f_formatos),
           ("pasta_hostil", f_pasta_hostil)]
