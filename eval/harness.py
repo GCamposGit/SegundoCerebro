@@ -143,6 +143,24 @@ class Pergunta:
     em diff, como `fora_de_escopo`. `eval.rodar` reconfere contra o índice e
     reclama quando as duas divergem."""
 
+    armadilha_fatia: str = ""
+    """Que armadilha foi **plantada** nesta pergunta. Vazio = nenhuma, ou não se sabe.
+
+    O **terceiro** eixo de recorte, e o projeto dele é diferente dos outros dois
+    de propósito. `idioma_fonte` é anotação estática porque não é derivável sem
+    abrir o índice; `grupo_de_fonte` é derivado porque o caminho já está aqui.
+    Este é anotação **por construção**: só quem montou o documento sabe o que
+    escondeu nele, e nenhuma inspeção do corpus recupera a intenção.
+
+    Por isso ele nasce vazio no dourado real — lá as perguntas vieram de uso, não
+    de plantio — e cheio no corpus sintético do `E1`, onde cada fatia é uma
+    armadilha nomeada (`nomes_ruins`, `versoes`, `cross_lingual`, …).
+
+    **O nome não é `fatia`, e a colisão é o motivo** (achado 8 do laudo do `E1`):
+    `fatia` já é o recorte de idioma que o `C4.5` construiu, e reusar a palavra
+    obrigaria a reescrever aquele pacote para o sintético caber.
+    """
+
     base: str = ""
     """A qual base esta pergunta pertence. Vazio = não declara.
 
@@ -198,6 +216,7 @@ def carregar_perguntas(caminho: Path) -> list[Pergunta]:
                 fora_de_escopo=d.get("fora_de_escopo", ""),
                 idioma=d.get("idioma", ""),
                 idioma_fonte=d.get("idioma_fonte", ""),
+                armadilha_fatia=d.get("armadilha_fatia", ""),
                 base=d.get("base", ""),
             )
         )

@@ -2,6 +2,8 @@
 import hashlib, itertools, zipfile
 from dataclasses import dataclass, field
 
+from ..harness import IDIOMAS_ACEITOS, PT
+
 @dataclass
 class Doc:
     caminho: str
@@ -12,12 +14,43 @@ class Doc:
 def mkdoc(pasta, nome, texto, ext="txt", **meta):
     return Doc(f"{pasta}/{nome}.{ext}", texto, formato=ext, meta=meta)
 
-def perg(pid, fatia, pergunta, resposta, docs, tipo="exato", idioma="pt",
-         armadilha="", feature_alvo="", criterio="qualquer", **meta):
-    return {"id": pid, "fatia": fatia, "pergunta": pergunta,
+def perg(pid, armadilha_fatia, pergunta, resposta, docs, tipo="exato",
+         idioma=PT, idioma_fonte=PT, armadilha="", feature_alvo="",
+         criterio="qualquer", **meta):
+    """Uma pergunta com gabarito. Emite os **dois** campos de idioma, sempre.
+
+    **`armadilha_fatia`, e nao `fatia`** -- achado 8 do laudo. O harness ja tem
+    dois eixos de recorte com projeto deliberadamente diferente: `idioma_fonte` e
+    anotacao estatica porque nao e derivavel sem abrir o indice, e
+    `grupo_de_fonte` e derivado porque o caminho ja esta no dourado. A armadilha
+    plantada e um **terceiro** eixo, e ele e anotacao por construcao -- so o
+    gerador sabe o que plantou. `fatia` fica reservado ao idioma, para nao
+    reescrever o `C4.5`.
+
+    **Os dois campos de idioma tem default `pt` e nao vazio**, e essa e a licao do
+    achado 3: `idioma_fonte` nunca era emitido, as 260 perguntas saiam
+    `{'nao declarado': 260}`, a fatia cross-lingual ficava de tamanho zero e o
+    relatorio saia parecendo aprovado. **Declarar `pt` e diferente de omitir**, e
+    e a omissao que mata a fatia. Nas dez fatias que nao cruzam idioma os dois sao
+    `pt`; na cross-lingual eles divergem, que e o ponto dela.
+
+    A validacao contra `IDIOMAS_ACEITOS` acontece **aqui**, na emissao, e nao so
+    no `carregar_perguntas` -- o gerador que veio no pacote escrevia a travessia
+    (`pt->en`) num campo que guarda idioma, e um produtor que nao consegue emitir
+    codigo invalido e melhor que um consumidor que o rejeita depois.
+    """
+    for campo, valor in (("idioma", idioma), ("idioma_fonte", idioma_fonte)):
+        if valor not in IDIOMAS_ACEITOS:
+            raise ValueError(
+                f"{pid}: {campo}={valor!r} nao e codigo de idioma -- use um de "
+                f"{sorted(IDIOMAS_ACEITOS)}. Travessia (`pt->en`) nao e idioma: "
+                f"ela sai de `idioma` mais `idioma_fonte`, que o harness cruza."
+            )
+    return {"id": pid, "armadilha_fatia": armadilha_fatia, "pergunta": pergunta,
             "resposta_esperada": resposta, "docs_relevantes": docs,
             "criterio": criterio, "tipo": tipo, "idioma": idioma,
-            "armadilha": armadilha, "feature_alvo": feature_alvo, "meta": meta}
+            "idioma_fonte": idioma_fonte, "armadilha": armadilha,
+            "feature_alvo": feature_alvo, "meta": meta}
 
 def moeda(v):
     s = f"{v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
