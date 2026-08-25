@@ -44,6 +44,10 @@ config.toml.*
 # Índices de bases além da padrão (/index/ já está coberto acima)
 /index-*/
 
+# Corpus do E1: gerado por semente, reprodutivel por comando, nunca commitado.
+# `py -m eval.gerador --seed 42 --n-por-fatia 100 --out corpus-e1`
+/corpus-e1/
+
 # Sistema
 Thumbs.db
 desktop.ini

@@ -1,0 +1,32 @@
+# Base do corpus sintético do `E1` — a camada 2 da avaliação, a que decide.
+#
+# O corpus **não** é versionado: ele é reprodutível por semente, e commitar 2.112
+# arquivos gerados seria guardar a saída em vez da regra que a produz. Regenerar:
+#
+#   py -m eval.gerador --seed 42 --n-por-fatia 100 --out corpus-e1
+#   py -m eval.adaptador_sintetico --entrada corpus-e1 --saida corpus-e1/perguntas.jsonl
+#   py -m segundocerebro.index.indexer --config config.e1.toml --base e1
+#
+# O modelo é o **mesmo do acervo corporativo**, e isso não é detalhe: com um
+# encoder denso mais fraco o ranqueador de nome pesa relativamente mais, e o Δ de
+# um pacote que mexe justamente nele sairia inflado. Medir a camada 2 com modelo
+# diferente do de produção mediria o modelo.
+
+versao = 1
+
+[maquina]
+perfil = "normal"
+
+[padrao]
+modelo = "e5-large"
+
+[[base]]
+id = "e1"
+nome = "Corpus sintético E1 (camada 2)"
+descricao = "Gerado por `eval.gerador`, semente 42. Não é acervo real de ninguém."
+indice = "index-e1"
+dourado = "corpus-e1/perguntas.jsonl"
+modelo = "e5-large"
+raizes = [
+    { nome = "e1", caminho = "corpus-e1" },
+]
