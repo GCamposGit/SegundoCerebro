@@ -1,6 +1,7 @@
 """Fatias da matriz de armadilhas (E2). Contrato: f(rng,n,ext)->(docs,perguntas).
 Identificadores plantados sao unicos no corpus: gabarito perfeito por construcao."""
 from .nucleo import Doc, mkdoc, perg, moeda
+from .hostil import f_pasta_hostil
 from . import vocabulario as V
 
 def _contrato(rng, emp, cid, valor, ano, srv):
@@ -370,14 +371,6 @@ def f_email(rng, n, ext):
     return docs, ps
 
 
-def f_venenosos(rng, n, ext):
-    docs = []
-    for i in range(3):
-        docs.append(Doc(f"Quarentena teste/relatorio_truncado_{i}.pdf", "", formato="pdf_veneno"))
-        docs.append(Doc(f"Quarentena teste/planilha_antiga_{i}.docx", "", formato="zip_veneno"))
-        docs.append(Doc(f"Quarentena teste/vazio_{i}.txt", "", formato="vazio"))
-    return docs, []  # sem perguntas: mede robustez do indexador (R1.4)
-
 FATIAS = [("nomes_ruins", f_nomes_ruins), ("versoes", f_versoes), ("duplicatas", f_duplicatas),
           ("cross_lingual", f_cross_lingual), ("siglas", f_siglas),
           ("planilha_despejo", f_planilha_despejo), ("multihop", f_multihop),
@@ -388,4 +381,8 @@ FATIAS = [("nomes_ruins", f_nomes_ruins), ("versoes", f_versoes), ("duplicatas",
           # acrescentar fatia nao muda nenhuma das existentes -- e o detalhe de
           # projeto do pacote que o laudo elogiou, e a ordem aqui nao o afeta.
           ("reuniao", f_reuniao), ("email", f_email),
-          ("venenosos", f_venenosos)]
+          # A pasta hostil substitui `venenosos` (E1.e, 25/08/2026). Ela nao e
+          # uma lista de armadilhas escrita a mao: a cobertura sai do enum
+          # `ingest.document.ParseStatus`, e o teste confere contra ele. Absorve
+          # a `F6-E` do ROADMAP -- o gerador E o montador de pastas.
+          ("pasta_hostil", f_pasta_hostil)]

@@ -13,6 +13,7 @@ rodar no piso novo sem ninguém lembrar de editá-lo.
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 from pathlib import Path
@@ -118,11 +119,20 @@ def test_o_selo_e_seed_mais_caps_e_a_divergencia_se_nomeia(tmp_path: Path) -> No
 
 
 def test_gabarito_existe(tmp_path: Path) -> None:
-    """Ground truth por construção: toda pergunta aponta para arquivo que existe."""
+    r"""Ground truth por construção: toda pergunta aponta para arquivo que existe.
+
+    **Confere com `caminho_estendido`, e não com `Path.exists()`.** A primeira
+    versão usava `.exists()` e passou a reprovar quando a pasta hostil trouxe o
+    caminho de 500 caracteres — não porque o arquivo faltasse, mas porque
+    `pathlib` não o enxerga sem o prefixo `\?\`. O produto acerta
+    (`census.iter_files` estende a partir da raiz); era a ferramenta de teste que
+    subcontava, e subcontar em silêncio é como a métrica sobe com a regressão."""
+    from segundocerebro.census import caminho_estendido
+
     gerar(7, N_MINIMO, tmp_path / "c", sem_docx=True)
     linhas = (tmp_path / "c" / "perguntas.sintetico.jsonl").read_text(encoding="utf-8").splitlines()
 
-    assert len(linhas) >= 10 * N_MINIMO, "dez das onze fatias emitem uma pergunta por `n`"
+    assert len(linhas) >= 10 * N_MINIMO, "dez fatias emitem uma pergunta por `n`"
     ids: set[str] = set()
     for linha in linhas:
         p = json.loads(linha)
@@ -130,7 +140,8 @@ def test_gabarito_existe(tmp_path: Path) -> None:
         ids.add(p["id"])
         assert p["docs_relevantes"], p["id"]
         for d in p["docs_relevantes"]:
-            assert (tmp_path / "c" / "corpus" / d).exists(), f"{p['id']}: {d}"
+            alvo = caminho_estendido(tmp_path / "c" / "corpus" / d)
+            assert os.path.exists(alvo), f"{p['id']}: {d}"
 
 
 def test_sem_nomes_reais(tmp_path: Path) -> None:
@@ -159,13 +170,17 @@ def test_sem_nomes_reais(tmp_path: Path) -> None:
                 assert termo.lower() not in texto, f"{mascarar(termo)} em {f.name}"
 
 
-def test_venenosos_presentes(tmp_path: Path) -> None:
-    """A fatia sem pergunta nenhuma — mede robustez do indexador, não ranking."""
-    gerar(5, 4, tmp_path / "e", sem_docx=True)
-    q = tmp_path / "e" / "corpus" / "Quarentena teste"
+def test_a_fatia_de_venenosos_virou_a_pasta_hostil(tmp_path: Path) -> None:
+    """A fatia `venenosos` saiu; quem cobre agora é `tests/test_pasta_hostil.py`.
 
-    assert len(list(q.iterdir())) == 9
-    assert (q / "vazio_0.txt").stat().st_size == 0
+    Ela media três armadilhas escolhidas de cabeça. A pasta hostil deriva a
+    cobertura do enum `ParseStatus` do produto, o que a torna uma porta em vez de
+    uma lista — e absorve a `F6-E`. Este teste guarda só a substituição, para
+    ninguém reintroduzir a fatia antiga achando que faltava."""
+    manifesto = gerar(5, 4, tmp_path / "e", sem_docx=True)
+
+    assert "venenosos" not in manifesto["stats"]
+    assert manifesto["stats"]["pasta_hostil"]["docs"] >= 10
 
 
 def test_o_corpus_tem_reuniao_e_email_e_eles_cruzam_idioma(tmp_path: Path) -> None:

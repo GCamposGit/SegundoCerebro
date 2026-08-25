@@ -1,5 +1,5 @@
 """Nucleo: Doc, renderizacao multi-formato, manifesto com hash logico."""
-import hashlib, itertools, zipfile
+import hashlib, itertools
 from dataclasses import dataclass, field
 
 from ..harness import IDIOMAS_ACEITOS, PT
@@ -16,7 +16,7 @@ def mkdoc(pasta, nome, texto, ext="txt", **meta):
 
 def perg(pid, armadilha_fatia, pergunta, resposta, docs, tipo="exato",
          idioma=PT, idioma_fonte=PT, armadilha="", feature_alvo="",
-         criterio="qualquer", **meta):
+         criterio="qualquer", fora_de_escopo="", **meta):
     """Uma pergunta com gabarito. Emite os **dois** campos de idioma, sempre.
 
     **`armadilha_fatia`, e nao `fatia`** -- achado 8 do laudo. O harness ja tem
@@ -34,6 +34,12 @@ def perg(pid, armadilha_fatia, pergunta, resposta, docs, tipo="exato",
     e a omissao que mata a fatia. Nas dez fatias que nao cruzam idioma os dois sao
     `pt`; na cross-lingual eles divergem, que e o ponto dela.
 
+    **`fora_de_escopo`** e chave de `harness.MOTIVOS_FORA_DE_ESCOPO`, e ela existe
+    para a pergunta que nao e mensuravel nesta fase ficar **visivel e anotada** em
+    vez de nao existir. `carregar_perguntas` recusa motivo fora do catalogo, e o
+    catalogo encurta quando a capacidade entra -- entao a anotacao velha nao
+    atravessa a fase em silencio.
+
     A validacao contra `IDIOMAS_ACEITOS` acontece **aqui**, na emissao, e nao so
     no `carregar_perguntas` -- o gerador que veio no pacote escrevia a travessia
     (`pt->en`) num campo que guarda idioma, e um produtor que nao consegue emitir
@@ -50,6 +56,7 @@ def perg(pid, armadilha_fatia, pergunta, resposta, docs, tipo="exato",
             "resposta_esperada": resposta, "docs_relevantes": docs,
             "criterio": criterio, "tipo": tipo, "idioma": idioma,
             "idioma_fonte": idioma_fonte, "armadilha": armadilha,
+            "fora_de_escopo": fora_de_escopo,
             "feature_alvo": feature_alvo, "meta": meta}
 
 def moeda(v):
@@ -129,56 +136,8 @@ def picker(caps):
     c = itertools.cycle(_padrao(pesos))
     return lambda: next(c)
 
-def escrever(doc, raiz):
-    p = raiz / doc.caminho
-    p.parent.mkdir(parents=True, exist_ok=True)
-    if doc.formato in ("txt", "md", "csv", "vtt", "eml"):
-        # `vtt` e `eml` sao texto no disco e formato para o harness: `eval.fonte`
-        # classifica por extensao (`EXTENSOES_DE_TRANSCRICAO`, `EXTENSOES_DE_EMAIL`),
-        # e o parser de email de 21/08 le MIME. Escrever binario aqui nao
-        # acrescentaria nada e tiraria a legibilidade do corpus de teste.
-        p.write_text(doc.texto, encoding="utf-8")
-    elif doc.formato == "pdf":
-        import pymupdf
-        pdf = pymupdf.open()
-        pagina = pdf.new_page()
-        pagina.insert_textbox(pymupdf.Rect(50, 50, 545, 790), doc.texto, fontsize=11)
-        pdf.save(str(p))
-        pdf.close()
-    elif doc.formato == "xlsx":
-        from openpyxl import Workbook
-        wb = Workbook()
-        aba = wb.active
-        for i, linha in enumerate(doc.texto.split("\n"), start=1):
-            aba.cell(row=i, column=1, value=linha)
-        wb.save(str(p))
-    elif doc.formato == "pptx":
-        from pptx import Presentation
-        from pptx.util import Emu
-        pres = Presentation()
-        slide = pres.slides.add_slide(pres.slide_layouts[6])
-        caixa = slide.shapes.add_textbox(Emu(457200), Emu(457200), Emu(8229600), Emu(4572000))
-        quadro = caixa.text_frame
-        linhas = doc.texto.split("\n")
-        quadro.text = linhas[0] if linhas else ""
-        for linha in linhas[1:]:
-            quadro.add_paragraph().text = linha
-        pres.save(str(p))
-    elif doc.formato == "docx":
-        import docx as dx
-        d = dx.Document()
-        for par in doc.texto.split("\n"):
-            d.add_paragraph(par)
-        d.save(str(p))
-    elif doc.formato == "pdf_veneno":   # PDF truncado (R1.4)
-        p.write_bytes(b"%PDF-1.4\n" + b"\x00\x01lixo" * 40)
-    elif doc.formato == "zip_veneno":   # ZIP renomeado p/ .docx (R1.4)
-        with zipfile.ZipFile(p, "w") as z:
-            z.writestr("x/nada.bin", b"\x00" * 128)
-    elif doc.formato == "vazio":
-        p.write_bytes(b"")
-    else:
-        raise ValueError(doc.formato)
+from .escrita import escrever  # noqa: E402,F401  (reexportado: escrita.py e o dono)
+
 
 DIMENSOES_DO_SELO = ("seed", "n_por_fatia", "caps")
 """O que identifica um corpus, alem do conteudo. O `E3` sela estas tres.

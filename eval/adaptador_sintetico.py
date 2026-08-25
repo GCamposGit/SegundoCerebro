@@ -121,6 +121,7 @@ def adaptar_uma(d: dict) -> dict:
         "idioma": d["idioma"],
         "idioma_fonte": d["idioma_fonte"],
         "armadilha_fatia": d["armadilha_fatia"],
+        "fora_de_escopo": d.get("fora_de_escopo", ""),
         # Fora de `Pergunta`, e de propósito: o harness ignora chave que não
         # conhece, e a matriz do `E2` precisa destes para duplicatas@10,
         # precisão contra distratores e o Δ taxonomia vs plana.
