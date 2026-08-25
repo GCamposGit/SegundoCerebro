@@ -12,6 +12,16 @@
 # pega `acmefoo`. Evite termo curto ou comum — `via` casaria em meio texto.
 #
 # O vocabulário publicável é a empresa fictícia da VCE (docs/colaboracao.md §5).
+#
+# ESCREVA A LISTA INTEIRA, e não os nomes de que você se lembra. Medido em
+# 25/08/2026: a lista desta máquina tinha 3 termos, a suíte estava verde, e havia
+# 8 nomes reais de cliente e fornecedor em 4 arquivos versionados — em fixture de
+# teste, ao lado do vocabulário fictício correto. Lista magra não dá suíte
+# incompleta: dá suíte VERDE, que é pior, porque parece prova.
+#
+# A completude desta lista é obrigação de processo e **não** é testável — é o
+# preço de a lista ficar fora do Git, que é o que a mantém segura. Quando você
+# descobrir um nome que faltava, acrescente aqui antes de consertar o arquivo.
 
 # Exemplos, no formato — troque pelos seus:
 Acme Holding

@@ -14,6 +14,19 @@ pula, e é por isso que o CI e um clone novo continuam verdes.
 
 O modelo é o mesmo de `test_baseline.py` com o `census.toml`: o dado real fica
 fora, o teste sabe o que fazer quando ele não está.
+
+**E o furo dessa escolha, medido em 25/08/2026.** A lista desta máquina tinha 3
+termos e a suíte estava verde — com 8 nomes reais de cliente e fornecedor em 4
+arquivos versionados, em fixture de teste, ao lado do vocabulário fictício
+correto (`Acme`, `PO-ACME-007`). Eles entraram porque cada um é uma palavra solta
+num diff grande, exatamente o modo de falha que este arquivo existe para fechar,
+e sobreviveram porque **nenhuma máquina tinha o termo na lista**.
+
+Lista magra não produz suíte incompleta: produz suíte **verde**, que é pior,
+porque parece prova. A completude da lista é obrigação de processo e **não** é
+propriedade testável — é o preço de ela ficar fora do Git, e o preço é declarado
+em `nomes-proibidos.example.txt` em vez de escondido. O que este teste garante é
+o outro lado: nenhum termo **que a lista conheça** passa.
 """
 
 from __future__ import annotations
