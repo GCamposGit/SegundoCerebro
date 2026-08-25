@@ -1,79 +1,72 @@
-# Matriz de armadilhas — gerador sintético (`E1`/`E2`) — v1.0
+# Matriz de armadilhas — gerador sintético (`E1`/`E2`) — v2.0
 
 Mapeamento fatia ↔ pacote do roadmap. **Toda ablação reporta a tabela por fatia;
 média agregada não decide nada** (protocolo `E3`).
 
-Versão v0.1 veio no pacote `E1`; a v0.2 é de 25/08/2026 e registra o que o
-[laudo](avaliacao-pacote-e1.md) mudou. O gerador é
-[`eval/gerador/`](../eval/gerador/); o corpus **não** é versionado, o gerador é.
+O gerador é [`eval/gerador/`](../eval/gerador/); o corpus **não** é versionado, o
+gerador é. O corpus não é condição C: é a **camada 2** do protocolo do `E3`, e
+ganho que só aparece aqui é ganho deste gerador — é para isso que a camada 3
+(`C5`, benchmark externo) existe.
 
 ```bash
-py -m eval.gerador --seed 42 --n-por-fatia 30 --out <dir> --sem-docx
+py -m eval.gerador --seed 42 --n-por-fatia 30 --out <dir>
+py -m eval.adaptador_sintetico --entrada <dir> --saida <dir>/perguntas.jsonl
 ```
 
-`--n-por-fatia 30` é o `eval.estatistica.N_MINIMO`, que é o piso que o `E5` exige
-por fatia. Até 25/08/2026 esse comando **não terminava** — ver a tabela de
-escala abaixo.
+`--so-texto` (alias do antigo `--sem-docx`) desliga os quatro formatos binários e
+roda em segundos — é o modo do CI. `--n-por-fatia 30` é o `eval.estatistica.N_MINIMO`.
 
-## As onze fatias
+| `--n-por-fatia` | documentos | perguntas | tempo |
+|---:|---:|---:|---:|
+| 30 | 1.174 | 651 | 29 s |
+| 100 | 3.833 | 2.121 | 7 s (`--so-texto`) |
 
-| Fatia | Armadilha plantada | Mede | Critério |
+## Os três checklists, e nenhum é uma lista escrita à mão
+
+É o método deste pacote, e vale mais que qualquer fatia individual: **a régua sai
+de um contrato que o produto já declara.** Lista escrita de cabeça envelhece — o
+décimo primeiro caso entra no produto e ninguém lembra de acrescentá-lo.
+
+| Checklist | Régua | Teste | O que reprova |
 |---|---|---|---|
-| `nomes_ruins` | contrato relevante em `IMG_9999.txt` | `C3.a`, `R6.1`, peso do nome | qualquer |
-| `versoes` | `v1..final_FINAL(2)`, valor só na final | `C6`, `R1.3` | qualquer (canônico) |
-| `duplicatas` | mesma ata em 3 caminhos | `R1.3`, duplicatas@10 | qualquer |
-| `cross_lingual` | pergunta PT → doc EN, e EN → PT | `C4`, `R3.1`, `R6.2` | qualquer |
-| `siglas` | definida 1×/2×, ambígua por pasta, nunca definida | `C2` | qualquer |
-| `planilha_despejo` | 1 linha relevante em 4.000 (CSV) | `C7` | qualquer |
-| `multihop` | encadear resumo → contrato | `neighbors`/grafo | **todas** |
-| `temporal` | 3 revisões; vigente vs "em 2019" | `R6.3`, `C6` | qualquer |
-| `distratores` | 3 hard negatives na mesma pasta | `R6.2` rerank | qualquer |
-| `estrutura_pastas` | taxonomia rica vs `Diversos/` | `R2.1` | pareado |
-| `reuniao` | identificador só na **fala**; nome do arquivo é data e hora | `F4-P`, `C3.a` | qualquer |
-| `email` | assunto `RES: RES: ENC:`; resposta só no corpo | `F4-P`, parser de email | qualquer |
-| `venenosos` | PDF truncado, ZIP renomeado, 0 byte | `R1.4` quarentena | **sem pergunta** |
+| formatos | `parsers.supported_extensions()` | [`tests/test_formatos.py`](../tests/test_formatos.py) | parser novo sem fixture |
+| modos de falha | `ingest.document.ParseStatus` | [`tests/test_pasta_hostil.py`](../tests/test_pasta_hostil.py) | status novo sem fixture |
+| mecanismos | os módulos de `src/segundocerebro/retrieve/` | [`eval/test_ranking_sintetico.py`](../eval/test_ranking_sintetico.py) | mecanismo novo sem fatia |
 
-`venenosos` sem pergunta nenhuma é decisão, não lacuna: ela mede robustez do
-indexador e não ranking, e não fingir que mede ranking é o que a mantém honesta.
+Cada um tem uma tabela de **lacunas declaradas** — `SO_HOSTIL`,
+`SEM_FIXTURE_POSSIVEL`, `SEM_FATIA_PROPRIA` — e cada tabela tem um **segundo teste
+que a impede de crescer por conveniência**. A lacuna declarada é a única que não
+vira dívida; a tabela sem guarda vira o lugar onde se joga o caso inconveniente.
 
-## Escala — o que o `E1.a` destravou
+## As dezenove fatias
 
-O `E1` declarava ≥ 2.000 documentos e ≥ 500 perguntas. Medido com `--seed 42
---sem-docx`, antes e depois do conserto do espaço de siglas
-([`fatias.TETO_DE_SIGLAS`](../eval/gerador/fatias.py)):
+| Fatia | Armadilha plantada | Mede | Perguntas em `n=30` |
+|---|---|---|---:|
+| `nomes_ruins` | contrato relevante em `IMG_9999.txt` | `nomes`, `C3.a`, `R6.1` | 30 |
+| `versoes` | `v1..final_FINAL(2)`, valor só na final | `familias`, `C6` | 30 |
+| `familia_sem_numero` | **a vigente não declara `_vN` e é mais nova que a `_v6`** | `familias`, `C6` | 30 |
+| `temporal` | 3 revisões; vigente vs "em 2019" | `familias`, `R6.3` | 30 |
+| `duplicatas` | mesma ata em 3 caminhos (status `duplicado`) | `hybrid`, `R1.3` | 30 |
+| `cross_lingual` | pergunta PT → doc EN, e EN → PT | `hybrid`, `C4`, `R3.1` | 30 |
+| `idioma_indeciso` | **documento `misto`; consulta `indefinido`** | `hybrid`, `C4.5` | 60 |
+| `siglas` | definida 1×/2×, ambígua por pasta, nunca definida | `glossario`, `C2` | 30 |
+| `glossario` | **pergunta pela sigla × doc por extenso, e o inverso** | `glossario` | 60 |
+| `grafias` | **4 grafias da mesma norma; 2 PLs que não se unificam** | `grafo`, `identificadores` | 60 |
+| `multihop` | encadear resumo → contrato | `grafo`, `neighbors` | 30 |
+| `distratores` | 3 hard negatives na mesma pasta | `rerank`, `R6.2` | 30 |
+| `estrutura_pastas` | taxonomia rica vs `Diversos/` | `nomes`, `R2.1` | 30 |
+| `reuniao` | identificador só na **fala**; nome é data e hora | `nomes`, `F4-P` | 30 |
+| `email` | assunto `RES: RES: ENC:`; resposta só no corpo | `F4-P`, parser de email | 30 |
+| `chunk_hostil` | **URL de 12 mil chars; tabela de 900 linhas** | chunking, truncagem | 60 |
+| `planilha_despejo` | 1 linha relevante em 4.000 (CSV) | `hybrid`, `C7` | 30 |
+| `formatos` | um documento por parser registrado | os 17 parsers | 16 |
+| `pasta_hostil` | um arquivo por modo de falha | indexador, `F6-E` | 5 |
 
-| `--n-por-fatia` | antes | depois |
-|---|---|---|
-| 26 | 559 docs · 260 perguntas | 559 · 260 |
-| 27 | **trava** | 579 · 269 |
-| 30 (`N_MINIMO`) | **trava** | 643 · 300 |
-| 100 | **trava** | **2.112 · 1.000** |
+As três últimas **não escalam com `n`**, e é deliberado: um documento prova que o
+parser é exercitado e uma armadilha prova que o indexador a trata. Trinta cópias
+só encareceriam a passada.
 
-A escala declarada existia; o que não existia era um `n` em que ela coubesse. O
-laudo tratou "o comando não termina" (achado 1) e "a escala declarada não existe"
-(achado 2) como dois achados — a medição mostra que o segundo era **consequência**
-do primeiro, e os dois fecham juntos.
-
-`planilha_despejo` continua sendo a exceção que não escala com `n`: são sempre 3
-CSVs de 4.000 linhas, por construção.
-
-## Campos de cada pergunta (`perguntas.sintetico.jsonl`)
-
-```
-id, armadilha_fatia, pergunta, resposta_esperada, docs_relevantes,
-criterio (qualquer|todas), tipo, idioma, idioma_fonte, armadilha,
-feature_alvo, meta
-```
-
-`meta` carrega `familia`, `docs_distratores`, `condicao`/`par_id`, `canonico`,
-`subtipo`. Métricas que saem daí sem mudar o harness: duplicatas@10
-(`meta.familia`), precisão contra distratores (`meta.docs_distratores`), Δ
-taxonomia vs plana (`meta.par_id`). O adaptador os preserva no arquivo, fora de
-`Pergunta` — o harness ignora chave que não conhece.
-
-**`armadilha_fatia`, não `fatia`** (achado 8). São **três** eixos de recorte, com
-projeto deliberadamente diferente, e a colisão de nome obrigaria a reescrever o
-`C4.5`:
+## Os três eixos de recorte
 
 | Eixo | Como nasce | Vazio no dourado real? |
 |---|---|---|
@@ -81,100 +74,99 @@ projeto deliberadamente diferente, e a colisão de nome obrigaria a reescrever o
 | `grupo_de_fonte` | derivado do caminho da fonte | não — sempre um dos quatro |
 | `armadilha_fatia` | **anotação por construção** — só o gerador sabe o que plantou | **sim**, e é correto |
 
-## O adaptador, e o eixo que não pode colapsar
+Medido em `--seed 42 --n-por-fatia 30`:
 
-[`eval/adaptador_sintetico.py`](../eval/adaptador_sintetico.py) converte para o
-formato do harness e **recusa** um conjunto em que qualquer eixo declarado tenha
-pergunta no balde "não declarado":
-
-```bash
-py -m eval.adaptador_sintetico --entrada <dir do gerador> --saida <perguntas.jsonl>
+```
+fatia            {mesma-língua: 541, não declarado: 60, cross-lingual: 50}
+grupo_de_fonte   {escritório: 559, email: 32, misto: 30, reunião: 30}
+armadilha_fatia  19 baldes
 ```
 
-A regra não é "≥ 2 baldes" — um corpus legitimamente monolíngue tem um balde só, e
-isso é verdade, não defeito. O que nunca é legítimo é a pergunta cair no balde que
-significa *ninguém preencheu*, porque ele não distingue "não se aplica" de
-"esqueceram". Medido em `--seed 42 --n-por-fatia 30`:
+**`não declarado` é resposta legítima e não lacuna**, e a distinção custou uma
+medição. `idioma.decidido()` exclui `misto` e `indefinido` de propósito — um
+documento metade PT metade EN atende consulta nos dois idiomas, e contá-lo como
+acerto cross-lingual inflaria justamente a métrica que existe para achar a
+fraqueza da ponte. Por isso `conferir_eixos` confere o **campo anotado**, não o
+balde derivado: *vazio é "ninguém olhou", `indefinido` é "olhou-se e não há
+evidência"*.
 
-| Eixo | Como veio no pacote | Depois do `E1.b`+`E1.c` |
-|---|---|---|
-| `fatia` | `{não declarado: 260}` | `{mesma-língua: 310, cross-lingual: 50}` |
-| `grupo_de_fonte` | `{escritório: 234, misto: 26}` | `{escritório: 270, misto: 30, reunião: 30, email: 30}` |
-| `armadilha_fatia` | não existia (colidia com `fatia`) | 12 baldes × 30 |
-
-**E a interseção, que é o que a condição 3 pede de verdade** — somar os dois eixos
-não mediria o caso que o acervo tem:
+### A interseção, que é o que a condição 3 pedia de verdade
 
 | | mesma-língua | cross-lingual |
 |---|---:|---:|
-| escritório | 240 | 30 |
-| misto | 30 | 0 |
+| escritório | 519 | 30 |
 | **reunião** | 20 | **10** |
 | **email** | 20 | **10** |
 
 Uma em cada três (`fatias.CRUZA_IDIOMA`), que é a proporção do dourado real: 3 das
-11 perguntas de reunião cruzam idioma.
+11 perguntas de reunião cruzam idioma. Somar os dois eixos mediria dois casos que
+existem — e não o caso que a `F4-P` decide.
 
-## Formato — a condição 4, medida
+## Formato — calibrado pelo censo, e com os 17 parsers presentes
 
-`--seed 42 --n-por-fatia 30`, com as quatro bibliotecas presentes (703 documentos):
+| | `.pdf` | `.xlsx` | `.docx` | `.pptx` | `.txt` | `.csv` |
+|---|---:|---:|---:|---:|---:|---:|
+| **censo real** | 47,8% | 21,8% | 14,7% | 8,0% | 0,4% | 0,2% |
+| **gerado** | 46,9% | 21,7% | 15,1% | 7,0% | 0,6% | 0,4% |
+| **no pacote original** | 0,5%¹ | 0% | 19,1% | 0% | 60,5% | 0,5% |
 
-| | `.pdf` | `.xlsx` | `.docx` | `.pptx` | `.vtt` | `.eml` | `.md` | `.txt` | `.csv` |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| **censo real** | 47,8% | 21,8% | 14,7% | 8,0% | — | 3,5%¹ | 1,2% | 0,4% | 0,2% |
-| **gerado** | 45,7% | 21,1% | 15,1% | 6,4% | 4,3% | 4,3% | 2,3% | 0,6% | 0,4% |
-| **no pacote** | 0,5%² | 0% | 19,1% | 0% | 0% | 0% | 19,3% | 60,5% | 0,5% |
+¹ os três PDFs do pacote eram os **truncados** da fatia de venenosos — zero PDF
+com conteúdo.
 
-¹ o acervo real usa `.msg`; a fatia sintética usa `.eml`, que é MIME e que o
-parser de 21/08 lê sem COM. ² os três PDFs do pacote eram os **truncados** da
-fatia de venenosos — zero PDF com conteúdo.
+São **20 extensões** no corpus: as 17 que o produto lê, mais `.xlsb`, `.xyz` (sem
+parser, e os dois existem no censo real) e a cauda de formato. `.vtt`, `.eml`,
+`.msg`, `.doc`, `.ppt` e os macro-habilitados entram por fatia; o resto pelo
+sorteador.
 
-Formato sem biblioteca nesta máquina vira `txt` **e fica registrado em `caps`**,
-que é dimensão do selo desde o `E1.a`: um corpus `--so-texto` nunca se confunde com
-o completo. E cada formato binário que o gerador escreve **volta pelo despachante
-que o indexador usa**, em teste — escrever um PDF que o `pymupdf4llm` não lê seria
-afirmar uma distribuição que o produto não enxerga.
+**Duas responsabilidades separadas, e a separação é o ponto**: a distribuição do
+censo serve ao **realismo**; a fatia `formatos` garante a **cobertura**. Realismo
+não garante cobertura — `.pptm` são 0,1% do acervo e arredondam para zero em
+metade das seeds, e parser não exercitado é ponto cego que não escala com `n`.
+
+`.xls` **válido** fica de fora, declarado: o `xlrd` exige BIFF e recusa CFB
+inventado (`XLRDError: Expected BOF record`); escrever BIFF pediria o `xlwt`, que
+não é dependência. O `.xls` aparece nas duas formas **hostis**, que são as que o
+`F4-L` persegue.
+
+## A pasta hostil — todo `ParseStatus` coberto
+
+Absorve a **`F6-E`**. Aceite: *a indexação termina, o registro diz por documento o
+que aconteceu, e nada entra no índice como se tivesse texto quando não tem*.
+Falhar é aceitável; travar ou mentir em silêncio, não.
+
+| Status | Fixture | Medido em 25/08/2026 |
+|---|---|---|
+| `vazio` | `.txt` de 0 byte · **PDF digitalizado** (válido, sem texto) | 0 blocos, 0 chars |
+| `erro` | PDF truncado · ZIP renomeado `.docx` | `FileDataError` · `KeyError` |
+| `sem_parser` | `.xlsb`, `.xyz` | `parser_for` devolve `None` |
+| `placeholder` | `FILE_ATTRIBUTE_OFFLINE` via `SetFileAttributesW` | `attrs=0x1000` |
+| `adiado` | `.csv` acima do corte de `[base.limites]` | decidido pelo `stat` |
+| `duplicado` | fatia `duplicatas` | — |
+| `travado` | `~$` no corpus; o **lock real** é do teste (`CreateFileW`, `dwShareMode=0`) | — |
+| `sumiu` | **fora, declarado**: é corrida, e pasta estática não tem corrida | — |
+
+Mais o que é hostil **no nome** e legível no conteúdo, que por isso **tem
+pergunta** e precisa ser encontrado: caminho de 504 caracteres, nome com emoji e
+acento, e o rótulo de uma planilha cujo valor calculado não existe.
+
+Duas perguntas ficam `fora_de_escopo`, que é como o harness registra "não é
+mensurável nesta fase" sem apagar a pergunta: o PDF digitalizado (`ocr`) e o valor
+que só existe como fórmula (`formula_sem_cache`, motivo novo no catálogo).
 
 ## O que o selo sela
 
-`manifesto.json` sela **seed + `n_por_fatia` + `caps`**, não só a seed
-([`nucleo.DIMENSOES_DO_SELO`](../eval/gerador/nucleo.py)). O caminho de cada
-documento carrega a extensão, e a extensão sai de `detectar_caps()`: mesma seed
-com e sem `python-docx` produz corpora **diferentes de verdade**.
+`manifesto.json` sela **seed + `n_por_fatia` + `caps`**
+([`nucleo.DIMENSOES_DO_SELO`](../eval/gerador/nucleo.py)). `caps` são quatro
+formatos, não mais só o `docx`, e `conferir_selo()` confere as dimensões **antes**
+do agregado — um agregado diferente é sintoma de todas as causas, e só uma delas é
+"o gerador mudou".
 
-`conferir_selo()` confere as dimensões **antes** do agregado, e essa ordem é a
-entrega — um agregado diferente é sintoma de todas as causas, e só uma delas é "o
-gerador mudou". Sem isso o `E3` reprovaria um test-set selado dizendo "hash
-diferente" quando a causa é `python-docx` ausente no CI.
+## Fora do escopo (extensões v2.1)
 
-## O que ainda falta para o `E1` entrar inteiro
-
-As sete condições do [laudo](avaliacao-pacote-e1.md). O `E1.a` fecha **1, 5 e 6**;
-as outras quatro são os pacotes seguintes:
-
-| # | Condição | Pacote |
-|---|---|---|
-| 1 | `--n-por-fatia 30` termina, com teto que levanta erro | ✅ `E1.a` |
-| 5 | selo é seed + `caps` | ✅ `E1.a` |
-| 6 | nenhuma lista de nome real em arquivo versionado | ✅ `E1.a` |
-| 2 | emitir `idioma` **e** `idioma_fonte` no vocabulário fechado do harness | ✅ `E1.b` |
-| 7 | adaptador para `harness.Pergunta`, com `armadilha_fatia` como 3º eixo | ✅ `E1.b` |
-| 3 | fatia de reunião e de email, com a interseção cross-lingual | ✅ `E1.c` |
-| 4 | distribuição de formato calibrada pelo censo (`E6.1`) | ✅ `E1.c` |
-
-As sete condições fecharam. O que cada uma trouxe está nas seções acima; o que
-sobra são as extensões da v1.1, listadas no fim, e nenhuma delas bloqueia usar
-este corpus como camada 2.
-
-**O que este corpus continua não sendo:** condição C. Métrica de corpus sintético
-não decide sozinha — ela é a camada 2 do protocolo do `E3`, e a camada 3 (`C5`,
-benchmark externo amostrado) existe justamente para detectar endogamia deste
-gerador. Um ganho que só aparece aqui é um ganho deste gerador.
-
-## Fora do escopo (extensões v1.1)
-
-- legado OLE (`.doc`/`.ppt`/`.xls` via LibreOffice headless) — depende de `R1.1`
+- `.xls` válido, se o `xlwt` algum dia entrar por outro motivo
 - OCR (PDF-imagem com texto conhecido) — `R1.2`
-- planilha-modelo (rótulo esparso, fórmula sem cache) — `C7`
 - CSV grande de 50–100 MB — flag `--escala`
 - perfil de 100k documentos (portas de latência) — `R4.x`
+- **pergunta sem resposta no corpus.** Um sistema de recuperação também tem de se
+  comportar quando a resposta não existe, mas recall@k precisa de fonte esperada e
+  o harness exige `fontes`. Medir isso pede outra métrica, não outra fatia.

@@ -1313,7 +1313,7 @@ outra fatia além do ruído, e sem regredir a camada 1.**
 
 | # | Pacote | Dono | Onda | Estado |
 |---|---|---|:---:|---|
-| E1 | Gerador de corpus sintético como código versionado | **notebook** (assumido em 24/08) | 2 | ✅ **fechado em 25/08/2026** — as sete condições, em `E1.a`/`E1.b`/`E1.c` |
+| E1 | Gerador de corpus sintético como código versionado | **notebook** (assumido em 24/08) | 2 | ✅ **fechado em 25/08/2026** — sete condições (`E1.a`–`c`) + revisão de completude (`E1.d`–`f`) |
 | E2 | Matriz de armadilhas: fatia ↔ pacote do roadmap | notebook | 2 | ✅ **fechado junto do `E1.c`** — [`docs/matriz-de-armadilhas.md`](docs/matriz-de-armadilhas.md) v1.0, 12 fatias |
 | E3 | Protocolo de três camadas + set selado | acordo entre setups | 3 | não começou |
 | E4 | Loop adversarial por fase (red-team de agente) | notebook | 4 | não começou |
@@ -1407,6 +1407,34 @@ As sete condições, como o laudo as escreveu:
    `tests/test_saneamento.termos()`, que lê de fora do Git.
 7. Adaptador para o formato do harness, com `armadilha_fatia` como **terceiro**
    eixo de recorte: `fatia` fica reservado ao idioma, para não reescrever `C4.5`.
+
+### A revisão de completude — `E1.d`, `E1.e`, `E1.f` (25/08/2026)
+
+> **Decisão do usuário, e ela corrige o critério, não a execução.** As sete
+> condições do laudo eram a régua de um *sample*: elas diziam o que o pacote que
+> chegou por zip precisava consertar. A pergunta certa é outra — **o que o produto
+> tem de aguentar** — e por ela o corpus estava incompleto em três eixos.
+
+| Pacote | Lacuna medida antes | Depois |
+|---|---|---|
+| `E1.d` formatos | 9 dos 17 parsers **nunca exercitados**, entre eles o `.msg` (3,5% do acervo real) | 20 extensões no corpus, `.xls` válido declarado fora |
+| `E1.e` pasta hostil | 4 dos 9 `ParseStatus` **nunca ocorriam** | todos, com 3 lacunas declaradas e conferidas |
+| `E1.f` ranking | 5 classes de defeito **documentadas neste repositório** sem nada que as medisse | 5 fatias novas, 651 perguntas no total |
+
+O que os três têm em comum, e é o método: **a régua sai de um contrato que o
+produto já declara** — `supported_extensions()`, `ParseStatus`, os módulos de
+`retrieve/`. Cada um com tabela de lacunas declarada, e cada tabela com um segundo
+teste que a impede de crescer por conveniência.
+
+**Seis defeitos foram achados ao construir**, e cinco eram meus: o gerador não
+usava caminho estendido (e por isso o corpus **não conseguia conter** a armadilha
+de caminho longo), um laço `O(n²)` que não terminava, uma fixture hostil que só
+armava conforme o comprimento da base, um teste que dependia de onde o pytest
+guarda temporários, uma fatia caindo no grupo `reunião` por acidente, e a
+distribuição de `.txt` indo de 0,4% a 8,3% por uma fatia que gravava formato fixo.
+O sexto é geral e vale registrar: **`pathlib.rglob` e `os.walk` perdem em silêncio
+o arquivo de caminho longo**, enquanto `census.iter_files` o acha — não é defeito
+do produto, é de ferramenta de teste, e já estava no repositório.
 
 ### O que fica registrado e não feito
 
@@ -1802,12 +1830,28 @@ botão “ligar no Claude Desktop / Grok”.
 nova, corpus sintético, um cliente MCP. Enquanto isso não passou, não é
 produto — é o laboratório dos dois setups.
 
-**F6-E — a pasta hostil** (acrescentado em 25/08, dono a combinar). O teste acima
-mede a máquina; falta medir o **acervo**. Uma pasta montada de propósito com o que
-uma base desconhecida tem e a nossa não: nome tipo `Scan_001.pdf`, caminho acima
-de 260 caracteres, placeholder de nuvem, arquivo aberto no Word, planilha sem
-cache de fórmula, PDF sem texto extraível, `.doc`/`.xls`/`.ppt` legado, nome com
-emoji e com acento, arquivo de 0 byte, extensão que mente sobre o conteúdo.
+**F6-E — a pasta hostil** — ✅ **FECHADA em 25/08/2026, dentro do `E1.e`.**
+
+> Foi acrescentada em 25/08 com "dono a combinar" e fechou no mesmo dia, absorvida
+> pelo gerador sintético: **o gerador é o montador de pastas**, e manter as duas
+> separadas produziria duas fixtures da mesma classe, divergindo. A leitura está
+> em [`docs/matriz-de-armadilhas.md`](docs/matriz-de-armadilhas.md); o código é
+> [`eval/gerador/hostil.py`](eval/gerador/hostil.py) e
+> [`tests/test_pasta_hostil.py`](tests/test_pasta_hostil.py).
+>
+> **E o checklist mudou de natureza, que é o que vale.** A lista abaixo era de dez
+> armadilhas escritas de cabeça, e lista escrita de cabeça envelhece. A cobertura
+> passou a sair de **`ingest.document.ParseStatus`** — o catálogo que o produto já
+> declara — com tabela de lacunas declarada e um segundo teste que a impede de
+> crescer por conveniência. **Status novo sem fixture reprova**, e quem escreveu o
+> status descobre no mesmo dia.
+
+O teste da fase mede a máquina; esta parte mede o **acervo**. Uma pasta montada de
+propósito com o que uma base desconhecida tem e a nossa não: nome tipo
+`Scan_001.pdf`, caminho acima de 260 caracteres, placeholder de nuvem, arquivo
+aberto no Word, planilha sem cache de fórmula, PDF sem texto extraível,
+`.doc`/`.xls`/`.ppt` legado, nome com emoji e com acento, arquivo de 0 byte,
+extensão que mente sobre o conteúdo.
 
 - **Aceite:** a indexação **termina**, o registro diz por documento o que
   aconteceu, e nada entra no índice como se tivesse texto quando não tem. Falhar é

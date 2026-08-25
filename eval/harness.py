@@ -81,6 +81,11 @@ class Retriever(Protocol):
 
 MOTIVOS_FORA_DE_ESCOPO = {
     "ocr": "fonte é PDF digitalizado, imagem por página, zero texto extraível — OCR está fora da F1",
+    "formula_sem_cache": (
+        "o valor só existe como fórmula: o Excel não gravou o resultado, `data_only` "
+        "devolve None e o texto do número não está no arquivo — nenhum parser o recupera "
+        "sem avaliar a planilha"
+    ),
 }
 """Por que uma pergunta não é mensurável nesta fase.
 

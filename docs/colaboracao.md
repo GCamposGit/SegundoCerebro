@@ -518,7 +518,7 @@ Um recado sobre os pacotes **Q**: são ortogonais e nenhum decide ranking, entã
 não entram na fila de ondas e podem correr a qualquer momento dos dois lados.
 `Q2` é do desktop e já andou no PR #14 — sobra o lockfile, os extras e `R8.1.b`.
 
-### `E1` fechado em 25/08/2026 — a camada 2 existe
+### `E1` fechado em 25/08/2026 — a camada 2 existe, e a `F6-E` fechou junto
 
 As sete condições do laudo, em três PRs (`E1.a`, `E1.b`, `E1.c`). O que o desktop
 precisa saber, em quatro linhas:
@@ -536,6 +536,29 @@ precisa saber, em quatro linhas:
   reescrever o `C4.5`.
 - **A ordem `E5` → `E1` → `F4-P` cumpriu-se.** A `F4-P` é o próximo pacote do
   notebook, encolhida ao defeito e com aceite binário.
+
+**A revisão de completude (`E1.d`/`E1.e`/`E1.f`) mudou três coisas que te
+afetam:**
+
+- **`tests/cfb.py` mudou de casa** para `eval/gerador/cfb.py`, e continua
+  existindo como reexport de duas linhas. O gerador passou a precisar do mesmo
+  construtor de CFB para emitir `.msg`, `.doc` e `.ppt`. **Isso é do seu `F4-L`**:
+  ele declara `tests/cfb.py` na lista de paths, e o arquivo segue lá funcionando —
+  mas quem for **estender** a fixture, estenda `eval/gerador/cfb.py`.
+- **O `F4-L` ganhou fixture.** Até agora o pacote estava aberto sem nenhum arquivo
+  legado contra o qual rodar. O corpus tem `.doc` e `.ppt` válidos (via OLE, lidos
+  pelo `ole_texto`), e as duas formas hostis de `.xls` que o pacote persegue: o
+  CFB que o `xlrd` recusa (`XLRDError: Expected BOF record`) e o HTML com extensão
+  trocada — que o parser de planilha, medido, **lê**. Nenhum parser foi tocado.
+- **A `F6-E` fechou**, absorvida pelo `E1.e`. Ela era porta de fase e estava com
+  "dono a combinar"; o gerador é o montador de pastas, e manter as duas separadas
+  produziria duas fixtures da mesma classe.
+
+**O que isso te dá:** um corpus de 1.174 documentos e 651 perguntas em `n=30`, com
+as 17 extensões que o produto lê, os 9 estados de `ParseStatus` cobertos ou
+declarados, e os 7 mecanismos de `retrieve/` exercitados. Ele roda no desktop sem
+nada do acervo corporativo — é o que `docs/colaboracao.md` §5 sempre prometeu e
+agora vale a pena rodar.
 
 **Um recado sobre o `R9.1`, que é seu.** O corpus sintético agora cruza os dois
 eixos: reunião × cross-lingual = 10 e email × cross-lingual = 10 em `n=30`, na
