@@ -166,3 +166,110 @@ def test_venenosos_presentes(tmp_path: Path) -> None:
 
     assert len(list(q.iterdir())) == 9
     assert (q / "vazio_0.txt").stat().st_size == 0
+
+
+def test_o_corpus_tem_reuniao_e_email_e_eles_cruzam_idioma(tmp_path: Path) -> None:
+    """Condição 3, e o que ela mede é a **interseção**, não a soma.
+
+    O corpus do pacote saía `{'escritório': 234, 'misto': 26}`: zero reunião, zero
+    email, e o alvo declarado da `F4-P` é o grupo `reunião`. Rodá-lo antes da
+    `F4-P` não comprava nada para a `F4-P`.
+
+    E somar os dois eixos não bastaria: no dourado real **3 das 11 perguntas de
+    reunião são cross-lingual**, então a fatia sintética tem de conter reunião
+    *que também* cruza idioma. Uma reunião monolíngue de um lado e uma
+    cross-lingual de escritório do outro mediriam dois casos que existem — e não o
+    caso que a `F4-P` decide.
+    """
+    from collections import Counter
+
+    from eval.adaptador_sintetico import adaptar
+
+    gerar(42, N_MINIMO, tmp_path / "g", sem_docx=True)
+    perguntas = adaptar(tmp_path / "g", tmp_path / "p.jsonl")
+
+    grupos = Counter(p.grupo_de_fonte for p in perguntas)
+    assert grupos["reunião"] > 0 and grupos["email"] > 0, dict(grupos)
+
+    cruzado = Counter(
+        (p.grupo_de_fonte, p.fatia) for p in perguntas if p.fatia == "cross-lingual"
+    )
+    assert cruzado[("reunião", "cross-lingual")] > 0, f"a interseção não existe: {dict(cruzado)}"
+    assert cruzado[("email", "cross-lingual")] > 0, dict(cruzado)
+
+
+def test_a_distribuicao_de_formato_segue_o_censo() -> None:
+    """Condição 4, conferida no sorteador e não no disco — exato e sem I/O.
+
+    O gerador do pacote emitia 80% `.txt` contra os 74% PDF+DOCX do acervo real:
+    um corpus que mede um caminho de código que o produto quase não usa.
+    """
+    from collections import Counter
+
+    from eval.gerador.nucleo import DISTRIBUICAO_DO_CENSO, picker
+
+    sorteia = picker(dict.fromkeys(("pdf", "xlsx", "pptx", "docx"), True))
+    tirado = Counter(sorteia() for _ in range(1000))
+    total = sum(peso for _, peso in DISTRIBUICAO_DO_CENSO)
+
+    for formato, peso in DISTRIBUICAO_DO_CENSO:
+        esperado = 1000 * peso / total
+        assert abs(tirado[formato] - esperado) <= 12, (
+            f"{formato}: {tirado[formato]} tirados, {esperado:.0f} esperados"
+        )
+
+
+def test_sem_biblioteca_o_peso_vira_texto_e_o_selo_muda(tmp_path: Path) -> None:
+    """`--so-texto` desliga os quatro binários, e `caps` registra — é dimensão do selo."""
+    from collections import Counter
+
+    from eval.gerador.nucleo import picker
+
+    so_texto = picker(dict.fromkeys(("pdf", "xlsx", "pptx", "docx"), False))
+    tirado = Counter(so_texto() for _ in range(200))
+    assert set(tirado) <= {"txt", "md"}, dict(tirado)
+
+    manifesto = gerar(42, 4, tmp_path / "t", sem_docx=True)
+    assert manifesto["caps"] == dict.fromkeys(("pdf", "xlsx", "pptx", "docx"), False)
+
+
+def test_os_formatos_binarios_voltam_pelo_parser_do_projeto(tmp_path: Path) -> None:
+    """Escrever um PDF que o nosso parser não lê seria falha silenciosa.
+
+    É a lição de medir com o instrumento real: o gerador não tem o direito de
+    afirmar "o corpus é 46% PDF" se o `pymupdf4llm` do produto não extrai texto
+    dele. Aqui cada formato que o gerador escreve volta pelo **despachante que o
+    indexador usa**, e o texto plantado tem de estar no que voltou.
+    """
+    from segundocerebro.ingest.parsers import parser_for
+
+    from eval.gerador.nucleo import Doc, escrever
+
+    marca = "CT-RT-042 valor total R$ 1.234.567,89"
+    for formato, ext in (("pdf", ".pdf"), ("xlsx", ".xlsx"), ("pptx", ".pptx"),
+                         ("docx", ".docx"), ("eml", ".eml"), ("vtt", ".vtt")):
+        doc = Doc(f"round/trip_{formato}{ext}", marca, formato=formato)
+        escrever(doc, tmp_path)
+        parser = parser_for(ext)
+        if parser is None:
+            continue  # `.vtt` é texto puro; o indexador o trata como tal
+        lido = parser((tmp_path / doc.caminho).read_bytes(), f"trip_{formato}{ext}")
+        texto = "\n".join(b.text for b in lido.blocks)
+        assert "CT-RT-042" in texto, f"{formato}: o identificador não voltou"
+
+
+def test_o_eml_e_mime_de_verdade(tmp_path: Path) -> None:
+    """O parser de email de 21/08 lê MIME; um `.eml` inventado à mão não serviria."""
+    import email
+    import email.policy
+
+    from eval.adaptador_sintetico import adaptar
+
+    gerar(42, 4, tmp_path / "g", sem_docx=True)
+    adaptar(tmp_path / "g", tmp_path / "p.jsonl")
+    emls = sorted((tmp_path / "g" / "corpus").rglob("*.eml"))
+
+    assert emls, "a fatia de email não escreveu nada"
+    msg = email.message_from_bytes(emls[0].read_bytes(), policy=email.policy.default)
+    assert msg["Subject"], "sem assunto não é email"
+    assert "prazo de aviso" in msg.get_content() or "notice period" in msg.get_content()

@@ -56,23 +56,114 @@ def moeda(v):
     s = f"{v:,.2f}".replace(",", "X").replace(".", ",").replace("X", ".")
     return f"R$ {s}"
 
+DISTRIBUICAO_DO_CENSO = (("pdf", 478), ("xlsx", 218), ("docx", 147),
+                         ("pptx", 80), ("md", 12), ("txt", 4))
+"""Formato do corpus sintetico, em milesimos, calibrado pelo censo do acervo real.
+
+Condicao 4 do laudo. O gerador do pacote emitia **80% `.txt`** e zero PDF com
+conteudo, zero `.xlsx`, zero `.pptx` -- um corpus que mede um caminho de codigo
+que o produto quase nao usa. O acervo real e 47,8% `.pdf`, 21,8% `.xlsx`, 14,7%
+`.docx`, 8,0% `.pptx` (`docs/censo.md`, gitignorado; os agregados sao os que o
+`CLAUDE.md` ja publica como "74% PDF+DOCX").
+
+Os pesos sao os do censo sem renormalizar: o que sobra (`.msg`, `.xls`, `.csv`,
+sem extensao) ou tem fatia propria -- email e `planilha_despejo` escolhem o
+formato delas -- ou e legado que o `F4-L` ainda nao le. Formato sem biblioteca
+nesta maquina cai em `txt` e fica **registrado em `caps`**, que desde o `E1.a` e
+dimensao do selo: um corpus gerado sem `pymupdf` nao se confunde com um gerado
+com ele.
+"""
+
+BIBLIOTECA_DE = {"pdf": "pymupdf", "xlsx": "openpyxl", "pptx": "pptx", "docx": "docx"}
+"""Que import prova a capacidade de escrever cada formato binario."""
+
+
 def detectar_caps():
-    try:
-        import docx  # noqa
-        return {"docx": True}
-    except Exception:
-        return {"docx": False}
+    """O que esta maquina consegue escrever. Vai para o manifesto e para o selo."""
+    caps = {}
+    for formato, modulo in BIBLIOTECA_DE.items():
+        try:
+            __import__(modulo)
+            caps[formato] = True
+        except Exception:
+            caps[formato] = False
+    return caps
+
+
+def _padrao(pesos, tamanho=100):
+    """Sequencia deterministica que respeita os pesos e os espalha.
+
+    Round-robin ponderado suave: a cada passo todo formato acumula credito
+    proporcional ao peso e o de maior credito paga um. Concatenar as fatias
+    (`pdf`*51 + `xlsx`*23 + ...) tambem daria a proporcao certa no corpus
+    inteiro, mas cada fatia pega um prefixo do ciclo -- e as fatias pequenas
+    sairiam 100% PDF. Espalhar e o que faz a proporcao valer **por fatia**.
+    """
+    total = sum(peso for _, peso in pesos)
+    credito = {formato: 0.0 for formato, _ in pesos}
+    saida = []
+    for _ in range(tamanho):
+        for formato, peso in pesos:
+            credito[formato] += peso / total
+        escolhido = max(credito, key=lambda f: (credito[f], f))
+        credito[escolhido] -= 1.0
+        saida.append(escolhido)
+    return saida
+
 
 def picker(caps):
-    exts = ["txt", "txt", "md", "txt"] + (["docx"] if caps.get("docx") else ["txt"])
-    c = itertools.cycle(exts)
+    """Sorteador de formato por documento, na distribuicao do censo.
+
+    Formato sem biblioteca vira `txt`, e o peso dele vai junto -- e por isso que
+    `--so-texto` produz um corpus 100% texto sem mudar a forma do codigo.
+    """
+    pesos = []
+    para_texto = 0
+    for formato, peso in DISTRIBUICAO_DO_CENSO:
+        if formato in BIBLIOTECA_DE and not caps.get(formato):
+            para_texto += peso
+        else:
+            pesos.append((formato, peso))
+    if para_texto:
+        pesos = [(f, p + para_texto if f == "txt" else p) for f, p in pesos]
+    c = itertools.cycle(_padrao(pesos))
     return lambda: next(c)
 
 def escrever(doc, raiz):
     p = raiz / doc.caminho
     p.parent.mkdir(parents=True, exist_ok=True)
-    if doc.formato in ("txt", "md", "csv"):
+    if doc.formato in ("txt", "md", "csv", "vtt", "eml"):
+        # `vtt` e `eml` sao texto no disco e formato para o harness: `eval.fonte`
+        # classifica por extensao (`EXTENSOES_DE_TRANSCRICAO`, `EXTENSOES_DE_EMAIL`),
+        # e o parser de email de 21/08 le MIME. Escrever binario aqui nao
+        # acrescentaria nada e tiraria a legibilidade do corpus de teste.
         p.write_text(doc.texto, encoding="utf-8")
+    elif doc.formato == "pdf":
+        import pymupdf
+        pdf = pymupdf.open()
+        pagina = pdf.new_page()
+        pagina.insert_textbox(pymupdf.Rect(50, 50, 545, 790), doc.texto, fontsize=11)
+        pdf.save(str(p))
+        pdf.close()
+    elif doc.formato == "xlsx":
+        from openpyxl import Workbook
+        wb = Workbook()
+        aba = wb.active
+        for i, linha in enumerate(doc.texto.split("\n"), start=1):
+            aba.cell(row=i, column=1, value=linha)
+        wb.save(str(p))
+    elif doc.formato == "pptx":
+        from pptx import Presentation
+        from pptx.util import Emu
+        pres = Presentation()
+        slide = pres.slides.add_slide(pres.slide_layouts[6])
+        caixa = slide.shapes.add_textbox(Emu(457200), Emu(457200), Emu(8229600), Emu(4572000))
+        quadro = caixa.text_frame
+        linhas = doc.texto.split("\n")
+        quadro.text = linhas[0] if linhas else ""
+        for linha in linhas[1:]:
+            quadro.add_paragraph().text = linha
+        pres.save(str(p))
     elif doc.formato == "docx":
         import docx as dx
         d = dx.Document()

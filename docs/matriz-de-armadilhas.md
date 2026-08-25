@@ -1,4 +1,4 @@
-# Matriz de armadilhas — gerador sintético (`E1`/`E2`) — v0.3
+# Matriz de armadilhas — gerador sintético (`E1`/`E2`) — v1.0
 
 Mapeamento fatia ↔ pacote do roadmap. **Toda ablação reporta a tabela por fatia;
 média agregada não decide nada** (protocolo `E3`).
@@ -29,6 +29,8 @@ escala abaixo.
 | `temporal` | 3 revisões; vigente vs "em 2019" | `R6.3`, `C6` | qualquer |
 | `distratores` | 3 hard negatives na mesma pasta | `R6.2` rerank | qualquer |
 | `estrutura_pastas` | taxonomia rica vs `Diversos/` | `R2.1` | pareado |
+| `reuniao` | identificador só na **fala**; nome do arquivo é data e hora | `F4-P`, `C3.a` | qualquer |
+| `email` | assunto `RES: RES: ENC:`; resposta só no corpo | `F4-P`, parser de email | qualquer |
 | `venenosos` | PDF truncado, ZIP renomeado, 0 byte | `R1.4` quarentena | **sem pergunta** |
 
 `venenosos` sem pergunta nenhuma é decisão, não lacuna: ela mede robustez do
@@ -94,14 +96,44 @@ isso é verdade, não defeito. O que nunca é legítimo é a pergunta cair no ba
 significa *ninguém preencheu*, porque ele não distingue "não se aplica" de
 "esqueceram". Medido em `--seed 42 --n-por-fatia 30`:
 
-| Eixo | Antes do `E1.b` | Depois |
+| Eixo | Como veio no pacote | Depois do `E1.b`+`E1.c` |
 |---|---|---|
-| `fatia` | `{não declarado: 260}` | `{mesma-língua: 270, cross-lingual: 30}` |
-| `grupo_de_fonte` | `{escritório: 234, misto: 26}` | `{escritório: 270, misto: 30}` |
-| `armadilha_fatia` | não existia (colidia com `fatia`) | 10 baldes × 30 |
+| `fatia` | `{não declarado: 260}` | `{mesma-língua: 310, cross-lingual: 50}` |
+| `grupo_de_fonte` | `{escritório: 234, misto: 26}` | `{escritório: 270, misto: 30, reunião: 30, email: 30}` |
+| `armadilha_fatia` | não existia (colidia com `fatia`) | 12 baldes × 30 |
 
-`grupo_de_fonte` **continua sem `reunião` e sem `email`** — é a condição 3, e é do
-`E1.c`. Enquanto ela não fechar, este corpus não mede o grupo que a `F4-P` decide.
+**E a interseção, que é o que a condição 3 pede de verdade** — somar os dois eixos
+não mediria o caso que o acervo tem:
+
+| | mesma-língua | cross-lingual |
+|---|---:|---:|
+| escritório | 240 | 30 |
+| misto | 30 | 0 |
+| **reunião** | 20 | **10** |
+| **email** | 20 | **10** |
+
+Uma em cada três (`fatias.CRUZA_IDIOMA`), que é a proporção do dourado real: 3 das
+11 perguntas de reunião cruzam idioma.
+
+## Formato — a condição 4, medida
+
+`--seed 42 --n-por-fatia 30`, com as quatro bibliotecas presentes (703 documentos):
+
+| | `.pdf` | `.xlsx` | `.docx` | `.pptx` | `.vtt` | `.eml` | `.md` | `.txt` | `.csv` |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| **censo real** | 47,8% | 21,8% | 14,7% | 8,0% | — | 3,5%¹ | 1,2% | 0,4% | 0,2% |
+| **gerado** | 45,7% | 21,1% | 15,1% | 6,4% | 4,3% | 4,3% | 2,3% | 0,6% | 0,4% |
+| **no pacote** | 0,5%² | 0% | 19,1% | 0% | 0% | 0% | 19,3% | 60,5% | 0,5% |
+
+¹ o acervo real usa `.msg`; a fatia sintética usa `.eml`, que é MIME e que o
+parser de 21/08 lê sem COM. ² os três PDFs do pacote eram os **truncados** da
+fatia de venenosos — zero PDF com conteúdo.
+
+Formato sem biblioteca nesta máquina vira `txt` **e fica registrado em `caps`**,
+que é dimensão do selo desde o `E1.a`: um corpus `--so-texto` nunca se confunde com
+o completo. E cada formato binário que o gerador escreve **volta pelo despachante
+que o indexador usa**, em teste — escrever um PDF que o `pymupdf4llm` não lê seria
+afirmar uma distribuição que o produto não enxerga.
 
 ## O que o selo sela
 
@@ -127,19 +159,19 @@ as outras quatro são os pacotes seguintes:
 | 6 | nenhuma lista de nome real em arquivo versionado | ✅ `E1.a` |
 | 2 | emitir `idioma` **e** `idioma_fonte` no vocabulário fechado do harness | ✅ `E1.b` |
 | 7 | adaptador para `harness.Pergunta`, com `armadilha_fatia` como 3º eixo | ✅ `E1.b` |
-| 3 | fatia de reunião e de email, com a interseção cross-lingual | `E1.c` |
-| 4 | distribuição de formato calibrada pelo censo (`E6.1`) | `E1.c` |
+| 3 | fatia de reunião e de email, com a interseção cross-lingual | ✅ `E1.c` |
+| 4 | distribuição de formato calibrada pelo censo (`E6.1`) | ✅ `E1.c` |
 
-A condição 2 fechou no `E1.b`, e o gerador passou a **não conseguir** emitir
-código inválido: `perg()` valida contra `harness.IDIOMAS_ACEITOS` na emissão, e
-`pt->en` levanta erro dizendo que travessia sai de cruzar os dois campos. Produtor
-que não emite inválido é melhor que consumidor que rejeita depois.
+As sete condições fecharam. O que cada uma trouxe está nas seções acima; o que
+sobra são as extensões da v1.1, listadas no fim, e nenhuma delas bloqueia usar
+este corpus como camada 2.
 
-**O que ainda impede este corpus de decidir a `F4-P`** é a condição 3: sem fatia
-de reunião e de email, o `grupo_de_fonte` só tem `escritório` e `misto`, e o alvo
-declarado da `F4-P` é `reunião`.
+**O que este corpus continua não sendo:** condição C. Métrica de corpus sintético
+não decide sozinha — ela é a camada 2 do protocolo do `E3`, e a camada 3 (`C5`,
+benchmark externo amostrado) existe justamente para detectar endogamia deste
+gerador. Um ganho que só aparece aqui é um ganho deste gerador.
 
-## Fora do escopo (extensões v0.3)
+## Fora do escopo (extensões v1.1)
 
 - legado OLE (`.doc`/`.ppt`/`.xls` via LibreOffice headless) — depende de `R1.1`
 - OCR (PDF-imagem com texto conhecido) — `R1.2`
