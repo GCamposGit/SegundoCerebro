@@ -77,9 +77,12 @@ Onde o sistema está, em cinco linhas:
   declarada e medida, não silenciosa.
 - **Recuperação**: fusão de quatro sinais (denso `e5-large`, bm25/FTS5, nome de
   arquivo, famílias de versão), glossário por base, reranking **desligado** por
-  custo, grafo derivado servindo `neighbors`.
+  custo, grafo derivado servindo `neighbors`. Desde 25/08/2026 os quatro sinais
+  existem **nos dois caminhos** — a `F4-P` levou o nome para `buscar_chunks`, que
+  é o que o cliente executa.
 - **Linha de base do acervo corporativo** (n=59, sem rerank, glossário de teste):
-  recall@1 **0,551**, MRR **0,680**. Com intervalo:
+  recall@1 **0,551**, MRR **0,680** em `search`, que segue sendo a série histórica.
+  O caminho entregue está em **0,551 / 0,696** desde a `F4-P`. Com intervalo:
   [`docs/rigor-estatistico.md`](docs/rigor-estatistico.md). É **piso de
   regressão**, não autoridade de arquitetura.
 - **Superfície MCP**: `search`, `read_note`, `neighbors` — dois clientes
@@ -100,13 +103,12 @@ o container OLE que mente sobre o próprio conteúdo.
    condições do laudo ([`docs/avaliacao-pacote-e1.md`](docs/avaliacao-pacote-e1.md)).
    É o instrumento de base desconhecida, e por isso passou **à frente** da `F4-P`
    em 25/08/2026 (a ordem anterior era `E5` → `F4-P` → `E1`).
-2. **`F4-P`, encolhida ao defeito** — reconciliar os dois caminhos de
-   recuperação, com aceite binário: o caminho que o cliente executa
-   (`buscar_chunks`) tem de alcançar o que `search` alcança — cross-lingual
-   recall@20 de 0,750 para **1,000** — sem derrubar o piso. **A varredura de peso
-   por tipo de fonte sai do escopo**: no melhor caso teórico ela vale +0,032 de
-   MRR agregado, com efeito concentrado em 11 perguntas, que é a forma que o `E5`
-   provou indetectável.
+2. **A varredura de peso de nome por tipo de fonte**, que a `F4-P` deixou com o
+   efeito mínimo que lhe faltava — nDCG@5 de reunião **−0,089 [−0,172, −0,017]**,
+   IC que não cruza zero. A regra 11 a cortou em 25/08 por não haver esse número;
+   agora há. **Continua faltando a outra metade**: os perfis sintéticos do `E1`,
+   para saber se o peso generaliza para acervo que não é este. Sem eles, não
+   começar.
 3. **`F6`** — restam `F6-A`/`F6-C` (desktop) e `F6-B` (estágio 0 do painel). A
    `F6-D` (`docs/comecar.md`) e a `F6-E` (pasta hostil) fecharam em 25/08/2026, e
    o `Q5` P0 — e2e do protocolo MCP — também. Do `Q2` sobram lockfile e extras,

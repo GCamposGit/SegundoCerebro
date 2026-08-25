@@ -573,6 +573,31 @@ proporção do dourado real (3 das 11). Quando o perfil bilíngue existir, ele t
 segundo conjunto contra o qual se conferir — e é onde o `fts_caminho = 0,3` deixa
 de depender de uma pergunta em doze.
 
+### `F4-P` fechada em 25/08/2026 — e o desktop precisa saber disto
+
+[`ablacao-f4p-nome-no-entregue.md`](ablacao-f4p-nome-no-entregue.md). O
+`RanqueadorDeNome` passou a existir em `buscar_chunks`, que é o caminho que a
+ferramenta MCP executa. **Nenhum valor de `[padrao]` mudou** — `PESO_NOME` já era
+0,5. O que mudou é que agora ele faz alguma coisa nos dois caminhos, e não só em
+`search`.
+
+Por que isto é do desktop também, e não só uma nota de rodapé do notebook:
+
+- **Todo número de peso de nome que o desktop tenha medido em `buscar_chunks`
+  antes desta data mediu zero**, porque o sinal era inerte ali. Números medidos
+  em `search` continuam válidos e continuam sendo a série histórica.
+- **O caminho entregue mudou de patamar**: MRR@10 0,671 → 0,696, e ele agora bate
+  o `search` (0,680) no acervo corporativo. Quem for comparar caminhos precisa
+  refazer a comparação, não reusar a tabela de 24/08.
+- **`eval.comparar` ganhou dois botões**: `--entregue`, que põe **os dois** braços
+  no caminho do cliente, e `--peso-nome-depois`, o braço assimétrico do peso de
+  nome — a irmã de `--rerank-depois`.
+- **A varredura de peso por tipo de fonte deixou de estar cortada pela regra 11.**
+  O efeito mínimo que faltava apareceu: nDCG@5 de reunião **−0,089 [−0,172,
+  −0,017]**. Ela continua bloqueada pela outra metade, que é do `E1` — saber se o
+  peso generaliza para acervo que não é este. **Não começar sem os perfis
+  sintéticos.**
+
 ### Agora — desktop
 
 **Cinco pacotes prontos para começar, nenhum bloqueado por nada.** A ordem é
