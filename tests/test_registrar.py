@@ -365,7 +365,13 @@ def test_bloco_do_claude_desktop_sobe_de_um_cwd_neutro():
         async with stdio_client(params) as (ler, escrever), ClientSession(ler, escrever) as sessao:
             await sessao.initialize()
             ferramentas = [f.name for f in (await sessao.list_tools()).tools]
-            r = await sessao.call_tool("search", {"consulta": "relação da Bazico com a Corpus", "k": 3})
+            # Consulta deliberadamente genérica e sem nome próprio. O que este
+            # teste prova é o cano — handshake, chamada, procedência —, não
+            # ranking: a busca densa devolve `k` candidatos para qualquer
+            # consulta não vazia. A versão anterior citava duas empresas reais,
+            # que é o vazamento que `test_saneamento.py` existe para impedir.
+            consulta = "contrato de prestação de serviços"
+            r = await sessao.call_tool("search", {"consulta": consulta, "k": 3})
             carga = _json.loads(r.content[0].text)
             return ferramentas, carga["trechos"]
 

@@ -370,6 +370,13 @@ frio), não coincidência de layout de CI. Duas consequências:
    sem dizer o que fazer quando não resolve.** É o primeiro comando que o leigo
    digita, e hoje ele falha nesta máquina.
 
+   **Atendido em 25/08/2026.** A página ensina a forma `py -m segundocerebro.painel`
+   como a principal — não como contorno — e trata o atalho numa caixa própria, com
+   o comando que imprime a pasta a acrescentar ao `PATH`. O que fechou a classe não
+   foi a caixa: foi `tests/test_docs_do_usuario.py`, que confere cada
+   `py -m <modulo>` das duas páginas de usuário contra um ponto de entrada que
+   exista de fato. Doc que manda digitar comando inexistente agora reprova.
+
 **Ordem dentro da onda 2, e o motivo de não ser a da lista.** `C3.a` vem primeiro
 porque é a hipótese mais barata da onda e ela pode tornar as outras duas menores:
 se a dupla contagem do nome do arquivo explica a troca medida nas perguntas de
