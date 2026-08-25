@@ -178,16 +178,22 @@ def f_familia_sem_numero(rng, n, ext):  # noqa: ANN001
         pol = f"PO-VCE-{100 + i:03d}"
         limites = rng.sample(range(20, 900), 3)
         base = f"{PASTA_POLITICAS}/{pol}"
-        antiga = Doc(f"{base}/{pol} Politica de alcadas_v1.txt",
-                     f"POLITICA {pol} - v1\nLimite de alcada: {moeda(limites[0] * 1000)}.\n",
-                     meta={"mtime": "2021-03-04"})
-        numerada = Doc(f"{base}/{pol} Politica de alcadas_v6.txt",
-                       f"POLITICA {pol} - v6\nLimite de alcada: {moeda(limites[1] * 1000)}.\n",
-                       meta={"mtime": "2023-07-19"})
-        vigente = Doc(f"{base}/{pol} Politica de alcadas_revisada_GC.txt",
-                      f"POLITICA {pol} - revisao vigente\n"
-                      f"Limite de alcada: {moeda(limites[2] * 1000)}.\n",
-                      meta={"mtime": "2026-05-30"})
+        # `ext()` uma vez para a familia inteira, como em `f_duplicatas`: familia
+        # de versao com extensoes diferentes seria outra armadilha, e misturar
+        # duas numa fatia so torna o resultado ilegivel. A primeira versao gravava
+        # `.txt` fixo e levou o `.txt` do corpus de 0,4% (censo) a 8,3% -- o
+        # sorteador existe para as fatias nao decidirem formato por conta.
+        formato = ext()
+        antiga = mkdoc(base, f"{pol} Politica de alcadas_v1",
+                       f"POLITICA {pol} - v1\nLimite de alcada: {moeda(limites[0] * 1000)}.\n",
+                       formato, mtime="2021-03-04")
+        numerada = mkdoc(base, f"{pol} Politica de alcadas_v6",
+                         f"POLITICA {pol} - v6\nLimite de alcada: {moeda(limites[1] * 1000)}.\n",
+                         formato, mtime="2023-07-19")
+        vigente = mkdoc(base, f"{pol} Politica de alcadas_revisada_GC",
+                        f"POLITICA {pol} - revisao vigente\n"
+                        f"Limite de alcada: {moeda(limites[2] * 1000)}.\n",
+                        formato, mtime="2026-05-30")
         docs += [antiga, numerada, vigente]
         ps.append(perg(
             f"q-fs-{i:03d}", "familia_sem_numero",
