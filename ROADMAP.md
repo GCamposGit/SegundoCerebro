@@ -1462,7 +1462,7 @@ do produto, é de ferramenta de teste, e já estava no repositório.
 | Q2 | `pyproject` como fonte única: `dependencies = []` contradiz o `requirements.txt` | desktop (é `R8.1`) | **P0** |
 | Q3 | Teto de tamanho de módulo como regra de processo IA — decomposição só oportunista | cada um no seu | **P3 · vitrine** |
 | Q4 | Política escrita de `except Exception` (os 34 `BLE001`) | qualquer | P1 |
-| Q5 | **e2e do protocolo MCP** (P0 — prova o caminho que o leigo executa) · property-based `consulta_fts`/`chave_de_familia` (P1) · smoke de mutação (P3) | notebook + desktop | **P0 / P1 / P3** |
+| Q5 | **e2e do protocolo MCP** (**feito** em 25/08 — `tests/test_protocolo_mcp.py`) · property-based `consulta_fts`/`chave_de_familia` (P1) · smoke de mutação (P3) | notebook + desktop | **P0 feito / P1 / P3** |
 | Q6 | template de PR (**feito** em 25/08 — é onde as regras 10 a 12 mordem) · `CONTRIBUTING`, `SECURITY`, `pip-audit` | qualquer | **P0 feito / P2** |
 | Q7 | Tag e CHANGELOG por fase fechada | qualquer | **P3 · vitrine** |
 | Q8 | `docs/README.md` com índice temático — 67 arquivos sem sumário | notebook | **P3 · vitrine** |
@@ -1717,9 +1717,12 @@ versão + despachante. Dois PRs se o OCR entrar no laço e no ranking.
 >
 > **Classe generalizada** (regra 12): "o eval mede um caminho e o cliente executa
 > outro" ficou fechada pelo `F4-P.0` — `eval/entregue.py` e `--entregue` em
-> `eval.rodar` **e** em `eval.comparar`. O que falta é a ponta: um teste e2e do
-> protocolo MCP (`Q5`, agora P0) para que a próxima divergência de caminho quebre
-> um teste em vez de uma fase.
+> `eval.rodar` **e** em `eval.comparar`. **A ponta fechou em 25/08/2026** com o
+> `Q5` P0: `tests/test_protocolo_mcp.py` sobe o servidor por stdio contra uma
+> `BuscaHibrida` cujo `search` — o ranqueador de **documento** — explode. Trocar
+> `buscar_chunks` por `search` na ferramenta MCP agora põe quatro testes em
+> vermelho no mesmo commit, e há um segundo teste que impede a armadilha de virar
+> no-op em silêncio.
 
 Ranking não muda sem número.
 

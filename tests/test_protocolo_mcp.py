@@ -18,7 +18,9 @@ retorno e é cego para tudo o que existe **entre** o cliente e essas funções:
   inteira, sem que nada ficasse vermelho;
 - os **nomes dos campos da SDK**. Este arquivo nasceu escrito em `isError` e
   `serverInfo`, que é como a especificação do protocolo os mostra, e a SDK
-  instalada expõe `is_error` e `server_info`. Nenhuma chamada de função notaria.
+  instalada expõe `is_error` e `server_info`. Nenhuma chamada de função notaria;
+- e o **doc que o usuário lê**, que dizia "duas ferramentas" e "`neighbors`
+  continua hipótese" enquanto a `neighbors` já respondia no `.mcp.json` dele.
 
 Duas conversas, as duas na suíte padrão e as duas **sem carregar modelo**:
 
@@ -43,6 +45,7 @@ from __future__ import annotations
 import asyncio
 import json
 import os
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -382,6 +385,43 @@ def test_a_ferramenta_search_nao_passa_pelo_ranqueador_de_documento(
 
     assert not resultado.is_error, "a ferramenta caiu no ranqueador de documento"
     assert carga(resultado)["trechos"]
+
+
+# --- 4. o que o usuário lê contra o que o servidor serve ---------------------
+
+DOC = REPO / "docs" / "usar-o-mcp.md"
+NUMERAIS = {1: "ferramenta", 2: "duas ferramentas", 3: "três ferramentas"}
+"""Como o título da seção conta as ferramentas. Só os casos que podem existir."""
+
+
+def _secao_das_ferramentas() -> str:
+    texto = DOC.read_text(encoding="utf-8")
+    inicio = re.search(r"^## As .*ferramentas?\s*$", texto, re.MULTILINE)
+    assert inicio, "a seção que descreve as ferramentas mudou de título"
+    resto = texto[inicio.end() :]
+    fim = re.search(r"^## ", resto, re.MULTILINE)
+    return inicio.group(0) + (resto[: fim.start()] if fim else resto)
+
+
+def test_o_doc_do_usuario_descreve_exatamente_as_ferramentas_que_existem() -> None:
+    """A `neighbors` esteve um mês no servidor e cinco dias fora deste doc.
+
+    O doc dizia "duas ferramentas" e "`neighbors` continua hipótese" enquanto ela
+    já respondia no `.mcp.json` do usuário. Documentação que descreve uma
+    superfície menor que a real é o pior tipo de erro de doc: parece conservadora
+    e faz o leigo não usar o que ele já tem instalado.
+
+    A classe é "doc de usuário afirma superfície que o código não tem"
+    (regra 12), e o que a fecha é este teste: ferramenta nova sem entrar no doc
+    reprova, e nome no doc que não é ferramenta também.
+    """
+    secao = _secao_das_ferramentas()
+    documentadas = set(re.findall(r"\*\*`(\w+)\(", secao))
+
+    assert documentadas == FERRAMENTAS, (
+        f"o doc descreve {sorted(documentadas)} e o servidor serve {sorted(FERRAMENTAS)}"
+    )
+    assert NUMERAIS[len(FERRAMENTAS)] in secao.splitlines()[0].lower()
 
 
 def test_a_armadilha_do_caminho_esta_armada(tmp_path: Path) -> None:

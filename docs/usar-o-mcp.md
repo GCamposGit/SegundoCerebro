@@ -1,7 +1,8 @@
 # Usar o Segundo Cérebro pelo MCP
 
-Estado em 13/08/2026: **superfície mínima de pé**, duas ferramentas, provada
-ponta a ponta por stdio contra o índice real.
+Estado em 25/08/2026: **superfície mínima de pé**, três ferramentas, provada
+ponta a ponta por stdio — contra o índice real em 13/08, e desde 25/08 também na
+suíte padrão, sem carregar modelo (`tests/test_protocolo_mcp.py`).
 
 ## Ligar no Claude Code
 
@@ -84,18 +85,29 @@ Sobre o `--instalar`: ele só existe para cliente cujo caminho **e** formato for
 conferidos. O VS Code fica fora de propósito — o `mcp.json` dele chama a seção
 `servers`, não `mcpServers`, e o trecho gerado aqui não serve para ele.
 
-## As duas ferramentas
+## As três ferramentas
 
-**`search(consulta, k=8)`** — trechos por significado e por termo exato, fundidos
-por RRF. Devolve, para cada trecho: `id`, `arquivo`, `secao`, `onde`, `texto`,
-`score` e `achado_por` (qual ranqueador o encontrou: denso, lexical ou os dois).
+**`search(consulta, k=8, contexto=1)`** — trechos por significado e por termo
+exato, fundidos por RRF. Devolve, para cada trecho: `id`, `arquivo`, `secao`,
+`onde`, `texto`, `score` e `achado_por` (qual ranqueador o encontrou: denso,
+lexical ou os dois). O `contexto` anexa vizinhos em `antes` e `depois`, para o
+caso "a resposta estava no parágrafo seguinte".
 
 **`read_note(id, janela=1)`** — o trecho pedido mais os vizinhos do mesmo
 documento, para ler o contexto em volta. O `id` é o que veio da `search`.
 
-São duas, e não as cinco do ROADMAP, porque `search` e `read_note` já fecham o
-laço: "onde está X" e "me mostra o que tem em volta". `neighbors` e `list_recent`
-continuam hipóteses — o uso real responde isso melhor que o palpite.
+**`neighbors(arquivo, limite=5)`** — documentos ligados a um arquivo por
+identificador citado em comum: norma, lei, código de contrato, CNPJ, processo. E
+devolve **por que** cada um está ligado, com o identificador e o trecho, para a
+ligação ser conferível em vez de oracular.
+
+São três, e não as cinco do ROADMAP. `search` e `read_note` fecham o laço básico
+— "onde está X" e "me mostra o que tem em volta" — e foram as duas únicas até a
+F3. A `neighbors` entrou na F4 por um motivo diferente: o traço de uso real
+mostrou o limite que ela rompe. Um plano que termina em "certificação ISO 42001" e
+a norma, em outra pasta, não têm nome, pasta nem vocabulário em comum — nenhum
+peso de fusão os aproxima, porque o que faltava não era precisão, era uma
+**aresta**. A `list_recent` continua hipótese.
 
 A `glossary` que o ROADMAP previa **não virou ferramenta**, e por decisão: o
 glossário de siglas entrou como expansão de consulta dentro da `search`, invisível
@@ -111,7 +123,7 @@ no servidor reintroduziria custo por consulta e amarraria o projeto a um
 fornecedor, que é exatamente o que a arquitetura existe para evitar. Quem gera
 texto é o cliente; o servidor recupera e devolve procedência.
 
-Multi-hop também é do cliente. As duas ferramentas são primitivas componíveis, e
+Multi-hop também é do cliente. As três ferramentas são primitivas componíveis, e
 o laço de agente é quem compõe.
 
 ## O que esperar, honestamente
