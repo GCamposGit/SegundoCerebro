@@ -498,6 +498,42 @@ Um recado sobre os pacotes **Q**: são ortogonais e nenhum decide ranking, entã
 não entram na fila de ondas e podem correr a qualquer momento dos dois lados.
 `Q2` é do desktop e já andou no PR #14 — sobra o lockfile, os extras e `R8.1.b`.
 
+### `R8.1.b` medido — o console script não é alcançável por nome (25/08/2026)
+
+**Recado para o desktop.** O `R8.1.b` estava registrado como suspeita ("o defeito
+de `_script()` achar o console script pelo `sys.executable`"). Ele tem medição
+agora, e é **falha da régua de prontidão item 1** — instala frio.
+
+Medido no notebook, no PowerShell, que é o shell do usuário:
+
+- `pyproject.toml` declara quatro console scripts (`segundocerebro-mcp`, `-painel`,
+  `-indexar`, `-censo`) e os quatro `.exe` **existem**, em
+  `…\Programs\Python\Python312\Scripts\`.
+- O `PATH` desta máquina tem `…\Python312`, e **não** tem `…\Python312\Scripts`.
+- `Get-Command segundocerebro-mcp` → **não encontrado**. Os quatro, idem.
+
+Numa instalação de usuário do Python (não em venv), `pip install -e .` põe os
+pontos de entrada num diretório que o `PATH` não vê. O leigo que siga uma página
+dizendo `segundocerebro-painel` recebe "comando não encontrado" — silencioso
+quanto à causa, que é o pior modo de falha e é o mesmo que a `RELATIVO` de
+`mcp/registrar.py` já documenta para o `ModuleNotFoundError`.
+
+**Duas consequências que valem mais que o conserto:**
+
+1. **`mcp/registrar.py` tem de continuar emitindo `py -m segundocerebro.mcp.server`,
+   e não o console script.** Trocar por `segundocerebro-mcp` parece modernização e
+   quebraria o registro de todo cliente nesta classe de instalação. Fica escrito
+   aqui para ninguém "melhorar" nessa direção.
+2. **O `.mcp.json` versionado não é o defeito.** Conferido por execução: ele sobe,
+   resolve a base e acha o índice, de `C:\Windows\System32` e sem `PYTHONPATH`. O
+   `PYTHONPATH = "src"` que ele carrega é obsoleto desde o PR #14 e é inerte —
+   `tests/test_pacote.py` já garante que o pacote importa sem ele. Não vale um PR.
+
+**Dono: desktop** (`Q2`, tabela dos pacotes Q). O notebook não conserta por conta
+da regra 8 da §4. Não vem teste de reprodução junto por escolha do usuário — o
+número acima é de **uma** máquina, e a segunda medição é de quem tem a segunda
+máquina.
+
 ### Agora — desktop
 
 **Cinco pacotes prontos para começar, nenhum bloqueado por nada.** A ordem é
