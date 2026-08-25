@@ -185,6 +185,59 @@ def test_nome_promove_documento_que_o_bm25_afoga(indice) -> None:  # noqa: ANN00
     assert com_nome.search("Northline KPI", 5)[0].path == alvo
 
 
+def test_nome_entra_no_caminho_de_trecho_com_um_trecho_por_documento(indice) -> None:  # noqa: ANN001
+    """`F4-P`: o nome pontua documento, e no caminho de trecho entrega **um** trecho.
+
+    A tradução ingênua — dar a contribuição do documento a todos os trechos dele
+    — daria voz ao **tamanho** do documento, que não é nada do que o nome do
+    arquivo afirma. Um relatório de sessenta trechos afogaria o resto do top-k
+    sozinho, e a posição que o ranqueador de nome deu ao documento viraria
+    sessenta posições no ranking de trechos.
+
+    Sem trecho no poço, o representante é o primeiro do documento: é onde estão
+    cabeçalho e título, que é o que um casamento por nome de arquivo está de fato
+    afirmando.
+    """
+    store, emb = indice
+    alvo = "Relatório Northline KPI.md"
+    extras = [chunk(f"n{i}", alvo, i, "Conteúdo genérico, sem repetir o termo.") for i in range(6)]
+    store.gravar_chunks(extras, emb.embed_passagens([c.text for c in extras]), mtime=1.0, model_id=emb.model_id)
+    store.commit()
+
+    so_nome = BuscaHibrida(store, emb, usar_denso=False, usar_lexical=False, usar_nome=True)
+    acertos = so_nome.buscar_chunks("Northline KPI", 10)
+
+    do_alvo = [a for a in acertos if a.path == alvo]
+    assert len(do_alvo) == 1, "o documento entra uma vez, na posição que o nome lhe deu"
+    assert do_alvo[0].chunk_id == "n0", "sem trecho no poço, entra o primeiro do documento"
+    assert do_alvo[0].origem == "nome"
+
+
+def test_nome_reforca_o_trecho_que_a_fusao_ja_elegeu(indice) -> None:  # noqa: ANN001
+    """A outra metade da regra — e é o espelho do colapso que `search` faz.
+
+    Lá o documento fica com a posição do seu melhor trecho; aqui o documento
+    entrega o melhor trecho que a fusão já tem dele. Escolher o primeiro trecho
+    quando existe um melhor faria o nome **competir** com o poço em vez de
+    reforçá-lo, e o documento apareceria duas vezes no ranking de trechos.
+    """
+    store, emb = indice
+    alvo = "Relatório Northline KPI.md"
+    extras = [
+        chunk("m0", alvo, 0, "Sumário executivo, sem os termos."),
+        chunk("m1", alvo, 1, "Northline KPI trimestral consolidado."),
+    ]
+    store.gravar_chunks(extras, emb.embed_passagens([c.text for c in extras]), mtime=1.0, model_id=emb.model_id)
+    store.commit()
+
+    busca = BuscaHibrida(store, emb, usar_denso=False, usar_lexical=True, usar_nome=True)
+    do_alvo = [a for a in busca.buscar_chunks("Northline KPI trimestral", 10) if a.path == alvo]
+
+    com_nome = [a for a in do_alvo if "nome" in a.origem]
+    assert len(com_nome) == 1, "um documento, uma contribuição de nome"
+    assert com_nome[0].chunk_id == "m1", "o nome reforça o trecho que a fusão elegeu"
+
+
 def test_nome_do_recuperador_mostra_os_pesos(indice) -> None:  # noqa: ANN001
     store, emb = indice
 

@@ -291,6 +291,48 @@ class BuscaHibrida:
 
         return rankings, pesos, de_denso, de_lexical
 
+    def _nome_por_chunk(self, consulta: str, do_poco: dict[str, float]) -> dict[str, float]:
+        """O ranqueador de nome trazido para o nível de trecho — um trecho por documento.
+
+        O nome pontua **documento**, e era por isso que `search` era o único
+        caminho onde ele participava: em `buscar_chunks` não havia posição de
+        trecho honesta para dar a ele (`eval/entregue.py`). A consequência estava
+        medida — o peso do nome é inerte no caminho que o cliente executa, e três
+        das doze perguntas cross-lingual do dourado nunca são alcançadas por ele.
+
+        Espalhar a contribuição por **todos** os trechos do documento seria a
+        tradução ingênua, e está errada: o documento com mais trechos ganharia
+        mais voz, quando o que o nome diz é a posição do documento e nada sobre o
+        tamanho dele.
+
+        A regra aqui é o espelho exato da que `search` usa para colapsar. Lá o
+        documento fica com a posição do seu melhor trecho; aqui o documento
+        entrega **um** trecho — o melhor que a fusão já tem dele, e o primeiro do
+        documento quando a fusão não tem nenhum. Esse segundo caso é justamente o
+        que o pacote existe para consertar: o documento que só o nome alcança. O
+        primeiro trecho é onde estão o cabeçalho e o título, que é o que um
+        casamento por nome de arquivo está de fato afirmando.
+        """
+        if not (self.usar_nome and self.peso_nome):
+            return {}
+
+        pontos: dict[str, float] = {}
+        expandida = self.glossario.expandir(consulta)
+        for posicao, (rel, _) in enumerate(
+            self.ranqueador_nome.ranquear(expandida, self.candidatos), start=1
+        ):
+            ids = self.store.ids_de_chunks(rel)
+            if not ids:
+                # Documento no registro sem nenhum chunk: invisível para a fusão,
+                # e o nome não é passe para entrar sem conteúdo indexado.
+                continue
+            no_poco = [c for c in ids if c in do_poco]
+            representante = max(no_poco, key=do_poco.__getitem__) if no_poco else ids[0]
+            pontos[representante] = pontos.get(representante, 0.0) + self.peso_nome / (
+                self.k_rrf + posicao
+            )
+        return pontos
+
     def expandir_contexto(self, acertos: list[ChunkAcerto], janela: int) -> list[ChunkAcerto]:
         """Anexa os vizinhos de cada acerto — "a resposta estava no parágrafo seguinte".
 
@@ -327,6 +369,14 @@ class BuscaHibrida:
     def buscar_chunks(self, consulta: str, k: int, contexto: int = 0) -> list[ChunkAcerto]:
         rankings, pesos, de_denso, de_lexical = self._rankings_de_chunk(consulta)
         pontos = rrf(rankings, self.k_rrf, pesos)
+
+        # O nome entra **depois** da fusão do poço, e não como mais um ranking:
+        # ele precisa saber qual trecho de cada documento a fusão já elegeu para
+        # não duplicar o documento no ranking de trechos.
+        de_nome = self._nome_por_chunk(consulta, pontos)
+        for chunk_id, ponto in de_nome.items():
+            pontos[chunk_id] = pontos.get(chunk_id, 0.0) + ponto
+
         ordenados = sorted(pontos.items(), key=lambda kv: (-kv[1], kv[0]))
 
         descartados = self._irmaos_superados(ordenados) if self.agrupar_familias else {}
@@ -340,7 +390,9 @@ class BuscaHibrida:
                 log.warning("chunk %s está no vetorial mas não no registro", chunk_id)
                 continue
             origem = "+".join(
-                p for p, s in (("denso", de_denso), ("lexical", de_lexical)) if chunk_id in s
+                p
+                for p, s in (("denso", de_denso), ("lexical", de_lexical), ("nome", de_nome))
+                if chunk_id in s
             )
             saida.append(
                 ChunkAcerto(
@@ -395,11 +447,15 @@ class BuscaHibrida:
     def search(self, consulta: str, k: int) -> list:
         """Documents ranked by fusion at the document level.
 
-        Fusing here rather than collapsing chunk results afterwards is what lets
-        the file-name ranker participate: it scores documents, and there is no
-        honest way to give it a chunk position. Each chunk ranking is collapsed to
-        documents first (a document takes its best chunk's position), then the
-        three document rankings are fused.
+        Each chunk ranking is collapsed to documents first (a document takes its
+        best chunk's position), then the three document rankings are fused.
+
+        This used to be the *only* path where the file-name ranker participated,
+        for the reason stated in `eval/entregue.py`: it scores documents, and
+        there was no honest chunk position to give it. `_nome_por_chunk` now
+        supplies one — a single chunk per document, mirroring this collapse — so
+        the signal exists on the path the MCP client actually executes. This
+        method stays the historical series (F0 → F4 was measured here).
         """
         from eval.harness import Hit
 
