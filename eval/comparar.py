@@ -16,15 +16,27 @@ escondendo que a pergunta mais difícil do conjunto deixou de ser respondida.
 from __future__ import annotations
 
 import argparse
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-from segundocerebro.census import load_config
+from segundocerebro.config import ErroDeConfig, carregar
 from segundocerebro.index.embeddings import MODELO_PADRAO
 from segundocerebro.logger import get_logger
 from segundocerebro.retrieve.hybrid import CANDIDATOS
+from segundocerebro.retrieve.rerank import CANDIDATOS_PARA_RERANK
 
-from .harness import Resultado, ResultadoPergunta, avaliar, carregar_perguntas, entregar
+from .estatistica import EMPATE, GANHA, N_MINIMO, PERDE, alinhar, ic_do_delta
+from .harness import (
+    K_MRR,
+    Resultado,
+    ResultadoPergunta,
+    avaliar,
+    carregar_perguntas,
+    conferir_base,
+    entregar,
+    resolver_dourado,
+)
 
 log = get_logger("eval.comparar")
 
@@ -97,7 +109,101 @@ def comparar(antes: Resultado, depois: Resultado) -> list[Movimento]:
     return movimentos
 
 
-def render(movimentos: list[Movimento], nome_antes: str, nome_depois: str, contexto: str) -> str:
+def _recortes(depois: Resultado) -> list[tuple[str, list[str]]]:
+    """Os recortes em que o Δ é medido, e os ids de cada um.
+
+    Os ids saem do braço `depois` porque é ele que está sendo julgado; o
+    pareamento por id em `alinhar()` descarta quem não estiver nos dois lados.
+    """
+    def ids(itens: Sequence[ResultadoPergunta]) -> list[str]:
+        return [i.pergunta.id for i in itens]
+
+    no_escopo = depois.restrito_ao_escopo()
+    recortes: list[tuple[str, list[str]]] = [("**conjunto no escopo**", ids(no_escopo.itens))]
+    recortes += [(f"idioma · {rot}", ids(itens)) for rot, itens in no_escopo.por_fatia()]
+    recortes += [(f"fonte · {rot}", ids(itens)) for rot, itens in no_escopo.por_grupo_de_fonte()]
+    return recortes
+
+
+def _tabela_de_delta(antes: Resultado, depois: Resultado) -> list[str]:
+    """Δ pareado com IC95, por recorte — o pacote `E5`.
+
+    É esta tabela, e não a de posições acima, que a regra de adoção consulta.
+    As duas medem coisas diferentes de propósito: a de posições responde "quais
+    perguntas se moveram e para onde", que é a porta 5; esta responde "o
+    movimento agregado é distinguível de sorte", que é `E5.2`. Uma mudança pode
+    passar na porta 5 e empatar aqui — e nesse caso não entra, porque empate
+    resolve por simplicidade.
+    """
+    linhas = [
+        "## Δ pareado com IC95 — a regra de adoção",
+        "",
+        "Bootstrap **pareado** (`eval/estatistica.py`): as duas configurações respondem as",
+        "mesmas perguntas, então a reamostragem sorteia **perguntas**, não medições soltas,",
+        "e o intervalo aproveita a correlação entre os braços. É por isso que ele é bem mais",
+        "estreito que os intervalos de braço isolado do relatório de `eval.rodar` — e é por",
+        "isso que comparar aqueles dois intervalos para concluir empate estaria errado.",
+        "",
+        "**A regra (`E5.2`):** a mudança ganha na fatia que ela mira se o IC95 do Δ **exclui",
+        "zero**. Empate estatístico resolve por simplicidade — não adotar. Fatia com",
+        f"n < {N_MINIMO} vai marcada com `⚠`: o intervalo dela é honesto e larguíssimo, e uma",
+        "decisão tomada só ali é uma decisão tomada no ruído.",
+        "",
+        f"| Recorte | n | Δ recall@1 | | Δ MRR@{K_MRR} | | Δ nDCG@5 | |",
+        "|---|---:|:---:|:--:|:---:|:--:|:---:|:--:|",
+    ]
+    marca = {GANHA: "✅", PERDE: "❌", EMPATE: "➖"}
+    for rotulo, ids_do_recorte in _recortes(depois):
+        if not ids_do_recorte:
+            linhas.append(f"| {rotulo} | 0 | — | | — | | — | |")
+            continue
+        alvo = set(ids_do_recorte)
+        celulas = []
+        n = 0
+        for metrica, k in (("recall", 1), ("mrr", K_MRR), ("ndcg", 5)):
+            a_serie = {i: v for i, v in antes.serie(metrica, k).items() if i in alvo}
+            d_serie = {i: v for i, v in depois.serie(metrica, k).items() if i in alvo}
+            a, d, comuns = alinhar(a_serie, d_serie)
+            delta = ic_do_delta(a, d)
+            n = len(comuns)
+            celulas.append(f"{delta} | {marca[delta.veredito]}")
+        aviso = " ⚠" if n < N_MINIMO else ""
+        linhas.append(f"| {rotulo}{aviso} | {n} | " + " | ".join(celulas) + " |")
+    linhas.append("")
+
+    geral_a = antes.restrito_ao_escopo()
+    geral_d = depois.restrito_ao_escopo()
+    a, d, _ = alinhar(geral_a.serie("mrr", K_MRR), geral_d.serie("mrr", K_MRR))
+    delta = ic_do_delta(a, d)
+    linhas.append(
+        f"No conjunto inteiro o Δ de MRR é **{delta}** com n={delta.n}, veredito "
+        f"**{delta.veredito}**."
+    )
+    if not delta.exclui_zero:
+        linhas.append("")
+        linhas.append(
+            "O intervalo cruza zero: pela regra declarada esta mudança **não é adotada pelo "
+            "agregado**. Se ela existe para uma fatia específica, é o veredito daquela fatia "
+            "que decide — e ele tem de estar declarado **antes** de olhar a tabela, senão a "
+            "escolha da fatia vira a própria conclusão."
+        )
+    linhas.append("")
+    return linhas
+
+
+def render(
+    movimentos: list[Movimento],
+    nome_antes: str,
+    nome_depois: str,
+    contexto: str,
+    antes: Resultado | None = None,
+    depois: Resultado | None = None,
+) -> str:
+    """A porta 5 pergunta a pergunta, e — quando os dois `Resultado` vierem — o Δ do `E5`.
+
+    Os dois últimos são opcionais para não quebrar quem já chamava com quatro
+    argumentos, e porque a tabela de posições continua legível sozinha. Quando
+    vêm, a tabela de Δ entra logo depois do veredito da porta."""
     pioraram = [m for m in movimentos if m.piorou]
     melhoraram = [m for m in movimentos if m.melhorou]
     quedas = [m for m in movimentos if m.caiu_do_primeiro]
@@ -130,6 +236,9 @@ def render(movimentos: list[Movimento], nome_antes: str, nome_depois: str, conte
         "",
     ]
 
+    if antes is not None and depois is not None:
+        linhas += _tabela_de_delta(antes, depois)
+
     for titulo, grupo, vazio in (
         ("Pioraram", sorted(pioraram, key=lambda m: (-_rank(m.depois), m.id)), "Nenhuma."),
         ("Melhoraram", sorted(melhoraram, key=lambda m: (_rank(m.depois), m.id)), "Nenhuma."),
@@ -158,12 +267,33 @@ def render(movimentos: list[Movimento], nome_antes: str, nome_depois: str, conte
     return "\n".join(linhas)
 
 
-def _montar(nome: str, args, cfg):  # noqa: ANN001
-    """Um recuperador a partir do nome curto usado na linha de comando."""
+def _montar(nome: str, args, cfg, papel: str = "depois"):  # noqa: ANN001
+    """Um recuperador a partir do nome curto usado na linha de comando.
+
+    O arremedo de `Args` tem de carregar **todos** os campos que `rodar._montar`
+    lê, e essa lista cresceu com as fases. Em 24/08/2026 faltavam quatro
+    (`base_cfg`, `glossario`, `rerank`, `sem_rerank`) e `eval.comparar` levantava
+    `AttributeError` em qualquer recuperador que não fosse o baseline — a
+    ferramenta da **porta 5** não rodava desde o bloco A da F3.5. Nenhum teste
+    pegou porque todos montam `Resultado` à mão e nunca passam por aqui.
+
+    Daí o `_CAMPOS_DE_MONTAGEM` logo abaixo, e o teste que confere a lista contra
+    o que `rodar._montar` de fato usa: a próxima fase que acrescentar um campo
+    quebra o teste em vez de quebrar a porta."""
     from .rodar import _montar as montar_rodar
+
+    # `--rerank-depois` é o que dá o braço **assimétrico**, e sem ele o pacote
+    # não consegue medir a ablação mais óbvia que existe: "esta feature vale a
+    # pena?". `--rerank` liga nos dois braços e serve ao caso oposto — segurar o
+    # reranking constante enquanto se compara outra coisa.
+    rerank = args.rerank
+    if args.rerank_depois is not None:
+        rerank = args.rerank_depois if papel == "depois" else None
+    sem_rerank = args.sem_rerank or (args.rerank_depois is not None and papel == "antes")
 
     class Args:
         retriever = nome
+        base_cfg = args.base_cfg
         prefixo = args.prefixo
         indice = args.indice
         modelo = args.modelo
@@ -172,17 +302,52 @@ def _montar(nome: str, args, cfg):  # noqa: ANN001
         sem_nome = False
         peso_denso = args.peso_denso
         peso_nome = args.peso_nome
+        glossario = args.glossario
 
+    Args.rerank = rerank
+    Args.sem_rerank = sem_rerank
     return montar_rodar(Args(), cfg)
+
+
+_CAMPOS_DE_MONTAGEM = frozenset(
+    {
+        "retriever", "base_cfg", "prefixo", "indice", "modelo", "threads",
+        "candidatos", "sem_nome", "peso_denso", "peso_nome", "glossario",
+        "rerank", "sem_rerank",
+    }
+)
+"""O contrato entre `_montar` daqui e `rodar._montar`, conferido em teste."""
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="eval.comparar", description="Compara duas configurações")
     parser.add_argument("--antes", default="baseline", choices=("baseline", "hibrido", "denso", "bm25"))
     parser.add_argument("--depois", default="hibrido", choices=("baseline", "hibrido", "denso", "bm25"))
+    parser.add_argument("--base", help="qual base comparar (ver config.toml)")
     parser.add_argument("--config", type=Path, default=REPO / "census.toml")
-    parser.add_argument("--golden", type=Path, default=GOLDEN)
-    parser.add_argument("--indice", type=Path, default=REPO / "index")
+    parser.add_argument("--golden", type=Path, default=None)
+    parser.add_argument("--indice", type=Path, default=None)
+    parser.add_argument("--glossario", type=Path, help="dicionário de siglas, nos dois braços")
+    parser.add_argument(
+        "--rerank",
+        nargs="?",
+        const=CANDIDATOS_PARA_RERANK,
+        type=int,
+        help="liga o reranking nos dois braços, com N candidatos",
+    )
+    parser.add_argument(
+        "--rerank-depois",
+        nargs="?",
+        const=CANDIDATOS_PARA_RERANK,
+        type=int,
+        help="liga o reranking **só no braço `depois`** — é a forma de medir a própria "
+        "feature, e o que `--rerank` (que liga nos dois) não consegue expressar",
+    )
+    parser.add_argument(
+        "--sem-rerank",
+        action="store_true",
+        help="desliga o reranking nos dois braços mesmo que a base o configure",
+    )
     parser.add_argument("--modelo", default=MODELO_PADRAO)
     parser.add_argument("--threads", type=int, default=10)
     parser.add_argument("--candidatos", type=int, default=CANDIDATOS)
@@ -196,25 +361,42 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--out", type=Path)
     args = parser.parse_args(argv)
 
-    from segundocerebro.retrieve.hybrid import PESO_DENSO, PESO_NOME
+    # `None` significa "o que a base configura", exatamente como em `eval.rodar`.
+    # Até 24/08/2026 este ponto substituía `None` pelas constantes do módulo, e o
+    # efeito era o defeito que `rodar._montar:88` já documenta com outro nome: a
+    # porta 5 mediria pesos de fábrica contra uma base que configura outros. Com
+    # os `fts_*` do `C3.a` e o que a `F4-P` vai mexer, isso mediria a configuração
+    # errada exatamente quando mais importa.
 
-    if args.peso_denso is None:
-        args.peso_denso = PESO_DENSO
-    if args.peso_nome is None:
-        args.peso_nome = PESO_NOME
-
-    if not args.config.exists():
-        log.error("configuração não encontrada: %s", args.config)
+    try:
+        conf = carregar(args.config, raiz=REPO)
+        args.base_cfg = conf.base(args.base)
+    except ErroDeConfig as erro:
+        log.error("%s", erro)
         return 2
 
-    cfg = load_config(args.config)
-    perguntas = [p for p in carregar_perguntas(args.golden) if p.no_escopo]
+    cfg = args.base_cfg.censo()
+    implicito = args.golden is None and args.base_cfg.dourado is None
+    try:
+        dourado, aviso = resolver_dourado(args.golden or args.base_cfg.dourado or GOLDEN, implicito=implicito)
+    except FileNotFoundError as erro:
+        log.error("%s", erro)
+        return 2
+    if aviso:
+        log.warning("%s", aviso)
+    todas = carregar_perguntas(dourado)
+    try:
+        conferir_base(todas, args.base_cfg.id)
+    except ValueError as erro:
+        log.error("%s", erro)
+        return 2
+    perguntas = [p for p in todas if p.no_escopo]
     log.info("%d perguntas no escopo", len(perguntas))
 
     resultados = {}
     contexto_partes = []
     for papel, nome in (("antes", args.antes), ("depois", args.depois)):
-        retriever, _, contexto, store, _ = _montar(nome, args, cfg)
+        retriever, _, contexto, store, _ = _montar(nome, args, cfg, papel)
         try:
             resultados[papel] = avaliar(retriever, perguntas)
         finally:
@@ -229,6 +411,8 @@ def main(argv: list[str] | None = None) -> int:
         resultados["antes"].retriever,
         resultados["depois"].retriever,
         f"{len(perguntas)} perguntas no escopo.\n\n" + "\n\n".join(contexto_partes),
+        antes=resultados["antes"],
+        depois=resultados["depois"],
     )
 
     entregar(relatorio, args.out)

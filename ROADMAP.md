@@ -773,7 +773,7 @@ privada do desktop **não** trava nenhum destes:
 |---|--------|------|:---:|------------|
 | F4-M | `[base.exclude.papel]` + `Meetings/` por papel | notebook | — | ✅ **fechado** (PR #10) |
 | ~~R9.1 + C5.b~~ | **Absorvido pelo `E1`** em 24/08/2026. O gerador passou a ser do **notebook** — ver a seção de pacotes E e [`docs/avaliacao-pacote-e1.md`](docs/avaliacao-pacote-e1.md) | notebook | 2 | **o desktop não pega este** |
-| E5 | **IC bootstrap em toda métrica** — `Δ ± IC95`, teste pareado, regra de adoção | notebook | **1** | **sim, agora — é o próximo** |
+| E5 | **IC bootstrap em toda métrica** — `Δ ± IC95`, teste pareado, regra de adoção | notebook | **1** | ✅ **fechado** — e achou que a **porta 5 não rodava**; ver [`docs/rigor-estatistico.md`](docs/rigor-estatistico.md) |
 | E1 + E2 | Gerador sintético endurecido (7 condições do laudo) + matriz de armadilhas | notebook | 2 | depois da `F4-P` |
 | E3 | Protocolo de três camadas + test-set selado (`seed + caps`) | acordo | 3 | depois do `E1` |
 | E4 | Red-team por fase, modelo DynaBench | notebook | 4 | no fecho da fase corrente |
@@ -787,7 +787,7 @@ privada do desktop **não** trava nenhum destes:
 | C6 | Família de versões ≠ grupo de formatos (**subordina R1.3**) | notebook (ranking) + desktop (hash/MinHash no censo) | 2 | depois da onda 1 |
 | C3.a | Peso da coluna `caminho` no bm25 | notebook | 2 | ✅ **fechado, hipótese refutada** — ver [`docs/ablacao-c3a-pesos-fts.md`](docs/ablacao-c3a-pesos-fts.md) |
 | F4-P.0 | O eval mede o caminho entregue (`buscar_chunks`), aditivo | notebook | 2 | ✅ **fechado** — ver [`docs/ablacao-caminho-entregue.md`](docs/ablacao-caminho-entregue.md) |
-| F4-P | **Reconciliar os dois caminhos**: sinal de nome em `buscar_chunks`, sem votar em reunião | notebook | 2 | **depois do `E5`** — decide sobre n=11 e n=12; o IC é o que diz se o delta existe |
+| F4-P | **Reconciliar os dois caminhos**: sinal de nome em `buscar_chunks`, sem votar em reunião | notebook | 2 | **sim, agora** — o `E5` fechou e a régua de ruído existe |
 | R6.1 | Autotune: peso por base, fábrica vira prior | notebook | 2 | mecanismo já; critério de generalização espera o `E1` (era `R9.1`) |
 | C7.a · C7.d | Fórmula sem cache (recálculo LibreOffice) · rota do CSV | **desktop** | 3 | **sim** — não depende da onda 1 |
 | R1.4 · R5.2 · R3.2 | Quarentena · orçamento de recursos · dois passes | **desktop** | 3 | **sim** — nenhum depende da onda 1 |
@@ -1302,7 +1302,7 @@ outra fatia além do ruído, e sem regredir a camada 1.**
 | E2 | Matriz de armadilhas: fatia ↔ pacote do roadmap | notebook | 2 | veio junto do E1; precisa de duas fatias novas |
 | E3 | Protocolo de três camadas + set selado | acordo entre setups | 3 | não começou |
 | E4 | Loop adversarial por fase (red-team de agente) | notebook | 4 | não começou |
-| E5 | **Rigor estatístico mínimo — IC bootstrap** | notebook | **1** | **é o próximo** |
+| E5 | **Rigor estatístico mínimo — IC bootstrap** | notebook | **1** | ✅ **fechado em 24/08/2026** — ver [`docs/rigor-estatistico.md`](docs/rigor-estatistico.md) |
 | E6 | Preservação e uso honesto da base real | notebook | contínuo | parcialmente já feito |
 
 `E1` absorve `R9.1`+`C5.b`; `E3` absorve `C5`; `E5` **altera o harness que todas

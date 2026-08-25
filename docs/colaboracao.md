@@ -326,6 +326,70 @@ inventar. Então `R6.1` entrega o mecanismo medido no corporativo e declara o
 critério de generalização como pendente de `R9.1`, em vez de dar o pacote por
 fechado com meia prova.
 
+### `E5` fechado em 24/08/2026 — e a porta 5 não rodava
+
+[`rigor-estatistico.md`](rigor-estatistico.md). Instrumento em
+[`eval/estatistica.py`](../eval/estatistica.py): bootstrap **pareado** de
+percentil, 1.000 reamostragens, semente fixa. Duas tabelas novas — ruído por
+recorte em `eval.rodar`, Δ ± IC95 com veredito em `eval.comparar`.
+
+**A regra de adoção passou a ser escrita:** a mudança ganha na fatia que ela mira
+se o IC95 do Δ pareado **exclui zero**; empate resolve por simplicidade, que é
+não adotar. Vale para os dois lados, e vale para as ablações R/C pendentes.
+
+**O que o desktop precisa saber:**
+
+- **Nada mudou no produto.** Nenhuma linha de `retrieve/*`, `mcp/server.py` ou do
+  caminho de consulta. Só existe medição nova, e ela é aditiva: toda tabela
+  anterior continua igual, com seções a mais.
+- **A porta 5 estava inexecutável desde o bloco A da F3.5.** `eval.comparar`
+  levantava `AttributeError` em qualquer recuperador que não fosse o baseline —
+  o arremedo de `Args` que ela monta para reusar `rodar._montar` não tinha
+  acompanhado quatro campos (`base_cfg`, `glossario`, `rerank`, `sem_rerank`).
+  Nenhum teste pegou porque todos montam `Resultado` à mão e nunca passam por
+  `_montar`. Mesma família do `F4-P.0`: o teste é bom e é cego ao caminho que o
+  produto executa.
+
+  O conserto tem duas partes, e a segunda é a que importa: `_CAMPOS_DE_MONTAGEM`
+  declara o contrato, e um teste o confere lendo o código-fonte de
+  `rodar._montar`. **A próxima fase que acrescentar um campo quebra o teste**, que
+  é barato, em vez de quebrar a porta, que não é. Se o desktop acrescentar um
+  argumento em `rodar._montar`, é lá que ele aparece.
+- **`eval.comparar` ganhou `--base`, `--glossario`, `--rerank`, `--rerank-depois`
+  e `--sem-rerank`.** O `--rerank-depois` é o que permite braço **assimétrico**,
+  sem o qual não se mede "esta feature vale a pena?".
+- **`--peso-denso`/`--peso-nome` ausentes deixaram de virar constante de módulo** e
+  passaram a significar "o que a base configura", como em `eval.rodar`. Com os
+  `fts_*` do `C3.a` no `[base.pesos]`, a porta 5 mediria pesos de fábrica contra
+  uma base que configura outros.
+- **Uma armadilha de leitura, para os dois lados:** `eval.rodar` imprime o
+  intervalo de um braço **isolado**, largo de propósito. **Dois intervalos que se
+  sobrepõem não provam empate.** Quem compara duas configurações lê o Δ pareado
+  de `eval.comparar`, e só ele.
+
+**Dois números que o desktop vai querer, e que valem para os dois acervos:**
+
+- **A re-análise do reranking da F2 deu empate.** Δ MRR **+0,012 [−0,031; +0,055]**,
+  Δ nDCG@5 **+0,022 [−0,010; +0,054]**, n=59. O ganho está reproduzido em tamanho e
+  cruza zero. Não muda nada — o reranking já estava desligado por custo — mas quem
+  for atacar `R6.2`/`C4.2` na GPU precisa saber que **o alvo não é "recuperar 3,4
+  pontos"**, é sair do empate. E que **Δ recall@1 é +0,000 em todo recorte**: com
+  peso 0,25 o cross-encoder reordena a cauda e não desloca o 1º lugar.
+- **A única fatia que acende é a cross-lingual**, e em uma métrica de três, sem ter
+  sido declarada antes. É **pista para `C4.2`**, com número de partida (+0,031 de
+  MRR), não resultado. Com oito recortes na tabela, a chance de um acender por
+  acaso sob hipótese nula é ~34% — daí a regra de declarar a fatia-alvo no pacote,
+  antes de rodar.
+
+**E um achado que muda como se lê qualquer fatia pequena, nos dois lados:** o que
+n=11 detecta depende da **forma** do efeito, não só do tamanho. Δ de +0,273
+concentrado em três perguntas dá **empate**; de +0,150 espalhado pelas onze,
+**ganha**. Quem propuser mudança de peso numa fatia pequena olha *quantas*
+perguntas se moveram, não só o Δ.
+
+**Paths devolvidos:** `eval/estatistica.py` (novo), `eval/harness.py`,
+`eval/comparar.py`, `eval/test_*.py`, `ROADMAP.md`.
+
 ### O pacote E entrou no plano, e o notebook assumiu o gerador (24/08/2026)
 
 Chegaram dois documentos novos:

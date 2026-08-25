@@ -509,7 +509,61 @@ sintético não mede reunião nem cross-lingual: rodá-lo antes **não protegeri
 sobre o dourado corporativo, que já é o piso declarado — e ele é o `E5`, o item
 mais barato da lista inteira (~30 linhas, numpy já está lá).
 
-**Ordem adotada: `E5` → `F4-P` → `E1` endurecido.** As sete condições de entrada
+**Ordem adotada: `E5` → `F4-P` → `E1` endurecido.**
+
+**`E5` fechado em 24/08/2026 — e ele achou que a porta 5 não rodava.** Ler
+`docs/rigor-estatistico.md`. `eval/estatistica.py` traz bootstrap **pareado** de
+percentil com semente fixa; `eval.rodar` ganhou a tabela de ruído por recorte e
+`eval.comparar` a de **Δ ± IC95 com veredito**. A regra de adoção passou a ser
+escrita: ganha quem **exclui zero** na fatia declarada antes de olhar a tabela;
+empate resolve por simplicidade, que é não adotar.
+
+```bash
+py -m eval.comparar --base padrao --antes hibrido --depois hibrido --rerank-depois --glossario eval/glossario-teste.toml --out docs/metricas-e5-rerank-reanalise.md
+```
+
+Três coisas desta entrega que valem para as fases seguintes:
+
+- **A ferramenta da porta 5 estava inexecutável desde 15/08.** `eval.comparar`
+  levantava `AttributeError` fora do baseline: o arremedo de `Args` que ela monta
+  para reusar `rodar._montar` não acompanhou quatro campos (`base_cfg`,
+  `glossario`, `rerank`, `sem_rerank`). **Nenhum teste pegou** porque todos montam
+  `Resultado` à mão e nunca passam por `_montar` — mesma família do `F4-P.0`:
+  teste bom, cego ao caminho de montagem. O conserto que importa não é completar
+  a lista, é `_CAMPOS_DE_MONTAGEM` conferido em teste contra o código-fonte de
+  `rodar._montar`, para a próxima fase quebrar o teste em vez da porta.
+- **Pareado não é detalhe de método, é potência de graça.** Os dois braços
+  respondem as mesmas perguntas, e como a média é linear,
+  `media(depois[idx]) − media(antes[idx]) == media((depois − antes)[idx])` — então
+  reamostrar o vetor de diferenças **é** o teste pareado, e ninguém consegue
+  dessincronizar dois vetores depois. Daí a armadilha de leitura que o relatório
+  avisa: **dois intervalos de braço isolado que se sobrepõem não provam empate.**
+- **`--peso-denso`/`--peso-nome` ausentes viravam constante de módulo**, não o que
+  a base configura. Com os `fts_*` que o `C3.a` acrescentou, a porta 5 mediria
+  pesos de fábrica contra uma base que configura outros — o defeito que
+  `rodar._montar:88` já documenta com outro nome.
+
+**A re-análise do reranking da F2 deu empate, e isso fortalece a decisão que já
+existia.** Δ MRR **+0,012 [−0,031; +0,055]** e Δ nDCG@5 **+0,022 [−0,010; +0,054]**
+em n=59 — o ganho está reproduzido em tamanho e cruza zero nas três métricas. O
+reranking já estava desligado por custo (6,8× por 3,4 pontos); com o intervalo à
+mão a conversa sobre custo nem precisaria ter acontecido. Dois achados de
+mecanismo: **Δ recall@1 é +0,000 em todos os recortes** — com peso 0,25 o
+cross-encoder reordena a cauda e quase nunca desloca o 1º lugar — e a única fatia
+que acende é a cross-lingual, em **uma métrica de três**, sem ter sido declarada
+antes. Fica como pista para `C4.2`, não como resultado: com oito recortes, a chance
+de um acender por acaso sob H0 é ~34%.
+
+**O que o n=11 detecta depende da forma do efeito, não só do tamanho** — e isto
+muda o critério de saída da `F4-P`. Simulado sobre as 11 perguntas de reunião: um Δ
+de **+0,273 concentrado** em três perguntas dá **empate**; um de **+0,150
+espalhado** pelas onze **ganha**. O concentrado é 1,8× maior e reprova. Logo o alvo
+de +0,165 da `F4-P`, se vier de duas perguntas indo ao 1º lugar (+0,182), é empate
+— a fase precisa de melhora **ampla** na fatia, e o critério passa a olhar
+*quantas* perguntas se moveram, não só o valor. Isso é o instrumento funcionando:
+mudança que conserta duas perguntas é ajuste àquelas duas.
+
+As sete condições de entrada
 do `E1` estão no ROADMAP, e a que bloqueia merge é a sexta: a suíte que veio no zip
 carrega dez nomes de cliente por extenso num arquivo versionado, que é exatamente o
 anti-padrão que `tests/test_saneamento.py` existe para impedir — e a docstring dele

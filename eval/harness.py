@@ -16,6 +16,7 @@ from pathlib import Path
 from typing import Protocol
 
 from .fonte import GRUPOS, grupo_de_pergunta
+from .estatistica import N_MINIMO, ic_da_media
 from .idioma import CROSS_LINGUAL, EN, FATIAS, INDEFINIDO, MESMA_LINGUA, MISTO, NAO_DECLARADO, PT, detectar
 from .idioma import fatia as fatia_de
 from .metrics import MODO_QUALQUER, MODO_TODAS, media, ndcg_at_k, recall_at_k, reciprocal_rank
@@ -336,6 +337,26 @@ class Resultado:
     def sem_nenhum_acerto(self) -> list[ResultadoPergunta]:
         return [i for i in self.itens if i.posicao_primeiro_acerto is None]
 
+    @staticmethod
+    def serie_de(itens: Sequence[ResultadoPergunta], metrica: str, k: int = K_NDCG) -> dict[str, float]:
+        """Valor por pergunta, **indexado pelo id** — a entrada do bootstrap.
+
+        Indexado pelo id e não uma lista por uma razão de correção: o teste de
+        `E5` é pareado, e parear por ordem de iteração quebraria em silêncio no
+        dia em que um dos braços deixasse uma pergunta de fora (fonte que saiu do
+        índice, filtro de escopo diferente). `estatistica.alinhar()` casa pelo id
+        e devolve quantas sobraram."""
+        if metrica == "recall":
+            return {i.pergunta.id: i.recall[k] for i in itens}
+        if metrica == "mrr":
+            return {i.pergunta.id: i.mrr for i in itens}
+        if metrica == "ndcg":
+            return {i.pergunta.id: i.ndcg[k] for i in itens}
+        raise ValueError(f"métrica desconhecida: {metrica}")
+
+    def serie(self, metrica: str, k: int = K_NDCG) -> dict[str, float]:
+        return self.serie_de(self.itens, metrica, k)
+
 
 def avaliar(retriever: Retriever, perguntas: Sequence[Pergunta], ks: tuple[int, ...] = KS_PADRAO) -> Resultado:
     k_max = max(max(ks), K_MRR, *KS_NDCG)
@@ -578,6 +599,60 @@ def render_markdown(resultado: Resultado, titulo: str, contexto: str = "") -> st
         ndcgs = " | ".join(f"{Resultado.ndcg_de(itens, k):.3f}" for k in KS_NDCG)
         add(f"| {rotulo} | {len(itens)} | {vals} | {Resultado.mrr_de(itens):.3f} | {ndcgs} |")
     add("")
+
+    add("## Ruído — o que este n consegue distinguir")
+    add("")
+    add("Intervalo de percentil por bootstrap (`eval/estatistica.py`, 1.000 reamostragens,")
+    add("semente fixa). Ele responde a pergunta que uma tabela de médias não responde:")
+    add("**um ganho deste tamanho seria distinguível de sorte neste conjunto?**")
+    add("")
+    add("Ler com duas ressalvas, e as duas importam:")
+    add("")
+    add("1. Este é o intervalo de **um braço isolado**, e ele é largo de propósito —")
+    add("   ignora a correlação entre duas configurações que respondem as mesmas")
+    add("   perguntas. **Dois intervalos que se sobrepõem não provam empate.** Para")
+    add("   comparar dois braços use o Δ pareado de `py -m eval.comparar`, que é")
+    add("   sempre mais estreito e é o que a regra de adoção de `E5.2` consulta.")
+    add(f"2. Fatia com n < {N_MINIMO} vai marcada com `⚠`. O intervalo dela não está errado —")
+    add("   está honesto, e larguíssimo. É o piso que dimensiona as perguntas do `E1`.")
+    add("")
+    add(f"| Recorte | n | recall@1 | IC95 | MRR@{K_MRR} | IC95 | largura |")
+    add("|---|---:|---:|:---:|---:|:---:|---:|")
+
+    def _linha_de_ruido(rotulo: str, itens: list[ResultadoPergunta]) -> None:
+        if not itens:
+            add(f"| {rotulo} | 0 | — | — | — | — | — |")
+            return
+        marca = " ⚠" if len(itens) < N_MINIMO else ""
+        r1 = Resultado.recall_de(itens, 1)
+        rb, ra = ic_da_media([i.recall[1] for i in itens])
+        m = Resultado.mrr_de(itens)
+        mb, ma = ic_da_media([i.mrr for i in itens])
+        add(
+            f"| {rotulo}{marca} | {len(itens)} | {r1:.3f} | [{rb:.3f}, {ra:.3f}] "
+            f"| {m:.3f} | [{mb:.3f}, {ma:.3f}] | {ma - mb:.3f} |"
+        )
+
+    _linha_de_ruido("**conjunto no escopo**", no_escopo.itens)
+    for rotulo, itens in no_escopo.por_fatia():
+        _linha_de_ruido(f"idioma · {rotulo}", itens)
+    for rotulo, itens in no_escopo.por_grupo_de_fonte():
+        _linha_de_ruido(f"fonte · {rotulo}", itens)
+    add("")
+    estreitas = [
+        (rot, itens)
+        for rot, itens in (*no_escopo.por_fatia(), *no_escopo.por_grupo_de_fonte())
+        if itens and len(itens) < N_MINIMO
+    ]
+    if estreitas:
+        pior = max(estreitas, key=lambda p: (lambda b, a: a - b)(*ic_da_media([i.mrr for i in p[1]])))
+        b, a = ic_da_media([i.mrr for i in pior[1]])
+        add(
+            f"A fatia mais frágil é **{pior[0]}** com n={len(pior[1])}: o MRR dela cabe em "
+            f"{a - b:.3f} de intervalo, então qualquer Δ menor que isso, medido só nela, "
+            "é indistinguível de ruído."
+        )
+        add("")
 
     falhas = no_escopo.sem_nenhum_acerto
     add(f"## Sem nenhum acerto no top {max(no_escopo.ks)} — {len(falhas)} de {len(no_escopo.itens)} no escopo")
