@@ -251,3 +251,83 @@ def test_nome_do_recuperador_mostra_os_pesos(indice) -> None:  # noqa: ANN001
         f"denso×{PESO_DENSO:g}+bm25×{PESO_LEXICAL:g}+nome×{PESO_NOME:g}"
     )
     assert "denso" not in BuscaHibrida(store, emb, peso_denso=0).nome
+
+
+# --- peso de nome por tipo de fonte — `F4-P.1` --------------------------------
+
+
+def test_a_contribuicao_de_nome_reproduz_o_rrf_que_substituiu(indice) -> None:  # noqa: ANN001
+    """A `F4-P.1` tirou o nome de dentro do `rrf` — e não pode ter mudado número.
+
+    `search` fundia o ranking de nome como mais um ranking ponderado. Agora a
+    contribuição é somada por fora, porque `rrf` pondera um **ranking inteiro** e
+    este pacote precisa ponderar **cada documento** pelo grupo dele. A conta tem
+    de ser exatamente a mesma enquanto a bandeira estiver desligada, senão toda a
+    série F0 → F4 medida em `search` deixa de valer sem ninguém pedir.
+    """
+    store, emb = indice
+    busca = BuscaHibrida(store, emb)
+    consulta = "inteligência artificial"
+
+    por_nome = [rel for rel, _ in busca.ranqueador_nome.ranquear(consulta, busca.candidatos)]
+    como_rrf = rrf([por_nome], busca.k_rrf, [busca.peso_nome])
+
+    assert busca._nome_por_doc(consulta) == como_rrf
+
+
+def test_sem_a_bandeira_o_peso_do_nome_e_o_mesmo_para_todo_documento(indice) -> None:  # noqa: ANN001
+    """O braço "antes" da ablação é o padrão do produto, e ele é um número só."""
+    store, emb = indice
+    busca = BuscaHibrida(store, emb)
+
+    assert busca.peso_do_nome("Projetos/contrato.pdf") == busca.peso_nome
+    assert busca.peso_do_nome("Meetings/Gravacao_2025-03-14_0930.vtt") == busca.peso_nome
+
+
+def test_com_a_bandeira_a_transcricao_perde_o_ranqueador_de_nome(indice) -> None:  # noqa: ANN001
+    """E o documento de escritório não perde — é a troca inteira do `F4-P.1`.
+
+    A afirmação é de formato, não deste acervo: gravador de reunião nomeia o
+    arquivo com assunto e data, então o nome casa com qualquer pergunta que
+    repita a palavra do assunto e não discrimina nada. No documento de escritório
+    o identificador está no nome, e é por isso que o peso 0,5 sobreviveu a três
+    varreduras.
+    """
+    store, emb = indice
+    busca = BuscaHibrida(store, emb, nome_por_fonte=True)
+
+    assert busca.peso_do_nome("Meetings/Gravacao_2025-03-14_0930.vtt") == 0.0
+    assert busca.peso_do_nome("Projetos/09. Atas/ata.docx") == 0.0
+    assert busca.peso_do_nome("Projetos/contrato.pdf") == busca.peso_nome
+    assert busca.peso_do_nome("Caixa/convite.msg") == busca.peso_nome
+
+
+def test_a_bandeira_tira_a_transcricao_do_topo_e_deixa_o_documento(indice) -> None:  # noqa: ANN001
+    """O efeito de ponta a ponta, nos dois caminhos — não só no `peso_do_nome`.
+
+    Os dois arquivos têm o termo da consulta no **nome** e nada dele no corpo.
+    Sem a bandeira o ranqueador de nome promove os dois; com ela, só o de
+    escritório. Medir nos dois caminhos é a lição da `F4-P`: ligar num só é medir
+    uma coisa e entregar outra.
+    """
+    store, emb = indice
+    transcricao = "Gravacoes/Northline KPI 2026-03-14.vtt"
+    escritorio = "Projetos/Northline KPI.docx"
+    extras = [
+        chunk("t0", transcricao, 0, "fala sem os termos da consulta"),
+        chunk("e0", escritorio, 0, "texto sem os termos da consulta"),
+    ]
+    store.gravar_chunks(extras, emb.embed_passagens([c.text for c in extras]), mtime=1.0, model_id=emb.model_id)
+    store.commit()
+
+    def alcancados(por_fonte: bool) -> set[str]:
+        busca = BuscaHibrida(store, emb, usar_denso=False, usar_lexical=False, nome_por_fonte=por_fonte)
+        por_chunk = {a.path for a in busca.buscar_chunks("Northline KPI", 10)}
+        por_doc = {h.path for h in busca.search("Northline KPI", 10)}
+        assert por_chunk == por_doc, "os dois caminhos têm de concordar sobre quem o nome alcança"
+        return por_chunk
+
+    assert {transcricao, escritorio} <= alcancados(False)
+    com_bandeira = alcancados(True)
+    assert transcricao not in com_bandeira
+    assert escritorio in com_bandeira

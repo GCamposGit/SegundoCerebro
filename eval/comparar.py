@@ -366,6 +366,7 @@ def _montar(nome: str, args, cfg, papel: str = "depois"):  # noqa: ANN001
         sem_nome = False
         peso_denso = args.peso_denso
         peso_nome = args.peso_nome
+        nome_por_fonte = False
         glossario = args.glossario
 
     # `--peso-nome-depois` é a irmã de `--rerank-depois`, e existe pela mesma
@@ -373,6 +374,12 @@ def _montar(nome: str, args, cfg, papel: str = "depois"):  # noqa: ANN001
     # precisa de **um** braço mudado. A `F4-P` é o caso que a pediu — o sinal de
     # nome não existia em `buscar_chunks`, então o braço "antes" é `peso_nome = 0`
     # no mesmo código, e não uma versão anterior do código.
+    # `--nome-por-fonte-depois` é o terceiro braço assimétrico, e o `F4-P.1` é o
+    # pacote que o pediu: a hipótese é sobre **uma** mudança de ranking, então o
+    # braço `antes` tem de ser o padrão do produto e nada mais.
+    if args.nome_por_fonte_depois:
+        Args.nome_por_fonte = papel == "depois"
+
     if args.peso_nome_depois is not None:
         Args.peso_nome = args.peso_nome_depois if papel == "depois" else 0.0
         Args.sem_nome = papel == "antes"
@@ -399,7 +406,7 @@ _CAMPOS_DE_MONTAGEM = frozenset(
     {
         "retriever", "base_cfg", "prefixo", "indice", "modelo", "threads",
         "candidatos", "sem_nome", "peso_denso", "peso_nome", "glossario",
-        "rerank", "sem_rerank",
+        "rerank", "sem_rerank", "nome_por_fonte",
     }
 )
 """O contrato entre `_montar` daqui e `rodar._montar`, conferido em teste."""
@@ -445,6 +452,12 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--candidatos", type=int, default=CANDIDATOS)
     parser.add_argument("--peso-denso", type=float, default=None)
     parser.add_argument("--peso-nome", type=float, default=None)
+    parser.add_argument(
+        "--nome-por-fonte-depois",
+        action="store_true",
+        help="braço assimétrico: só o `depois` pesa o nome por tipo do documento "
+        "candidato — a ablação do `F4-P.1`",
+    )
     parser.add_argument(
         "--peso-nome-depois",
         type=float,

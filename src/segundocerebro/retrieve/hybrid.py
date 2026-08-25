@@ -26,6 +26,7 @@ from ..index.embeddings import Embedder
 from ..index.store import Store
 from ..logger import get_logger
 from .familias import chave_de_familia, colapsar
+from .fonte import REUNIAO, grupo_de_fonte
 from .glossario import Glossario
 from .rerank import texto_para_rerank
 from .nomes import RanqueadorDeNome
@@ -64,6 +65,36 @@ O nome de arquivo continua sendo sinal forte neste acervo, mas parte do que ele
 carregava era compensação por um denso quebrado. Com o denso funcionando, o pico
 de MRR sai de `nome = 1,0` para `nome = 0,5`: o sinal passou a ser parcialmente
 redundante, e peso demais nele volta a derrubar os casos-armadilha."""
+
+NOME_POR_FONTE = False
+"""Se o peso do nome varia por tipo de documento candidato — `F4-P.1`.
+
+**Desligado até a medição decidir.** O braço "antes" de uma ablação tem de ser o
+padrão do produto; um padrão que já mudasse mediria a hipótese contra ela mesma.
+Ligar isto é o commit de adoção, e ele só existe se o Δ pareado da fatia
+`reunião` do corpus sintético alcançar o efeito mínimo declarado no `ROADMAP.md`
+sem derrubar o piso do dourado real."""
+
+PESO_NOME_POR_GRUPO = {REUNIAO: 0.0}
+"""Peso do ranqueador de nome quando o **documento candidato** é de outro tipo.
+
+Ligado por `nome_por_fonte`, e medido no `F4-P.1`
+(`docs/ablacao-f4p1-nome-por-fonte.md`). O que não está aqui usa `peso_nome`.
+
+A afirmação é **estrutural, e não deste acervo**: a transcrição de reunião tem no
+nome o assunto e a data, nunca o identificador, porque é assim que gravador de
+reunião nomeia arquivo — `Gravacao_2025-03-14_0930.vtt`. Um nome desses casa com
+qualquer pergunta que repita a palavra do assunto, e o casamento não discrimina
+nada. No documento de escritório é o contrário: o identificador **está** no nome,
+e foi por isso que o peso 0,5 sobreviveu a três varreduras.
+
+O zero não veio de busca. Veio de `docs/dourado-cobertura.md`, que já tinha
+medido a fatia com o ranqueador desligado: MRR 0,459 contra 0,287. O orçamento do
+pacote era de **uma** medição, e uma grade teria sido a segunda.
+
+O grupo é o do **documento candidato**, que é o que se sabe em tempo de consulta
+— não o da fonte esperada, que só o dourado conhece. Foi essa a diferença que
+tornou otimista o teto de oráculo de +0,032 do `C3.a`."""
 
 K_RRF = 60
 """Constant from the original RRF paper. Damps the weight of top positions so a
@@ -153,6 +184,7 @@ class BuscaHibrida:
         peso_nome: float = PESO_NOME,
         pesos_fts: tuple[float, float, float] | None = None,
         agrupar_familias: bool = AGRUPAR_FAMILIAS,
+        nome_por_fonte: bool = NOME_POR_FONTE,
         glossario: Glossario | None = None,
         reranker=None,  # noqa: ANN001 — `rerank.Reranker`, opcional
     ) -> None:
@@ -173,6 +205,7 @@ class BuscaHibrida:
         # `Store.buscar_lexical` e `config.Pesos.colunas_fts`.
         self.pesos_fts = pesos_fts
         self.agrupar_familias = agrupar_familias
+        self.nome_por_fonte = nome_por_fonte
         # O denso **não** recebe a expansão de propósito: acrescentar sinônimo ao
         # texto move o vetor da consulta para a média dos termos, e o embedding
         # assimétrico do e5 já resolve sinônimo sozinho. Quem precisa da expansão
@@ -291,6 +324,46 @@ class BuscaHibrida:
 
         return rankings, pesos, de_denso, de_lexical
 
+    def peso_do_nome(self, caminho: str) -> float:
+        """Quanto o ranqueador de nome vale para **este** documento candidato.
+
+        Sem `nome_por_fonte` é o mesmo número para todos, que é o que o produto
+        fez de F0 a F4 — e o que as três varreduras de peso mediram.
+        """
+        if not self.nome_por_fonte:
+            return self.peso_nome
+        return PESO_NOME_POR_GRUPO.get(grupo_de_fonte(caminho), self.peso_nome)
+
+    def _nome_por_doc(self, consulta: str) -> dict[str, float]:
+        """A contribuição RRF do ranqueador de nome, por documento — fonte única.
+
+        Os dois caminhos de recuperação consomem isto: `search` soma direto ao
+        seu ranking de documentos, e `_nome_por_chunk` reparte para trechos. Era
+        código duplicado até a `F4-P.1`, e duplicado é como o sinal de nome ficou
+        cinco fases faltando num dos dois lados sem ninguém reparar
+        (`eval/entregue.py`). Uma origem, dois consumidores — o mesmo desenho que
+        `retrieve/fonte.py` recebeu no mesmo pacote.
+
+        Somar aqui em vez de passar mais um ranking para `rrf` é o que permite
+        **peso por item**: `rrf` pondera um ranking inteiro, e o `F4-P.1` precisa
+        ponderar cada documento pelo grupo dele. A conta é idêntica à do `rrf`
+        (`peso / (k + posição)`), então com `nome_por_fonte` desligado o número
+        não muda — e há teste que exige isso.
+        """
+        if not (self.usar_nome and self.peso_nome):
+            return {}
+
+        expandida = self.glossario.expandir(consulta)
+        pontos: dict[str, float] = {}
+        for posicao, (rel, _) in enumerate(
+            self.ranqueador_nome.ranquear(expandida, self.candidatos), start=1
+        ):
+            peso = self.peso_do_nome(rel)
+            if not peso:
+                continue
+            pontos[rel] = peso / (self.k_rrf + posicao)
+        return pontos
+
     def _nome_por_chunk(self, consulta: str, do_poco: dict[str, float]) -> dict[str, float]:
         """O ranqueador de nome trazido para o nível de trecho — um trecho por documento.
 
@@ -313,14 +386,8 @@ class BuscaHibrida:
         primeiro trecho é onde estão o cabeçalho e o título, que é o que um
         casamento por nome de arquivo está de fato afirmando.
         """
-        if not (self.usar_nome and self.peso_nome):
-            return {}
-
         pontos: dict[str, float] = {}
-        expandida = self.glossario.expandir(consulta)
-        for posicao, (rel, _) in enumerate(
-            self.ranqueador_nome.ranquear(expandida, self.candidatos), start=1
-        ):
+        for rel, contribuicao in self._nome_por_doc(consulta).items():
             ids = self.store.ids_de_chunks(rel)
             if not ids:
                 # Documento no registro sem nenhum chunk: invisível para a fusão,
@@ -328,9 +395,7 @@ class BuscaHibrida:
                 continue
             no_poco = [c for c in ids if c in do_poco]
             representante = max(no_poco, key=do_poco.__getitem__) if no_poco else ids[0]
-            pontos[representante] = pontos.get(representante, 0.0) + self.peso_nome / (
-                self.k_rrf + posicao
-            )
+            pontos[representante] = pontos.get(representante, 0.0) + contribuicao
         return pontos
 
     def expandir_contexto(self, acertos: list[ChunkAcerto], janela: int) -> list[ChunkAcerto]:
@@ -448,7 +513,8 @@ class BuscaHibrida:
         """Documents ranked by fusion at the document level.
 
         Each chunk ranking is collapsed to documents first (a document takes its
-        best chunk's position), then the three document rankings are fused.
+        best chunk's position), then those rankings are fused and the file-name
+        contribution (`_nome_por_doc`) is added on top.
 
         This used to be the *only* path where the file-name ranker participated,
         for the reason stated in `eval/entregue.py`: it scores documents, and
@@ -477,13 +543,14 @@ class BuscaHibrida:
             rankings_doc.append(documentos)
             pesos_doc.append(peso)
 
-        if self.usar_nome and self.peso_nome:
-            expandida = self.glossario.expandir(consulta)
-            por_nome = [rel for rel, _ in self.ranqueador_nome.ranquear(expandida, self.candidatos)]
-            rankings_doc.append(por_nome)
-            pesos_doc.append(self.peso_nome)
-
         pontos = rrf(rankings_doc, self.k_rrf, pesos_doc)
+
+        # A mesma origem que `buscar_chunks` consome, somada aqui em vez de
+        # entrar como mais um ranking em `rrf`. A conta é a que `rrf` faria; o
+        # que muda é poder ponderar **por documento**, que é o que o `F4-P.1`
+        # precisa e que um peso de ranking inteiro não expressa.
+        for rel, contribuicao in self._nome_por_doc(consulta).items():
+            pontos[rel] = pontos.get(rel, 0.0) + contribuicao
         ordenados = sorted(pontos.items(), key=lambda kv: (-kv[1], kv[0]))
 
         if self.agrupar_familias:

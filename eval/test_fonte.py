@@ -104,3 +104,45 @@ def test_grupos_cobrem_o_vocabulario_todo() -> None:
     ]
     assert {grupo_de_fonte(c) for c in caminhos} <= set(GRUPOS)
     assert grupo_de_pergunta(caminhos) in GRUPOS
+
+
+# --- uma definição, dois consumidores — `F4-P.1` ------------------------------
+
+
+def test_a_regra_do_harness_e_a_mesma_funcao_do_produto() -> None:
+    """A classe que o `F4-P.1` fecha: régua que mede e regra que ranqueia divergindo.
+
+    Desde 25/08/2026 o recuperador usa `grupo_de_fonte` para decidir quanto o
+    ranqueador de nome vale para cada documento candidato, e o harness usa a
+    mesma pergunta para recortar o relatório. Duas cópias divergiriam **em
+    silêncio**: cada uma continuaria certa sozinha, os dois conjuntos de teste
+    continuariam verdes, e o relatório passaria a descrever um agrupamento que o
+    ranking não faz.
+
+    Identidade, e não igualdade de comportamento numa lista de exemplos: a lista
+    é sempre menor que o espaço de caminhos, e uma cópia que erre só no caso que
+    a lista não tem é exatamente o que este teste existe para impedir.
+    """
+    from segundocerebro.retrieve import fonte as produto
+
+    from . import fonte as harness
+
+    assert harness.grupo_de_fonte is produto.grupo_de_fonte
+    assert harness.PASTAS_DE_REUNIAO is produto.PASTAS_DE_REUNIAO
+    assert harness.GRUPOS is produto.GRUPOS
+
+
+def test_o_harness_nao_reimplementa_a_classificacao() -> None:
+    """E a identidade acima não pode ser satisfeita por reexportar uma cópia.
+
+    Um `grupo_de_fonte` redefinido em `eval/fonte.py` passaria a valer para o
+    relatório mesmo com o import presente — basta a ordem das linhas. O que se
+    confere aqui é que o módulo do harness **não tem a regra dentro dele**.
+    """
+    import inspect
+
+    from . import fonte as harness
+
+    fonte_do_modulo = inspect.getsource(harness)
+    assert "re.compile" not in fonte_do_modulo, "a regra de pasta voltou para o harness"
+    assert "def grupo_de_fonte" not in fonte_do_modulo, "o harness reimplementou a regra"

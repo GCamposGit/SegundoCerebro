@@ -210,6 +210,7 @@ def test_entregue_envolve_os_dois_bracos() -> None:
         rerank = None
         rerank_depois = None
         peso_nome_depois = None
+        nome_por_fonte_depois = False
         sem_rerank = True
 
     class Falso:

@@ -296,6 +296,13 @@ def f_reuniao(rng, n, ext):
     ser 14x mais sensivel no grupo de reuniao. O arquivo se chama
     `Gravacao_2025-03-14_0930.vtt` -- data e hora, como gravador de reuniao nomeia
     -- e a resposta so existe no texto falado, com hesitacao e repeticao.
+
+    **E esta e a fatia que decide o `F4-P.1`**, que zera o peso do nome quando o
+    documento candidato e transcricao. O corpus real tem 11 perguntas de reuniao
+    e o IC pareado delas e mais largo que o efeito; aqui a fatia cresce com
+    `--n-por-fatia`, que e a unica razao de a decisao poder sair da camada 2.
+    O `.vtt` tambem e o que faz `retrieve/fonte.py` classificar por formato, sem
+    olhar a pasta.
     """
     docs, ps = [], []
     for i in range(n):
@@ -325,7 +332,7 @@ def f_reuniao(rng, n, ext):
         ps.append(perg(f"q-rn-{i:03d}", "reuniao", pergunta, moeda(valor), [d.caminho],
                        idioma=idioma, idioma_fonte=idioma_fonte,
                        armadilha="identificador so na fala; nome do arquivo e data e hora",
-                       feature_alvo="nomes/F4-P/C3.a", cruza_idioma=cruzado))
+                       feature_alvo="nomes/fonte/F4-P/F4-P.1/C3.a", cruza_idioma=cruzado))
     return docs, ps
 
 
@@ -371,7 +378,7 @@ def f_email(rng, n, ext):
         ps.append(perg(f"q-em-{i:03d}", "email", pergunta, f"{prazo} dias", [d.caminho],
                        idioma=idioma, idioma_fonte=idioma_fonte,
                        armadilha="assunto generico (RES: RES: ENC:); resposta so no corpo",
-                       feature_alvo="F4-P/parser de email", cruza_idioma=cruzado))
+                       feature_alvo="fonte/F4-P/parser de email", cruza_idioma=cruzado))
     return docs, ps
 
 
