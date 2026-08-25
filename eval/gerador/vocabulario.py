@@ -1,0 +1,6 @@
+EMPRESAS=["Nimbus Analytica","Quarta Ponte Engenharia","Aurora Logistica","Vetor Sul Consultoria","Baluarte Seguros","Cedro Digital","Helix Farma","Mirante Energia","Otavia Alimentos","Pilar Norte Construtora","Sarga Tecnologia","Travessia Ambiental"]
+SERVICOS=["manutencao predial","consultoria tributaria","desenvolvimento de software","auditoria de processos","logistica de distribuicao","seguranca patrimonial","treinamento corporativo","engenharia consultiva"]
+CIDADES=["Campinas","Uberlandia","Sorocaba","Joinville","Ribeirao Preto","Maringa","Feira de Santana","Petropolis"]
+PROJETOS=["Andorinha","Basalto","Cedro","Dinamo","Estuario","Farol","Granito","Horizonte","Itapeva","Jandaia"]
+AREAS=["Juridico","Financeiro","Operacoes","RH","TI","Compras"]
+TEMAS=["frete","estoque","folha de pagamento","imobilizado","contratos de energia","viagens corporativas"]
