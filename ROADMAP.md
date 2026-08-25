@@ -6,6 +6,14 @@ entra em **pacotes** (ver abaixo): um PR, um dono, lista de paths fechada.
 Indexação de horas não é pacote e **não bloqueia** o próximo PR — parser com
 versão alcança o que já está no disco na passada seguinte.
 
+> **Precedência, desde 25/08/2026.** [`docs/regra-de-ouro.md`](docs/regra-de-ouro.md)
+> vem antes de qualquer prioridade deste arquivo, dos dossiês e do guia de
+> engenharia: **o produto é para um leigo apontando uma pasta que nunca vimos.**
+> Consequências já aplicadas abaixo — a **F6 virou porta de fase** (não trilha
+> paralela), a ordem passou a ser `E5` → `E1` → `F4-P`, a `F4-P` encolheu ao
+> defeito, e o contrato de pacote ganhou `Hipótese`, `Efeito mínimo`, `Orçamento`
+> e `Critério de encerramento`.
+
 ---
 
 ## F0 — Fundação mensurável
@@ -753,12 +761,19 @@ Int8 na CPU continua sendo alavanca do notebook, não desta fase.
 > que sobra não é “esperar a barra”. É um PR por vez **por path**, em paralelo
 > entre os dois lados.
 
-**Regra de um pacote**
+**Regra de um pacote** — quatro campos novos em 25/08/2026, das regras 10 a 12
+da §4 de `docs/colaboracao.md`. Pacote que não os preenche **não começa**.
 
 | Campo | Valor |
 |-------|--------|
 | Dono | desktop **ou** notebook, nunca os dois |
 | Paths | lista fechada no PR; o outro lado não toca |
+| **Serve base desconhecida** | que defeito isto conserta para quem instala amanhã. Se a resposta só existe em termos do nosso acervo, o pacote é **de laboratório** e fica atrás de qualquer item de produto |
+| **Hipótese** | uma frase falsificável, escrita antes de medir |
+| **Efeito mínimo** | fatia **e** valor declarados antes de olhar a tabela. Menor que o ruído medido da fatia ⇒ **não se mede**: registra-se a conta e encerra |
+| **Orçamento** | uma medição por hipótese. Segunda passada precisa de instrumento novo ou acervo novo, não de outra grade |
+| **Critério de encerramento** | empate no Δ pareado **encerra** o pacote, com "hipótese refutada" no doc. "Meça mais" não é critério |
+| **Classe generalizada** | que classe de defeito ficou fechada, e qual teste ou método passa a pegá-la sozinho (regra 12). Sem esta linha o PR não fecha |
 | Saída | teste na suíte padrão (`tests/` + `eval/`, sem GPU, sem `perguntas.jsonl`) |
 | Indexação | o indexador segue no fundo. Código novo vale na **próxima** passada |
 | Schema / painel / `ROADMAP.md` | um de cada vez, como já era (`docs/colaboracao.md` §1) |
@@ -774,7 +789,7 @@ privada do desktop **não** trava nenhum destes:
 | F4-M | `[base.exclude.papel]` + `Meetings/` por papel | notebook | — | ✅ **fechado** (PR #10) |
 | ~~R9.1 + C5.b~~ | **Absorvido pelo `E1`** em 24/08/2026. O gerador passou a ser do **notebook** — ver a seção de pacotes E e [`docs/avaliacao-pacote-e1.md`](docs/avaliacao-pacote-e1.md) | notebook | 2 | **o desktop não pega este** |
 | E5 | **IC bootstrap em toda métrica** — `Δ ± IC95`, teste pareado, regra de adoção | notebook | **1** | ✅ **fechado** — e achou que a **porta 5 não rodava**; ver [`docs/rigor-estatistico.md`](docs/rigor-estatistico.md) |
-| E1 + E2 | Gerador sintético endurecido (7 condições do laudo) + matriz de armadilhas | notebook | 2 | depois da `F4-P` |
+| E1 + E2 | Gerador sintético endurecido (7 condições do laudo) + matriz de armadilhas | notebook | **1** | **sim, agora** — passou à frente da `F4-P` em 25/08 (regra de ouro: é o instrumento de base desconhecida) |
 | E3 | Protocolo de três camadas + test-set selado (`seed + caps`) | acordo | 3 | depois do `E1` |
 | E4 | Red-team por fase, modelo DynaBench | notebook | 4 | no fecho da fase corrente |
 | Q1 · Q2 | CI com lint/format/types/cov · `pyproject` como fonte única | qualquer | — | **sim** — eixo ortogonal, não decide ranking |
@@ -787,7 +802,7 @@ privada do desktop **não** trava nenhum destes:
 | C6 | Família de versões ≠ grupo de formatos (**subordina R1.3**) | notebook (ranking) + desktop (hash/MinHash no censo) | 2 | depois da onda 1 |
 | C3.a | Peso da coluna `caminho` no bm25 | notebook | 2 | ✅ **fechado, hipótese refutada** — ver [`docs/ablacao-c3a-pesos-fts.md`](docs/ablacao-c3a-pesos-fts.md) |
 | F4-P.0 | O eval mede o caminho entregue (`buscar_chunks`), aditivo | notebook | 2 | ✅ **fechado** — ver [`docs/ablacao-caminho-entregue.md`](docs/ablacao-caminho-entregue.md) |
-| F4-P | **Reconciliar os dois caminhos**: sinal de nome em `buscar_chunks`, sem votar em reunião | notebook | 2 | **sim, agora** — o `E5` fechou e a régua de ruído existe |
+| F4-P | **Reconciliar os dois caminhos** — encolhido ao **defeito** em 25/08: aceite binário, sem varredura de peso | notebook | 2 | **em curso** — não regredir; a varredura saiu do escopo |
 | R6.1 | Autotune: peso por base, fábrica vira prior | notebook | 2 | mecanismo já; critério de generalização espera o `E1` (era `R9.1`) |
 | C7.a · C7.d | Fórmula sem cache (recálculo LibreOffice) · rota do CSV | **desktop** | 3 | **sim** — não depende da onda 1 |
 | R1.4 · R5.2 · R3.2 | Quarentena · orçamento de recursos · dois passes | **desktop** | 3 | **sim** — nenhum depende da onda 1 |
@@ -1330,7 +1345,20 @@ Rodar o `E1` antes da `F4-P` não protegeria a `F4-P` de nada. O que protege é 
 intervalo de confiança sobre o dourado corporativo, que já é o piso declarado —
 e ele é o `E5`, o item mais barato da lista inteira.
 
-**Ordem adotada: `E5` → `F4-P` → `E1` endurecido.**
+**Ordem adotada em 24/08: `E5` → `F4-P` → `E1` endurecido. Revista em 25/08 para
+`E5` → `E1` → `F4-P`.**
+
+O argumento de 24/08 estava certo sobre o instrumento e errado sobre o alvo: ele
+supunha que a `F4-P` valia o lugar na frente. Sob a
+[regra de ouro](docs/regra-de-ouro.md) ela não vale — o que ela persegue é **peso
+de um acervo**, com teto de oráculo de +0,032 de MRR agregado e efeito concentrado
+em 11 perguntas, que é a forma que o próprio `E5` mostrou ser indetectável. O `E1`
+é a camada 2, a única que fala de base desconhecida, e por isso vai primeiro.
+
+A `F4-P` **não morre e não regride**: fica com a metade que é defeito de produto —
+o caminho que o cliente executa alcança menos que `search` na fatia cross-lingual
+(recall@20 0,750 contra 1,000), e isso é busca que não encontra para um quarto da
+fatia. Aceite binário, sem grade de pesos.
 
 ### O que o E1 tem de satisfazer para entrar
 
@@ -1377,14 +1405,20 @@ Sete condições, todas vindas do laudo, todas verificáveis:
 |---|---|---|:---:|
 | Q1 | CI ganha lint, format, types e coverage (a config do `ruff` não está commitada e os 95 `noqa` são carga de culto) | qualquer | **P0** |
 | Q2 | `pyproject` como fonte única: `dependencies = []` contradiz o `requirements.txt` | desktop (é `R8.1`) | **P0** |
-| Q3 | Teto de tamanho de módulo como regra de processo IA — decomposição só oportunista | cada um no seu | P1 |
+| Q3 | Teto de tamanho de módulo como regra de processo IA — decomposição só oportunista | cada um no seu | **P3 · vitrine** |
 | Q4 | Política escrita de `except Exception` (os 34 `BLE001`) | qualquer | P1 |
-| Q5 | Property-based (`consulta_fts`, `chave_de_familia`), e2e do protocolo MCP, smoke de mutação | notebook + desktop | P1 |
-| Q6 | `CONTRIBUTING`, `SECURITY`, template de PR, `pip-audit` | qualquer | P1 |
-| Q7 | Tag e CHANGELOG por fase fechada | qualquer | P2 |
-| Q8 | `docs/README.md` com índice temático — 67 arquivos sem sumário | notebook | P2 |
-| Q9 | `docs/processo-ia.md`: o contrato de fronteira entre agentes como peça pública | acordo | P1 |
+| Q5 | **e2e do protocolo MCP** (P0 — prova o caminho que o leigo executa) · property-based `consulta_fts`/`chave_de_familia` (P1) · smoke de mutação (P3) | notebook + desktop | **P0 / P1 / P3** |
+| Q6 | template de PR (**feito** em 25/08 — é onde as regras 10 a 12 mordem) · `CONTRIBUTING`, `SECURITY`, `pip-audit` | qualquer | **P0 feito / P2** |
+| Q7 | Tag e CHANGELOG por fase fechada | qualquer | **P3 · vitrine** |
+| Q8 | `docs/README.md` com índice temático — 67 arquivos sem sumário | notebook | **P3 · vitrine** |
+| Q9 | `docs/processo-ia.md`: o contrato de fronteira entre agentes como peça pública | acordo | **P3 · vitrine** |
 | Q10 | Observabilidade local do servidor (SQLite, nunca remota) | notebook | P2 |
+
+**Revisado em 25/08/2026 pela [regra de ouro](docs/regra-de-ouro.md).** O guia
+mirava um juiz imaginário — "um sênior clonando o repo a frio" — e cinco dos dez
+pacotes agradavam esse juiz sem entregar nada ao usuário. Eles não foram apagados:
+foram para **P3 · vitrine**, com o motivo escrito, e não começam enquanto houver
+item de F6 aberto. A Parte 0 do guia tem o raciocínio inteiro.
 
 Dois avisos para quem pegar:
 
@@ -1606,9 +1640,33 @@ versão + despachante. Dois PRs se o OCR entrar no laço e no ranking.
 - **Saída:** um PDF sem camada de texto vira trechos; as três perguntas perdem
   a anotação `ocr` **só** com número antes/depois no corporativo
 
-#### F4-P — Porta 3, o bm25 e o peso de nome por tipo de fonte — **notebook**
+#### F4-P — Reconciliar os dois caminhos de recuperação — **notebook**
 
-Só depois do lote de perguntas do usuário em `F4-D`. Ranking não muda sem número.
+> **Reescopado em 25/08/2026 pela [regra de ouro](docs/regra-de-ouro.md).** O
+> pacote era "peso de nome por tipo de fonte" e virou **conserto de defeito**, com
+> aceite binário. O que saiu do escopo, e o motivo, está na caixa abaixo — não é
+> abandono, é a regra 11 aplicada antes de gastar a varredura.
+>
+> **Fica no escopo:** o sinal de nome existir em `buscar_chunks` de forma honesta,
+> medido com `--entregue` nos dois braços. **Aceite:** cross-lingual recall@20 do
+> caminho entregue de **0,750 → 1,000**, recall@1 agregado **≥ 0,551**, nenhuma
+> fatia abaixo do piso além do ruído. É binário: alcança ou não alcança.
+>
+> **Sai do escopo:** a grade de peso por tipo de fonte. No melhor caso teórico ela
+> vale **+0,032** de MRR agregado (teto de oráculo, otimista de propósito), com o
+> ganho todo concentrado nas 11 perguntas de reunião — e a tabela de simulação do
+> `E5` mostra que +0,273 concentrado em três perguntas **empata**. Gastar a
+> varredura para chegar a "empate" é o padrão que a regra 11 existe para cortar.
+> Ela volta quando houver **duas** coisas que hoje não existem: os perfis
+> sintéticos do `E1` (para saber se o peso generaliza) e n maior na fatia.
+>
+> **Classe generalizada** (regra 12): "o eval mede um caminho e o cliente executa
+> outro" ficou fechada pelo `F4-P.0` — `eval/entregue.py` e `--entregue` em
+> `eval.rodar` **e** em `eval.comparar`. O que falta é a ponta: um teste e2e do
+> protocolo MCP (`Q5`, agora P0) para que a próxima divergência de caminho quebre
+> um teste em vez de uma fase.
+
+Ranking não muda sem número.
 
 O escopo cresceu por medição em 24/08. Nas 11 perguntas de reunião, **desligar o
 ranqueador de nome sobe o MRR 60%** (0,287 → 0,459) e o recall@1 três vezes
@@ -1653,12 +1711,24 @@ nome, na transcrição o nome só tem assunto e data. `n = 11` é sinal, não de
 
 ---
 
-## F6 — Primeiro uso em máquina desconhecida
+## F6 — Primeiro uso em máquina desconhecida — **porta de fase**
 
-> **Acrescentada em 24/08/2026.** Não é a F5: não há segundo usuário, ACL nem
-> API paga. É o buraco entre “os dois setups usam o repo” e “um leigo instala
-> numa pasta qualquer e pergunta”. Pode **correr em paralelo com a F4** — não
-> precisa do dourado corporativo nem das 980 Ti.
+> **Acrescentada em 24/08/2026. Promovida a porta de fase em 25/08/2026.** Não é a
+> F5: não há segundo usuário, ACL nem API paga. É o buraco entre "os dois setups
+> usam o repo" e "um leigo instala numa pasta qualquer e pergunta". Continua sem
+> depender do dourado corporativo nem das 980 Ti — o que mudou é que ela deixou de
+> ser trilha paralela.
+>
+> **A promoção tem motivo, e é o de sempre neste repositório: o que corre em
+> paralelo sem porta não corre.** A F6 foi escrita em 24/08 com a frase mais forte
+> do plano — *"enquanto isso não passou, não é produto"* — e marcada "pode correr
+> em paralelo", que na prática é dono nenhum. Agora: **nenhuma fase F4+ fecha sem
+> o teste da F6 passar**, e um pacote de vitrine (`Q3`, `Q7`, `Q8`, `Q9`) não
+> começa enquanto houver item de F6 aberto.
+>
+> **A régua de prontidão** — instala frio, sobrevive a pasta estranha, devolve
+> procedência, cabe na latência, generaliza, não derruba o piso — está em
+> [`docs/regra-de-ouro.md`](docs/regra-de-ouro.md).
 
 **Saída da fase:** numa máquina Windows sem o nosso `config.toml`, em ≤ 30 min,
 o usuário aponta uma pasta, espera a barra, liga um cliente MCP e recebe trecho
@@ -1704,6 +1774,22 @@ botão “ligar no Claude Desktop / Grok”.
 **Teste da fase, numa máquina que não é a nossa:** Windows sem NVIDIA, pasta
 nova, corpus sintético, um cliente MCP. Enquanto isso não passou, não é
 produto — é o laboratório dos dois setups.
+
+**F6-E — a pasta hostil** (acrescentado em 25/08, dono a combinar). O teste acima
+mede a máquina; falta medir o **acervo**. Uma pasta montada de propósito com o que
+uma base desconhecida tem e a nossa não: nome tipo `Scan_001.pdf`, caminho acima
+de 260 caracteres, placeholder de nuvem, arquivo aberto no Word, planilha sem
+cache de fórmula, PDF sem texto extraível, `.doc`/`.xls`/`.ppt` legado, nome com
+emoji e com acento, arquivo de 0 byte, extensão que mente sobre o conteúdo.
+
+- **Aceite:** a indexação **termina**, o registro diz por documento o que
+  aconteceu, e nada entra no índice como se tivesse texto quando não tem. Falhar é
+  aceitável; travar ou mentir em silêncio, não.
+- **Por que é porta e não teste unitário:** cada item desses já apareceu aqui uma
+  vez, um por vez, achado por acidente — caminho longo na F1, arquivo travado na
+  F1, `data_only` em planilha no `C7.a`, `sem_parser` silencioso na F4. A classe é
+  "documento que o disco tem e o índice não conta", e ela só se pega com uma pasta
+  que a contenha inteira (regra 12).
 
 ---
 

@@ -118,7 +118,7 @@ ou um marker `cuda` — fora da suíte padrão.
 
 ---
 
-## 4. As nove regras que evitam retrabalho
+## 4. As doze regras que evitam retrabalho
 
 1. **Padrão de ranking não muda** sem o notebook medir antes/depois no
    conjunto corporativo.
@@ -142,6 +142,27 @@ ou um marker `cuda` — fora da suíte padrão.
    registra o que já funcionou.
 9. **O Git é a única cópia.** Stash, working tree suja e `config.toml` local
    não contam como entrega. Se não está em `main`, o outro computador não tem.
+10. **Ganho de um acervo não vira `[padrao]`.** Medido num acervo só, o ganho é
+   daquele acervo: entra como `[[base]]` opcional, como prior do autotune
+   (`R6.1`), ou espera o segundo acervo. **Exceção declarada:** custo zero por
+   consulta e estruturalmente independente de acervo — foi o caso de famílias de
+   versão e do glossário, os dois maiores ganhos da F2. O reranking, que custa
+   6,8×, não é desse tipo.
+11. **Hipótese sem efeito mínimo declarado não gera varredura.** Fatia e valor
+   antes de olhar a tabela; o veredito sai do Δ pareado de `eval.comparar`, e
+   **empate encerra o pacote** — "meça mais" não é resposta. Porta já refutada só
+   reabre com instrumento novo ou acervo novo, nunca com outra grade (a porta 3 já
+   foi varrida três vezes).
+12. **Defeito se generaliza, não se remenda.** Todo defeito achado em teste ou
+   medição sai do pacote como **classe**, com o método que passa a pegá-la
+   sozinho. O remendo entra junto, mas não é a entrega. O padrão é o
+   `_CAMPOS_DE_MONTAGEM` do `E5`: o conserto que importou não foi completar a
+   lista de campos, foi o teste que confere o contrato contra o código-fonte.
+   Defeito que só some no nosso acervo volta na base do usuário.
+
+As regras 10 a 12 são de 25/08/2026 e vêm de
+[`regra-de-ouro.md`](regra-de-ouro.md), que tem precedência sobre prioridade
+herdada de dossiê, guia ou fila de pacotes.
 
 ---
 
@@ -175,11 +196,42 @@ em [`docs/portabilidade-f36.md`](portabilidade-f36.md).
 
 ## 6. O que cada lado faz nesta fase
 
-**Estado em 24/08/2026.** F1–F3.6 fechadas. F4 **em curso**, F6 (primeiro uso
-leigo) **pode correr em paralelo**. `main` = `57d6f74` (PRs #2 a #9). O que
+**Estado em 25/08/2026.** F1–F3.6 fechadas. F4 **em curso**, e a F6 (primeiro uso
+leigo) deixou de ser trilha paralela: virou **porta de fase** — nenhuma fase F4+
+fecha sem o teste em máquina que não é nossa. `main` = `57d6f74` (PRs #2 a #9). O que
 está aberto não se lista aqui: virou **pacote** no `ROADMAP.md` (seção
 “Pacotes”). Esta seção só diz o que cada lado **pega agora**, para as listas
 de path não se cruzarem.
+
+### A regra de ouro entrou, e a fila mudou de critério (25/08/2026)
+
+**Decisão do usuário.** O trabalho estava derivando para dentro do acervo
+conhecido — muito tempo em detalhe de etapa, teste enviesado ao que já foi
+superado, e as portas menos relevantes de cada fase. A correção está em
+[`regra-de-ouro.md`](regra-de-ouro.md) e é de processo, não de rigor: o `E5`, o
+piso `dourado-v1` e "sem número não entra" continuam de pé.
+
+Três consequências que o desktop precisa saber:
+
+1. **As regras 10, 11 e 12 da §4 valem para os dois lados.** A 10 muda quem pode
+   mexer em `[padrao]`: nem o notebook, com número do acervo corporativo, se o
+   ganho não for de custo zero e independente de acervo.
+2. **A ordem `E5` → `F4-P` → `E1` virou `E5` → `E1` → `F4-P`.** O `E1` é o
+   instrumento de base desconhecida; a `F4-P` encolheu ao **defeito** (reconciliar
+   os dois caminhos de recuperação, aceite binário) e a varredura de peso por tipo
+   de fonte saiu do escopo — no melhor caso teórico ela vale +0,032 de MRR
+   agregado com efeito concentrado em 11 perguntas, que o `E5` mostrou ser a forma
+   indetectável.
+3. **O bloco de PR da §7 ganhou três linhas.** Base desconhecida, efeito mínimo e
+   classe generalizada. Vale para PR dos dois lados, e o
+   `.github/PULL_REQUEST_TEMPLATE.md` já vem preenchido com elas.
+
+**Paths deste PR (notebook):** `CLAUDE.md`, `docs/regra-de-ouro.md` (novo),
+`docs/historico-decisoes.md` (novo), `docs/colaboracao.md`, `ROADMAP.md`,
+`docs/guia-engenharia-5-estrelas.md`,
+`.claude/skills/segundo-cerebro-notebook/SKILL.md`,
+`.github/PULL_REQUEST_TEMPLATE.md`. **Zero código.** `ROADMAP.md` e este arquivo
+são "um de cada vez" e estão devolvidos no merge.
 
 ### Agora — notebook
 
@@ -528,7 +580,14 @@ Fase: F3.6 | F3 | onboarding | …
 Toca: (lista de paths)
 Não toca: retrieve/, CLAUDE.md, … 
 Corpus da medição: sintetico | corporativo | nenhum
+Serve base desconhecida: (que defeito isto conserta para quem instala amanhã)
+Efeito mínimo declarado: (fatia, valor, e o veredito que o E5 daria)
+Classe generalizada: (que classe de defeito fecha, e o que passa a pegá-la)
 ```
+
+As três últimas linhas são de 25/08/2026 e vêm das regras 10 a 12 da §4. Linha em
+branco é resposta aceita **só** com motivo escrito ao lado — "pacote de laboratório,
+não serve base desconhecida" é motivo; deixar vazio não é.
 
 O outro lado, ao ver o PR, pergunta só isto primeiro: **viola a tabela da
 seção 1?** Se sim, pede mudança. Se não, o CI decide.
@@ -547,3 +606,6 @@ seção 1?** Se sim, pede mudança. Se não, o CI decide.
 | Começar o pipeline GPU antes do smoke | dias de código sobre runtime que o Maxwell não carrega |
 | Deixar a entrega só no stash | o outro computador não tem; as ondas ficaram cegas até o #6 |
 | Esperar a barra para escrever código | ociosidade; o parser com versão alcança o disco na passada seguinte |
+| Afinar peso no acervo corporativo porque é o que temos medido | ganho de um acervo só, que o usuário leigo não herda (regra 10) |
+| Varrer uma grade "para ver o que dá" | um dia de análise para um efeito menor que o ruído — foi o `C3.a` (regra 11) |
+| Consertar o caso e fechar o pacote | a classe volta na base do usuário, onde ninguém está olhando (regra 12) |
