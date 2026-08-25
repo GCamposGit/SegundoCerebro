@@ -140,16 +140,22 @@ def escrever(doc, raiz):  # noqa: ANN001
     _preparar(destino)
     formato = doc.formato
 
-    if formato in FORMATOS_DE_TEXTO:
+    if formato == "cfb_pronto":
+        # O container OLE ja veio montado pela fatia (`.msg`, `.doc`, `.ppt`).
+        # Viaja em `Doc.texto` como latin-1 porque `Doc` guarda texto e o hash
+        # logico do manifesto e sobre ele -- latin-1 e a unica codificacao que
+        # faz a viagem byte-a-byte sem perda.
+        _bytes(destino, doc.texto.encode("latin-1"))
+    elif formato in FORMATOS_DE_TEXTO:
         _texto(destino, doc.texto)
+    elif formato in ("docx", "docm"):
+        _docx(destino, doc.texto)
+    elif formato in ("xlsx", "xlsm"):
+        _xlsx(destino, doc.texto)
+    elif formato in ("pptx", "pptm"):
+        _pptx(destino, doc.texto)
     elif formato == "pdf":
         _pdf(destino, doc.texto)
-    elif formato == "xlsx":
-        _xlsx(destino, doc.texto)
-    elif formato == "pptx":
-        _pptx(destino, doc.texto)
-    elif formato == "docx":
-        _docx(destino, doc.texto)
 
     # --- os que existem para o indexador tropeçar ---------------------------
     elif formato == "pdf_digitalizado":

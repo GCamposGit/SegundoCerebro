@@ -1,6 +1,7 @@
 """Fatias da matriz de armadilhas (E2). Contrato: f(rng,n,ext)->(docs,perguntas).
 Identificadores plantados sao unicos no corpus: gabarito perfeito por construcao."""
 from .nucleo import Doc, mkdoc, perg, moeda
+from .formatos import f_formatos
 from .hostil import f_pasta_hostil
 from . import vocabulario as V
 
@@ -385,4 +386,8 @@ FATIAS = [("nomes_ruins", f_nomes_ruins), ("versoes", f_versoes), ("duplicatas",
           # uma lista de armadilhas escrita a mao: a cobertura sai do enum
           # `ingest.document.ParseStatus`, e o teste confere contra ele. Absorve
           # a `F6-E` do ROADMAP -- o gerador E o montador de pastas.
+          # Cobertura de parser, garantida e nao sorteada (E1.d): a distribuicao
+          # do censo serve ao realismo, e realismo nao garante cobertura --
+          # `.pptm` sao 0,1% do acervo e arredondam para zero em metade das seeds.
+          ("formatos", f_formatos),
           ("pasta_hostil", f_pasta_hostil)]
