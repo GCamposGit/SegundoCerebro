@@ -126,9 +126,16 @@ A única célula com intervalo que não cruza zero é a perda de nDCG@5 em reuni
 Ela é real, é de n=11, e o instrumento que a recuperaria — peso de nome por tipo
 de fonte — é exatamente o que a [regra 11](regra-de-ouro.md) tirou do escopo em
 25/08 por não ter efeito mínimo declarado. **Agora tem**: −0,089 com IC que não
-cruza zero é o efeito mínimo que faltava. A varredura volta a ser defensável, e
-continua precisando da outra metade que não existe — os perfis sintéticos do `E1`,
-para saber se o peso generaliza para acervo que não é este.
+cruza zero é o efeito mínimo que faltava. A varredura volta a ser defensável.
+
+> **Correção de 25/08/2026, no mesmo dia.** A frase que estava aqui dizia que
+> faltava a outra metade — "os perfis sintéticos do `E1`, que não existem". Eles
+> existem: o `E1` fechou horas antes, e [`eval/gerador/fatias.py`](../eval/gerador/fatias.py)
+> tem `f_reuniao`, escrita para esta pergunta e dizendo isso na própria docstring
+> — *"A `F4-P` decide sobre reunião **e** sobre cross-lingual"*. A frase foi
+> copiada da caixa da `F4-P` no `ROADMAP.md`, escrita **antes** de o `E1` entrar,
+> e não foi conferida contra o repositório. É a classe da regra 7 na sua forma
+> mais barata: bloqueio herdado de texto, e não de estado.
 
 ## `g036` — a armadilha que sumiu, e o que ela realmente era
 

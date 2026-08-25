@@ -99,17 +99,14 @@ o container OLE que mente sobre o próprio conteúdo.
 
 ## Próximo passo
 
-1. **`E1` endurecido** — gerador sintético como código versionado, as sete
-   condições do laudo ([`docs/avaliacao-pacote-e1.md`](docs/avaliacao-pacote-e1.md)).
-   É o instrumento de base desconhecida, e por isso passou **à frente** da `F4-P`
-   em 25/08/2026 (a ordem anterior era `E5` → `F4-P` → `E1`).
-2. **A varredura de peso de nome por tipo de fonte**, que a `F4-P` deixou com o
+1. **A varredura de peso de nome por tipo de fonte**, que a `F4-P` deixou com o
    efeito mínimo que lhe faltava — nDCG@5 de reunião **−0,089 [−0,172, −0,017]**,
    IC que não cruza zero. A regra 11 a cortou em 25/08 por não haver esse número;
-   agora há. **Continua faltando a outra metade**: os perfis sintéticos do `E1`,
-   para saber se o peso generaliza para acervo que não é este. Sem eles, não
-   começar.
-3. **`F6`** — restam `F6-A`/`F6-C` (desktop) e `F6-B` (estágio 0 do painel). A
+   agora há. **E a outra metade também**: o `E1` fechou no mesmo dia, e o corpus
+   dele dá `reunião` com n=30 ou n≈100 contra os 11 do dourado real — é a camada
+   2, a que fala de base desconhecida. O pacote é o `F4-P.1`.
+2. **`F6`** — restam `F6-C` (desktop) e `F6-B` (estágio 0 do painel); a `F6-A`
+   fechou no PR #14. A
    `F6-D` (`docs/comecar.md`) e a `F6-E` (pasta hostil) fecharam em 25/08/2026, e
    o `Q5` P0 — e2e do protocolo MCP — também. Do `Q2` sobram lockfile e extras,
    que são do desktop.
