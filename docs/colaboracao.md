@@ -518,6 +518,31 @@ Um recado sobre os pacotes **Q**: são ortogonais e nenhum decide ranking, entã
 não entram na fila de ondas e podem correr a qualquer momento dos dois lados.
 `Q2` é do desktop e já andou no PR #14 — sobra o lockfile, os extras e `R8.1.b`.
 
+### `E1` fechado em 25/08/2026 — a camada 2 existe
+
+As sete condições do laudo, em três PRs (`E1.a`, `E1.b`, `E1.c`). O que o desktop
+precisa saber, em quatro linhas:
+
+- **`eval/gerador/` é código versionado; o corpus não.** Regenerar com
+  `py -m eval.gerador --seed 42 --n-por-fatia 30 --out <dir>`, e `--so-texto`
+  (alias do antigo `--sem-docx`) para o CI. O selo é **seed + `n` + `caps`**, e
+  `caps` mudou de significado: são quatro formatos agora, não só `docx`.
+- **`eval/adaptador_sintetico.py` converte para o harness e recusa eixo
+  colapsado.** Nenhum eixo declarado pode ter pergunta no balde "não declarado".
+  Vale para `fatia` e `armadilha_fatia`; quem chama escolhe, porque no dourado
+  real `armadilha_fatia` nasce vazio e isso é correto.
+- **`harness.Pergunta` ganhou `armadilha_fatia`**, campo novo com default vazio —
+  o **terceiro** eixo de recorte. `fatia` continua sendo idioma, para não
+  reescrever o `C4.5`.
+- **A ordem `E5` → `E1` → `F4-P` cumpriu-se.** A `F4-P` é o próximo pacote do
+  notebook, encolhida ao defeito e com aceite binário.
+
+**Um recado sobre o `R9.1`, que é seu.** O corpus sintético agora cruza os dois
+eixos: reunião × cross-lingual = 10 e email × cross-lingual = 10 em `n=30`, na
+proporção do dourado real (3 das 11). Quando o perfil bilíngue existir, ele tem um
+segundo conjunto contra o qual se conferir — e é onde o `fts_caminho = 0,3` deixa
+de depender de uma pergunta em doze.
+
 ### Agora — desktop
 
 **Cinco pacotes prontos para começar, nenhum bloqueado por nada.** A ordem é
