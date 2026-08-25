@@ -185,3 +185,50 @@ def test_a_classe_args_declara_o_que_o_contrato_promete() -> None:
         f"contrato e classe divergem: só no contrato {sorted(mod._CAMPOS_DE_MONTAGEM - declarados)}, "
         f"só na classe {sorted(declarados - mod._CAMPOS_DE_MONTAGEM)}"
     )
+
+
+def test_entregue_envolve_os_dois_bracos() -> None:
+    """`--entregue` na comparação, e nos dois lados.
+
+    A `F4-P` muda `buscar_chunks`. Sem esta flag o Δ do `E5` e a porta 5 mediriam
+    `search`, que é o caminho que a fase **não** toca — a mesma classe de erro que
+    criou o `F4-P.0`, um nível acima. E envolver só um braço seria pior que não
+    envolver nenhum: mediria a diferença entre os dois caminhos somada à mudança,
+    e nenhum dos dois efeitos sairia identificável."""
+
+    class Args:
+        entregue = True
+        base_cfg = None
+        prefixo = None
+        indice = None
+        modelo = None
+        threads = 1
+        candidatos = None
+        peso_denso = None
+        peso_nome = None
+        glossario = None
+        rerank = None
+        rerank_depois = None
+        peso_nome_depois = None
+        sem_rerank = True
+
+    class Falso:
+        nome = "falso"
+
+        def buscar_chunks(self, consulta: str, k: int) -> list:
+            return []
+
+    import eval.comparar as mod
+    import eval.rodar as rodar
+    from eval.entregue import CaminhoEntregue
+
+    montado = (Falso(), "t", "c", None, set())
+
+    guardado = rodar._montar
+    try:
+        rodar._montar = lambda *a, **k: montado
+        for papel in ("antes", "depois"):
+            r, *_ = mod._montar("hibrido", Args(), None, papel)
+            assert isinstance(r, CaminhoEntregue), f"braço `{papel}` ficou fora do caminho entregue"
+    finally:
+        rodar._montar = guardado

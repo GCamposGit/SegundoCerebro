@@ -655,6 +655,19 @@ class Store:
         ).fetchone()
         return ChunkArmazenado(**dict(linha)) if linha else None
 
+    def ids_de_chunks(self, path: str) -> list[str]:
+        """Só os ids de um documento, em ordem de leitura — sem carregar texto.
+
+        Existe separado de `chunks_de` porque o ranqueador de nome pergunta isto
+        para `candidatos` documentos por consulta, e só para saber quais trechos o
+        documento tem. Trazer `texto` junto seria ler o documento inteiro do disco
+        para descartá-lo, `candidatos` vezes, dentro do caminho de consulta.
+        """
+        linhas = self.con.execute(
+            "SELECT id FROM chunks WHERE path = ? ORDER BY ordinal", (path,)
+        ).fetchall()
+        return [linha[0] for linha in linhas]
+
     def chunks_de(self, path: str) -> list[ChunkArmazenado]:
         linhas = self.con.execute(
             "SELECT id, path, ordinal, trilha, locator, kind, texto FROM chunks WHERE path = ? ORDER BY ordinal",

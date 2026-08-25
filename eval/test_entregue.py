@@ -1,8 +1,11 @@
 """O caminho entregue como recuperador de primeira classe.
 
-O que estes testes guardam é a razão de o módulo existir: **o `peso_nome` é
-inerte em `buscar_chunks`**. Enquanto isso for verdade, o harness tem de conseguir
-medir os dois caminhos, e o rótulo tem de dizer qual foi medido.
+O módulo nasceu para tornar mensurável um defeito: **o `peso_nome` era inerte em
+`buscar_chunks`**. A `F4-P` consertou o defeito, e por isso os dois testes de
+inércia daqui viraram os testes do conserto — é o que se espera deles. O que o
+módulo continua guardando é o resto, que não dependia do defeito: o harness mede
+os dois caminhos, o adaptador pede trechos que bastem, e o rótulo diz qual
+caminho foi medido.
 """
 
 from __future__ import annotations
@@ -48,18 +51,24 @@ def _busca(indice, peso_nome: float, *, usar_lexical: bool = True) -> BuscaHibri
     )
 
 
-def test_peso_nome_e_inerte_no_caminho_entregue(indice) -> None:  # noqa: ANN001
-    """O defeito inteiro, em quatro linhas — e a razão de este módulo existir.
+def test_o_trecho_entregue_declara_que_veio_pelo_nome(indice) -> None:  # noqa: ANN001
+    """Era o defeito inteiro em quatro linhas; agora é o conserto, pela procedência.
 
-    Verificado também no índice corporativo em 24/08/2026, com três consultas:
-    `buscar_chunks` devolve exatamente o mesmo com `peso_nome` 0 e 0,5, enquanto
-    `search` muda a ordem em todas.
+    Até 25/08/2026 este teste afirmava o contrário — `buscar_chunks` devolvia
+    exatamente o mesmo com `peso_nome` 0 e 0,5, verificado também no índice
+    corporativo com três consultas.
+
+    A asserção não é "a ordem mudou", e a razão é o `C3.a`: com o bm25 ligado a
+    coluna `caminho` do FTS5 já carrega o nome do arquivo, então num acervo de
+    três documentos os dois braços **empatam** — e um teste que passasse por
+    empate mediria a dupla contagem, não o ranqueador. Procedência não empata: o
+    `origem` do trecho diz por quais ranqueadores ele entrou, e é invariante 5.
     """
-    consulta = "politica de ia"
-    sem = CaminhoEntregue(interno=_busca(indice, 0.0))
-    com = CaminhoEntregue(interno=_busca(indice, 0.5))
+    acertos = _busca(indice, 0.5).buscar_chunks("politica de ia", 3)
+    origem = {a.path: a.origem for a in acertos}
 
-    assert [h.path for h in sem.search(consulta, 3)] == [h.path for h in com.search(consulta, 3)]
+    assert "nome" in origem["Politicas/politica de ia.md"]
+    assert "nome" not in origem.get("Outros/nota.md", "")
 
 
 def test_search_de_documento_sente_o_peso_do_nome(indice) -> None:  # noqa: ANN001
@@ -79,17 +88,26 @@ def test_search_de_documento_sente_o_peso_do_nome(indice) -> None:  # noqa: ANN0
     assert com[0] == "Politicas/politica de ia.md", "o nome promove o documento certo"
 
 
-def test_peso_nome_e_inerte_no_entregue_tambem_sem_o_bm25(indice) -> None:  # noqa: ANN001
-    """Sem o bm25, o caminho entregue fica só com o denso — e continua cego ao nome.
+def test_sem_o_bm25_o_nome_e_o_unico_que_alcanca_o_documento(indice) -> None:  # noqa: ANN001
+    """A fatia cross-lingual do dourado, em miniatura — e o aceite da `F4-P`.
 
-    Fecha a saída do teste acima: a inércia não é empate produzido pela coluna
-    `caminho`; é ausência do ranqueador naquele caminho.
+    Com o bm25 desligado, a coluna `caminho` do FTS5 sai de cena e o alvo passa a
+    ser inalcançável por conteúdo: o nome grita o assunto e o corpo não fala
+    dele. É a forma exata das três perguntas cross-lingual que o caminho entregue
+    não alcançava nem em vinte posições (`docs/ablacao-caminho-entregue.md`) — o
+    nome do arquivo era a ponte PT↔EN, e a ponte não existia neste caminho.
+
+    Este teste é o que fica vermelho se `_nome_por_chunk` for removido, e ele
+    afirma **presença**, não posição: a métrica que a `F4-P` tem de mover é
+    recall@20, e recall é alcance.
     """
     consulta = "politica de ia"
+    alvo = "Politicas/politica de ia.md"
     sem = CaminhoEntregue(interno=_busca(indice, 0.0, usar_lexical=False))
     com = CaminhoEntregue(interno=_busca(indice, 0.5, usar_lexical=False))
 
-    assert [h.path for h in sem.search(consulta, 3)] == [h.path for h in com.search(consulta, 3)]
+    assert alvo not in [h.path for h in sem.search(consulta, 3)]
+    assert alvo in [h.path for h in com.search(consulta, 3)]
 
 
 def test_rotulo_diz_qual_caminho_foi_medido(indice) -> None:  # noqa: ANN001

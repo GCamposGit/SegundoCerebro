@@ -304,9 +304,31 @@ def _montar(nome: str, args, cfg, papel: str = "depois"):  # noqa: ANN001
         peso_nome = args.peso_nome
         glossario = args.glossario
 
+    # `--peso-nome-depois` é a irmã de `--rerank-depois`, e existe pela mesma
+    # razão: a ablação mais óbvia que existe é "este sinal vale a pena?", e ela
+    # precisa de **um** braço mudado. A `F4-P` é o caso que a pediu — o sinal de
+    # nome não existia em `buscar_chunks`, então o braço "antes" é `peso_nome = 0`
+    # no mesmo código, e não uma versão anterior do código.
+    if args.peso_nome_depois is not None:
+        Args.peso_nome = args.peso_nome_depois if papel == "depois" else 0.0
+        Args.sem_nome = papel == "antes"
+
     Args.rerank = rerank
     Args.sem_rerank = sem_rerank
-    return montar_rodar(Args(), cfg)
+    montado = montar_rodar(Args(), cfg)
+
+    # `--entregue` tem de existir aqui, e não só em `eval.rodar`, pelo motivo que
+    # criou o `F4-P.0`: a ferramenta que decide adoção precisa medir o caminho que
+    # o cliente executa. Sem isto a porta 5 e o Δ do `E5` mediriam `search`
+    # enquanto a `F4-P` muda `buscar_chunks` — mesma classe de erro, um nível
+    # acima. Envolve **os dois braços**: comparar caminho entregue contra `search`
+    # misturaria a mudança com a diferença entre os caminhos.
+    if getattr(args, "entregue", False):
+        from .entregue import CaminhoEntregue
+
+        retriever, titulo, contexto, store, universo = montado
+        return CaminhoEntregue(interno=retriever), titulo, contexto, store, universo
+    return montado
 
 
 _CAMPOS_DE_MONTAGEM = frozenset(
@@ -348,11 +370,24 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="desliga o reranking nos dois braços mesmo que a base o configure",
     )
+    parser.add_argument(
+        "--entregue",
+        action="store_true",
+        help="mede `buscar_chunks` (o que o cliente MCP recebe) nos dois braços, "
+        "em vez do `search` de nível de documento — ver `eval/entregue.py`",
+    )
     parser.add_argument("--modelo", default=MODELO_PADRAO)
     parser.add_argument("--threads", type=int, default=10)
     parser.add_argument("--candidatos", type=int, default=CANDIDATOS)
     parser.add_argument("--peso-denso", type=float, default=None)
     parser.add_argument("--peso-nome", type=float, default=None)
+    parser.add_argument(
+        "--peso-nome-depois",
+        type=float,
+        default=None,
+        help="braço assimétrico: `antes` fica sem ranqueador de nome e `depois` com "
+        "este peso — a ablação do sinal de nome, sem trocar mais nada",
+    )
     parser.add_argument(
         "--prefixo",
         help="recorta o baseline para a mesma subárvore do índice — obrigatório para "

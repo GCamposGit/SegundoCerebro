@@ -2,7 +2,13 @@
 
     py -m eval.rodar --retriever hibrido --entregue --out docs/metricas-entregue.md
 
-**O que isto existe para consertar.** A ferramenta `search` do servidor MCP chama
+**Consertado em 25/08/2026 pela `F4-P`** — `docs/ablacao-f4p-nome-no-entregue.md`.
+O que está descrito abaixo é o estado até aquela data, e continua aqui porque é a
+razão de o módulo existir e o registro de onde o defeito estava. O módulo não
+perdeu função com o conserto: `search` e `buscar_chunks` continuam sendo caminhos
+diferentes, e o harness continua tendo de medir os dois.
+
+**O que isto existiu para consertar.** A ferramenta `search` do servidor MCP chama
 `BuscaHibrida.buscar_chunks` (`mcp/server.py:191`), que funde **denso e lexical**
 no nível de trecho. O harness sempre mediu `BuscaHibrida.search`, que funde no
 nível de **documento** e é o único lugar onde o `RanqueadorDeNome` participa —
@@ -28,8 +34,9 @@ antes de qualquer otimização. Este módulo acrescenta uma segunda coluna; não
 reescreve a primeira.
 
 **O que este recuperador não é.** Não é uma proposta de mudança de produto. Ele
-só torna mensurável o que já é entregue. Se depois se decidir levar o sinal de
-nome para o caminho de trecho, é `F4-P` quem decide, com número dos dois lados.
+só torna mensurável o que já é entregue — e foi por medir que a `F4-P` pôde levar
+o sinal de nome para o caminho de trecho, em 25/08/2026, com número dos dois
+lados: cross-lingual recall@20 de 0,750 para 1,000, ao preço de nDCG@5 em reunião.
 """
 
 from __future__ import annotations

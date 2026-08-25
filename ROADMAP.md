@@ -802,7 +802,7 @@ privada do desktop **não** trava nenhum destes:
 | C6 | Família de versões ≠ grupo de formatos (**subordina R1.3**) | notebook (ranking) + desktop (hash/MinHash no censo) | 2 | depois da onda 1 |
 | C3.a | Peso da coluna `caminho` no bm25 | notebook | 2 | ✅ **fechado, hipótese refutada** — ver [`docs/ablacao-c3a-pesos-fts.md`](docs/ablacao-c3a-pesos-fts.md) |
 | F4-P.0 | O eval mede o caminho entregue (`buscar_chunks`), aditivo | notebook | 2 | ✅ **fechado** — ver [`docs/ablacao-caminho-entregue.md`](docs/ablacao-caminho-entregue.md) |
-| F4-P | **Reconciliar os dois caminhos** — encolhido ao **defeito** em 25/08: aceite binário, sem varredura de peso | notebook | 2 | **em curso** — não regredir; a varredura saiu do escopo |
+| F4-P | **Reconciliar os dois caminhos** — encolhido ao **defeito** em 25/08: aceite binário, sem varredura de peso | notebook | 2 | ✅ **fechado, aceite cumprido** — ver [`docs/ablacao-f4p-nome-no-entregue.md`](docs/ablacao-f4p-nome-no-entregue.md) |
 | R6.1 | Autotune: peso por base, fábrica vira prior | notebook | 2 | mecanismo já; critério de generalização espera o `E1` (era `R9.1`) |
 | C7.a · C7.d | Fórmula sem cache (recálculo LibreOffice) · rota do CSV | **desktop** | 3 | **sim** — não depende da onda 1 |
 | R1.4 · R5.2 · R3.2 | Quarentena · orçamento de recursos · dois passes | **desktop** | 3 | **sim** — nenhum depende da onda 1 |
@@ -1714,6 +1714,24 @@ versão + despachante. Dois PRs se o OCR entrar no laço e no ranking.
 > varredura para chegar a "empate" é o padrão que a regra 11 existe para cortar.
 > Ela volta quando houver **duas** coisas que hoje não existem: os perfis
 > sintéticos do `E1` (para saber se o peso generaliza) e n maior na fatia.
+>
+> **Fechado em 25/08/2026, aceite cumprido** —
+> [`docs/ablacao-f4p-nome-no-entregue.md`](docs/ablacao-f4p-nome-no-entregue.md).
+> Cross-lingual recall@20 do caminho entregue **0,750 → 1,000**, recall@1 agregado
+> em 0,551, e o caminho entregue passou a bater o `search` no agregado (MRR 0,696
+> contra 0,680). Três coisas ficam declaradas e não escondidas:
+>
+> 1. **A reunião paga** — nDCG@5 −0,089 [−0,172, −0,017], a única célula da tabela
+>    pareada cujo intervalo não cruza zero. Contra o **piso** ela sobe (MRR 0,287 →
+>    0,378); a perda é contra o braço anterior, que era o defeito.
+> 2. **A porta 5 reprova** contra aquele braço: `g036` 20 → não encontrada, `g010`
+>    2 → 3, `g037` 1 → 2. `g036` **também não é encontrada pelo `search`** — é a
+>    falha única e histórica do projeto, e o caminho entregue a segurava na
+>    posição 20 por não ter o ranqueador de nome. O piso que vale é o `search`, e
+>    o próprio número de aceite (0,551) é o número dele.
+> 3. **A varredura de peso por tipo de fonte volta a ser defensável.** A regra 11 a
+>    cortou por não haver efeito mínimo declarado; agora há, e é esta perda em
+>    reunião. Continua faltando a outra metade — os perfis sintéticos do `E1`.
 >
 > **Classe generalizada** (regra 12): "o eval mede um caminho e o cliente executa
 > outro" ficou fechada pelo `F4-P.0` — `eval/entregue.py` e `--entregue` em
