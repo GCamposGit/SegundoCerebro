@@ -1823,11 +1823,34 @@ botão “ligar no Claude Desktop / Grok”.
 - **Saída:** numa máquina sem NVIDIA a indexação é CPU e a suíte padrão passa;
   com GPU incompatível (CUDA 13, MiniLM-Q) o smoke recusa em português
 
-### F6-D — Uma página em português — **qualquer lado, arquivo novo**
+### F6-D — Uma página em português — ✅ **FECHADA em 25/08/2026**
 
 - **Toca:** `docs/comecar.md` (novo). Não reescrever `CLAUDE.md`
 - **Saída:** instalar, apontar pasta, esperar barra, perguntar. Sem jargão de
   fase. O vocabulário de exemplo é a VCE
+
+> **Todo comando da página foi rodado antes de entrar nela**, e três afirmações
+> caíram por isso: os quatro console scripts existem nesta máquina e **nenhum** é
+> achado pelo nome, então a página ensina a forma `py -m …` e explica o atalho em
+> vez de mandar digitá-lo (era a condição que `colaboracao.md` §6 exigia); o
+> `python` puro não é comando aqui, só o `py`; e a indexação **registra a base
+> sozinha** no `.mcp.json` ao terminar, o que encurta o passo de conectar.
+>
+> **Duas afirmações minhas eram invenção e saíram** — "1 GB de disco" e "o índice
+> fica em 3% do acervo". Medido: 2,1 GB o `e5-large`, 241 MB o `minilm`, e o
+> índice do corpus sintético saiu **maior** que o corpus (225 KB contra 179 KB),
+> porque em acervo minúsculo o que se vê é o custo fixo. A página passou a não dar
+> número de disco de índice: o censo estima **tempo**, não espaço, e prometer o
+> que não se mede é o defeito que a regra 7 nomeia.
+>
+> **Classe generalizada** (regra 12): "doc de usuário afirma coisa que o código
+> não sustenta". O precedente estava no mesmo dia — `usar-o-mcp.md` dizia "duas
+> ferramentas" um mês depois de a `neighbors` estar servindo. Três guardas
+> fecham as três instâncias mensuráveis: a lista de ferramentas contra o que o
+> protocolo entrega (`tests/test_protocolo_mcp.py`), e em
+> `tests/test_docs_do_usuario.py` o `py -m <modulo>` de cada página contra o
+> ponto de entrada que existe, e a lista de formatos contra
+> `supported_extensions()`, nos dois sentidos.
 
 **Teste da fase, numa máquina que não é a nossa:** Windows sem NVIDIA, pasta
 nova, corpus sintético, um cliente MCP. Enquanto isso não passou, não é

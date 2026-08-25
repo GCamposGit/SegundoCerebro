@@ -89,8 +89,10 @@ Onde o sistema está, em cinco linhas:
   (invariante 6).
 
 **Onde o produto não está pronto**, e é o que a régua de ouro manda olhar
-primeiro: Office legado (`.doc` `.xls` `.ppt`), OCR de PDF digitalizado, watcher,
-e a F6 inteira — instalar frio numa máquina que não é nossa.
+primeiro: OCR de PDF digitalizado, watcher, e o teste da F6 — instalar frio numa
+máquina que não é nossa, que segue sendo a porta de fase. O Office legado
+(`.doc` `.xls` `.ppt` `.rtf`) **é lido** desde a F4; o que falta ali é o `F4-L`,
+o container OLE que mente sobre o próprio conteúdo.
 
 ## Próximo passo
 
@@ -105,8 +107,10 @@ e a F6 inteira — instalar frio numa máquina que não é nossa.
    por tipo de fonte sai do escopo**: no melhor caso teórico ela vale +0,032 de
    MRR agregado, com efeito concentrado em 11 perguntas, que é a forma que o `E5`
    provou indetectável.
-3. **`F6`** (instalar frio, pasta estranha) e os pacotes `Q` que servem o leigo —
-   `Q2` (lockfile e extras) e o e2e do protocolo MCP do `Q5`.
+3. **`F6`** — restam `F6-A`/`F6-C` (desktop) e `F6-B` (estágio 0 do painel). A
+   `F6-D` (`docs/comecar.md`) e a `F6-E` (pasta hostil) fecharam em 25/08/2026, e
+   o `Q5` P0 — e2e do protocolo MCP — também. Do `Q2` sobram lockfile e extras,
+   que são do desktop.
 
 ## Lições que valem para qualquer acervo
 
