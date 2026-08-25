@@ -112,7 +112,7 @@ Os quatro riscos estruturais que este dossiê ataca:
 ### R1.5 — Docling como caminho de qualidade para PDFs difíceis — **P2** · Dono: desktop
 **Problema.** PDFs com layout complexo (tabelas, colunas duplas) perdem estrutura no parser atual.
 
-**Solução.** Rota opcional no despachante: PDFs marcados "difíceis" (heurística: densidade de tabela, colunas detectadas) vão para **Docling** (IBM, MIT license) que produz Markdown estruturado; demais seguem no parser rápido atual. Docling é dependência opcional (`pip install segundocerebro[docling]`) — pesado demais para o pacote base. Medir no dourado antes de promover a padrão.
+**Solução.** Rota opcional no despachante: PDFs marcados "difíceis" (heurística: densidade de tabela, colunas detectadas) vão para **Docling** (projeto open-source, MIT license) que produz Markdown estruturado; demais seguem no parser rápido atual. Docling é dependência opcional (`pip install segundocerebro[docling]`) — pesado demais para o pacote base. Medir no dourado antes de promover a padrão.
 
 **Fontes.** Docling (https://github.com/docling-project/docling; paper: https://arxiv.org/html/2501.17887v1); alternativa leve: MarkItDown (https://github.com/microsoft/markitdown).
 
@@ -329,7 +329,7 @@ Se R3.1 escolher bge-m3, o checkpoint oferece multi-vector e esparso de graça. 
 **Solução.** Três tools novas, todas read-only e baratas (SQL puro):
 1. `overview()` — o que há na base: nº docs/chunks, período coberto (min/max data), top formatos, top pastas de 1º nível, % indexado, % OCR pendente. É a primeira chamada que qualquer agente deveria fazer.
 2. `browse(pasta, limite)` — lista sub-pastas e docs indexados sob um prefixo (nome, data, nº chunks). O LLM navega a árvore.
-3. `timeline(consulta, granularidade)` — histograma temporal dos hits de uma busca ("as menções a IBM concentram-se em 2024-T4→2025-T2"). Implementação: a própria busca híbrida + GROUP BY período.
+3. `timeline(consulta, granularidade)` — histograma temporal dos hits de uma busca ("as menções a Aurora concentram-se em 2024-T4→2025-T2"). Implementação: a própria busca híbrida + GROUP BY período.
 
 **Critérios de aceite.** As três respondem <200 ms em índice de 1M chunks; testes de contrato no padrão de `test_mcp.py`; nenhuma expõe caminho absoluto da máquina (paths relativos à base).
 

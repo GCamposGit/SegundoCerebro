@@ -29,13 +29,13 @@ def test_busca_por_nome_ordena_por_sobreposicao(tmp_path: Path) -> None:
     from eval.baselines import DocumentoIndexado
 
     docs = [
-        DocumentoIndexado("Contratos/contrato Tess 2026.pdf", frozenset({"contrato", "tess", "2026"}), frozenset({"contratos"})),
+        DocumentoIndexado("Contratos/contrato Aurora 2026.pdf", frozenset({"contrato", "aurora", "2026"}), frozenset({"contratos"})),
         DocumentoIndexado("Outros/ata.pdf", frozenset({"ata"}), frozenset({"outros"})),
-        DocumentoIndexado("Tess/anexo.pdf", frozenset({"anexo"}), frozenset({"tess"})),
+        DocumentoIndexado("Aurora/anexo.pdf", frozenset({"anexo"}), frozenset({"aurora"})),
     ]
-    hits = BuscaPorNomeDeArquivo(docs).search("contrato da Tess", 10)
+    hits = BuscaPorNomeDeArquivo(docs).search("contrato da Aurora", 10)
 
-    assert [h.path for h in hits] == ["Contratos/contrato Tess 2026.pdf", "Tess/anexo.pdf"]
+    assert [h.path for h in hits] == ["Contratos/contrato Aurora 2026.pdf", "Aurora/anexo.pdf"]
     assert hits[0].score > hits[1].score
 
 

@@ -21,8 +21,8 @@ def test_vazio_devolve_a_consulta_intacta():
 
 def test_sigla_ganha_a_forma_por_extenso():
     g = de({"DPA": "acordo de proteção de dados"})
-    assert g.expandir("onde está o DPA da Valerann") == (
-        "onde está o DPA da Valerann acordo de proteção de dados"
+    assert g.expandir("onde está o DPA da Boreal") == (
+        "onde está o DPA da Boreal acordo de proteção de dados"
     )
 
 

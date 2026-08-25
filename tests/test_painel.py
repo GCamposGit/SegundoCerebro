@@ -621,14 +621,14 @@ def test_pergunta_do_usuario_entra_no_dourado(cliente, caminho: Path, tmp_path: 
     """É o que faz "otimizar para o meu caso" ser verdade."""
     r = cliente.post(
         "/api/dourado",
-        json={"base": "trabalho", "pergunta": "Onde está o contrato da Tess?",
+        json={"base": "trabalho", "pergunta": "Onde está o contrato da Aurora?",
               "fontes": ["01. IA/contrato.pdf"]},
         headers=cabecalho(),
     )
     assert r.status_code == 200
 
     gravado = json.loads(Path(r.json()["arquivo"]).read_text(encoding="utf-8").strip())
-    assert gravado["pergunta"] == "Onde está o contrato da Tess?"
+    assert gravado["pergunta"] == "Onde está o contrato da Aurora?"
     assert gravado["autoria"] == "usuario", "marcado como do usuário, não rascunho meu"
     assert gravado["base"] == "trabalho", "carimba a base — conferência contra medir o acervo errado"
 
