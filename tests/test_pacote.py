@@ -10,6 +10,7 @@ from __future__ import annotations
 import os
 import subprocess
 import sys
+import sysconfig
 import tomllib
 from pathlib import Path
 
@@ -22,8 +23,19 @@ def _env_sem_pythonpath() -> dict[str, str]:
 
 
 def _script(nome: str) -> Path:
+    r"""Onde o console script realmente mora — `sysconfig`, não `sys.executable`.
+
+    É o `R8.1.b`, e ele reprovava dois testes desta suíte no notebook desde o
+    PR #14. Numa instalação de usuário do Python (não em venv) o interpretador
+    fica em `…\Python312\python.exe` e os pontos de entrada em
+    `…\Python312\Scripts\`, que **não é** o diretório do interpretador. Em
+    venv os dois coincidem, e é por isso que passou despercebido: o CI usa venv.
+
+    `sysconfig.get_path("scripts")` é a resposta do próprio instalador à
+    pergunta "onde o `pip` pôs isso", e vale nos dois layouts.
+    """
     ext = ".exe" if os.name == "nt" else ""
-    return Path(sys.executable).resolve().parent / f"{nome}{ext}"
+    return Path(sysconfig.get_path("scripts")) / f"{nome}{ext}"
 
 
 def test_pyproject_le_dependencias_do_requirements() -> None:

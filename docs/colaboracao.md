@@ -350,6 +350,26 @@ Registrei como `R8.1.b` no `ROADMAP.md`, com a ordem: consertar a busca pelo
 script **antes** do `skipif`, senão o `skipif` mascara o defeito num setup onde o
 pacote está instalado e funcionando.
 
+**Consertado em 25/08/2026**, na ordem que este parágrafo pediu: `_script()` passa
+a usar `sysconfig.get_path("scripts")`, sem `skipif`. `tests/test_pacote.py` volta
+a 4 verdes. O resto do `Q2` — lockfile e extras — continua do desktop; aqui foram
+duas linhas de auxiliar de teste, sem tocar `pyproject.toml` nem produto.
+
+**E um segundo achado, que este bloco não tinha e que é de produto.** O bloco
+mediu que o `.exe` roda quando invocado pelo caminho inteiro. Ele **não** roda
+quando invocado pelo nome: o `PATH` desta máquina tem `…\Python312` e não tem
+`…\Python312\Scripts`, e `Get-Command segundocerebro-mcp` não acha nenhum dos
+quatro. Ou seja, `pip install -e .` numa instalação de usuário entrega pontos de
+entrada que o shell não alcança — **falha da régua de prontidão item 1** (instala
+frio), não coincidência de layout de CI. Duas consequências:
+
+1. **`mcp/registrar.py` tem de continuar emitindo `py -m segundocerebro.mcp.server`,
+   e não o console script.** Trocar por `segundocerebro-mcp` parece modernização e
+   quebraria o registro nesta classe de instalação.
+2. **`docs/comecar.md` (`F6-D`) não pode mandar digitar `segundocerebro-painel`
+   sem dizer o que fazer quando não resolve.** É o primeiro comando que o leigo
+   digita, e hoje ele falha nesta máquina.
+
 **Ordem dentro da onda 2, e o motivo de não ser a da lista.** `C3.a` vem primeiro
 porque é a hipótese mais barata da onda e ela pode tornar as outras duas menores:
 se a dupla contagem do nome do arquivo explica a troca medida nas perguntas de
