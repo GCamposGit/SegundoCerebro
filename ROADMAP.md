@@ -1313,8 +1313,8 @@ outra fatia além do ruído, e sem regredir a camada 1.**
 
 | # | Pacote | Dono | Onda | Estado |
 |---|---|---|:---:|---|
-| E1 | Gerador de corpus sintético como código versionado | **notebook** (assumido em 24/08) | 2 | **conferido e reprovado como veio** — ver o laudo |
-| E2 | Matriz de armadilhas: fatia ↔ pacote do roadmap | notebook | 2 | veio junto do E1; precisa de duas fatias novas |
+| E1 | Gerador de corpus sintético como código versionado | **notebook** (assumido em 24/08) | 2 | ✅ **fechado em 25/08/2026** — as sete condições, em `E1.a`/`E1.b`/`E1.c` |
+| E2 | Matriz de armadilhas: fatia ↔ pacote do roadmap | notebook | 2 | ✅ **fechado junto do `E1.c`** — [`docs/matriz-de-armadilhas.md`](docs/matriz-de-armadilhas.md) v1.0, 12 fatias |
 | E3 | Protocolo de três camadas + set selado | acordo entre setups | 3 | não começou |
 | E4 | Loop adversarial por fase (red-team de agente) | notebook | 4 | não começou |
 | E5 | **Rigor estatístico mínimo — IC bootstrap** | notebook | **1** | ✅ **fechado em 24/08/2026** — ver [`docs/rigor-estatistico.md`](docs/rigor-estatistico.md) |
@@ -1360,9 +1360,36 @@ o caminho que o cliente executa alcança menos que `search` na fatia cross-lingu
 (recall@20 0,750 contra 1,000), e isso é busca que não encontra para um quarto da
 fatia. Aceite binário, sem grade de pesos.
 
-### O que o E1 tem de satisfazer para entrar
+### O que o E1 tem de satisfazer para entrar — **fechado em 25/08/2026**
 
-Sete condições, todas vindas do laudo, todas verificáveis:
+Sete condições, todas vindas do laudo, todas verificáveis. Entregues em três PRs,
+com a leitura completa em
+[`docs/matriz-de-armadilhas.md`](docs/matriz-de-armadilhas.md):
+
+| PR | Condições | O número que mudou |
+|---|---|---|
+| `E1.a` | 1, 5, 6 | `n=27` e `n=30` travavam; agora `n=100` dá 2.112 docs · 1.000 perguntas |
+| `E1.b` | 2, 7 | fatia cross-lingual de **0** para 30 em `n=30`; `armadilha_fatia` como 3º eixo |
+| `E1.c` | 3, 4 | `grupo_de_fonte` ganha reunião e email, com **interseção** cross-lingual de 10 cada; PDF de 0,5% para 45,7% |
+
+Três coisas que a execução mudou em relação ao laudo, e que valem mais que as
+condições em si:
+
+- **O achado 2 não era achado.** "A escala declarada não existe" era consequência
+  do laço de siglas do achado 1: com o teto removido, a escala aparece sozinha.
+- **A parede era `n = 27`, não `i = 26`.** Com `n = 26` o índice vai de 0 a 25 e a
+  26ª chamada ainda acha sigla livre. A recomendação de `--n-por-fatia 26` do
+  laudo estava certa; o número que a explicava era um a menos.
+- **O produtor passou a não conseguir emitir código inválido.** `perg()` valida
+  contra `harness.IDIOMAS_ACEITOS` na emissão. Produtor que não emite inválido é
+  melhor que consumidor que rejeita depois — e é a diferença entre o defeito
+  aparecer na hora e aparecer uma fase adiante.
+
+O que **não** mudou, e é o limite declarado: métrica deste corpus **não é condição
+C**. Ele é a camada 2; ganho que só aparece aqui é ganho deste gerador, e é para
+isso que a camada 3 (`C5`) existe.
+
+As sete condições, como o laudo as escreveu:
 
 1. `--n-por-fatia 30` **termina** — o espaço de siglas tem 26 elementos e o
    gerador entra em laço infinito em `i = 26`. Teto explícito, erro em vez de

@@ -40,13 +40,33 @@ def test_a_fatia_cross_lingual_deixou_de_ter_tamanho_zero(tmp_path: Path) -> Non
     assert "não declarado" not in fatias, dict(fatias)
 
 
-def test_as_dez_outras_fatias_declaram_pt_em_vez_de_omitir(tmp_path: Path) -> None:
+FATIAS_QUE_CRUZAM_IDIOMA = frozenset({"cross_lingual", "reuniao", "email"})
+"""As únicas fatias em que `idioma` e `idioma_fonte` podem divergir.
+
+`cross_lingual` é a fatia dedicada; `reuniao` e `email` cruzam **em parte**
+(`fatias.CRUZA_IDIOMA`, uma em cada três) porque é a interseção que o dourado
+real tem — 3 das 11 perguntas de reunião — e somar os dois eixos não a mede."""
+
+
+def test_as_fatias_monolingues_declaram_pt_em_vez_de_omitir(tmp_path: Path) -> None:
     """Declarar `pt` é diferente de omitir, e é a omissão que mata a fatia."""
     perguntas = _gerado(tmp_path)
-    fora = [p for p in perguntas if p.armadilha_fatia != "cross_lingual"]
+    fora = [p for p in perguntas if p.armadilha_fatia not in FATIAS_QUE_CRUZAM_IDIOMA]
 
-    assert fora, "sanidade: o corpus tem outras fatias"
+    assert fora, "sanidade: o corpus tem fatias monolíngues"
     assert all(p.idioma == "pt" and p.idioma_fonte == "pt" for p in fora)
+
+
+def test_so_as_tres_fatias_declaradas_cruzam_idioma(tmp_path: Path) -> None:
+    """O contrato ao contrário: cruzar idioma fora dessas três é acidente.
+
+    Sem esta metade, uma fatia nova que errasse o `idioma_fonte` inflaria a fatia
+    cross-lingual em silêncio — e a métrica **subiria** com o defeito, que é o
+    modo de falha mais caro que este repositório conhece."""
+    perguntas = _gerado(tmp_path)
+    cruzam = {p.armadilha_fatia for p in perguntas if p.fatia == CROSS_LINGUAL}
+
+    assert cruzam <= FATIAS_QUE_CRUZAM_IDIOMA, f"fatia cruzando sem declarar: {cruzam}"
 
 
 def test_o_gerador_nao_consegue_emitir_travessia_como_idioma() -> None:

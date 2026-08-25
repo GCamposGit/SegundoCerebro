@@ -261,6 +261,115 @@ def f_estrutura_pastas(rng, n, ext):
                            feature_alvo="R2.1 contexto de pasta", condicao=cond, par_id=i))
     return docs, ps
 
+CRUZA_IDIOMA = 3
+"""Uma em cada tres perguntas de reuniao e de email cruza idioma.
+
+**A intersecao, e nao a soma** -- condicao 3 do laudo. No dourado real **3 das 11
+perguntas de reuniao sao cross-lingual** (`docs/colaboracao.md` secao 6), e uma
+fatia sintetica que somasse os dois eixos -- reuniao monolingue de um lado,
+cross-lingual de escritorio do outro -- nao mediria o caso que existe no acervo.
+A `F4-P` decide sobre reuniao **e** sobre cross-lingual, e o teto de oraculo dela
+nao desconta a intersecao.
+"""
+
+
+def _vtt(rng, falas):
+    """WebVTT com marca de tempo. `eval.fonte` classifica por extensao."""
+    blocos = ["WEBVTT", ""]
+    for k, fala in enumerate(falas):
+        ini, fim = 12 * k, 12 * k + 11
+        blocos.append(f"{ini // 60:02d}:{ini % 60:02d}.000 --> {fim // 60:02d}:{fim % 60:02d}.000")
+        blocos.append(fala)
+        blocos.append("")
+    return "\n".join(blocos)
+
+
+def f_reuniao(rng, n, ext):
+    """Transcricao de reuniao: o identificador esta na FALA, nunca no nome.
+
+    A armadilha e contra o ranqueador de nome, que e o sinal que a `C3.a` mostrou
+    ser 14x mais sensivel no grupo de reuniao. O arquivo se chama
+    `Gravacao_2025-03-14_0930.vtt` -- data e hora, como gravador de reuniao nomeia
+    -- e a resposta so existe no texto falado, com hesitacao e repeticao.
+    """
+    docs, ps = [], []
+    for i in range(n):
+        proj = f"Projeto {V.PROJETOS[i % 10]}-R{i:02d}"
+        emp, valor = rng.choice(V.EMPRESAS), rng.randrange(120, 8000) * 1000
+        ano, mes, dia = rng.randrange(2021, 2026), rng.randrange(1, 13), rng.randrange(1, 28)
+        cruzado = i % CRUZA_IDIOMA == 0
+        if cruzado:
+            falas = [
+                "So, quick recap before we close.",
+                f"The board signed off on {moeda(valor)} for {proj}, with {emp} as the vendor.",
+                "Right, and that number is final for this cycle.",
+            ]
+            idioma, idioma_fonte = "pt", "en"
+            pergunta = f"Quanto o comite aprovou para o {proj}?"
+        else:
+            falas = [
+                "Entao... deixa eu recapitular antes de encerrar.",
+                f"O comite aprovou, aprovou sim, {moeda(valor)} para o {proj}, com a {emp}.",
+                "Isso, e esse valor esta fechado para o ciclo.",
+            ]
+            idioma, idioma_fonte = "pt", "pt"
+            pergunta = f"Quanto o comite aprovou para o {proj}?"
+        nome = f"Gravacao_{ano}-{mes:02d}-{dia:02d}_{rng.randrange(8, 18):02d}{rng.choice(['00','30'])}"
+        d = mkdoc(f"09. Meetings/{ano}", nome, _vtt(rng, falas), "vtt")
+        docs.append(d)
+        ps.append(perg(f"q-rn-{i:03d}", "reuniao", pergunta, moeda(valor), [d.caminho],
+                       idioma=idioma, idioma_fonte=idioma_fonte,
+                       armadilha="identificador so na fala; nome do arquivo e data e hora",
+                       feature_alvo="F4-P/C3.a", cruza_idioma=cruzado))
+    return docs, ps
+
+
+def f_email(rng, n, ext):
+    """Email MIME: o assunto nao responde, o corpo responde.
+
+    `RES: RES: ENC:` e o assunto generico que o acervo real tem aos montes -- e o
+    caso em que o ranqueador de nome nao tem sinal nenhum. O `.eml` e MIME de
+    verdade, montado pela `email` da biblioteca padrao, que e o que
+    `ingest/parsers/mail.py` le desde 21/08.
+    """
+    from email.message import EmailMessage
+
+    docs, ps = [], []
+    for i in range(n):
+        cid, prazo = f"CT-EM-{i:03d}", rng.randrange(5, 90)
+        emp, area = rng.choice(V.EMPRESAS), rng.choice(V.AREAS)
+        ano, mes, dia = rng.randrange(2021, 2026), rng.randrange(1, 13), rng.randrange(1, 28)
+        cruzado = i % CRUZA_IDIOMA == 0
+        if cruzado:
+            assunto = "RE: FW: RE: contract"
+            corpo = (f"Hi all,\n\nLegal confirmed the notice period for contract {cid} "
+                     f"with {emp}: {prazo} days.\n\nBest regards,\n{area}\n")
+            idioma, idioma_fonte = "pt", "en"
+            pergunta = f"Qual o prazo de aviso previo do contrato {cid}?"
+        else:
+            assunto = "RES: RES: ENC: contrato"
+            corpo = (f"Prezados,\n\nO juridico confirmou o prazo de aviso previo do contrato "
+                     f"{cid} com a {emp}: {prazo} dias.\n\nAtenciosamente,\n{area}\n")
+            idioma, idioma_fonte = "pt", "pt"
+            pergunta = f"Qual o prazo de aviso previo do contrato {cid}?"
+        msg = EmailMessage()
+        msg["Subject"] = assunto
+        msg["From"] = f"{area.lower()}@vce.example"
+        msg["To"] = "arquivo@vce.example"
+        # Data explicita: sem ela a `email` nao carimba nada, mas declarar mantem
+        # o `.eml` parecido com o real sem introduzir relogio no gerador.
+        msg["Date"] = f"{dia:02d} {['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][mes-1]} {ano} 09:00:00 -0300"
+        msg.set_content(corpo)
+        nome = f"{assunto.replace(':', '').replace(' ', '_')}_{i:03d}"
+        d = mkdoc("10. Caixa de entrada", nome, msg.as_string(), "eml")
+        docs.append(d)
+        ps.append(perg(f"q-em-{i:03d}", "email", pergunta, f"{prazo} dias", [d.caminho],
+                       idioma=idioma, idioma_fonte=idioma_fonte,
+                       armadilha="assunto generico (RES: RES: ENC:); resposta so no corpo",
+                       feature_alvo="F4-P/parser de email", cruza_idioma=cruzado))
+    return docs, ps
+
+
 def f_venenosos(rng, n, ext):
     docs = []
     for i in range(3):
@@ -273,4 +382,10 @@ FATIAS = [("nomes_ruins", f_nomes_ruins), ("versoes", f_versoes), ("duplicatas",
           ("cross_lingual", f_cross_lingual), ("siglas", f_siglas),
           ("planilha_despejo", f_planilha_despejo), ("multihop", f_multihop),
           ("temporal", f_temporal), ("distratores", f_distratores),
-          ("estrutura_pastas", f_estrutura_pastas), ("venenosos", f_venenosos)]
+          ("estrutura_pastas", f_estrutura_pastas),
+          # Fatias de 25/08/2026 (E1.c, condicao 3). Entram no FIM da lista de
+          # proposito: o RNG e por fatia (`random.Random(f"{seed}:{nome}")`), entao
+          # acrescentar fatia nao muda nenhuma das existentes -- e o detalhe de
+          # projeto do pacote que o laudo elogiou, e a ordem aqui nao o afeta.
+          ("reuniao", f_reuniao), ("email", f_email),
+          ("venenosos", f_venenosos)]
