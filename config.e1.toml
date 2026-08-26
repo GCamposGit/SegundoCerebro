@@ -54,6 +54,11 @@ raizes = [
 # absoluta, e isso está declarado na ablação do pacote.
 #
 # Para medir chunking, tirar esta seção e pagar as 16 h — é o custo real da fatia.
+# `dirs` sao prefixos relativos a RAIZ, nao nomes de pasta soltos -- e o gerador
+# escreve em `<out>/corpus/`, entao o prefixo tem de comecar por `corpus/`. A
+# primeira versao desta regra dizia so `16. Anexos volumosos`, casou com **nada**,
+# e nao houve aviso nenhum: a passada seguiu como se a exclusao existisse. Ver a
+# conferencia obrigatoria no cabecalho.
 [[base.exclude.papel]]
-dirs = ["16. Anexos volumosos"]
+dirs = ["corpus/16. Anexos volumosos"]
 globs = ["*"]
