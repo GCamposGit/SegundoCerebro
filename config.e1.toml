@@ -30,3 +30,30 @@ modelo = "e5-large"
 raizes = [
     { nome = "e1", caminho = "corpus-e1" },
 ]
+
+# Exclusão **declarada e medida**, pelo mesmo mecanismo que o `F4-M` usa no
+# acervo real: o pacote não some com documento em silêncio, ele diz qual e por quê.
+#
+# `16. Anexos volumosos` são as fatias `chunk_hostil` e `planilha_despejo` do
+# gerador — "1 linha relevante em 4000". Medido nesta máquina em 26/08/2026, com
+# a passada parada em 26%:
+#
+# | pasta                  | docs          | chunks              | chunks/doc |
+# |------------------------|---------------|---------------------|-----------|
+# | `16. Anexos volumosos` | 200 de 3.833  | 7.564 de 8.364 (90%)| 48,8      |
+# | `12. Normas`           | 600           | 600                 | 1,0       |
+# | `15. Bilingue`         | 200           | 200                 | 1,0       |
+#
+# 5% dos documentos custando 90% dos chunks, a 2,76 s por chunk medidos. Com elas
+# a passada projeta ~20.000 chunks (≈16 h ativas); sem elas, ~5.000 (≈4 h).
+#
+# **E elas medem chunking, não o ranqueador de nome**, que é a hipótese do
+# `F4-P.1`. As 200 perguntas que apontam para cá saem como *fora de escopo* no
+# relatório do harness — visíveis, e nos dois braços. Os dois braços veem o mesmo
+# corpus, então o Δ pareado não fica enviesado; o que muda é a dificuldade
+# absoluta, e isso está declarado na ablação do pacote.
+#
+# Para medir chunking, tirar esta seção e pagar as 16 h — é o custo real da fatia.
+[[base.exclude.papel]]
+dirs = ["16. Anexos volumosos"]
+globs = ["*"]
