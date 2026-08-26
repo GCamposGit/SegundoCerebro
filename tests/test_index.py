@@ -14,12 +14,14 @@ from __future__ import annotations
 
 import argparse
 import hashlib
+import json
 from pathlib import Path
 
 import numpy as np
 import pytest
 
-from segundocerebro.census import Config, RootSpec
+from segundocerebro.census import Config, DeclaredExclusions, RoleExclusion, RootSpec
+from segundocerebro.config import ErroDeConfig
 from segundocerebro.ingest.chunking import CHUNKER_VERSION, Chunk, ChunkConfig
 from segundocerebro.ingest.document import BlockKind
 from segundocerebro.index.indexer import _deve_ativar_mcp, indexar
@@ -877,3 +879,86 @@ def test_teto_de_trechos_nao_adia_markdown(tmp_path: Path) -> None:
     assert progresso.indexados == 1
     assert emb.chamadas > 0
     store.fechar()
+
+
+# --- Exclusão declarada é conferida antes de abrir arquivo -------------------
+#
+# A passada é o caminho que paga o custo: quando a regra é inerte, é aqui que as
+# 3 h 22 min de 26/08/2026 foram gastas. Conferir no censo e não aqui deixaria o
+# defeito exatamente onde ele estava — o indexador roda sem censo nenhum.
+
+
+def corpus_aninhado(raiz: Path) -> Path:
+    (raiz / "corpus" / "16. Anexos volumosos").mkdir(parents=True)
+    (raiz / "corpus" / "12. Normas").mkdir(parents=True)
+    (raiz / "corpus" / "16. Anexos volumosos" / "anexo.md").write_text(
+        "# Anexo\nTotal geral do anexo: 4.200.\n", encoding="utf-8"
+    )
+    (raiz / "corpus" / "12. Normas" / "norma.md").write_text(
+        "# Norma\nA norma NR-000 exige registro anual.\n", encoding="utf-8"
+    )
+    return raiz
+
+
+def _cfg_com_papel(raiz: Path, dirs: tuple[str, ...]) -> Config:
+    regra = RoleExclusion(globs=("*",), dirs=dirs)
+    return Config(
+        roots=[RootSpec(name="teste", path=corpus_aninhado(raiz))],
+        role_exclusions=(regra,),
+        declared=DeclaredExclusions(roles=(regra,)),
+    )
+
+
+def test_progresso_publica_a_contagem_por_regra(tmp_path: Path) -> None:
+    """Total sozinho não distingue exclusão declarada de regra inerte."""
+    cfg = _cfg_com_papel(tmp_path / "raiz", ("corpus/16. Anexos volumosos",))
+    store = Store(tmp_path / "indice", DIM)
+
+    progresso = indexar(cfg, store, EmbedderFalso(), parse_workers=1)
+    store.fechar()
+
+    publicado = json.loads((tmp_path / "indice" / "progresso.json").read_text(encoding="utf-8"))
+    exclusoes = publicado["exclusoes"]
+    assert exclusoes["arquivos"] == 1
+    assert exclusoes["inertes"] == []
+    assert list(exclusoes["por_regra"].values()) == [1]
+    assert progresso.indexados == 1, "o excluído não entrou no índice"
+
+
+def test_regra_inerte_sai_como_aviso_no_progresso(tmp_path: Path) -> None:
+    """O caso de 26/08 tal como foi escrito: prefixo sem `corpus/`."""
+    cfg = _cfg_com_papel(tmp_path / "raiz", ("16. Anexos volumosos",))
+    store = Store(tmp_path / "indice", DIM)
+
+    progresso = indexar(cfg, store, EmbedderFalso(), parse_workers=1)
+    store.fechar()
+
+    publicado = json.loads((tmp_path / "indice" / "progresso.json").read_text(encoding="utf-8"))
+    assert publicado["exclusoes"]["arquivos"] == 0
+    assert len(publicado["exclusoes"]["inertes"]) == 1
+    # e a passada correu mesmo assim: aviso é o padrão, recusa é opt-in
+    assert progresso.indexados == 2
+
+
+def test_exigir_exclusoes_recusa_antes_de_abrir_arquivo(tmp_path: Path) -> None:
+    """Recusa antes do custo — nenhum documento no índice, nenhum byte lido."""
+    cfg = _cfg_com_papel(tmp_path / "raiz", ("16. Anexos volumosos",))
+    store = Store(tmp_path / "indice", DIM)
+    emb = EmbedderFalso()
+
+    with pytest.raises(ErroDeConfig, match="não casou com nada"):
+        indexar(cfg, store, emb, parse_workers=1, exigir_exclusoes=True)
+
+    assert emb.chamadas == 0
+    assert store.estatisticas()["documentos"] == 0
+    store.fechar()
+
+
+def test_exigir_exclusoes_nao_atrapalha_regra_que_funciona(tmp_path: Path) -> None:
+    cfg = _cfg_com_papel(tmp_path / "raiz", ("corpus/16. Anexos volumosos",))
+    store = Store(tmp_path / "indice", DIM)
+
+    progresso = indexar(cfg, store, EmbedderFalso(), parse_workers=1, exigir_exclusoes=True)
+    store.fechar()
+
+    assert progresso.indexados == 1

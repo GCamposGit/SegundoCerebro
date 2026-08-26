@@ -18,6 +18,7 @@ import pytest
 from segundocerebro import census as census_mod
 from segundocerebro.census import (
     CLOUD_ONLY_MASK,
+    DeclaredExclusions,
     FILE_ATTRIBUTE_HIDDEN,
     FILE_ATTRIBUTE_OFFLINE,
     FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS,
@@ -411,3 +412,180 @@ globs = ["*_relatorio.pdf"]
     assert cfg.role_exclusions[0].globs == ("*_relatorio.pdf",)
     # e as exclusões técnicas continuam valendo
     assert "~$*" in cfg.exclude_globs
+
+
+# --- Regra declarada que não casa com nada ----------------------------------
+#
+# A classe, e não o caso: regra de exclusão inerte **não devolve erro**. A
+# passada corre inteira, sobram menos arquivos, e menos arquivos é justamente o
+# que se pediu — o silêncio parece sucesso. Já custou duas vezes neste
+# repositório: em 20/08/2026 quatro `metricas-f2-*` commitados por lista de nome
+# no `.gitignore`, e em 26/08/2026 (`F4-P.1`) uma regra de papel escrita
+# `16. Anexos volumosos` onde o caminho relativo à raiz era
+# `corpus/16. Anexos volumosos` — zero arquivos casados, 3 h 22 min de máquina e
+# uma medição contaminada com 312 chunks patológicos.
+#
+# O que estes testes travam é o método: contar por regra e comparar com zero
+# antes de abrir arquivo.
+
+
+@pytest.fixture
+def corpus_aninhado(tmp_path: Path) -> RootSpec:
+    """O corpus mora um nível abaixo da raiz — como o gerador do `E1` escreve."""
+    root = tmp_path / "corpus-e1"
+    (root / "corpus" / "16. Anexos volumosos").mkdir(parents=True)
+    (root / "corpus" / "12. Normas").mkdir(parents=True)
+    (root / "corpus" / "16. Anexos volumosos" / "Anexo de precos CT-CK-000.txt").write_bytes(b"x")
+    (root / "corpus" / "16. Anexos volumosos" / "Anexo de precos CT-CK-001.txt").write_bytes(b"x")
+    (root / "corpus" / "12. Normas" / "Norma 000.txt").write_bytes(b"x")
+    return RootSpec(name="e1", path=root)
+
+
+def _papel(dirs: tuple[str, ...], globs: tuple[str, ...] = ("*",)) -> census_mod.RoleExclusion:
+    return census_mod.RoleExclusion(globs=globs, dirs=dirs)
+
+
+def _passada(corpus: RootSpec, cfg: Config) -> census_mod.Census:
+    censo = census_mod.Census()
+    list(census_mod.iter_files(corpus, cfg, sink=censo))
+    return censo
+
+
+def test_prefixo_errado_de_papel_vira_aviso_e_nao_silencio(corpus_aninhado: RootSpec) -> None:
+    """O defeito de 26/08, exatamente como foi escrito."""
+    regra = _papel(("16. Anexos volumosos",))
+    cfg = Config(
+        roots=[corpus_aninhado],
+        role_exclusions=(regra,),
+        declared=DeclaredExclusions(roles=(regra,)),
+    )
+
+    censo = _passada(corpus_aninhado, cfg)
+    avisos = census_mod.check_exclusions(cfg, censo)
+
+    assert censo.excluded_by_rule.get(regra.label, 0) == 0
+    assert len(avisos) == 1
+    # e o aviso diz *qual* dos dois erros é, porque as correções são diferentes
+    assert "não alcançou nenhuma pasta" in avisos[0]
+    assert "relativos à raiz" in avisos[0]
+
+
+def test_prefixo_certo_de_papel_conta_e_nao_avisa(corpus_aninhado: RootSpec) -> None:
+    regra = _papel(("corpus/16. Anexos volumosos",))
+    cfg = Config(
+        roots=[corpus_aninhado],
+        role_exclusions=(regra,),
+        declared=DeclaredExclusions(roles=(regra,)),
+    )
+
+    censo = _passada(corpus_aninhado, cfg)
+
+    assert censo.excluded_by_rule[regra.label] == 2
+    assert census_mod.check_exclusions(cfg, censo) == []
+
+
+def test_pasta_certa_e_glob_que_nao_casa_avisa_o_outro_motivo(corpus_aninhado: RootSpec) -> None:
+    """Escopo achado, glob errado: mesma consequência, correção diferente."""
+    regra = _papel(("corpus/16. Anexos volumosos",), ("*.pdf",))
+    cfg = Config(
+        roots=[corpus_aninhado],
+        role_exclusions=(regra,),
+        declared=DeclaredExclusions(roles=(regra,)),
+    )
+
+    avisos = census_mod.check_exclusions(cfg, _passada(corpus_aninhado, cfg))
+
+    assert len(avisos) == 1
+    assert "nenhum arquivo casou com os globs" in avisos[0]
+    assert "não alcançou nenhuma pasta" not in avisos[0]
+
+
+def test_exclusao_tecnica_padrao_nunca_vira_aviso(corpus_aninhado: RootSpec) -> None:
+    """`.git` e `~$*` casarem zero é o esperado em acervo de escritório.
+
+    Se o aviso saísse para o padrão técnico, sairiam vinte por passada e o que
+    importa afogaria junto — que é como um aviso morre.
+    """
+    cfg = Config(roots=[corpus_aninhado])
+
+    assert census_mod.check_exclusions(cfg, _passada(corpus_aninhado, cfg)) == []
+
+
+def test_dirs_e_globs_declarados_tambem_sao_conferidos(corpus_aninhado: RootSpec) -> None:
+    cfg = Config(
+        roots=[corpus_aninhado],
+        exclude_dirs=census_mod.DEFAULT_EXCLUDE_DIRS + ("corpus/12. Normas",),
+        exclude_globs=census_mod.DEFAULT_EXCLUDE_GLOBS + ("*.bak", "*.txt"),
+        declared=DeclaredExclusions(dirs=("corpus/12. Normas",), globs=("*.bak", "*.txt")),
+    )
+
+    censo = _passada(corpus_aninhado, cfg)
+    avisos = census_mod.check_exclusions(cfg, censo)
+
+    # `dirs` casa pelo NOME da pasta: caminho com "/" nunca casa, e é erro comum
+    assert any("dirs" in a and "nenhuma pasta" in a for a in avisos)
+    assert any("*.bak" in a for a in avisos)
+    # o glob que funcionou não gera aviso, e a contagem por regra diz quanto tirou
+    assert not any("*.txt" in a for a in avisos)
+    assert censo.excluded_by_rule["globs: *.txt"] == 3
+
+
+def test_contagem_por_regra_separa_duas_regras(corpus_aninhado: RootSpec) -> None:
+    """Total sozinho não distingue "as duas funcionaram" de "uma fez tudo"."""
+    volumosos = _papel(("corpus/16. Anexos volumosos",))
+    normas = _papel(("corpus/12. Normas",))
+    cfg = Config(
+        roots=[corpus_aninhado],
+        role_exclusions=(volumosos, normas),
+        declared=DeclaredExclusions(roles=(volumosos, normas)),
+    )
+
+    censo = _passada(corpus_aninhado, cfg)
+
+    assert censo.excluded_files == 3
+    assert censo.excluded_by_rule[volumosos.label] == 2
+    assert censo.excluded_by_rule[normas.label] == 1
+
+
+def test_relatorio_do_censo_mostra_contagem_e_aviso(corpus_aninhado: RootSpec) -> None:
+    regra = _papel(("16. Anexos volumosos",))
+    cfg = Config(
+        roots=[corpus_aninhado],
+        role_exclusions=(regra,),
+        declared=DeclaredExclusions(roles=(regra,)),
+    )
+
+    censo = run_census([corpus_aninhado], cfg)
+    relatorio = render_markdown(censo, cfg, [corpus_aninhado])
+
+    assert "## Exclusões declaradas" in relatorio
+    assert "não alcançou nenhuma pasta" in relatorio
+
+
+def test_load_config_marca_o_que_o_arquivo_declarou(tmp_path: Path) -> None:
+    caminho = tmp_path / "census.toml"
+    caminho.write_text(
+        """
+[[roots]]
+name = "acervo"
+path = 'C:\\acervo'
+
+[exclude]
+dirs = ["Backups"]
+globs = ["*.bak"]
+
+[[exclude.papel]]
+dirs = ["Meetings"]
+globs = ["*_relatorio.pdf"]
+""",
+        encoding="utf-8",
+    )
+
+    cfg = load_config(caminho)
+
+    assert cfg.declared.dirs == ("Backups",)
+    assert cfg.declared.globs == ("*.bak",)
+    assert len(cfg.declared.roles) == 1
+    # e o padrão técnico continua fora da declaração, logo fora da conferência
+    assert ".git" not in cfg.declared.dirs
+    assert "~$*" not in cfg.declared.globs
