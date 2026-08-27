@@ -126,7 +126,7 @@ def parse_docx(dados: bytes, nome: str) -> ParsedDoc:
     return ParsedDoc(name=nome, blocks=tuple(blocos), meta=meta)
 
 
-@register(".doc")
+@register(".doc", version="2")
 def parse_doc(dados: bytes, nome: str) -> ParsedDoc:
     """Word 97-2003. Bytes only — no COM, no temp file."""
     from .ole_texto import texto_de_doc

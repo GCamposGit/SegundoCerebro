@@ -101,7 +101,7 @@ def parse_pptx(dados: bytes, nome: str) -> ParsedDoc:
     return ParsedDoc(name=nome, blocks=tuple(blocos), meta={"formato": "pptx", "slides": str(len(apresentacao.slides))})
 
 
-@register(".ppt")
+@register(".ppt", version="2")
 def parse_ppt(dados: bytes, nome: str) -> ParsedDoc:
     """PowerPoint 97-2003. Bytes only — no COM, no temp file.
 

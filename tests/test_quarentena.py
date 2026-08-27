@@ -24,6 +24,8 @@ def _zip_que_nao_e_docx() -> bytes:
 def test_timeout_cresce_com_o_tamanho() -> None:
     assert timeout_para(0) == 60.0
     assert timeout_para(2_000_000) == 80.0
+    assert timeout_para(0, "contrato.doc") == 150.0
+    assert timeout_para(0, "ata.md") == 60.0
 
 
 def test_arquivo_vazio_binario_vira_erro_sem_subprocesso(tmp_path: Path) -> None:

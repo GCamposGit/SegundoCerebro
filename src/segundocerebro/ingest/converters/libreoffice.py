@@ -2,6 +2,10 @@
 
 Called from `reader.py`, never from a parser. The standard suite must pass
 without LibreOffice installed: missing binary is `None`, not an error.
+
+Per file, not a batch of 50: R1.4 already isolates the parse in a subprocess,
+and a leftover desktop instance swallowing a shared convert was the C7.a
+failure mode. A unique UserInstallation per call keeps that class closed.
 """
 
 from __future__ import annotations
@@ -26,6 +30,15 @@ _CANDIDATOS = (
     Path("/usr/lib/libreoffice/program/soffice"),
     Path("/Applications/LibreOffice.app/Contents/MacOS/soffice"),
 )
+
+# origem → (argumento --convert-to, extensão de saída)
+# The xlsx filter is the same C7.a used: Calc recalculates on load.
+_ALVO: dict[str, tuple[str, str]] = {
+    ".doc": ("docx", ".docx"),
+    ".ppt": ("pptx", ".pptx"),
+    ".xls": ("xlsx:Calc MS Excel 2007 XML", ".xlsx"),
+    ".xlsx": ("xlsx:Calc MS Excel 2007 XML", ".xlsx"),
+}
 
 
 def encontrar_soffice() -> str | None:
@@ -59,13 +72,24 @@ def _matar(proc: subprocess.Popen) -> None:
         proc.kill()
 
 
-def recalcular_xlsx(dados: bytes, *, timeout: float = TIMEOUT_PADRAO_S) -> bytes | None:
-    """Open in Calc and save so formula cells get a cached value. `None` if unavailable.
+def converter(
+    dados: bytes,
+    origem: str,
+    *,
+    timeout: float = TIMEOUT_PADRAO_S,
+) -> bytes | None:
+    """Convert one file through soffice. `None` if the binary is missing or the convert fails.
 
-    `--convert-to xlsx` loads the workbook; Calc recalculates on load by default
-    and the saved file is what `data_only=True` can read. A unique UserInstallation
-    profile keeps a leftover desktop instance from swallowing the convert.
+    `origem` is an extension (`.doc`, `.ppt`, `.xls`, `.xlsx`). The original
+    path never leaves `reader.py` — this function only sees bytes.
     """
+    ext = origem.lower()
+    if not ext.startswith("."):
+        ext = "." + ext
+    alvo = _ALVO.get(ext)
+    if alvo is None:
+        return None
+    filtro, saida_ext = alvo
     binario = encontrar_soffice()
     if binario is None:
         return None
@@ -76,8 +100,8 @@ def recalcular_xlsx(dados: bytes, *, timeout: float = TIMEOUT_PADRAO_S) -> bytes
         perfil = raiz / "profile"
         origem_dir.mkdir()
         saida_dir.mkdir()
-        origem = origem_dir / "entrada.xlsx"
-        origem.write_bytes(dados)
+        entrada = origem_dir / f"entrada{ext}"
+        entrada.write_bytes(dados)
         cmd = [
             binario,
             "--headless",
@@ -87,10 +111,10 @@ def recalcular_xlsx(dados: bytes, *, timeout: float = TIMEOUT_PADRAO_S) -> bytes
             "--nodefault",
             f"-env:UserInstallation={perfil.resolve().as_uri()}",
             "--convert-to",
-            "xlsx:Calc MS Excel 2007 XML",
+            filtro,
             "--outdir",
             str(saida_dir),
-            str(origem),
+            str(entrada),
         ]
         proc = subprocess.Popen(
             cmd,
@@ -101,19 +125,29 @@ def recalcular_xlsx(dados: bytes, *, timeout: float = TIMEOUT_PADRAO_S) -> bytes
             proc.communicate(timeout=timeout)
         except subprocess.TimeoutExpired:
             _matar(proc)
-            log.warning("LibreOffice estourou %.0fs no recálculo", timeout)
+            log.warning("LibreOffice estourou %.0fs no convert %s", timeout, ext)
             return None
         except OSError as exc:
             log.warning("LibreOffice não arrancou: %s", exc)
             return None
         if proc.returncode not in (0, None):
-            log.warning("LibreOffice saiu com código %s no recálculo", proc.returncode)
+            log.warning("LibreOffice saiu com código %s no convert %s", proc.returncode, ext)
             return None
-        gerados = list(saida_dir.glob("*.xlsx"))
+        gerados = list(saida_dir.glob(f"*{saida_ext}"))
         if not gerados:
-            log.warning("LibreOffice não escreveu xlsx no recálculo")
+            log.warning("LibreOffice não escreveu %s no convert %s", saida_ext, ext)
             return None
         convertido = gerados[0].read_bytes()
         if not convertido:
             return None
         return convertido
+
+
+def recalcular_xlsx(dados: bytes, *, timeout: float = TIMEOUT_PADRAO_S) -> bytes | None:
+    """Open in Calc and save so formula cells get a cached value. `None` if unavailable.
+
+    `--convert-to xlsx` loads the workbook; Calc recalculates on load by default
+    and the saved file is what `data_only=True` can read. A unique UserInstallation
+    profile keeps a leftover desktop instance from swallowing the convert.
+    """
+    return converter(dados, ".xlsx", timeout=timeout)

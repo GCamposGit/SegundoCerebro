@@ -818,7 +818,7 @@ def _formatar_xls(aba, linha: int, coluna: int) -> str:  # noqa: ANN001 — tipo
     return _formatar(valor)
 
 
-@register(".xls")
+@register(".xls", version="2")
 def parse_xls(dados: bytes, nome: str) -> ParsedDoc:
     """Excel 97-2003. Same block rules as xlsx — one row is not one chunk.
 

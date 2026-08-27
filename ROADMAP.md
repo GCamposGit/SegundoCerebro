@@ -806,12 +806,12 @@ privada do desktop **não** trava nenhum destes:
 | F4-P | **Reconciliar os dois caminhos** — encolhido ao **defeito** em 25/08: aceite binário, sem varredura de peso | notebook | 2 | ✅ **fechado, aceite cumprido** — ver [`docs/ablacao-f4p-nome-no-entregue.md`](docs/ablacao-f4p-nome-no-entregue.md) |
 | R6.1 | Autotune: peso por base, fábrica vira prior | notebook | 2 | mecanismo já; critério de generalização espera o `E1` (era `R9.1`) |
 | C7.a · C7.d | Fórmula sem cache (recálculo LibreOffice) · rota do CSV | **desktop** | 3 | C7.d ✅ PR #34; C7.a ✅ PR #35 |
-| R1.4 · R5.2 · R3.2 | Quarentena · orçamento de recursos · dois passes | **desktop** | 3 | **neste PR** |
+| R1.4 · R5.2 · R3.2 | Quarentena · orçamento de recursos · dois passes | **desktop** | 3 | ✅ **fechado** PR #36 |
 | R4.1 · R3.3 | ANN · quantização INT8 | desktop | 4 | depois da porta de latência |
 | R3.1 + C4.1 + R2.1 | Modelo (com fatia cross-lingual) + contexto no chunk — **um rebuild só** | desktop roda, notebook mede | 5 | depois da régua multi-perfil |
 | C7.b · C7.c | Cartão de modelo de planilha; número é payload no modelo | desktop | 5 | — |
 | C2 + C3.b–d | Glossário automático do corpus + reescrita lexical (mesmo ponto de código) | desktop extrai, notebook mede | 6 | — |
-| F4-L / R1.1 | OLE que mente + conversor de legado | desktop | 6 | **sim** — não bloqueia nada |
+| F4-L / R1.1 | OLE que mente + conversor de legado | desktop | 6 | F4-L (mente) já em main; **R1.1 neste PR** |
 | F4-O / R1.2 | OCR de PDF digitalizado | a combinar (despachante) | 6 | **sim** |
 | F4-W / R5.1 | Watcher, com camada USN Journal | desktop | 6 | **sim** |
 | F4-S | SharePoint = pasta sincronizada, só política e tela | notebook | 6 | **sim** |
