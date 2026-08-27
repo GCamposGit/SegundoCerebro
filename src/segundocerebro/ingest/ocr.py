@@ -85,6 +85,11 @@ def _texto_rapidocr(imagem) -> str:  # noqa: ANN001
 
     if _rapid is None:
         _rapid = RapidOCR()
+    # rapidocr-onnxruntime 1.3–1.4: (linhas, elapsed).
+    # linhas = [[box, text, confidence], ...] | None. Pinned by
+    # tests/test_ocr_motor.py (marker `ocr`). A v2 of the extra is out of the
+    # pin (`<2` in pyproject); a silent shape change breaks that test, not
+    # a 10 GB corpus.
     saida = _rapid(imagem)
     linhas = saida[0] if isinstance(saida, tuple) else saida
     if not linhas:

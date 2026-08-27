@@ -47,7 +47,7 @@ segundocerebro = ["painel/index.html"]
 [tool.pytest.ini_options]
 pythonpath = ["src", "."]
 testpaths = ["tests", "eval"]
-addopts = "-ra -m 'not modelo and not cuda'"
+addopts = "-ra -m 'not modelo and not cuda and not ocr'"
 markers = [
   # Carregam o encoder de verdade: ~2 GB de download na primeira vez e dezenas de
   # segundos por rodada. Ficam fora do padrão, mas são obrigatórios antes de
@@ -55,4 +55,7 @@ markers = [
   #     py -m pytest -m modelo
   "modelo: exige baixar e carregar o modelo de embedding real",
   "cuda: exige GPU e onnxruntime-gpu — fora da suíte padrão e do CI",
+  # Extra [ocr] (RapidOCR). The default suite stays identical without it.
+  #     py -m pytest -m ocr
+  "ocr: exige extra [ocr] (RapidOCR) — fora da suíte padrão e do CI",
 ]

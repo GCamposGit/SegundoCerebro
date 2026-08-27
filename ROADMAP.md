@@ -812,7 +812,7 @@ privada do desktop **não** trava nenhum destes:
 | C7.b · C7.c | Cartão de modelo de planilha; número é payload no modelo | desktop | 5 | — |
 | C2 + C3.b–d | Glossário automático do corpus + reescrita lexical (mesmo ponto de código) | desktop extrai, notebook mede | 6 | — |
 | F4-L / R1.1 | OLE que mente + conversor de legado | desktop | 6 | F4-L (mente) + R1.1 ✅ PR #37 |
-| F4-O / R1.2 | OCR de PDF digitalizado | **desktop** + notebook (O.3) | 6 | **O.0 porta ✅** (fila + extra). Completo: [`docs/plano-ocr.md`](docs/plano-ocr.md) — O.1 motor real, O.2 página/dpi/RAM, O.3 dourado |
+| F4-O / R1.2 | OCR de PDF digitalizado | **desktop** + notebook (O.3) | 6 | **O.0 ✅** PR #38 · **O.1 neste PR** · O.2/O.3 em [`docs/plano-ocr.md`](docs/plano-ocr.md) |
 | F4-W / R5.1 | Watcher, com camada USN Journal | desktop | 6 | **sim** |
 | F4-S | SharePoint = pasta sincronizada, só política e tela | notebook | 6 | **sim** |
 | R6.2+C4.2 · R7.1 · R7.2+C6.a · R6.3 | Rerank v2 · tools · descriptions · tempo/pasta | notebook | 7 | — |
@@ -1701,7 +1701,7 @@ Plano do que falta, com hipótese / efeito mínimo / empate encerra, em
 
 | Fatia | Dono | Porta | Começa |
 |---|---|---|---|
-| **O.1** motor de verdade lê identificador VCE plantado numa página-imagem | desktop | binário; marker `ocr` (extra não vai no CI) | **sim**, nada bloqueia |
+| **O.1** motor de verdade lê identificador VCE plantado numa página-imagem | desktop | binário; marker `ocr` (extra não vai no CI) | **neste PR** |
 | **O.2** unidade = página (PDF misto) + raster ≥ 200 dpi + RAM página a página | desktop | três testes, um braço cada | depois do O.1 verde |
 | **O.3** `g015`/`g025`/`g048` no `dourado-v1`, recall@5 do trio e Δ agregado com IC95 | notebook | 2 de 3 no top-5; agregado não cai além do ruído | depois de O.1+O.2 em `main` |
 
