@@ -773,6 +773,94 @@ def criar_app(
             {"base": base.id, "json": trecho([base], nomear=conf.caminho is not None)}
         )
 
+    async def conectar(request: Request) -> JSONResponse:
+        """Grava no arquivo do Claude Desktop. Grok/Claude Code já leem `.mcp.json`.
+
+        Sem este POST o leigo ainda precisa do terminal (`--instalar`). A mescla
+        é a mesma do CLI: não apaga os outros servidores do arquivo.
+        """
+        if not autorizado(request):
+            return JSONResponse({"erro": "token inválido"}, status_code=403)
+        corpo = await request.json()
+        try:
+            conf = _config()
+            base = _base(conf, corpo)
+        except ErroDeConfig as erro:
+            return JSONResponse({"erro": str(erro)}, status_code=400)
+
+        cliente = corpo.get("cliente") or "claude-desktop"
+        from ..mcp.registrar import (
+            CLIENTES,
+            DESTINOS,
+            RELATIVO,
+            destino_de,
+            extra_env_hardware,
+            gravar_em,
+            python_do_projeto,
+        )
+
+        if cliente not in DESTINOS:
+            return JSONResponse(
+                {
+                    "erro": (
+                        f"{cliente} não tem arquivo de configuração conhecido. "
+                        "Grok e Claude Code leem o .mcp.json da pasta do projeto — "
+                        "recarregue o cliente. Claude Desktop é o que este botão liga."
+                    )
+                },
+                status_code=400,
+            )
+        destino = destino_de(cliente)
+        if destino is None:
+            return JSONResponse(
+                {"erro": f"não sei onde {cliente} guarda a configuração"},
+                status_code=400,
+            )
+        if not destino.parent.is_dir():
+            return JSONResponse(
+                {
+                    "erro": (
+                        f"{CLIENTES[cliente]} não existe — {cliente} não parece "
+                        "instalado neste computador"
+                    )
+                },
+                status_code=409,
+            )
+        try:
+            existente: dict[str, Any] = {}
+            if destino.exists():
+                try:
+                    existente = json.loads(destino.read_text(encoding="utf-8"))
+                except json.JSONDecodeError:
+                    return JSONResponse(
+                        {
+                            "erro": (
+                                f"{destino} não é JSON válido — não vou "
+                                "sobrescrever a configuração dos outros"
+                            )
+                        },
+                        status_code=400,
+                    )
+            acrescentados, trocados = gravar_em(
+                destino,
+                [base],
+                nomear=True,
+                absoluto=cliente not in RELATIVO,
+                python=python_do_projeto(relativo=cliente in RELATIVO),
+                extra_env=extra_env_hardware(conf, existente),
+            )
+        except ErroDeConfig as erro:
+            return JSONResponse({"erro": str(erro)}, status_code=400)
+        return JSONResponse(
+            {
+                "base": base.id,
+                "cliente": cliente,
+                "destino": str(destino),
+                "acrescentados": acrescentados,
+                "trocados": trocados,
+            }
+        )
+
     async def pagina(request: Request) -> HTMLResponse:
         """A tela. O token vem na URL e o JavaScript o repassa em cada chamada."""
         return HTMLResponse((Path(__file__).parent / "index.html").read_text(encoding="utf-8"))
@@ -799,6 +887,7 @@ def criar_app(
             Route("/api/indexar", indexar, methods=["POST"]),
             Route("/api/comando", comando, methods=["POST"]),
             Route("/api/registro", registro),
+            Route("/api/conectar", conectar, methods=["POST"]),
             Route("/api/medir", medir, methods=["POST"]),
             Route("/api/salvar", salvar, methods=["POST"]),
             Route("/api/diagnostico", diagnostico, methods=["POST"]),

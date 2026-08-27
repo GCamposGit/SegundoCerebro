@@ -166,13 +166,22 @@ code { font-family: ui-monospace, "Cascadia Code", monospace; font-size: 12px; }
   </div>
 
   <div id="conectar" class="oculto">
-    <h2>Conectar <span class="nota">grava no .mcp.json quando a indexação termina</span></h2>
+    <h2>Conectar <span class="nota">pasta → indexar → ligar o assistente</span></h2>
     <div class="cartao">
       <p class="sub" style="margin:0 0 10px">
-        Passada completa registra a base sozinha. Recarregue o cliente (Grok, Claude)
-        para ela aparecer. O trecho abaixo é para outro cliente, se precisar colar à mão.
+        Grok e Claude Code leem o <code>.mcp.json</code> da pasta do projeto —
+        a indexação já grava isso sozinha; recarregue o cliente. O Claude Desktop
+        abre noutro lugar: o botão abaixo grava no arquivo dele, somando, sem
+        apagar os outros serviços.
       </p>
-      <pre id="trechoMcp" style="overflow-x:auto;margin:0;font-size:12px"></pre>
+      <div class="linha">
+        <button id="ligarDesktop" class="primario">Ligar no Claude Desktop</button>
+      </div>
+      <div id="recadoConectar"></div>
+      <details style="margin-top:10px">
+        <summary>Trecho para colar em outro cliente</summary>
+        <pre id="trechoMcp" style="overflow-x:auto;margin:8px 0 0;font-size:12px"></pre>
+      </details>
     </div>
   </div>
 
@@ -756,6 +765,22 @@ async function mostrarRegistro() {
     $("conectar").classList.remove("oculto");
   } catch { $("conectar").classList.add("oculto"); }
 }
+
+$("ligarDesktop").onclick = async () => {
+  $("recadoConectar").innerHTML = "";
+  try {
+    const r = await api("/api/conectar", {
+      base: $("base").value, cliente: "claude-desktop",
+    });
+    const o_que = r.acrescentados.length
+      ? `acrescentou ${r.acrescentados.join(", ")}`
+      : (r.trocados.length ? `atualizou ${r.trocados.join(", ")}` : "já estava");
+    $("recadoConectar").innerHTML =
+      `<div class="ok">Claude Desktop: ${o_que}. Feche e reabra o aplicativo — ele só lê a configuração ao abrir.</div>`;
+  } catch (e) {
+    $("recadoConectar").innerHTML = `<div class="aviso">${e.message}</div>`;
+  }
+};
 
 const ROTULO_STATUS = {
   preparando: "preparando", indexando: "indexando", pausada: "pausada",
