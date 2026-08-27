@@ -219,13 +219,13 @@ def parado(tmp_path: Path, **kw) -> Publicador:
 
 def test_sem_avanco_zera_quando_documento_anda(tmp_path: Path) -> None:
     p = parado(tmp_path, limite_sem_avanco=0.05)
-    p.estimador.registrar("0.pdf", MB, 1.0)
+    p.estimador.registrar(_obs("0.pdf", MB, 1.0))
     assert p.sem_avanco() == 0.0
 
     time.sleep(0.08)
     assert p.sem_avanco() >= 0.05, "nada mudou: o relógio de parada tem de correr"
 
-    p.estimador.registrar("1.pdf", MB, 1.0)
+    p.estimador.registrar(_obs("1.pdf", MB, 1.0))
     assert p.sem_avanco() == 0.0, "documento novo reabre o crédito"
 
 

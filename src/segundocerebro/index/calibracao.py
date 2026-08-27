@@ -85,6 +85,24 @@ por 767.
 Regularizar o *ajuste* não resolve isso, e é por isso que este limite existe
 separado: o ajuste é bom no ponto medido: o problema é a distância."""
 
+CAMINHOS_BARATOS = frozenset({"inalterado", "revalidado", "texto"})
+"""Situações que nunca chegam ao encoder, e por isso não custam por token.
+
+- `inalterado`: filtrado da fila antes de abrir.
+- `revalidado`: atalho de sha256, conteúdo idêntico com mtime novo.
+- `texto`: passe 1 do modo de dois passes (R3.2) — grava o texto e deixa o
+  embedding para o passe 2.
+
+O nome do conjunto existe para que a próxima situação nova seja acrescentada
+**aqui**, e não num `if` novo em algum call site: foi assim que o modo de dois
+passes reintroduziu, sem conflito de merge, a chamada antiga que a v2 tinha
+removido de cinco lugares.
+
+Limite declarado: o modo de dois passes é decidido por execução, e o mapa não
+sabe de antemão que um documento pagará só metade. A previsão do passe 1 sai
+pelo modelo completo e portanto alta; medir e modelar isso pede uma passada
+própria."""
+
 PERFIL_REFERENCIA = "maximo"
 """Profile where `g` is pinned to 1. Everything else is measured against it."""
 
@@ -801,7 +819,7 @@ class Calibracao:
         self._sujo = True
         tipo = obs.tipo
         fmt = self.formato(tipo)
-        if obs.situacao in ("inalterado", "revalidado"):
+        if obs.situacao in CAMINHOS_BARATOS:
             self.maquina.observar(
                 perfil=obs.perfil, n_chunks=0, tokens=0, s_embed=None,
                 s_grava=None, mb=obs.mb, s_pulo=obs.s_total_ativo,
@@ -825,7 +843,7 @@ class Calibracao:
 
     def prever(self, tipo: str, mb: float, perfil: str, *, situacao: str = "novo") -> float:
         """Expected active seconds for one document, before opening it."""
-        if situacao in ("inalterado", "revalidado"):
+        if situacao in CAMINHOS_BARATOS:
             return self.maquina.custo_do_pulo(mb)
         fmt = self.formato(tipo)
         prior = prior_de(tipo)

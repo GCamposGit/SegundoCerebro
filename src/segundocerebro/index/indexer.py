@@ -1181,11 +1181,23 @@ def indexar(
                     natureza=resultado.natureza,
                 )
                 store.commit()
+                crono.marcar("grava")
                 progresso.indexados += 1
                 if resultado.doc is not None and resultado.doc.meta.get("fonte") == "ocr":
                     progresso.ocr += 1
                 progresso.chunks += len(chunks)
-                estimador.registrar(arquivo.rel, arquivo.size, time.perf_counter() - comeco)
+                # Passe 1 gravou texto e **não** chegou ao encoder. Registrar
+                # como caminho completo faria a calibragem aprender que
+                # embeddar é grátis: `s_embed` fica nulo e a situação diz qual
+                # caminho foi.
+                registrar_obs(
+                    arquivo,
+                    crono,
+                    situacao="texto",
+                    status=ParseStatus.OK.value,
+                    natureza=resultado.natureza,
+                    n_chunks=len(chunks),
+                )
                 if publicador is not None:
                     publicador.anotar(
                         chunks=progresso.chunks,

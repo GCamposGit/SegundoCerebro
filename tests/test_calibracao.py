@@ -727,3 +727,49 @@ def test_a_suite_nunca_escreve_calibragem_real(calibracao_isolada, tmp_path):
     c.fechar()
     assert c.caminho.parent == calibracao_isolada
     assert c.caminho.exists()
+
+
+def test_todo_caminho_barato_esta_declarado_num_lugar_so():
+    """O merge com a `main` expôs esta classe, e o commit da v2 a previu.
+
+    A v2 removeu `estimador.registrar(rel, tamanho, segundos)` de cinco call
+    sites e centralizou a decisão. Enquanto isso, o modo de dois passes (R3.2)
+    nasceu na `main` com um **sexto** call site usando a API antiga — e o Git
+    mesclou sem conflito, porque a região era nova.
+
+    O conjunto nomeado é o que faz a próxima situação ser acrescentada num lugar
+    só. Este teste falha se alguém criar uma situação de caminho barato e
+    esquecer de declará-la, o que a levaria a ser prevista e calibrada pelo
+    modelo completo — ensinando que embeddar é grátis.
+    """
+    import inspect
+
+    from segundocerebro.index import indexer
+    from segundocerebro.index.calibracao import CAMINHOS_BARATOS
+
+    assert {"inalterado", "revalidado", "texto"} <= CAMINHOS_BARATOS
+
+    fonte = inspect.getsource(indexer)
+    # nenhum call site pode ter voltado à assinatura antiga
+    assert "estimador.registrar(arquivo.rel" not in fonte, (
+        "voltou um call site com a API antiga: tempo de parede direto na calibragem"
+    )
+    # toda situação que o indexador declara tem de ser conhecida
+    import re
+
+    declaradas = set(re.findall(r'situacao="([a-z]+)"', fonte))
+    conhecidas = CAMINHOS_BARATOS | {"novo", "mudado", "erro", "duplicado", "adiado"}
+    assert declaradas <= conhecidas, f"situação não classificada: {declaradas - conhecidas}"
+
+
+def test_caminho_barato_nao_alimenta_o_encoder(tmp_path):
+    """Uma observação de caminho barato não pode mover `c0`/`c1`."""
+    from segundocerebro.index.calibracao import CAMINHOS_BARATOS
+
+    calib = _calib(tmp_path)
+    for _ in range(30):
+        calib.observar(_obs())
+    antes = (calib.maquina.c0, calib.maquina.c1)
+    for situacao in sorted(CAMINHOS_BARATOS):
+        calib.observar(_obs(situacao=situacao, s_embed=999.0, n_chunks=500))
+    assert (calib.maquina.c0, calib.maquina.c1) == antes
