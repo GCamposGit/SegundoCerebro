@@ -398,6 +398,85 @@ def test_xlsx_vazio_nao_gera_bloco() -> None:
 
     assert doc.blocks == ()
     assert "aviso" in doc.meta
+    assert "sem_valor_em_cache" not in doc.meta
+
+
+def bytes_xlsx_formula_sem_cache() -> bytes:
+    """Labels plus `=SUM(1,2)` never opened in Excel — the C7.a trap."""
+    import openpyxl
+
+    livro = openpyxl.Workbook()
+    aba = livro.active
+    aba.title = "Orcamento"
+    aba.append(["Rubrica", "Total apurado"])
+    aba.append(["obras civis", "=SUM(1,2)"])
+    buf = io.BytesIO()
+    livro.save(buf)
+    return buf.getvalue()
+
+
+def bytes_xlsx_com_valor_calculado() -> bytes:
+    """What LibreOffice is supposed to write: the number, not the formula."""
+    import openpyxl
+
+    livro = openpyxl.Workbook()
+    aba = livro.active
+    aba.title = "Orcamento"
+    aba.append(["Rubrica", "Total apurado"])
+    aba.append(["obras civis", 3])
+    buf = io.BytesIO()
+    livro.save(buf)
+    return buf.getvalue()
+
+
+def test_xlsx_formula_sem_cache_declara_e_nao_inventa_o_numero() -> None:
+    """The class: the label is there, the Equity Value is not, and it is said."""
+    doc = parse_xlsx(bytes_xlsx_formula_sem_cache(), "orcamento.xlsx")
+    texto = "\n".join(b.text for b in doc.blocks)
+
+    assert "obras civis" in texto
+    assert "3" not in texto
+    assert doc.meta.get("sem_valor_em_cache") == "1"
+
+
+def test_xlsx_formula_sem_cache_recalcula_quando_soffice_devolve_valor(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The reader is the one that may spawn soffice; the parser still gets bytes."""
+    monkeypatch.setattr(
+        "segundocerebro.ingest.converters.libreoffice.recalcular_xlsx",
+        lambda dados: bytes_xlsx_com_valor_calculado(),
+    )
+    alvo = tmp_path / "orcamento.xlsx"
+    alvo.write_bytes(bytes_xlsx_formula_sem_cache())
+
+    resultado = parse_file(str(alvo))
+    texto = "\n".join(b.text for b in resultado.doc.blocks)
+
+    assert resultado.status is ParseStatus.OK
+    assert "obras civis" in texto
+    assert "3" in texto
+    assert resultado.doc.meta.get("recalculado") == "libreoffice"
+    assert "sem_valor_em_cache" not in resultado.doc.meta
+
+
+def test_xlsx_formula_sem_cache_sem_soffice_nao_some(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Missing binary is a visible warning, not EMPTY and not a crash."""
+    monkeypatch.setattr(
+        "segundocerebro.ingest.converters.libreoffice.recalcular_xlsx",
+        lambda dados: None,
+    )
+    alvo = tmp_path / "orcamento.xlsx"
+    alvo.write_bytes(bytes_xlsx_formula_sem_cache())
+
+    resultado = parse_file(str(alvo))
+    texto = "\n".join(b.text for b in resultado.doc.blocks)
+
+    assert resultado.status is ParseStatus.OK
+    assert "obras civis" in texto
+    assert resultado.doc.meta.get("sem_valor_em_cache") == "1"
 
 
 # --- pdf ---------------------------------------------------------------------

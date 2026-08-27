@@ -7,8 +7,9 @@ own. The unit is sheet + header + a window of rows, with the header repeated in
 every window so each block stands alone.
 
 `data_only=True` returns the value Excel last calculated, not the formula text.
-A file never opened by Excel has no cached value and yields empty cells — that
-is recorded in the metadata rather than silently producing a blank document.
+A file never opened by Excel has no cached value and yields empty cells. The
+parser flags `sem_valor_em_cache`; `reader.py` then tries LibreOffice recalc
+(C7.a) and, without the binary, keeps the flag so the census can count it.
 """
 
 from __future__ import annotations
@@ -453,7 +454,47 @@ def parse_csv(dados: bytes, nome: str) -> ParsedDoc:
     return ParsedDoc(name=nome, blocks=tuple(blocos), meta=meta)
 
 
-@register(".xlsx", ".xlsm")
+def _tem_formula_sem_cache(dados: bytes) -> bool:
+    """True when a formula cell has no cached `<v>` — Excel never calculated it.
+
+    `data_only=True` cannot tell an empty cell from an uncached formula: both
+    come back as None. The sheet XML can. Cheap (already in RAM) and the class
+    the hostile fixture plants: labels present, `=SUM(1,2)` invisible.
+    """
+    import zipfile
+    from xml.etree import ElementTree as ET
+
+    try:
+        zin = zipfile.ZipFile(io.BytesIO(dados))
+    except zipfile.BadZipFile:
+        return False
+    try:
+        for nome in zin.namelist():
+            if not (nome.startswith("xl/worksheets/") and nome.endswith(".xml")):
+                continue
+            try:
+                raiz = ET.fromstring(zin.read(nome))
+            except ET.ParseError:
+                continue
+            for cell in raiz.iter():
+                if _local(cell.tag) != "c":
+                    continue
+                tem_formula = False
+                tem_valor = False
+                for filho in cell:
+                    tag = _local(filho.tag)
+                    if tag == "f":
+                        tem_formula = True
+                    elif tag == "v" and (filho.text or "").strip():
+                        tem_valor = True
+                if tem_formula and not tem_valor:
+                    return True
+    finally:
+        zin.close()
+    return False
+
+
+@register(".xlsx", ".xlsm", version="2")
 def parse_xlsx(dados: bytes, nome: str) -> ParsedDoc:
     """Uma nova tentativa sem validações, e só para a falha que ela resolve."""
     try:
@@ -512,8 +553,11 @@ def _parse_xlsx(dados: bytes, nome: str) -> ParsedDoc:
         meta["digesto_parcial"] = ", ".join(sorted(set(digestos_parciais)))
     if abas_truncadas:
         meta["truncadas"] = ", ".join(sorted(set(abas_truncadas)))
-    if not blocos:
-        # sem valor em cache: a planilha nunca foi aberta pelo Excel depois de gerada
+    if _tem_formula_sem_cache(dados):
+        # labels may still be there; the number is what is missing (C7.a)
+        meta["sem_valor_em_cache"] = "1"
+        meta["aviso"] = "fórmulas sem valor calculado em cache"
+    elif not blocos:
         meta["aviso"] = "nenhum valor calculado em cache"
     return ParsedDoc(name=nome, blocks=tuple(blocos), meta=meta)
 

@@ -69,11 +69,12 @@ LIMITE_TEXTO_MB_PADRAO = LimitesDeIndexacao().txt
 """Espelho de `LimitesDeIndexacao.txt`. A fonte é a config; isto documenta o CLI."""
 
 LIMITE_CHUNKS_PADRAO = 800
-"""Safety net for `.txt`/`.csv` that sneak under the byte cap and still explode.
+"""Safety net for `.txt` that sneak under the byte cap and still explode.
 
 ~800 chunks × 1 800 chars is about 1,4 MB of text — a long report, not a dump.
-Does not apply to PDF/DOCX/PPTX: those are the knowledge formats, and a cap
-here would silently drop timetable-style PDFs on a rebuild."""
+CSV left this cap in C7.d (digest, not hundreds of blobs). Does not apply to
+PDF/DOCX/PPTX: those are the knowledge formats, and a cap here would silently
+drop timetable-style PDFs on a rebuild."""
 
 
 class PedidoDeParada(RuntimeError):
@@ -326,16 +327,14 @@ def _limites_efetivos(
     limites: LimitesDeIndexacao,
     pular_texto_acima_de: float | None,
 ) -> dict[str, float]:
-    """Mapa extensão → MB. A flag de CLI, se vier, só cobre .txt/.csv."""
+    """Mapa extensão → MB. A flag de CLI, se vier, só cobre .txt (C7.d)."""
     mapa = dict(limites.como_mapa())
     if pular_texto_acima_de is None:
         return mapa
     if pular_texto_acima_de <= 0:
         mapa.pop(".txt", None)
-        mapa.pop(".csv", None)
         return mapa
     mapa[".txt"] = pular_texto_acima_de
-    mapa[".csv"] = pular_texto_acima_de
     return mapa
 
 
@@ -503,10 +502,8 @@ def indexar(
     if limite_texto_mb is not None:
         if limite_texto_mb > 0:
             mapa_limites[".txt"] = limite_texto_mb
-            mapa_limites[".csv"] = limite_texto_mb
         else:
             mapa_limites.pop(".txt", None)
-            mapa_limites.pop(".csv", None)
 
     workers = parse_workers if parse_workers is not None else (
         controle.plano.parse_workers if controle else _parse_workers_padrao()
@@ -1027,9 +1024,10 @@ def main(argv: list[str] | None = None) -> int:
         metavar="MB",
         default=None,
         help=(
-            "adia .txt/.csv maiores que isto, em MB, sem abrir o arquivo. "
-            "Ausente: vale o [base.limites] (padrão 2 MB). 0 desliga. Fica como "
-            "`adiado` e é repescado numa passada sem o limite"
+            "adia .txt maiores que isto, em MB, sem abrir o arquivo. "
+            "Ausente: vale o [base.limites] (padrão 2 MB em .txt; CSV não entra "
+            "nesta flag — C7.d). 0 desliga. Fica como `adiado` e é repescado "
+            "numa passada sem o limite"
         ),
     )
     parser.add_argument(
@@ -1038,9 +1036,9 @@ def main(argv: list[str] | None = None) -> int:
         metavar="N",
         default=LIMITE_CHUNKS_PADRAO,
         help=(
-            f"adia .txt/.csv que gerem mais de N trechos (padrão: {LIMITE_CHUNKS_PADRAO}). "
+            f"adia .txt que gerem mais de N trechos (padrão: {LIMITE_CHUNKS_PADRAO}). "
             "0 desliga. O teto de megabytes pega o caso comum; este é a rede de segurança. "
-            "Não se aplica a PDF/DOCX/PPTX"
+            "CSV vira digesto (C7.d). Não se aplica a PDF/DOCX/PPTX"
         ),
     )
     parser.add_argument(

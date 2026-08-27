@@ -919,7 +919,7 @@ async function carregarEstado() {
   const e = await api("/api/estado");
   bases = e.bases;
   maquinaEstado = e.maquina || {};
-  limitesFabrica = e.limites_fabrica || { pdf: 0, docx: 0, pptx: 0, xlsx: 0, txt: 2, csv: 2, md: 0 };
+  limitesFabrica = e.limites_fabrica || { pdf: 0, docx: 0, pptx: 0, xlsx: 0, txt: 2, csv: 0, md: 0 };
   limitesRecomendados = e.limites_recomendados || limitesFabrica;
   if (maquinaEstado.perfil) $("perfilMaquina").value = maquinaEstado.perfil;
   desenharRecursos("maquinaRecursos", maquinaEstado.plano);
