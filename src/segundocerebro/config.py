@@ -197,10 +197,10 @@ class LimitesDeIndexacao:
     todos os ids e obriga a reindexar. Isto só recusa dumps caros na porta, o
     mesmo mecanismo das planilhas gigantes. Já indexado não sai sozinho.
 
-    Padrão medido em 22/08/2026 neste desktop: `.txt`/`.csv` em 2 MB. Um CSV
-    de dezenas de MB segurou a GPU horas sem a barra andar; um TXT enorme
-    virou a maioria dos trechos do índice. PDF/DOCX/PPTX começam sem teto —
-    são o acervo, não o dump.
+    Padrão medido em 22/08/2026 neste desktop: `.txt` em 2 MB. Um TXT enorme
+    virou a maioria dos trechos do índice. `.csv` saiu do teto na C7.d: o
+    parser de planilha vira dump em digesto, e adiar o arquivo inteiro era
+    perda silenciosa. PDF/DOCX/PPTX começam sem teto — são o acervo.
     """
 
     pdf: float = 0.0
@@ -208,7 +208,7 @@ class LimitesDeIndexacao:
     pptx: float = 0.0
     xlsx: float = 0.0
     txt: float = 2.0
-    csv: float = 2.0
+    csv: float = 0.0
     md: float = 0.0
 
     def validar(self, onde: str) -> None:
@@ -239,14 +239,15 @@ LIMITES_RECOMENDADOS = LimitesDeIndexacao(
     pptx=50.0,
     xlsx=15.0,
     txt=2.0,
-    csv=2.0,
+    csv=0.0,
     md=5.0,
 )
 """Teto inicial por tipo, em MB. 0 continua sendo sem teto se o usuário apagar.
 
-Nascem preenchidos no painel e em bases novas desta máquina. Um CSV enorme
-segura a GPU horas; PDF/DOCX/PPTX têm teto alto porque são o acervo, não o dump.
-O usuário ajusta uma vez; a próxima base nesta máquina herda."""
+Nascem preenchidos no painel e em bases novas desta máquina. TXT enorme
+segura a GPU horas; CSV enorme vira digesto (C7.d). PDF/DOCX/PPTX têm teto
+alto porque são o acervo, não o dump. O usuário ajusta uma vez; a próxima
+base nesta máquina herda."""
 
 
 @dataclass(frozen=True)

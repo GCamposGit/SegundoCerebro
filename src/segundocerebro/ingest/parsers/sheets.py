@@ -13,10 +13,12 @@ is recorded in the metadata rather than silently producing a blank document.
 
 from __future__ import annotations
 
+import csv
 import html.parser
 import io
 import re
 from datetime import date, datetime
+from pathlib import Path
 
 from ...logger import get_logger
 from ..document import Block, BlockKind, ParsedDoc
@@ -355,6 +357,100 @@ def _sem_validacoes(dados: bytes) -> bytes | None:
                 conteudo = alterados[item.filename] if item.filename in alterados else zin.read(item.filename)
                 zout.writestr(item.filename, conteudo)
     return saida.getvalue()
+
+
+def _dialecto_csv(bruto: str, nome: str) -> csv.Dialect:
+    """Sniff `,;\\t|`. `.tsv` is a tab even when the sniffer hesitates."""
+    if nome.lower().endswith(".tsv"):
+        return csv.excel_tab
+    amostra = bruto[:8192]
+    if not amostra.strip():
+        return csv.excel
+    try:
+        return csv.Sniffer().sniff(amostra, delimiters=",;\t|")
+    except csv.Error:
+        return csv.excel
+
+
+def _parece_tabela_csv(linhas: list[tuple[int, list[str]]]) -> bool:
+    """Most rows share a width ≥ 2. Prose in a `.csv` does not."""
+    larguras = [len(v) for _, v in linhas if _linha_util(v)]
+    if len(larguras) < 2:
+        return False
+    moda = max(set(larguras), key=larguras.count)
+    return moda >= MIN_CELULAS_PARA_CABECALHO and larguras.count(moda) >= max(2, len(larguras) // 2)
+
+
+def _iter_csv(bruto: str, dialect: csv.Dialect):
+    """(1-based row, cells) for non-empty rows. Re-runnable: `bruto` stays in RAM."""
+    leitor = csv.reader(io.StringIO(bruto), dialect)
+    for numero, row in enumerate(leitor, start=1):
+        valores = [c.strip() for c in row[:MAX_COLUNAS]]
+        if _linha_util(valores):
+            yield numero, valores
+
+
+@register(".csv", version="2")
+def parse_csv(dados: bytes, nome: str) -> ParsedDoc:
+    """CSV/TSV on the spreadsheet path — header in every window, digest when huge.
+
+    Lived in `text.py` as one blob. After the first chunk the header was gone,
+    and the 2 MB gate deferred the file entirely. Same machine as xlsx: small
+    file is windowed; dump is a card plus distinct values, covering every row.
+    """
+    from .text import decode
+
+    bruto = decode(dados)
+    titulo = Path(nome).stem or "csv"
+    meta = {"formato": "csv"}
+    if not bruto.strip():
+        return ParsedDoc(name=nome, meta=meta)
+
+    dialect = _dialecto_csv(bruto, nome)
+    acumuladas: list[tuple[int, list[str]]] = []
+    despejo = False
+    for item in _iter_csv(bruto, dialect):
+        acumuladas.append(item)
+        if _e_despejo_de_dados(acumuladas):
+            despejo = True
+            break
+
+    if not despejo and not _parece_tabela_csv(acumuladas):
+        # Prose saved as .csv (the formatos fixture, notes): a fake header
+        # would drop every row above it, including the planted identifier.
+        return ParsedDoc(
+            name=nome,
+            blocks=(
+                Block(heading_path=(titulo,), text=bruto.strip(), kind=BlockKind.SHEET),
+            ),
+            meta=meta,
+        )
+
+    blocos: list[Block] = []
+    truncadas: list[str] = []
+    parciais: list[str] = []
+    abas_em_digesto: list[str] = []
+    if despejo:
+        abas_em_digesto.append(titulo)
+        _blocos_de_digesto(
+            titulo,
+            (v for _, v in _iter_csv(bruto, dialect)),
+            blocos,
+            truncadas,
+            parciais,
+        )
+    else:
+        _emitir_linhas_de_aba(
+            titulo, acumuladas, blocos, truncadas, parciais, abas_em_digesto
+        )
+
+    if abas_em_digesto:
+        meta["abas_em_digesto"] = titulo
+    if parciais:
+        meta["digesto_parcial"] = ", ".join(parciais)
+    if truncadas:
+        meta["truncadas"] = ", ".join(truncadas)
+    return ParsedDoc(name=nome, blocks=tuple(blocos), meta=meta)
 
 
 @register(".xlsx", ".xlsm")
