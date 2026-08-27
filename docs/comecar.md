@@ -125,10 +125,20 @@ O painel mostra a barra, o documento em curso e a estimativa que falta. Pode
 indexação segue, e ao reabrir a barra está onde parou. Se o computador desligar no
 meio, o próximo comando retoma de onde parou em vez de começar de novo.
 
-Da segunda vez em diante é rápido: só entra o que mudou. **Não existe** vigilância
-automática ainda — quando você acrescentar documentos, rode **Indexar** outra vez.
+Da segunda vez em diante é rápido: só entra o que mudou. Para o índice
+acompanhar o Word daqui pra frente — arquivo novo, salvo ou apagado — deixe um
+observador ligado, num PowerShell à parte:
 
-Quem preferir o terminal:
+```bash
+py -m segundocerebro.index.watcher --base trabalho
+```
+
+Ele usa o mesmo `comando.txt` da indexação para pausar e cancelar, e **não
+abre** arquivo que está só na nuvem. Se o observador estava desligado enquanto
+você mexia nas pastas, rode **Indexar** uma vez: ele não recupera o que mudou
+com o programa fechado.
+
+Quem preferir o terminal para a indexação inteira:
 
 ```bash
 py -m segundocerebro.index.indexer --base trabalho
@@ -224,8 +234,10 @@ Preferimos dizer isto do que deixar você descobrir depois.
   identificador impresso numa página-foto volta intacto. Ofício antigo
   (letra pequena, página mista) ainda não foi medido; não é garantia de
   que o PDF vira trecho buscável. Sem o extra, o resto da indexação não muda.
-- **Não vigia as pastas.** Documento novo só entra quando você rodar a indexação
-  outra vez.
+- **O observador não recupera o passado.** Com
+  `py -m segundocerebro.index.watcher --base trabalho` ligado, arquivo novo,
+  salvo ou apagado entra ou sai sozinho. O que mudou **enquanto ele estava
+  desligado** só entra na próxima indexação.
 - **Só estes formatos:** PDF (`.pdf`), Word (`.docx`, `.docm`, `.doc`, `.rtf`),
   Excel (`.xlsx`, `.xlsm`, `.xls`), PowerPoint (`.pptx`, `.pptm`, `.ppt`), e-mail
   (`.msg`, `.eml`) e texto (`.txt`, `.md`, `.markdown`, `.csv`). O que está fora
