@@ -21,7 +21,7 @@ from segundocerebro.ingest import reader as reader_mod
 from segundocerebro.ingest.document import BlockKind, ParseStatus
 from segundocerebro.ingest.parsers import parser_for, supported_extensions
 from segundocerebro.ingest.parsers.pdf import parse_pdf
-from segundocerebro.ingest.parsers.sheets import parse_xls, parse_xlsx
+from segundocerebro.ingest.parsers.sheets import parse_csv, parse_xls, parse_xlsx
 from segundocerebro.ingest.parsers.slides import parse_ppt, parse_pptx
 from segundocerebro.ingest.parsers.text import blocos_de_markdown, decode, parse_markdown, parse_rtf, parse_texto
 from segundocerebro.ingest.parsers.word import _nivel, parse_docx
@@ -357,6 +357,36 @@ def test_xlsx_digesto_para_de_crescer_com_o_tamanho_da_aba() -> None:
 
     assert len(grande.blocks) < 1.5 * len(pequena.blocks)
     assert len(grande.blocks) < 80
+
+
+def test_csv_que_e_prosa_nao_perde_o_identificador() -> None:
+    """O gerador planta `CT-FT-` em um `.csv` que é nota, não tabela."""
+    bruto = "REGISTRO CT-FT-000\nContratada: Aurora.\nValor total: R$ 3.398.000.\n"
+    doc = parse_csv(bruto.encode(), "Registro CT-FT-000.csv")
+    assert "CT-FT-000" in "\n".join(b.text for b in doc.blocks)
+
+
+def test_csv_repete_cabecalho_em_cada_janela() -> None:
+    """A rota de texto deixava as janelas seguintes órfãs, sem esquema."""
+    linhas = ["fornecedor,valor"] + [f"acme-{i},{i}" for i in range(80)]
+    doc = parse_csv("\n".join(linhas).encode(), "compras.csv")
+
+    janelas = [b for b in doc.blocks if "resumo" not in b.locator]
+    assert len(janelas) >= 2
+    assert all("fornecedor" in b.text.split("\n")[0].lower() for b in janelas)
+    assert parser_for(".csv") is parse_csv
+
+
+def test_csv_enorme_vira_digesto_nao_centenas_de_blobs() -> None:
+    """Dump de 100k células: cartão + valores distintos, não 800 chunks de texto."""
+    cab = "id,fornecedor,valor"
+    # 7 000 × 3 > 20 000 células → digesto, o mesmo limiar da aba enorme.
+    linhas = [cab] + [f"{i},acme-{i % 17},{i}.0" for i in range(7000)]
+    doc = parse_csv("\n".join(linhas).encode(), "dump.csv")
+
+    assert "abas_em_digesto" in doc.meta
+    assert len(doc.blocks) < 80
+    assert any("resumo da aba" in b.locator for b in doc.blocks)
 
 
 def test_xlsx_vazio_nao_gera_bloco() -> None:

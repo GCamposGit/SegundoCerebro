@@ -119,10 +119,11 @@ class Natureza:
 
 EXTENSOES_DE_PLANILHA = (".xlsx", ".xlsm", ".xltx")
 
-EXTENSOES_DE_TEXTO_BRUTO = (".txt", ".csv")
-"""Dumps, not documents. A 269 MB `.txt` became 176 k chunks — 73% of one
-index — and a 68 MB `.csv` froze the progress bar for hours. They share a
-parser with short notes, so the size/chunk caps have to live at the gate."""
+EXTENSOES_DE_TEXTO_BRUTO = (".txt",)
+"""Dumps of prose, not documents. A 269 MB `.txt` became 176 k chunks — 73% of
+one index. `.csv` left this set in C7.d: it rides the spreadsheet parser
+(header in every window, digest when huge), so the chunk cap at the gate
+would hide the file instead of covering it."""
 
 
 def mb_de_abas(dados: bytes) -> float | None:

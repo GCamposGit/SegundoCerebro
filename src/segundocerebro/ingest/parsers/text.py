@@ -106,7 +106,7 @@ def parse_markdown(dados: bytes, nome: str) -> ParsedDoc:
     return ParsedDoc(name=nome, blocks=tuple(blocos_de_markdown(decode(dados))), meta={"formato": "markdown"})
 
 
-@register(".txt", ".csv")
+@register(".txt")
 def parse_texto(dados: bytes, nome: str) -> ParsedDoc:
     conteudo = decode(dados).strip()
     if not conteudo:
