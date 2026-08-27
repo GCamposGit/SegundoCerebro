@@ -33,6 +33,7 @@ import time
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from dataclasses import dataclass, field, replace
 from pathlib import Path
+from typing import NamedTuple
 
 from ..census import Census, Config, FileEntry, iter_files, relatar_exclusoes
 from ..config import ErroDeConfig, LimitesDeIndexacao, carregar
@@ -51,7 +52,8 @@ from .comando import limpar as limpar_comando
 from .esforco import PERFIS_DE_ESFORCO, ControleEsforco
 from .esforco import aplicar as aplicar_esforco
 from .esforco import limpar_pedido, na_bateria
-from .estimativa import Estimador, Relogio, faixa_humana
+from .calibracao import Calibracao, impressao_da_maquina, tipo_de
+from .estimativa import CEGO, Cronometro, Estimador, Relogio, decompor, faixa_humana
 from .isolamento import deve_isolar, parse_isolado
 from .orcamento import PRESETS_LEIGO, Recursos, ajustar_ao_vivo, derivar, medir
 from .progresso import Publicador
@@ -366,8 +368,16 @@ def _parsear_um(
     indice: str | None = None,
     ocr: bool = False,
 ):
-    """Top-level so ThreadPoolExecutor can pickle it on Windows spawn later."""
-    return parse_isolado(
+    """Top-level so ThreadPoolExecutor can pickle it on Windows spawn later.
+
+    Devolve também os segundos gastos: o parse roda em worker, então medir da
+    thread principal mediria fila mais parse, e a fila não é custo do formato.
+    Um coeficiente `p_parse` calibrado sobre tempo de fila mediria o tamanho do
+    pool. Mede o `parse_isolado` inteiro, que é o que de fato custa desde a
+    R1.4 — subprocesso incluído.
+    """
+    t0 = time.perf_counter()
+    resultado = parse_isolado(
         path,
         retries=1,
         espera=0.5,
@@ -377,6 +387,47 @@ def _parsear_um(
         indice=Path(indice) if indice else None,
         ocr=ocr,
     )
+    return resultado, time.perf_counter() - t0
+
+
+class _AlvoDoMapa(NamedTuple):
+    """O mínimo que `_precisa_indexar` lê de um arquivo enumerado.
+
+    Nomeado e no topo do módulo porque a alternativa — declarar uma classe
+    dentro do laço — criava um tipo novo por arquivo por ciclo, milhares por
+    passada, para carregar três campos.
+    """
+
+    rel: str
+    size: int
+    mtime: float
+
+
+def _restante_legivel(estimador: Estimador) -> str:
+    """A linha de log do restante: faixa, rótulo de estado e decomposição.
+
+    A decomposição existe porque a cauda domina e o usuário pode agir sobre
+    ela: "3.100 pequenos + 3 grandes" diz onde está o tempo, e um número único
+    esconde a única alavanca disponível.
+    """
+    faixa = estimador.restante()
+    estado = estimador.estado(faixa)
+    texto = faixa_humana(faixa, estado)
+    detalhe = decompor(estimador, faixa)
+    return f"{texto} — {detalhe}" if detalhe else texto
+
+
+def _tokens_de(embedder: Embedder, chunks) -> int:  # noqa: ANN001
+    """Tokens reais do que vai ao encoder — é a grandeza que custa.
+
+    O tokenizador é nativo e a contagem sai em milissegundos; usar caracteres
+    como proxy erraria por até 2× entre formatos (2,55 chars/token no CSV
+    contra 3,85 no txt, medidos em 26/08/2026).
+    """
+    try:
+        return sum(embedder.contar_tokens(c.embedding_text) for c in chunks)
+    except Exception:  # noqa: BLE001 — contagem é para calibrar, não para indexar
+        return sum(c.chars for c in chunks) // 4
 
 
 def _venenoso(resultado: ParseResult) -> bool:
@@ -535,8 +586,21 @@ def indexar(
         for root, arquivos in enumerados
     ]
     vigentes_fila = vigentes_de([a for _, arquivos in trabalho for a in arquivos])
-    estimador = Estimador()
-    estimador.declarar((a.rel, a.size) for _, arquivos in trabalho for a in arquivos)
+
+    # Tabela master: metade de máquina por `fingerprint`, metade de formato por
+    # base. O `fingerprint` inclui `model_id` e o chunker de propósito — trocar
+    # o encoder invalida os coeficientes do encoder, e reaproveitá-los em
+    # silêncio é pior que não ter nenhum.
+    gpus_ativas = list(controle.plano.gpu_ids_ativos) if controle is not None else []
+    impressao = impressao_da_maquina(embedder.model_id, CHUNKER_VERSION, gpus=gpus_ativas)
+    perfil_esforco = str((esforco or {}).get("perfil") or "maximo")
+    calib = Calibracao(
+        impressao, embedder.model_id, base_id=store.diretorio.name
+    ).carregar()
+    estimador = Estimador(calibracao=calib, perfil=perfil_esforco)
+    estimador.declarar(
+        (a.rel, a.size, a.mtime) for _, arquivos in trabalho for a in arquivos
+    )
     relogio = Relogio()
     iniciado_em = time.time()
     previo = ler_progresso(store.diretorio) if publicar else None
@@ -572,11 +636,28 @@ def indexar(
         # ponto em que a thread principal pode não voltar por horas, e quem
         # publica não pode ser quem trabalha.
         publicador.iniciar_vigia()
-    log.info(
-        "%d documentos a considerar · estimativa inicial %s",
-        estimador.documentos_totais,
-        faixa_humana(estimador.restante()),
-    )
+
+    # O diagnóstico da base sai **sempre**, mesmo sem previsão de tempo: o mapa
+    # é informação sobre o acervo e não depende de calibragem nenhuma. É também
+    # o que mostra que dois arquivos podem carregar metade dos chunks.
+    for linha in estimador.mapa.diagnostico():
+        log.info("%s", linha)
+    _faixa0 = estimador.restante()
+    _estado0 = estimador.estado(_faixa0)
+    if _estado0 == CEGO:
+        log.info(
+            "primeira indexação nesta máquina (%s): sem previsão de tempo até "
+            "haver medição local",
+            impressao,
+        )
+    else:
+        log.info(
+            "%d documentos a considerar · estimativa inicial %s · cobertura %.0f%%",
+            estimador.documentos_totais,
+            faixa_humana(_faixa0, _estado0),
+            100 * estimador.cobertura,
+        )
+    estimador.abrir_previsao()
 
     mapa_limites: dict[str, float] = dict(limites_mb or {})
     if limite_texto_mb is not None:
@@ -683,7 +764,76 @@ def indexar(
         proximo = 0
         teto_fila = max(workers * 2, 2)
 
-        def gravar_ok(root, arquivo, estado, resultado, chunks, vetores, comeco) -> None:  # noqa: ANN001
+        def _precisa_do_mapa(estado, item) -> bool:  # noqa: ANN001
+            """Adaptador para `_precisa_indexar`, que é a regra de verdade.
+
+            O mapa **não** reimplementa o critério: uma regra derivada duas
+            vezes é uma regra derivada de dois jeitos, e neste repositório isso
+            já produziu número menor e plausível.
+            """
+            return _precisa_indexar(
+                estado,
+                _AlvoDoMapa(item.rel, item.tamanho, item.mtime),
+                embedder.model_id,
+                parser_version_for(os.path.splitext(item.rel)[1]),
+            )
+
+        def ciclo() -> None:
+            """Fronteira de ciclo: rededuz `restante = censo − registro`.
+
+            Do zero, sempre. Entre ciclos a estimativa usa o último mapa —
+            algumas dezenas de documentos desatualizado — e nenhum desvio se
+            acumula, porque nada é decrementado.
+            """
+            if not estimador.mapa.vencido():
+                return
+            try:
+                estimador.recalcular_mapa(store.estados(), _precisa_do_mapa)
+            except Exception as erro:  # noqa: BLE001 — mapa velho é melhor que passada morta
+                log.debug("mapa não recalculado: %s", erro)
+
+        def registrar_obs(  # noqa: ANN001
+            arquivo,
+            crono,
+            *,
+            situacao: str,
+            status: str,
+            natureza=None,
+            n_chunks: int = 0,
+            tokens: int = 0,
+        ) -> None:
+            """Um único lugar onde a medição do documento entra na calibragem.
+
+            Cinco call sites gravavam `perf_counter() - comeco` antes; a decisão
+            de o que é tempo confiável, e o que é tipo, tem de morar num lugar
+            só, senão a próxima situação nova reintroduz o defeito.
+            """
+            obs = crono.observacao(
+                rel=arquivo.rel,
+                tipo=tipo_de(
+                    arquivo.rel,
+                    digitalizado=getattr(natureza, "digitalizado", None),
+                    tem_tabela=getattr(natureza, "tem_tabela", None),
+                ),
+                mb=max(0.0, arquivo.size / 1_048_576),
+                n_chunks=n_chunks,
+                tokens=tokens,
+                perfil=perfil_esforco,
+                situacao=situacao,
+                status=status,
+            )
+            estimador.registrar(obs)
+            try:
+                store.gravar_medicao(
+                    obs,
+                    execucao=execucao,
+                    fingerprint=impressao,
+                    model_id=embedder.model_id,
+                )
+            except Exception as erro:  # noqa: BLE001 — medir não pode derrubar indexar
+                log.debug("medição não gravada para %s: %s", arquivo.rel, erro)
+
+        def gravar_ok(root, arquivo, estado, resultado, chunks, vetores, crono) -> None:  # noqa: ANN001
             store.limpar_quarentena(arquivo.rel)
             store.remover_documento(arquivo.rel)
             store.gravar_chunks(chunks, vetores, arquivo.mtime, embedder.model_id)
@@ -701,11 +851,20 @@ def indexar(
                 natureza=resultado.natureza,
             )
             store.commit()
+            crono.marcar("grava")
             progresso.indexados += 1
             if resultado.doc is not None and resultado.doc.meta.get("fonte") == "ocr":
                 progresso.ocr += 1
             progresso.chunks += len(chunks)
-            estimador.registrar(arquivo.rel, arquivo.size, time.perf_counter() - comeco)
+            registrar_obs(
+                arquivo,
+                crono,
+                situacao="novo" if estado is None else "mudado",
+                status=ParseStatus.OK.value,
+                natureza=resultado.natureza,
+                n_chunks=len(chunks),
+                tokens=_tokens_de(embedder, chunks),
+            )
             if publicador is not None:
                 publicador.anotar(
                     chunks=progresso.chunks,
@@ -723,7 +882,7 @@ def indexar(
                     progresso.indexados,
                     progresso.chunks,
                     ritmo,
-                    faixa_humana(estimador.restante()),
+                    _restante_legivel(estimador),
                 )
 
         def fechar_um_embed(*, block: bool) -> bool:
@@ -743,8 +902,8 @@ def indexar(
                         return False
                     continue
                 jid, vetores = got
-                root, arquivo, estado, resultado, chunks, comeco = pend_embed.pop(jid)
-                gravar_ok(root, arquivo, estado, resultado, chunks, vetores, comeco)
+                root, arquivo, estado, resultado, chunks, crono = pend_embed.pop(jid)
+                gravar_ok(root, arquivo, estado, resultado, chunks, vetores, crono)
                 return True
 
         def honrar_comando() -> None:
@@ -817,7 +976,7 @@ def indexar(
                 fut.cancel()
             inflight.clear()
 
-        def aplicar(root, arquivo, estado, resultado, comeco) -> None:  # noqa: ANN001
+        def aplicar(root, arquivo, estado, resultado, crono) -> None:  # noqa: ANN001
             relogio.tique()
             if resultado.status is not ParseStatus.OK or resultado.doc is None:
                 if _venenoso(resultado):
@@ -853,8 +1012,13 @@ def indexar(
                 # restante. Sem isto a barra trava perto do fim e nunca
                 # fecha: no corpus real 143 dos 1.601 acabam aqui —
                 # `sem_parser`, `vazio`, `travado`, `adiado`.
-                estimador.registrar(
-                    arquivo.rel, arquivo.size, time.perf_counter() - comeco
+                crono.marcar("grava")
+                registrar_obs(
+                    arquivo,
+                    crono,
+                    situacao="erro",
+                    status=ParseStatus.ERROR.value if resultado.status is ParseStatus.ERROR else resultado.status.value,
+                    natureza=resultado.natureza,
                 )
                 if publicador is not None:
                     publicador.anotar(falhas=progresso.falhas, etapa=None, trecho=None, trechos=None)
@@ -891,8 +1055,13 @@ def indexar(
                 )
                 store.commit()
                 progresso.inalterados += 1
-                estimador.registrar(
-                    arquivo.rel, arquivo.size, time.perf_counter() - comeco
+                crono.marcar("grava")
+                registrar_obs(
+                    arquivo,
+                    crono,
+                    situacao="revalidado",
+                    status=ParseStatus.OK.value,
+                    natureza=resultado.natureza,
                 )
                 if publicador is not None:
                     publicador.publicar()
@@ -921,8 +1090,13 @@ def indexar(
                 )
                 store.commit()
                 progresso.registrar_falha(ParseStatus.DUPLICATE.value)
-                estimador.registrar(
-                    arquivo.rel, arquivo.size, time.perf_counter() - comeco
+                crono.marcar("grava")
+                registrar_obs(
+                    arquivo,
+                    crono,
+                    situacao="duplicado",
+                    status=ParseStatus.DUPLICATE.value,
+                    natureza=resultado.natureza,
                 )
                 if publicador is not None:
                     publicador.anotar(falhas=progresso.falhas, etapa=None, trecho=None, trechos=None)
@@ -930,6 +1104,7 @@ def indexar(
                 return
 
             chunks = chunk_document(resultado.doc, arquivo.rel, chunk_cfg)
+            crono.marcar("chunk")
             ext = os.path.splitext(arquivo.rel)[1].lower()
             if (
                 limite_chunks is not None
@@ -954,8 +1129,13 @@ def indexar(
                 )
                 store.commit()
                 progresso.registrar_falha(ParseStatus.DEFERRED.value)
-                estimador.registrar(
-                    arquivo.rel, arquivo.size, time.perf_counter() - comeco
+                crono.marcar("grava")
+                registrar_obs(
+                    arquivo,
+                    crono,
+                    situacao="adiado",
+                    status=ParseStatus.DEFERRED.value,
+                    natureza=resultado.natureza,
                 )
                 if publicador is not None:
                     publicador.anotar(falhas=progresso.falhas, etapa=None, trecho=None, trechos=None)
@@ -1020,8 +1200,12 @@ def indexar(
                     fechar_um_embed(block=True)
                     if interrupcao.pedida:
                         return
+                # O embed foi para outro processo: o tempo dele nao passa por
+                # esta thread. Descartar o trecho corrente evita creditar
+                # espera de fila como custo de encoder.
+                crono.descartar()
                 jid = fila.submit([c.embedding_text for c in chunks], lote)
-                pend_embed[jid] = (root, arquivo, estado, resultado, chunks, comeco)
+                pend_embed[jid] = (root, arquivo, estado, resultado, chunks, crono)
                 return
             try:
                 vetores = embedder.embed_passagens(
@@ -1038,8 +1222,32 @@ def indexar(
                 )
             except PedidoDeParada:
                 return
-            gravar_ok(root, arquivo, estado, resultado, chunks, vetores, comeco)
+            crono.marcar("embed")
+            gravar_ok(root, arquivo, estado, resultado, chunks, vetores, crono)
 
+        # O encoder carrega na primeira vez que alguém o toca — e quem toca
+        # primeiro é o `contar_tokens` do chunker, então os 9,3 s de carga do
+        # `e5-large` iam para o `s_chunk` do **primeiro documento**: uma medição
+        # 9.000× a mediana do tipo, atribuída a um arquivo de 52 bytes.
+        #
+        # Carregar aqui move o custo para fora de qualquer documento, que é onde
+        # ele pertence — é custo da passada, não do arquivo.
+        #
+        # Via `contar_tokens` e não `embed_passagens`: as duas carregam o modelo,
+        # mas só a segunda produz um embedding, e uma passada que não tem nada a
+        # reprocessar não pode passar a chamar o encoder. E só se houver trabalho:
+        # sem fila, nada precisa ser carregado.
+        if pendentes:
+            try:
+                embedder.contar_tokens("aquecimento")
+            except Exception as erro:  # noqa: BLE001 — reaparece no primeiro documento
+                log.debug("carga antecipada do encoder falhou: %s", erro)
+
+        # Antes de qualquer trabalho: o mapa restante sai do registro, agora que
+        # a pré-passada já classificou tudo. Sem esta chamada a primeira
+        # estimativa conta como restante o acervo inteiro, inclusive o que
+        # acabou de ser pulado.
+        ciclo()
         limpar_comando(store.diretorio)
         limpar_pedido(store.diretorio)
         preencher()
@@ -1056,9 +1264,11 @@ def indexar(
             if not concluidos:
                 continue
             for fut in concluidos:
-                root, arquivo, estado, comeco = inflight.pop(fut)
+                root, arquivo, estado, _ = inflight.pop(fut)
+                crono = Cronometro(relogio)
                 try:
-                    resultado = fut.result()
+                    resultado, s_parse = fut.result()
+                    crono.etapas["parse"] = s_parse
                 except Exception as erro:  # noqa: BLE001
                     log.error("parse falhou em %s: %s", arquivo.rel, erro)
                     resultado = ParseResult(
@@ -1066,7 +1276,8 @@ def indexar(
                         status=ParseStatus.ERROR,
                         detail=str(erro)[:500],
                     )
-                aplicar(root, arquivo, estado, resultado, comeco)
+                aplicar(root, arquivo, estado, resultado, crono)
+                ciclo()
                 fechar_um_embed(block=False)
                 honrar_comando()
                 if limite is not None and progresso.indexados >= limite:
@@ -1250,6 +1461,26 @@ def indexar(
         progresso.chunks,
         "interrompida" if progresso.interrompido else "concluida",
     )
+
+    # Autoteste de calibragem: compara o tempo ativo real com a faixa que foi
+    # prevista no início. Sem isto a estimativa é a única parte do projeto sem
+    # regressão medida — e a que mais errou.
+    try:
+        if not progresso.interrompido:
+            estimador.fechar_previsao(relogio.ativo)
+        removidas = store.podar_medicoes()
+        store.commit()
+        if removidas:
+            log.debug("poda de medições: %d linhas", removidas)
+        calib.fechar()
+        m = calib.maquina
+        log.info(
+            "calibragem desta máquina: a_io %.3f s · c0 %.4f s/chunk · "
+            "c1 %.5f s/token · g[%s] %.2f · %d observações",
+            m.a_io, m.c0, m.c1, perfil_esforco, m.g(perfil_esforco), m.n_obs,
+        )
+    except Exception as erro:  # noqa: BLE001 — calibrar não pode invalidar a passada
+        log.warning("calibragem não pôde ser fechada: %s", erro)
     return progresso
 
 
