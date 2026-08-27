@@ -170,7 +170,10 @@ def planar(perfil: str, *, nucleos: int | None = None, gpus: list[GpuInfo] | Non
     usados = nucleos_para(perfil, total)
     pct_cpu = 100 if perfil == "maximo" else int(round(FRACAO_CPU.get(perfil, 0.5) * 100))
     if gpus is None:
-        gpus = listar_gpus()
+        # F6-C: listing GPUs is not using them. Without an explicit cuda
+        # request the plan is CPU, even if nvidia-smi can see cards.
+        cuda = os.environ.get("SEGUNDOCEREBRO_PROVIDER", "").lower() == "cuda"
+        gpus = listar_gpus() if cuda else []
     gpu_planos = tuple(
         GpuPlano(
             indice=g.indice,

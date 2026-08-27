@@ -339,7 +339,7 @@ class Maquina:
     """`None` deixa o perfil decidir. Explícito vence o perfil."""
     lote: int = 32
     provider: str = ""
-    """Vazio = deixa o runtime escolher. `cuda` exige `onnxruntime-gpu`."""
+    """Vazio = CPU (padrão). `cuda` é extra `[gpu]` e nunca entra em `model_id`."""
     limites: LimitesDeIndexacao = LIMITES_RECOMENDADOS
     """Cortes padrão desta máquina. Bases novas herdam; cada base pode sobrescrever."""
 

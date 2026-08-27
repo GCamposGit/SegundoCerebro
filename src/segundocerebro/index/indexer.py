@@ -674,11 +674,11 @@ def indexar(
     n_gpus = 0
     gpus: list[str] = []
     if os.environ.get("SEGUNDOCEREBRO_PROVIDER", "").lower() == "cuda":
-        if getattr(embedder.spec, "id", None) == "minilm":
-            raise RuntimeError(
-                "MiniLM quantizado (onnx-Q) devolve NaN no CUDA deste hardware. "
-                "Use --modelo e5-large; o provider não entra em model_id"
-            )
+        from .cuda_runtime import diagnosticar
+
+        diag = diagnosticar(modelo=getattr(embedder.spec, "id", None))
+        if not diag.ok:
+            raise RuntimeError(diag.mensagem)
         if controle is not None:
             gpus = controle.plano.gpu_ids_ativos
             if not gpus:
