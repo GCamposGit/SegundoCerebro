@@ -176,6 +176,7 @@ code { font-family: ui-monospace, "Cascadia Code", monospace; font-size: 12px; }
       </p>
       <div class="linha">
         <button id="ligarDesktop" class="primario">Ligar no Claude Desktop</button>
+        <button id="observarBase">Acompanhar pastas</button>
       </div>
       <div id="recadoConectar"></div>
       <details style="margin-top:10px">
@@ -622,6 +623,14 @@ $("indexarBase").onclick = async () => {
       + `Pode fechar esta página — ela não para a indexação.`, "ok");
     $("indexarBase").disabled = true;
     atualizarIndexacao();
+  } catch (e) { recado(e.message); }
+};
+
+$("observarBase").onclick = async () => {
+  try {
+    const r = await api("/api/observar", { base: $("base").value });
+    recado(`Observador ligado (processo ${r.pid}). Arquivo novo, salvo ou apagado `
+      + `entra ou sai sozinho. Pode fechar esta página.`, "ok");
   } catch (e) { recado(e.message); }
 };
 
