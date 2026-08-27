@@ -1,5 +1,20 @@
 # Smoke CUDA — 19/08/2026
 
+## F6-C — CPU é o padrão
+
+Máquina sem NVIDIA **indexa**. CUDA é extra `[gpu]` e só entra com
+`SEGUNDOCEREBRO_PROVIDER=cuda`. Vazio não deixa o runtime escolher a placa:
+isso fazia um `pip install` com o wheel errado cair no CUDA em silêncio.
+
+O smoke recusa, em português, o que esta placa não calcula:
+
+- CUDA 13 nesta geração de placa (o `onnxruntime-gpu` ≥ 1.27)
+- MiniLM quantizado (devolve NaN)
+- driver 590+ nesta placa
+
+Não menciona `sm_52`. Não põe `cuda` em `model_id`. `pip install -e .` sem o
+extra é o caminho do leigo.
+
 Comando, neste desktop, **pelo venv**:
 
 ```bash

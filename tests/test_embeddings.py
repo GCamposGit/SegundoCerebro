@@ -70,6 +70,20 @@ def test_provider_cpu_nao_recusa_minilm_na_construcao(monkeypatch: pytest.Monkey
     assert e.spec.id == "minilm"
 
 
+def test_provider_vazio_forca_cpu(monkeypatch: pytest.MonkeyPatch) -> None:
+    """F6-C: vazio não deixa o ORT escolher CUDA num wheel de GPU."""
+    monkeypatch.delenv("SEGUNDOCEREBRO_PROVIDER", raising=False)
+    visto: dict = {}
+
+    class Fake:
+        def __init__(self, nome: str, **kwargs: object) -> None:  # noqa: ARG002
+            visto.update(kwargs)
+
+    monkeypatch.setattr("fastembed.TextEmbedding", Fake)
+    Embedder("e5-large", lazy=False)
+    assert visto.get("providers") == ["CPUExecutionProvider"]
+
+
 def test_estimativa_de_emergencia_quando_nao_ha_tokenizador(monkeypatch: pytest.MonkeyPatch) -> None:
     """Sem tokenizador, estima por caractere — mas nunca satura em silêncio."""
     e = Embedder("minilm")

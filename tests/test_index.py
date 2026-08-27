@@ -323,6 +323,10 @@ def test_pipeline_duas_gpus_grava_via_fila(tmp_path: Path, monkeypatch: pytest.M
         return f
 
     monkeypatch.setenv("SEGUNDOCEREBRO_PROVIDER", "cuda")
+    monkeypatch.setattr(
+        "segundocerebro.index.cuda_runtime.listar_gpus",
+        lambda: [{"name": "fake", "driver": "582.28", "compute": "8.9", "memoria": "8 GiB"}],
+    )
     monkeypatch.setattr("segundocerebro.index.indexer.contar_gpus", lambda: 2)
     monkeypatch.setattr(
         "segundocerebro.index.indexer.dispositivos_embed", lambda **k: ["0", "1"]

@@ -20,7 +20,6 @@ from ..logger import get_logger
 
 log = get_logger("index.smoke_cuda")
 
-COMPUTE_MAXWELL = "5.2"
 TEXTOS = (
     "passage: Política vigente da Várzea Clara Energia sobre inteligência artificial.",
     "query: Qual a versão vigente da política de IA?",
@@ -60,36 +59,9 @@ PASSAGENS_RERANK = (
 
 
 def _gpus() -> list[dict[str, str]]:
-    try:
-        import subprocess
+    from .cuda_runtime import listar_gpus
 
-        bruto = subprocess.run(
-            [
-                "nvidia-smi",
-                "--query-gpu=name,driver_version,compute_cap,memory.total",
-                "--format=csv,noheader",
-            ],
-            check=False,
-            capture_output=True,
-            text=True,
-        )
-    except FileNotFoundError:
-        return []
-    if bruto.returncode != 0:
-        return []
-    saida = []
-    for linha in bruto.stdout.splitlines():
-        partes = [p.strip() for p in linha.split(",")]
-        if len(partes) >= 3:
-            saida.append(
-                {
-                    "name": partes[0],
-                    "driver": partes[1],
-                    "compute": partes[2],
-                    "memoria": partes[3] if len(partes) > 3 else "",
-                }
-            )
-    return saida
+    return listar_gpus()
 
 
 def _providers() -> list[str]:
@@ -137,27 +109,27 @@ def main(argv: list[str] | None = None) -> int:
     )
     args = parser.parse_args(argv)
 
+    from .cuda_runtime import diagnosticar
+
     gpus = _gpus()
-    if not gpus:
-        log.error("nvidia-smi não listou GPU — sem placa visível não há F3.6")
+    modelo = args.modelo if (args.embed and not args.pool and not args.rerank) else None
+    diag = diagnosticar(modelo=modelo, gpus=gpus)
+    if not diag.ok:
+        log.error("%s", diag.mensagem)
         return 2
     for g in gpus:
         log.info("gpu %s | driver %s | compute %s | %s", g["name"], g["driver"], g["compute"], g["memoria"])
-        if g["compute"] == COMPUTE_MAXWELL and g["driver"].split(".", 1)[0] >= "590":
-            log.warning("driver %s pode ter largado Maxwell — o ramo 580 é o último anunciado", g["driver"])
 
     try:
         providers = _providers()
     except ImportError:
-        log.error(
-            "onnxruntime não importou. Instale um build CUDA 11.8/12.x "
-            "(não CUDA 13) — ver ARCHITECTURE.md §4"
-        )
+        log.error("%s", diagnosticar(gpus=gpus, versao_ort=None, providers=None).mensagem)
         return 2
 
     log.info("providers: %s", providers)
-    if "CUDAExecutionProvider" not in providers:
-        log.error("CUDAExecutionProvider ausente — este pacote é CPU. F3.6 para aqui.")
+    diag_ep = diagnosticar(gpus=gpus, providers=providers)
+    if not diag_ep.ok:
+        log.error("%s", diag_ep.mensagem)
         return 2
 
     if args.pool:
@@ -189,9 +161,9 @@ def main(argv: list[str] | None = None) -> int:
     arr = [np.asarray(v, dtype=np.float32) for v in vetores]
     if any(not np.isfinite(v).all() for v in arr):
         log.error(
-            "forward pass devolveu NaN/Inf — o EP carregou, mas o Maxwell não "
-            "calcula este ONNX. MiniLM quantizado (onnx-Q) faz isso no Maxwell; "
-            "use --modelo intfloat/multilingual-e5-large."
+            "O modelo devolveu números inválidos (NaN) nesta GPU. O modelo "
+            "pequeno (MiniLM) faz isso; use o padrão (e5-large) ou tire "
+            "SEGUNDOCEREBRO_PROVIDER=cuda para indexar na CPU."
         )
         return 3
     log.info("forward pass ok: %d vetores, dim %d, finitos", len(arr), len(arr[0]))

@@ -4,6 +4,8 @@ from __future__ import annotations
 
 from pathlib import Path
 
+import pytest
+
 from segundocerebro.config import nucleos_para
 from segundocerebro.index.esforco import GpuInfo, PERFIS_DE_ESFORCO, ler_pedido, pedir, planar
 
@@ -53,6 +55,27 @@ def test_sem_gpu_o_plano_so_tem_cpu() -> None:
     assert plano.gpus == ()
     assert plano.cpu_percentual == 50
     assert plano.cpu_nucleos == 4
+
+
+def test_sem_pedir_cuda_o_plano_ignora_placa(monkeypatch: pytest.MonkeyPatch) -> None:
+    """F6-C: ver a placa não é usá-la. CPU é o padrão."""
+    monkeypatch.delenv("SEGUNDOCEREBRO_PROVIDER", raising=False)
+    monkeypatch.setattr(
+        "segundocerebro.index.esforco.listar_gpus",
+        lambda: [GpuInfo("0", "GTX 980 Ti", display=True)],
+    )
+    plano = planar("normal", nucleos=8)
+    assert plano.gpus == ()
+
+
+def test_com_cuda_o_plano_usa_placa(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SEGUNDOCEREBRO_PROVIDER", "cuda")
+    monkeypatch.setattr(
+        "segundocerebro.index.esforco.listar_gpus",
+        lambda: [GpuInfo("0", "GTX 980 Ti", display=True)],
+    )
+    plano = planar("normal", nucleos=8)
+    assert plano.gpus and plano.gpus[0].ativo
 
 
 def test_pedido_ao_vivo_grava_e_le(tmp_path: Path) -> None:

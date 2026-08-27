@@ -167,27 +167,31 @@ class Embedder:
                 "cache_dir": str(self._cache_dir),
                 "threads": self._threads,
             }
-            # Hardware does not enter model_id. CUDA/CPU is a process choice.
-            provider = os.environ.get("SEGUNDOCEREBRO_PROVIDER", "").lower()
-            if provider == "cuda":
-                if self.spec.id == "minilm":
-                    # Medido nas 980 Ti (sm_52): o MiniLM do fastembed é onnx-Q e
-                    # o forward passa sem exceção devolvendo NaN. Recusar aqui
-                    # impede gravar vetores podres e impede subir 2 workers GPU
-                    # para descobrir isso no meio da passada.
-                    raise RuntimeError(
-                        "MiniLM quantizado (onnx-Q) devolve NaN no CUDA deste "
-                        "hardware. Use e5-large — o provider não entra em model_id"
-                    )
-                from .cuda_runtime import preparar
+            # Hardware does not enter model_id. CUDA is opt-in; empty is CPU
+            # (F6-C). Leaving providers unset used to let ORT pick CUDA on a
+            # gpu wheel — the opposite of "CPU is the default".
+            from .cuda_runtime import diagnosticar, preparar, provider_pedido
 
+            if provider_pedido() == "cuda":
+                diag = diagnosticar(modelo=self.spec.id)
+                if not diag.ok:
+                    raise RuntimeError(diag.mensagem)
                 preparar()
                 kwargs["providers"] = ["CUDAExecutionProvider"]
-            elif provider == "cpu":
-                # Sem isto o ORT com o wheel GPU ainda escolhe CUDA. A prova
-                # F3.6 (mesmo vetor em CPU e GPU) precisa forçar o EP.
+            else:
                 kwargs["providers"] = ["CPUExecutionProvider"]
-            self._modelo = TextEmbedding(self.spec.nome, **kwargs)
+            try:
+                self._modelo = TextEmbedding(self.spec.nome, **kwargs)
+            except RuntimeError:
+                raise
+            except Exception as erro:  # noqa: BLE001
+                if kwargs.get("providers") == ["CUDAExecutionProvider"]:
+                    raise RuntimeError(
+                        "O CUDA não carregou neste computador. Tire "
+                        "SEGUNDOCEREBRO_PROVIDER=cuda para indexar na CPU — "
+                        f"é o padrão. Detalhe: {erro}"
+                    ) from erro
+                raise
         return self._modelo
 
     @property
