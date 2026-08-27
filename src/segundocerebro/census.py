@@ -103,6 +103,15 @@ class RoleExclusion:
     globs: tuple[str, ...] = ()
     dirs: tuple[str, ...] = ()
 
+    @property
+    def label(self) -> str:
+        """Como esta regra aparece no aviso, na contagem e no relatório.
+
+        Estável o suficiente para virar chave de contador: é o que a
+        configuração escreveu, na ordem que escreveu."""
+        onde = ", ".join(self.dirs) if self.dirs else "(qualquer pasta)"
+        return f"papel: {', '.join(self.globs)} em {onde}"
+
     def covers(self, rel_dir: str) -> bool:
         if not self.dirs:
             return True
@@ -120,7 +129,36 @@ class RoleExclusion:
 
 
 def _casa_algum(name: str, globs: tuple[str, ...]) -> bool:
-    return any(fnmatch.fnmatch(name, g) or fnmatch.fnmatch(name.lower(), g.lower()) for g in globs)
+    return _qual_casa(name, globs) is not None
+
+
+def _qual_casa(name: str, globs: tuple[str, ...]) -> str | None:
+    """Qual padrão casou, não só se casou.
+
+    O booleano bastava enquanto ninguém precisava saber que uma regra declarada
+    não tinha casado com nada. Passou a não bastar em 26/08/2026."""
+    for g in globs:
+        if fnmatch.fnmatch(name, g) or fnmatch.fnmatch(name.lower(), g.lower()):
+            return g
+    return None
+
+
+@dataclass(frozen=True)
+class DeclaredExclusions:
+    """As exclusões que a **configuração** pediu — não as técnicas padrão.
+
+    A conferência de efeito (`check_exclusions`) só vale para estas: `.git`,
+    `node_modules` e `~$*` casarem zero é o esperado num acervo de escritório, e
+    avisar sobre elas afogaria o aviso que importa.
+    """
+
+    dirs: tuple[str, ...] = ()
+    globs: tuple[str, ...] = ()
+    roles: tuple[RoleExclusion, ...] = ()
+
+    @property
+    def vazio(self) -> bool:
+        return not (self.dirs or self.globs or self.roles)
 
 
 @dataclass
@@ -129,16 +167,40 @@ class Config:
     exclude_dirs: tuple[str, ...] = DEFAULT_EXCLUDE_DIRS
     exclude_globs: tuple[str, ...] = DEFAULT_EXCLUDE_GLOBS
     role_exclusions: tuple[RoleExclusion, ...] = ()
+    declared: DeclaredExclusions = DeclaredExclusions()
+    """Quais das exclusões acima vieram do arquivo de configuração.
+
+    Existe só para a conferência: sem separar o declarado do padrão técnico, ou
+    o aviso não sai (ninguém declarou nada) ou sai doze vezes por passada."""
     top: int = 15
 
-    def excluded_dir(self, name: str) -> bool:
+    def dir_rule(self, name: str) -> str | None:
+        """Qual entrada de `exclude_dirs` tira esta pasta."""
         lowered = name.lower()
-        return any(lowered == d.lower() for d in self.exclude_dirs)
+        for d in self.exclude_dirs:
+            if lowered == d.lower():
+                return d
+        return None
+
+    def excluded_dir(self, name: str) -> bool:
+        return self.dir_rule(name) is not None
+
+    def file_rule(self, name: str, rel_dir: str = "") -> str | None:
+        """Qual regra tira este arquivo, com rótulo — `None` se nenhuma tira.
+
+        O rótulo é a chave de `Census.excluded_by_rule`. Atribuir a exclusão à
+        regra custa o mesmo que decidir se há exclusão, e é a diferença entre
+        "463 fora por papel" e "463 fora, sabe-se lá por quê"."""
+        g = _qual_casa(name, self.exclude_globs)
+        if g is not None:
+            return f"globs: {g}"
+        for r in self.role_exclusions:
+            if r.matches(name, rel_dir):
+                return r.label
+        return None
 
     def excluded_file(self, name: str, rel_dir: str = "") -> bool:
-        if _casa_algum(name, self.exclude_globs):
-            return True
-        return any(r.matches(name, rel_dir) for r in self.role_exclusions)
+        return self.file_rule(name, rel_dir) is not None
 
 
 @dataclass
@@ -191,6 +253,22 @@ class Census:
     excluded_files: int = 0
     excluded_dirs: int = 0
     excluded_dir_names: Counter = field(default_factory=Counter)
+    excluded_by_rule: Counter = field(default_factory=Counter)
+    """Quantas entradas cada regra de exclusão tirou desta passada, por rótulo.
+
+    Existe porque regra que não casa com nada **falha em silêncio**, e o
+    silêncio parece sucesso. Medido em 26/08/2026: uma regra de papel escrita
+    com o prefixo errado (`16. Anexos volumosos` onde o caminho relativo à raiz
+    era `corpus/16. Anexos volumosos`) casou com zero arquivos, a passada correu
+    inteira como se a exclusão existisse, e o custo foi 3 h 22 min de máquina e
+    uma medição contaminada. É a mesma classe que o `.gitignore` por nome já
+    tinha custado em 20/08 — quatro `metricas-f2-*` commitados."""
+    role_scope_dirs: Counter = field(default_factory=Counter)
+    """Quantas pastas o escopo `dirs` de cada regra de papel alcançou.
+
+    Separa os dois motivos de uma regra não casar nada, que pedem correções
+    diferentes: prefixo apontando para pasta nenhuma (escopo zero) ou pasta
+    certa e glob que não casa (escopo > 0)."""
     largest: list[tuple[int, str]] = field(default_factory=list)
     oldest_mtime: float | None = None
     newest_mtime: float | None = None
@@ -252,6 +330,8 @@ class Census:
             "excluded_files": self.excluded_files,
             "excluded_dirs": self.excluded_dirs,
             "excluded_dir_names": dict(self.excluded_dir_names),
+            "excluded_by_rule": dict(self.excluded_by_rule),
+            "role_scope_dirs": dict(self.role_scope_dirs),
             "largest": [{"bytes": s, "path": p} for s, p in self.top_largest(top)],
             "oldest_mtime": self.oldest_mtime,
             "newest_mtime": self.newest_mtime,
@@ -351,6 +431,13 @@ class FileEntry:
         return is_cloud_only(self.attrs)
 
 
+def _contar_escopo(cfg: Config, sink: Census, rel_dir: str) -> None:
+    """Registra que esta pasta caiu no escopo `dirs` de cada regra de papel."""
+    for r in cfg.role_exclusions:
+        if r.dirs and r.covers(rel_dir):
+            sink.role_scope_dirs[r.label] += 1
+
+
 def iter_files(root: RootSpec, cfg: Config, sink: Census | None = None) -> Iterator[FileEntry]:
     """Yield every file under a root, applying the configured exclusions.
 
@@ -361,6 +448,10 @@ def iter_files(root: RootSpec, cfg: Config, sink: Census | None = None) -> Itera
     """
     base = str(root.path)
     stack: list[tuple[str, int, str, str]] = [(caminho_estendido(base), 0, "", "")]
+    if sink is not None:
+        # A própria raiz conta como pasta alcançada: uma regra sem `dirs` cobre
+        # tudo, e uma com `dirs` pode apontar para a raiz.
+        _contar_escopo(cfg, sink, "")
     while stack:
         directory, depth, top_folder, rel_dir = stack.pop()
         try:
@@ -380,10 +471,12 @@ def iter_files(root: RootSpec, cfg: Config, sink: Census | None = None) -> Itera
 
             attrs = _attrs_of(st)
             if stat.S_ISDIR(st.st_mode):
-                if cfg.excluded_dir(entry.name):
+                regra_dir = cfg.dir_rule(entry.name)
+                if regra_dir is not None:
                     if sink is not None:
                         sink.excluded_dirs += 1
                         sink.excluded_dir_names[entry.name] += 1
+                        sink.excluded_by_rule[f"dirs: {regra_dir}"] += 1
                     continue
                 if attrs & FILE_ATTRIBUTE_REPARSE_POINT or stat.S_ISLNK(st.st_mode):
                     # Junction / symlink: record it, do not descend (cycles, and
@@ -391,23 +484,20 @@ def iter_files(root: RootSpec, cfg: Config, sink: Census | None = None) -> Itera
                     if sink is not None:
                         sink.reparse_dirs.append(caminho_normal(entry.path))
                     continue
+                rel_novo = f"{rel_dir}/{entry.name}" if rel_dir else entry.name
                 if sink is not None:
                     sink.dirs += 1
-                stack.append(
-                    (
-                        entry.path,
-                        depth + 1,
-                        top_folder or entry.name,
-                        f"{rel_dir}/{entry.name}" if rel_dir else entry.name,
-                    )
-                )
+                    _contar_escopo(cfg, sink, rel_novo)
+                stack.append((entry.path, depth + 1, top_folder or entry.name, rel_novo))
                 continue
 
             if not stat.S_ISREG(st.st_mode):
                 continue
-            if cfg.excluded_file(entry.name, rel_dir):
+            regra_arquivo = cfg.file_rule(entry.name, rel_dir)
+            if regra_arquivo is not None:
                 if sink is not None:
                     sink.excluded_files += 1
+                    sink.excluded_by_rule[regra_arquivo] += 1
                 continue
 
             caminho = caminho_normal(entry.path)
@@ -437,6 +527,64 @@ def walk_root(root: RootSpec, cfg: Config, census: Census) -> None:
         )
 
 
+# --- conferência das exclusões declaradas ----------------------------------
+# Uma regra de exclusão que não casa com nada não devolve erro nenhum: a passada
+# corre inteira e o resultado *parece* certo, porque menos arquivos é o que se
+# pediu. O único jeito de perceber é contar por regra e comparar com zero — e
+# isso tem de acontecer **antes** de abrir o primeiro arquivo, senão o aviso
+# chega depois do custo. Ver `docs/regra-de-ouro.md` regra 12: o defeito não se
+# remenda no `config.e1.toml`, se generaliza aqui.
+
+
+def check_exclusions(cfg: Config, census: Census) -> list[str]:
+    """Regras declaradas que não tiraram nada, em texto de aviso.
+
+    Chamar depois de percorrer as raízes inteiras (o `sink` tem de ser o mesmo
+    `Census` da passada) e antes de abrir qualquer conteúdo. Lista vazia = toda
+    regra declarada teve efeito.
+    """
+    avisos: list[str] = []
+    for d in cfg.declared.dirs:
+        if not census.excluded_by_rule.get(f"dirs: {d}"):
+            avisos.append(
+                f"exclusão sem efeito — `dirs = \"{d}\"` não casou com nenhuma pasta. "
+                "`dirs` casa pelo **nome** da pasta, em qualquer nível; caminho com "
+                "`/` nunca casa"
+            )
+    for g in cfg.declared.globs:
+        if not census.excluded_by_rule.get(f"globs: {g}"):
+            avisos.append(
+                f"exclusão sem efeito — `globs = \"{g}\"` não casou com nenhum arquivo"
+            )
+    for r in cfg.declared.roles:
+        if census.excluded_by_rule.get(r.label):
+            continue
+        if r.dirs and not census.role_scope_dirs.get(r.label):
+            avisos.append(
+                f"exclusão sem efeito — a regra de papel `{r.label}` não alcançou nenhuma "
+                "pasta. `dirs` são **prefixos de caminho relativos à raiz**, com `/`, e não "
+                "nomes de pasta soltos: se o corpus mora em `<raiz>/corpus/`, o prefixo "
+                "precisa começar por `corpus/`"
+            )
+        else:
+            alcance = census.role_scope_dirs.get(r.label, census.dirs)
+            avisos.append(
+                f"exclusão sem efeito — a regra de papel `{r.label}` alcançou {alcance} "
+                "pasta(s), mas nenhum arquivo casou com os globs"
+            )
+    return avisos
+
+
+def relatar_exclusoes(cfg: Config, census: Census) -> dict[str, object]:
+    """O que a passada excluiu, por regra, mais os avisos. Vai no `progresso.json`."""
+    return {
+        "por_regra": dict(census.excluded_by_rule),
+        "arquivos": census.excluded_files,
+        "pastas": census.excluded_dirs,
+        "inertes": check_exclusions(cfg, census),
+    }
+
+
 def run_census(roots: list[RootSpec], cfg: Config | None = None) -> Census:
     """Walk every root and return the aggregated census."""
     cfg = cfg or Config(roots=roots)
@@ -461,6 +609,8 @@ def run_census(roots: list[RootSpec], cfg: Config | None = None) -> Census:
             human_bytes(bucket.bytes),
             bucket.cloud_only_files,
         )
+    for aviso in check_exclusions(cfg, census):
+        log.warning("%s", aviso)
     return census
 
 
@@ -514,6 +664,29 @@ def render_markdown(census: Census, cfg: Config, roots: list[RootSpec]) -> str:
     if census.errors:
         add(f"- Erros de acesso: {len(census.errors)}")
     add("")
+
+    if not cfg.declared.vazio:
+        add("## Exclusões declaradas")
+        add("")
+        add("Contagem por regra, e não só o total: regra que não casa com nada")
+        add("falha em silêncio, e menos arquivos é justamente o que se pediu.")
+        add("")
+        add("| Regra | Entradas excluídas |")
+        add("|-------|-------------------:|")
+        for d in cfg.declared.dirs:
+            add(f"| `dirs: {d}` | {census.excluded_by_rule.get(f'dirs: {d}', 0)} |")
+        for g in cfg.declared.globs:
+            add(f"| `globs: {g}` | {census.excluded_by_rule.get(f'globs: {g}', 0)} |")
+        for r in cfg.declared.roles:
+            add(f"| `{r.label}` | {census.excluded_by_rule.get(r.label, 0)} |")
+        add("")
+        inertes = check_exclusions(cfg, census)
+        if inertes:
+            for aviso in inertes:
+                add(f"- ⚠️ {aviso}")
+        else:
+            add("Toda regra declarada teve efeito.")
+        add("")
 
     add("## Por extensão")
     add("")
@@ -602,10 +775,14 @@ def load_config(path: Path) -> Config:
 
     exclude = data.get("exclude", {})
     cfg = Config(roots=roots, top=int(data.get("top", 15)))
+    declarados_dirs: tuple[str, ...] = ()
+    declarados_globs: tuple[str, ...] = ()
     if "dirs" in exclude:
-        cfg.exclude_dirs = DEFAULT_EXCLUDE_DIRS + tuple(exclude["dirs"])
+        declarados_dirs = tuple(str(d) for d in exclude["dirs"])
+        cfg.exclude_dirs = DEFAULT_EXCLUDE_DIRS + declarados_dirs
     if "globs" in exclude:
-        cfg.exclude_globs = DEFAULT_EXCLUDE_GLOBS + tuple(exclude["globs"])
+        declarados_globs = tuple(str(g) for g in exclude["globs"])
+        cfg.exclude_globs = DEFAULT_EXCLUDE_GLOBS + declarados_globs
     # `papel` também aqui, e não só em `config.py`: este é o caminho que o
     # baseline do eval usa, e ele tem de enumerar o MESMO universo que o
     # indexador. Duas listas de exclusão divergentes medem escala e creditam ao
@@ -618,6 +795,9 @@ def load_config(path: Path) -> Config:
             RoleExclusion(globs=tuple(r.get("globs", ())), dirs=tuple(r.get("dirs", ())))
             for r in papel
         )
+    cfg.declared = DeclaredExclusions(
+        dirs=declarados_dirs, globs=declarados_globs, roles=cfg.role_exclusions
+    )
     return cfg
 
 
@@ -653,6 +833,14 @@ def main(argv: list[str] | None = None) -> int:
         cfg.exclude_dirs = tuple(cfg.exclude_dirs) + tuple(args.exclude_dir)
     if args.exclude_glob:
         cfg.exclude_globs = tuple(cfg.exclude_globs) + tuple(args.exclude_glob)
+    if args.exclude_dir or args.exclude_glob:
+        # Exclusão pedida na linha de comando é declaração como qualquer outra —
+        # e é a mais fácil de errar, porque não fica escrita em lugar nenhum.
+        cfg.declared = DeclaredExclusions(
+            dirs=tuple(cfg.declared.dirs) + tuple(args.exclude_dir),
+            globs=tuple(cfg.declared.globs) + tuple(args.exclude_glob),
+            roles=cfg.declared.roles,
+        )
 
     if not cfg.roots:
         log.error("nenhuma raiz configurada")

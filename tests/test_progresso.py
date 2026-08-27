@@ -7,13 +7,21 @@ fechar o painel não para nada.
 from __future__ import annotations
 
 import json
+import threading
+import time
 from pathlib import Path
 
 import pytest
 
 from segundocerebro.index.esforco import PERFIS_DE_ESFORCO, aplicar, na_bateria
 from segundocerebro.index.estimativa import Estimador, Relogio
-from segundocerebro.index.progresso import NOME, Publicador, caminho_de, ler
+from segundocerebro.index.progresso import (
+    LIMITE_SEM_AVANCO,
+    NOME,
+    Publicador,
+    caminho_de,
+    ler,
+)
 
 MB = 1_000_000
 
@@ -166,3 +174,119 @@ def test_relato_permite_a_tela_dizer_a_verdade() -> None:
 
 def test_na_bateria_responde_ou_admite_que_nao_sabe() -> None:
     assert na_bateria() in (True, False, None)
+
+
+# --- Vigia: indexador parado não pode reportar que está indexando -------------
+#
+# Medido em 26/08/2026: a thread principal entrou num único `session.run` do
+# ONNX com lote de 32 trechos de janela cheia e não voltou. `publicar()` nunca
+# foi chamado, o arquivo congelou dizendo `"status": "indexando"` com ETA de 9 h,
+# e o processo passou 3 h 22 min sem avançar um documento. O único jeito de
+# descobrir era medir a CPU do processo por fora — que é o que ninguém faz.
+#
+# A classe é essa: **quem publica não pode ser quem trabalha**. Um vigia que
+# dependesse da thread travada para bater não seria vigia.
+
+
+def parado(tmp_path: Path, **kw) -> Publicador:
+    e = Estimador()
+    e.declarar([(f"{i}.pdf", MB) for i in range(10)])
+    return Publicador(indice=tmp_path, estimador=e, intervalo=0.0, **kw)
+
+
+def test_sem_avanco_zera_quando_documento_anda(tmp_path: Path) -> None:
+    p = parado(tmp_path, limite_sem_avanco=0.05)
+    p.estimador.registrar("0.pdf", MB, 1.0)
+    assert p.sem_avanco() == 0.0
+
+    time.sleep(0.08)
+    assert p.sem_avanco() >= 0.05, "nada mudou: o relógio de parada tem de correr"
+
+    p.estimador.registrar("1.pdf", MB, 1.0)
+    assert p.sem_avanco() == 0.0, "documento novo reabre o crédito"
+
+
+def test_trecho_dentro_do_arquivo_conta_como_avanco(tmp_path: Path) -> None:
+    """PDF de 800 trechos é legítimo e demora — mas o trecho anda.
+
+    Sem isto o vigia chamaria de travado justamente o documento grande que ele
+    existe para acompanhar.
+    """
+    p = parado(tmp_path, limite_sem_avanco=0.05)
+    p.anotar(arquivo="enorme.pdf", trecho=32)
+    p.sem_avanco()
+    time.sleep(0.08)
+
+    p.anotar(trecho=64)
+
+    assert p.sem_avanco() == 0.0
+
+
+def test_status_troca_para_travada_e_a_estimativa_deixa_de_valer(tmp_path: Path) -> None:
+    p = parado(tmp_path, limite_sem_avanco=0.05)
+    p.publicar(forcar=True)
+    assert ler(tmp_path)["status"] in {"indexando", "travada"}
+
+    time.sleep(0.08)
+    p.publicar(forcar=True)
+
+    dados = ler(tmp_path)
+    assert dados["status"] == "travada", "indexando com ETA enquanto nada anda é a mentira"
+    assert dados["sem_avanco_segundos"] >= 0
+
+
+def test_vigia_publica_sozinho_com_a_thread_principal_presa(tmp_path: Path) -> None:
+    """O teste que vale: ninguém chama `publicar` e o arquivo mesmo assim avisa."""
+    p = parado(tmp_path, limite_sem_avanco=0.05, intervalo_vigia=0.02)
+    p.publicar(forcar=True)
+    antes = ler(tmp_path)["atualizado_em"]
+    p.iniciar_vigia()
+    try:
+        # a thread principal "não volta": só dorme, sem publicar nada
+        limite = time.monotonic() + 3.0
+        while time.monotonic() < limite:
+            dados = ler(tmp_path)
+            if dados["status"] == "travada":
+                break
+            time.sleep(0.05)
+    finally:
+        p.parar_vigia()
+
+    dados = ler(tmp_path)
+    assert dados["status"] == "travada"
+    assert dados["atualizado_em"] > antes, "carimbo novo distingue processo parado de processo morto"
+    assert dados["sem_avanco_segundos"] >= 0
+
+
+def test_vigia_nao_sobrevive_ao_encerramento(tmp_path: Path) -> None:
+    vivas = threading.active_count()
+    p = parado(tmp_path, intervalo_vigia=0.02)
+    p.iniciar_vigia()
+    p.encerrar("concluida")
+
+    assert threading.active_count() <= vivas
+    assert ler(tmp_path)["status"] == "concluida"
+
+
+def test_vigia_nao_derruba_a_indexacao_quando_a_batida_falha(tmp_path: Path, monkeypatch) -> None:
+    """Ele lê estruturas que a thread principal está mutando. Isso pode explodir.
+
+    O que não pode é explodir para cima: progresso é conveniência, indexação é o
+    trabalho.
+    """
+    p = parado(tmp_path, limite_sem_avanco=0.0, intervalo_vigia=0.02)
+    monkeypatch.setattr(
+        type(p.estimador), "restante", lambda self: (_ for _ in ()).throw(RuntimeError("boom"))
+    )
+    p.iniciar_vigia()
+    time.sleep(0.15)
+    vivo = p._vigia is not None and p._vigia.is_alive()
+    p.parar_vigia()
+
+    assert vivo, "uma batida que falha não pode matar o vigia"
+
+
+def test_limite_padrao_e_generoso_o_bastante_para_documento_grande() -> None:
+    """Dez minutos: PDF de 800 trechos na CPU passa de meia hora, e nele o
+    avanço aparece por trecho. O que não é legítimo é *nada* mudar."""
+    assert LIMITE_SEM_AVANCO >= 300

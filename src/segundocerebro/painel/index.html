@@ -759,7 +759,8 @@ async function mostrarRegistro() {
 
 const ROTULO_STATUS = {
   preparando: "preparando", indexando: "indexando", pausada: "pausada",
-  concluida: "concluída", interrompida: "interrompida", falhou: "falhou",
+  travada: "sem avanço", concluida: "concluída", interrompida: "interrompida",
+  falhou: "falhou",
 };
 
 async function pedirComando(acao) {
@@ -780,7 +781,7 @@ function progressoVisivel(dados) {
   const mapa = dados.bases || {};
   const vivos = Object.entries(mapa).filter(([, b]) => {
     const s = b.progresso && b.progresso.status;
-    return s === "indexando" || s === "preparando" || s === "pausada";
+    return s === "indexando" || s === "preparando" || s === "pausada" || s === "travada";
   });
   if (vivos.length) return { id: vivos[0][0], ...vivos[0][1] };
   const paradas = Object.entries(mapa)
@@ -813,7 +814,11 @@ async function atualizarIndexacao() {
   const nomeBase = (bases.find((b) => b.id === desta.id) || { nome: desta.id }).nome;
   $("idxBaseNota").textContent = nomeBase;
 
-  const rodando = p.status === "indexando" || p.status === "preparando";
+  // `travada` é processo vivo que não avança. Conta como rodando para os botões
+  // (pausar e cancelar ainda valem) e **não** conta para o "faltam X h", que é
+  // justamente a linha que mentia enquanto nada andava.
+  const travada = p.status === "travada";
+  const rodando = p.status === "indexando" || p.status === "preparando" || travada;
   const pausada = p.status === "pausada";
   $("idxPausar").classList.toggle("oculto", !rodando);
   $("idxContinuar").classList.toggle("oculto", !pausada);
@@ -830,11 +835,13 @@ async function atualizarIndexacao() {
     + (p.chunks ? ` · ${Number(p.chunks).toLocaleString("pt-BR")} trechos` : "")
     + adiados;
 
-  $("idxFalta").textContent = rodando
-    ? `faltam ${p.restante}`
-    : (pausada && p.pausada_ha_segundos
-      ? `pausada há ${humanoSeg(p.pausada_ha_segundos)}`
-      : (p.resumo || ""));
+  $("idxFalta").textContent = travada
+    ? `sem avanço há ${humanoSeg(p.sem_avanco_segundos)} — a estimativa de ${p.restante} não vale enquanto isso`
+    : (rodando
+      ? `faltam ${p.restante}`
+      : (pausada && p.pausada_ha_segundos
+        ? `pausada há ${humanoSeg(p.pausada_ha_segundos)}`
+        : (p.resumo || "")));
   $("idxArquivo").textContent = p.arquivo || "";
   $("idxTempos").textContent = [
     p.corrido_segundos != null ? `tempo corrido ${humanoSeg(p.corrido_segundos)}` : "",
@@ -862,7 +869,12 @@ async function atualizarIndexacao() {
   }
 
   const atraso = p.atualizado_em ? (Date.now() / 1000 - p.atualizado_em) : 0;
-  if (rodando && atraso > 20) {
+  if (travada) {
+    $("idxSinal").innerHTML = `<div class="aviso">O indexador está vivo e <b>não avança há `
+      + `${humanoSeg(p.sem_avanco_segundos)}</b>. Ele pode estar dentro de uma única chamada de `
+      + `vetorização (lote grande demais para a memória livre) ou preso num arquivo. Confira a `
+      + `CPU do PID ${p.pid || "?"}: perto de zero é falta de memória, não trabalho lento.</div>`;
+  } else if (rodando && atraso > 20) {
     $("idxSinal").innerHTML = `<div class="aviso">A barra não recebeu sinal ${haQuanto(p.atualizado_em)}. O indexador pode estar preso num arquivo grande.</div>`;
   } else {
     $("idxSinal").textContent = p.atualizado_em ? `atualizado ${haQuanto(p.atualizado_em)}` : "";

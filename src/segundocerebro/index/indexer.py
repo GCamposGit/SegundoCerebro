@@ -34,7 +34,7 @@ from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 
-from ..census import Config, iter_files
+from ..census import Census, Config, iter_files, relatar_exclusoes
 from ..config import ErroDeConfig, LimitesDeIndexacao, carregar
 from ..ingest.chunking import CHUNKER_VERSION, ChunkConfig, chunk_document
 from ..ingest.parsers import parser_version_for
@@ -374,6 +374,7 @@ def indexar(
     esforco: dict[str, object] | None = None,
     parse_workers: int | None = None,
     apenas_onda: int | None = None,
+    exigir_exclusoes: bool = False,
 ) -> Progresso:
     """Index the corpus. `prefixo` restricts to a subtree by **filtering**.
 
@@ -415,18 +416,38 @@ def indexar(
     # fora) e por isso também desliga a reconciliação, mais abaixo. `--apenas-onda`
     # **não** recorta `vistos`: a onda 4 continua no disco, e reconciliar como se
     # tivesse sumido apagaria o histórico da passada anterior.
+    # O `sink` é o que permite conferir a exclusão **antes** de abrir arquivo:
+    # sem contagem por regra, uma regra que não casa com nada corre a passada
+    # inteira em silêncio e o resultado parece certo (26/08/2026, `F4-P.1`).
+    censo_da_passada = Census(attributes_available=(os.name == "nt"))
     enumerados = [
         (
             root,
             [
                 a
-                for a in iter_files(root, cfg)
+                for a in iter_files(root, cfg, sink=censo_da_passada)
                 if (not prefixo or a.rel.startswith(prefixo))
                 and (so_extensao is None or os.path.splitext(a.rel)[1].lower() in so_extensao)
             ],
         )
         for root in cfg.roots
     ]
+    exclusoes = relatar_exclusoes(cfg, censo_da_passada)
+    for aviso in exclusoes["inertes"]:
+        log.warning("%s", aviso)
+    if exclusoes["inertes"] and exigir_exclusoes:
+        store.encerrar_execucao(execucao, 0, 0, "recusada")
+        raise ErroDeConfig(
+            "recusando indexar: "
+            + str(len(exclusoes["inertes"]))
+            + " exclusão(ões) declarada(s) não casou com nada. Corrija a regra ou rode "
+            "sem --exigir-exclusoes para indexar com ela inerte"
+        )
+    if exclusoes["por_regra"]:
+        log.info(
+            "exclusões por regra: %s",
+            " · ".join(f"{k} = {v}" for k, v in sorted(exclusoes["por_regra"].items())),
+        )
     for _root, arquivos in enumerados:
         for arquivo in arquivos:
             vistos.add(arquivo.rel)
@@ -440,7 +461,7 @@ def indexar(
     relogio = Relogio()
     iniciado_em = time.time()
     previo = ler_progresso(store.diretorio) if publicar else None
-    if previo and previo.get("status") in {"preparando", "indexando", "pausada"}:
+    if previo and previo.get("status") in {"preparando", "indexando", "pausada", "travada"}:
         relogio.restaurar(
             ativo=float(previo.get("ativo_segundos") or 0),
             parado=float(previo.get("parado_segundos") or 0),
@@ -463,8 +484,15 @@ def indexar(
             modelo=embedder.model_id,
             esforco=esforco or {},
             recursos=(controle.plano.como_json() if controle else None),
+            # A tela mostra o que a exclusão tirou, por regra. Total sozinho não
+            # distingue "463 fora por papel" de "regra inerte e zero fora".
+            exclusoes=exclusoes,
         )
         publicador.publicar("preparando", forcar=True)
+        # O vigia sobe **antes** do primeiro documento: o primeiro embed já é um
+        # ponto em que a thread principal pode não voltar por horas, e quem
+        # publica não pode ser quem trabalha.
+        publicador.iniciar_vigia()
     log.info(
         "%d documentos a considerar · estimativa inicial %s",
         estimador.documentos_totais,
@@ -1023,6 +1051,17 @@ def main(argv: list[str] | None = None) -> int:
         "Ausente: as quatro, nesta ordem, numa passada só",
     )
     parser.add_argument(
+        "--exigir-exclusoes",
+        action="store_true",
+        dest="exigir_exclusoes",
+        help="recusa a passada se alguma exclusão declarada não casar com nada. "
+        "Sem isto o defeito só sai como aviso: regra inerte não devolve erro, a "
+        "passada corre inteira e menos arquivos é justamente o que se pediu — em "
+        "26/08/2026 custou 3 h 22 min e uma medição contaminada. Padrão avisa em "
+        "vez de recusar porque escopo legitimamente vazio existe (pasta que este "
+        "acervo ainda não tem)",
+    )
+    parser.add_argument(
         "--sem-reconciliar",
         action="store_true",
         help="não remove do índice os documentos que sumiram do disco; deixa fantasma para trás",
@@ -1096,7 +1135,11 @@ def main(argv: list[str] | None = None) -> int:
             forcar_reconciliacao=args.forcar_reconciliacao,
             parse_workers=args.parse_workers,
             apenas_onda=args.apenas_onda,
+            exigir_exclusoes=args.exigir_exclusoes,
         )
+    except ErroDeConfig as erro:
+        log.error("%s", erro)
+        return 2
     finally:
         estat = store.estatisticas()
         store.fechar()

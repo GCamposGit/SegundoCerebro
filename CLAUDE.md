@@ -144,6 +144,16 @@ a evidência datada em [`docs/historico-decisoes.md`](docs/historico-decisoes.md
 - **Documento sem chunk é invisível até para o ranqueador de nome.** A fronteira
   do índice é de conteúdo, não de nome — formato novo é um conjunto de documentos
   saindo do zero absoluto.
+- **Regra de exclusão que não casa com nada falha em silêncio, e o silêncio
+  parece sucesso.** Menos arquivos é justamente o que se pediu. Duas instâncias:
+  quatro `metricas-f2-*` commitados (20/08) e 3 h 22 min de máquina com medição
+  contaminada (26/08). O que resolve é contagem **por regra** conferida contra
+  zero antes de pagar o custo — `docs/duas-falhas-silenciosas.md`.
+- **Quem publica progresso não pode ser quem trabalha.** A thread principal
+  dentro de uma chamada só do ONNX não volta para atualizar a barra, e o arquivo
+  congela dizendo "indexando" com ETA. Vigia em thread separada, e `lote` de embed
+  é escolha de velocidade — os vetores de `lote=1` e `lote=32` são idênticos bit
+  a bit, e o de 32 é 3,2× mais lento nesta CPU.
 - **Número sem corpus, sem máquina e sem data é mentira** (`colaboracao.md` §4,
   regra 7).
 

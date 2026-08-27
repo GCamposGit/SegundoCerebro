@@ -44,7 +44,7 @@ from typing import Any
 
 from .census import DEFAULT_EXCLUDE_DIRS, DEFAULT_EXCLUDE_GLOBS
 from .census import Config as CensoConfig
-from .census import RoleExclusion, RootSpec
+from .census import DeclaredExclusions, RoleExclusion, RootSpec
 from .logger import get_logger
 
 log = get_logger("config")
@@ -395,6 +395,12 @@ class Base:
     `census.RoleExclusion` — existe porque glob solto casa pelo nome em qualquer
     lugar da raiz, e um arquivo de papel redundante dentro de uma pasta pode ser
     a única cópia fora dela."""
+    exclude_declarado: DeclaredExclusions = DeclaredExclusions()
+    """Quais dos três campos acima vieram do arquivo, e não do padrão técnico.
+
+    O indexador confere **só** estas contra zero: uma regra declarada que não
+    casa com nada é defeito silencioso (26/08/2026), enquanto `.git` casar zero
+    é o esperado."""
     pesos: Pesos = Pesos()
     busca: Busca = Busca()
     chunking: Chunking = Chunking()
@@ -424,6 +430,7 @@ class Base:
         cfg.exclude_dirs = self.exclude_dirs
         cfg.exclude_globs = self.exclude_globs
         cfg.role_exclusions = self.exclude_roles
+        cfg.declared = self.exclude_declarado
         return cfg
 
     def validar(self) -> None:
@@ -620,24 +627,37 @@ def _excludes(  # noqa: ANN202
     fonte: Mapping[str, Any],
     atuais: tuple[tuple[str, ...], tuple[str, ...], tuple[RoleExclusion, ...]],
     onde: str = "[exclude]",
+    declarado: DeclaredExclusions = DeclaredExclusions(),
 ):
-    """Somam-se às exclusões técnicas padrão, nunca as substituem."""
+    """Somam-se às exclusões técnicas padrão, nunca as substituem.
+
+    Devolve também **o que este arquivo declarou**, separado do padrão técnico.
+    Sem essa separação a conferência de efeito não existe: ou ela cala (nada
+    consta como declarado) ou grita uma dúzia de vezes por passada, porque
+    `.git` e `node_modules` casam zero em todo acervo de escritório."""
     dirs, globs, papeis = atuais
     bruto = fonte.get("exclude")
     if not bruto:
-        return dirs, globs, papeis
+        return dirs, globs, papeis, declarado
     desconhecidas = set(bruto) - set(CHAVES_DE_EXCLUDE)
     if desconhecidas:
         raise ErroDeConfig(
             f"em {onde}, chave desconhecida em 'exclude': {', '.join(sorted(desconhecidas))} "
             f"(conhecidas: {', '.join(CHAVES_DE_EXCLUDE)})"
         )
-    if "dirs" in bruto:
-        dirs = dirs + tuple(bruto["dirs"])
-    if "globs" in bruto:
-        globs = globs + tuple(bruto["globs"])
-    papeis = papeis + _papeis(bruto.get("papel"), onde)
-    return dirs, globs, papeis
+    novos_dirs = tuple(str(d) for d in bruto["dirs"]) if "dirs" in bruto else ()
+    novos_globs = tuple(str(g) for g in bruto["globs"]) if "globs" in bruto else ()
+    novos_papeis = _papeis(bruto.get("papel"), onde)
+    return (
+        dirs + novos_dirs,
+        globs + novos_globs,
+        papeis + novos_papeis,
+        DeclaredExclusions(
+            dirs=declarado.dirs + novos_dirs,
+            globs=declarado.globs + novos_globs,
+            roles=declarado.roles + novos_papeis,
+        ),
+    )
 
 
 def _base_de(dados: Mapping[str, Any], padrao: Base, indice: int) -> Base:
@@ -645,10 +665,11 @@ def _base_de(dados: Mapping[str, Any], padrao: Base, indice: int) -> Base:
     if not id_:
         raise ErroDeConfig(f"a base #{indice} não tem 'id'")
 
-    dirs, globs, papeis = _excludes(
+    dirs, globs, papeis, declarado = _excludes(
         dados,
         (padrao.exclude_dirs, padrao.exclude_globs, padrao.exclude_roles),
         f"base '{id_}'",
+        padrao.exclude_declarado,
     )
     return Base(
         id=str(id_),
@@ -662,6 +683,7 @@ def _base_de(dados: Mapping[str, Any], padrao: Base, indice: int) -> Base:
         exclude_dirs=dirs,
         exclude_globs=globs,
         exclude_roles=papeis,
+        exclude_declarado=declarado,
         pesos=_secao(dados, "pesos", padrao.pesos, Pesos),
         busca=_secao(dados, "busca", padrao.busca, Busca),
         chunking=_secao(dados, "chunking", padrao.chunking, Chunking),
@@ -752,6 +774,7 @@ def _do_censo(caminho: Path) -> Config:
             exclude_dirs=tuple(censo.exclude_dirs),
             exclude_globs=tuple(censo.exclude_globs),
             exclude_roles=tuple(censo.role_exclusions),
+            exclude_declarado=censo.declared,
         ),
         caminho.parent,
     )
@@ -962,7 +985,7 @@ def carregar(
         )
 
     padrao_bruto = dados.get("padrao", {})
-    dirs, globs, papeis = _excludes(
+    dirs, globs, papeis, declarado = _excludes(
         padrao_bruto, (DEFAULT_EXCLUDE_DIRS, DEFAULT_EXCLUDE_GLOBS, ()), "[padrao]"
     )
     padrao = Base(
@@ -971,6 +994,7 @@ def carregar(
         exclude_dirs=dirs,
         exclude_globs=globs,
         exclude_roles=papeis,
+        exclude_declarado=declarado,
         pesos=_secao(padrao_bruto, "pesos", Pesos(), Pesos),
         busca=_secao(padrao_bruto, "busca", Busca(), Busca),
         chunking=_secao(padrao_bruto, "chunking", Chunking(), Chunking),
