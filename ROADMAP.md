@@ -794,6 +794,7 @@ privada do desktop **não** trava nenhum destes:
 | E4 | Red-team por fase, modelo DynaBench | notebook | 4 | no fecho da fase corrente |
 | Q1 · Q2 | CI com lint/format/types/cov · `pyproject` como fonte única | qualquer | — | **sim** — eixo ortogonal, não decide ranking |
 | C5.a | Porta de custo do MIRACL: smoke de throughput → `docs/custo-miracl.md` | **desktop** | **1** | ✅ **fechado** — MIRACL-PT não existe no dataset publicado; ver [`docs/custo-miracl.md`](docs/custo-miracl.md) |
+| C5.c | Sucessor da camada 3: Quati amostrado, sem download → `docs/alarme-externo.md` | **desktop** | **1** | ✅ **fechado** — `quati-50k` adota (~1,1 h); 1M/mMARCO/MIRACL fora |
 | F6-A / R8.1 | `pip install` sem `PYTHONPATH=src`; matriz 3×SO no CI | **desktop** | **1** | ✅ **fechado** (PR #14) |
 | R8.1.b | `tests/test_pacote.py`: achar o script pelo `sysconfig`, e pular fora do CI em vez de falhar | notebook | 3 | sim — não bloqueia nada |
 | C4.5 | Fatia cross-lingual no harness (`mesma-língua` vs `cross-lingual`) | notebook | **1** | ✅ **fechado** — ver [`docs/fatia-cross-lingual.md`](docs/fatia-cross-lingual.md) |

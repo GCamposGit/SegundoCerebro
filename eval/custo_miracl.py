@@ -352,8 +352,8 @@ def render(porta: Porta) -> str:
     ]
     if porta.sai_da_ablacao:
         linhas += [
-            "**MIRACL sai da ablação.** A camada 3 (alarme anti-endogamia) precisa",
-            "de outro artefato — esta porta não escolhe qual.",
+            "**MIRACL sai da ablação.** A camada 3 ficou em `docs/alarme-externo.md`",
+            "(C5.c): Quati amostrado, sem download.",
             "",
         ]
     else:

@@ -48,9 +48,8 @@ línguas — `ar bn de en es fa fi fr hi id ja ko ru sw te th yo zh` — e **nã
 *monolíngue* por split; não há o que amostrar em português nele.
 
 A camada 3 do `E3` (alarme anti-endogamia) continua no protocolo. O artefato
-não é este. Esta porta **não escolhe o sucessor** — mMARCO-pt, Wikipedia PT
-fatiada, ou outro recorte público são pacote novo, e batem na mesma porta de
-12 h.
+não é este. O sucessor ficou em [`alarme-externo.md`](alarme-externo.md)
+(**C5.c**): Quati amostrado (`quati-50k`), sem download nesta passada.
 
 Não se criou `[[base]]`. Não se gravou vetor. Não se baixou dataset.
 
