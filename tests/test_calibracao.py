@@ -754,6 +754,12 @@ def test_todo_caminho_barato_esta_declarado_num_lugar_so():
     assert "estimador.registrar(arquivo.rel" not in fonte, (
         "voltou um call site com a API antiga: tempo de parede direto na calibragem"
     )
+    # nem `aplicar` pode receber o `comeco` da v1 no lugar do cronômetro. A
+    # primeira versão deste teste olhava só os `registrar`, e o merge seguinte
+    # trouxe justamente um `aplicar(..., time.perf_counter())` no passe de OCR.
+    assert "time.perf_counter(),\n" not in fonte, (
+        "algum call site está passando float onde `aplicar` espera Cronometro"
+    )
     # toda situação que o indexador declara tem de ser conhecida
     import re
 

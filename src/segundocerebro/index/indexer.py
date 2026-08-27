@@ -977,6 +977,17 @@ def indexar(
             inflight.clear()
 
         def aplicar(root, arquivo, estado, resultado, crono) -> None:  # noqa: ANN001
+            # Guarda de tipo, não paranoia: até a v2 este parâmetro era o
+            # `perf_counter()` de partida, e **dois** merges seguidos trouxeram
+            # um call site novo passando float — o modo de dois passes e o OCR.
+            # Sem isto o sintoma era `AttributeError: 'float' object has no
+            # attribute 'marcar'` três quadros abaixo, no meio de uma passada.
+            if not isinstance(crono, Cronometro):
+                raise TypeError(
+                    f"aplicar() espera Cronometro, recebeu {type(crono).__name__}. "
+                    "Um call site novo está passando o `comeco` da v1: crie um "
+                    "Cronometro(relogio) e credite as etapas nele."
+                )
             relogio.tique()
             if resultado.status is not ParseStatus.OK or resultado.doc is None:
                 if _venenoso(resultado):
@@ -1396,6 +1407,10 @@ def indexar(
                     if publicador is not None:
                         publicador.anotar(arquivo=rel, etapa="ocr", falhas=progresso.falhas)
                         publicador.publicar()
+                    # O OCR roda **nesta** thread, não em worker: o
+                    # cronômetro pode medir o parse direto. E é o parse mais
+                    # caro do indexador, então é o que mais interessa medir.
+                    crono_ocr = Cronometro(relogio)
                     resultado = parse_isolado(
                         abs_path,
                         retries=1,
@@ -1406,12 +1421,13 @@ def indexar(
                         indice=store.diretorio,
                         ocr=True,
                     )
+                    crono_ocr.marcar("parse")
                     aplicar(
                         root,
                         arquivo,
                         store.estado_documento(rel),
                         resultado,
-                        time.perf_counter(),
+                        crono_ocr,
                     )
 
         if dois_passes and not progresso.interrompido:

@@ -601,10 +601,12 @@ PRIOR_FORMATO: dict[str, PerfilFormato] = {
     "ppt":   PerfilFormato("ppt", k_tok=15_974, tok_por_chunk=39, p_parse=8.0, n_obs=1),
     "xls":   PerfilFormato("xls", k_tok=77_101, tok_por_chunk=5, p_parse=10.0, n_obs=1),
     "rtf":   PerfilFormato("rtf", k_tok=332_881, tok_por_chunk=40, p_parse=3.0, n_obs=1),
-    # `pdf:texto` tem uma observação só; `pdf:ocr` **não tem nenhuma** — o OCR
-    # não está implementado. Prior ausente de propósito: inventar coeficiente
-    # aqui produziria número confiante sobre trabalho que ninguém mediu. O
-    # estado cai para `calibrando` quando aparecer um digitalizado.
+    # `pdf:texto` tem uma observação só; `pdf:ocr` **não tem nenhuma**, e o OCR
+    # existe desde o PR #38 (R1.2 / F4-O) — então a lacuna é de medição, não de
+    # implementação. Prior ausente de propósito: inventar coeficiente aqui
+    # produziria número confiante sobre trabalho que ninguém mediu, e OCR é o
+    # caminho mais caro do indexador. O estado cai para `calibrando` quando
+    # aparecer um digitalizado, até a primeira passada real medir.
     "pdf:texto": PerfilFormato("pdf:texto", k_tok=41_814, tok_por_chunk=39, p_parse=15.0, n_obs=1),
 }
 

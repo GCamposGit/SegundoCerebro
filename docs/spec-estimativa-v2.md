@@ -517,10 +517,14 @@ a fatia 3 substituí-los.
 
 ## 14. O que esta especificação não resolve
 
-- **`p_parse` de PDF com OCR** não tem nenhuma observação neste projeto — o OCR
-  não está implementado. O prior tem de ser marcado como ausente, e o estado
-  cai para `calibrando` quando aparecer um PDF digitalizado. Não inventar
-  coeficiente.
+- **`p_parse` de PDF com OCR** não tem nenhuma observação, e agora tem por que
+  ter: o OCR entrou na `main` pelo PR #38 (`R1.2 / F4-O`) enquanto este pacote
+  era escrito. O prior de `pdf:ocr` segue **ausente de propósito** — inventar
+  coeficiente ali produziria confiança sobre trabalho que ninguém mediu — e
+  `SEM_PRIOR` mantém o estado em `calibrando` quando aparecer um digitalizado.
+  A primeira passada com OCR sobre acervo real é o que fecha isso, e o
+  mecanismo para absorvê-la já está no lugar: `tipo_de(..., digitalizado=True)`
+  devolve `pdf:ocr`, então a medição cai na chave certa sozinha.
 - **O residual de ~0,12 s/doc** entre a soma das etapas medidas (~0,24 s) e o
   fim-a-fim (~0,365 s) não está atribuído. Suspeito principal:
   `publicador.publicar()` grava `progresso.json` com `replace` atômico **a cada
