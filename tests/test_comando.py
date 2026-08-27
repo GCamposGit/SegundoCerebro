@@ -62,17 +62,16 @@ def test_cancelar_antes_da_largada_nao_indexa(tmp_path: Path) -> None:
 
 
 def test_cancelar_durante_a_passada_encerra(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
-    from segundocerebro.ingest import reader
+    from segundocerebro.index.isolamento import parse_isolado as original
 
     cfg = corpus(tmp_path / "raiz")
     store = Store(tmp_path / "indice", DIM)
-    original = reader.parse_file
 
     def parse_e_cancela(path, **kw):  # noqa: ANN001, ANN003
         pedir(store.diretorio, CANCELAR)
         return original(path, **kw)
 
-    monkeypatch.setattr("segundocerebro.index.indexer.parse_file", parse_e_cancela)
+    monkeypatch.setattr("segundocerebro.index.indexer.parse_isolado", parse_e_cancela)
     progresso = indexar(cfg, store, EmbedderFalso(), parse_workers=1, publicar=False)
     assert progresso.interrompido
     store.fechar()

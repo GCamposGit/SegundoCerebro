@@ -275,15 +275,26 @@ class Chunking:
 PERFIS = ("leve", "normal", "maximo")
 """Esforço ao indexar. Não é backend: `gpu` era eixo misturado e virou alias."""
 
-ALIAS_PERFIL = {"completo": "normal", "gpu": "maximo"}
-"""Nomes antigos do `[maquina] perfil`. `completo` era o normal; `gpu` não é esforço."""
+ALIAS_PERFIL = {
+    "completo": "normal",
+    "gpu": "maximo",
+    "discreto": "leve",
+    "noturno": "maximo",
+}
+"""Nomes antigos e presets do leigo (R5.2). `gpu` não é esforço.
+
+`discreto` → `leve`, `noturno` → `maximo`. `automatico` **não** é alias: fica
+como perfil, para os sensores de `index.orcamento` saberem que podem baixar
+para `leve`. Sem isso o arquivo diria automatico e o carregador apagaria o
+pedido.
+"""
 
 FRACAO_CPU = {"leve": 0.25, "normal": 0.50, "maximo": 1.00}
 """Fração dos núcleos lógicos. Leve e normal nunca ficam com 100% se houver o que deixar."""
 
 
 def normalizar_perfil(perfil: str) -> str:
-    """`leve` / `normal` / `maximo`. Aceita os nomes velhos para não quebrar config.toml."""
+    """`leve` / `normal` / `maximo`. Aceita os nomes velhos e os presets do leigo."""
     p = (perfil or "normal").strip().lower()
     return ALIAS_PERFIL.get(p, p)
 
@@ -298,6 +309,8 @@ def nucleos_para(perfil: str, nucleos: int | None = None) -> int:
     n = nucleos if nucleos is not None else (os.cpu_count() or 4)
     n = max(1, int(n))
     perfil = normalizar_perfil(perfil)
+    if perfil == "automatico":
+        perfil = "normal"
     if n <= 1 or perfil == "maximo":
         return n
     fracao = FRACAO_CPU.get(perfil, FRACAO_CPU["normal"])
@@ -343,15 +356,46 @@ class Maquina:
 
     def validar(self) -> None:
         perfil = normalizar_perfil(self.perfil)
-        if perfil not in PERFIS:
+        if perfil not in PERFIS and perfil != "automatico":
             raise ErroDeConfig(
-                f"perfil de máquina desconhecido: '{self.perfil}' (use {', '.join(PERFIS)})"
+                f"perfil de máquina desconhecido: '{self.perfil}' "
+                f"(use {', '.join(PERFIS)} ou automatico)"
             )
         if self.threads is not None and self.threads < 1:
             raise ErroDeConfig(f"[maquina]: 'threads' precisa ser ao menos 1 ({self.threads})")
         if self.lote < 1:
             raise ErroDeConfig(f"[maquina]: 'lote' precisa ser ao menos 1 ({self.lote})")
         self.limites.validar("[maquina.limites]")
+
+
+MODELOS_CONHECIDOS = ("minilm", "mpnet", "e5-large")
+"""Espelho de `index.embeddings.MODELOS`. Não importar o encoder daqui."""
+
+
+@dataclass(frozen=True)
+class Indexacao:
+    """Estratégia da passada — velocidade, não conteúdo final do índice.
+
+    `modelo_rascunho` liga o segundo passe (R3.2). MiniLM (384d, janela 128)
+    **não** convive na tabela Lance do e5-large (1024d): o rascunho real é
+    parse + FTS, e o passe 2 grava os vetores finais. O campo existe para o
+    leigo pedir "quero busca hoje" sem escolher dimensão.
+    """
+
+    modelo_rascunho: str = ""
+    dois_passes: bool = False
+
+    @property
+    def ativo(self) -> bool:
+        return self.dois_passes or bool(self.modelo_rascunho)
+
+    def validar(self) -> None:
+        nome = (self.modelo_rascunho or "").strip()
+        if nome and nome not in MODELOS_CONHECIDOS:
+            raise ErroDeConfig(
+                f"[indexacao]: modelo_rascunho '{nome}' desconhecido "
+                f"(use {', '.join(MODELOS_CONHECIDOS)} ou deixe vazio)"
+            )
 
 
 @dataclass(frozen=True)
@@ -451,6 +495,7 @@ class Base:
 class Config:
     bases: tuple[Base, ...]
     maquina: Maquina = Maquina()
+    indexacao: Indexacao = Indexacao()
     caminho: Path | None = None
     """De onde veio. `None` quando sintetizada — o painel precisa saber para
     escrever no lugar certo em vez de inventar um arquivo."""
@@ -488,6 +533,7 @@ class Config:
         if not self.bases:
             raise ErroDeConfig("nenhuma base configurada")
         self.maquina.validar()
+        self.indexacao.validar()
         for b in self.bases:
             b.validar()
 
@@ -727,6 +773,16 @@ def _aplicar_ambiente(base: Base, ambiente: Mapping[str, str]) -> Base:
     return replace(base, pesos=pesos, busca=busca)
 
 
+def _indexacao(dados: Mapping[str, Any]) -> Indexacao:
+    if not dados:
+        return Indexacao()
+    rascunho = str(dados.get("modelo_rascunho", "") or "").strip()
+    dois = dados.get("dois_passes", False)
+    if isinstance(dois, str):
+        dois = dois.strip().lower() in {"1", "true", "sim", "yes"}
+    return Indexacao(modelo_rascunho=rascunho, dois_passes=bool(dois) or bool(rascunho))
+
+
 def _maquina(dados: Mapping[str, Any], ambiente: Mapping[str, str]) -> Maquina:
     """`[maquina]` do arquivo, depois o ambiente por cima.
 
@@ -825,6 +881,10 @@ def como_toml(cfg: Config, raiz: Path | None = None) -> dict[str, Any]:
             del maquina["limites"]
     if maquina:
         dados["maquina"] = {k: v for k, v in maquina.items() if v is not None}
+
+    indexacao = diferenca(cfg.indexacao, Indexacao())
+    if indexacao:
+        dados["indexacao"] = {k: v for k, v in indexacao.items() if v not in (None, "", False)}
 
     bases: list[dict[str, Any]] = []
     for b in cfg.bases:
@@ -1013,7 +1073,12 @@ def carregar(
         _aplicar_ambiente(_resolver(_base_de(bruta, padrao, i), raiz_do_arquivo), ambiente)
         for i, bruta in enumerate(brutas, start=1)
     )
-    cfg = Config(bases=bases, maquina=_maquina(dados.get("maquina", {}), ambiente), caminho=caminho)
+    cfg = Config(
+        bases=bases,
+        maquina=_maquina(dados.get("maquina", {}), ambiente),
+        indexacao=_indexacao(dados.get("indexacao", {})),
+        caminho=caminho,
+    )
     if validar:
         cfg.validar()
     return cfg

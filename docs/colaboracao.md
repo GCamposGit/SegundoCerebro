@@ -639,24 +639,32 @@ sugestão; os três primeiros são a onda 1 e destravam as ondas 4 e 5.
    `requirements.txt` vira lockfile de CI, extras `[gpu]`/`[ocr]`, matriz
    `windows`+`ubuntu`+`macos` no CI. Alvo: `pip install` + um comando sobe o
    servidor em venv limpa, sem `PYTHONPATH`.
-4. **C7.a + C7.d — perda silenciosa em planilha.** ~~**C7.d fechado no PR #34**~~
-   (CSV na rota de planilha; teto de 2 MB deixou de esconder o arquivo). **C7.a
-   neste PR:** recálculo via LibreOffice headless — **mesmo binário do R1.1**.
-   Planilha com fórmula sem cache (`sem_valor_em_cache`) entra em
-   `soffice --convert-to xlsx`; sem o binário, o aviso fica no relatório de
-   ingestão. Suíte padrão passa sem LibreOffice (fallback testado com mock).
-   `.tsv` **não** entra aqui: registrar a extensão exige fixture no gerador,
-   que é do notebook.
-5. **F4-L, F4-W, R1.4, R5.2, R3.2** — como já estavam, mais quarentena de
-   arquivo venenoso, orçamento adaptativo de recursos e indexação em dois passes.
+4. ~~**C7.a + C7.d — perda silenciosa em planilha.**~~ **C7.d** PR #34, **C7.a**
+   PR #35. Recálculo via LibreOffice headless — **mesmo binário do R1.1**.
+5. **R1.4 + R5.2 + R3.2 — neste PR (`f4-sobrevivencia`).** Quarentena de
+   arquivo venenoso, orçamento adaptativo, dois passes. Nada de `retrieve/`,
+   nada de `[padrao]`, nada de `model_id` no encoder padrão.
+
+   **Premissa do dossiê que não sobreviveu ao código (R3.2):** MiniLM (384d,
+   janela 128) não convive na tabela Lance do e5-large (1024d), e a janela
+   diferente mudaria os ids de chunk — o passe 2 não seria byte-idêntico.
+   O rascunho que preserva identidade é parse + FTS; o passe 2 grava os
+   vetores finais. Fusão densa rascunho+final é pacote do notebook.
+
+   **Paths deste PR:** `index/isolamento.py` (novo), `index/orcamento.py`
+   (novo), `index/store.py` (tabela `quarentena`, `gravar_textos`),
+   `index/indexer.py`, `index/esforco.py` (aliases + sensor), `config.py`
+   (`[indexacao]`, presets do leigo), `config.example.toml`,
+   `ingest/report.py`, `painel/index.html` (uma linha), este arquivo,
+   `ROADMAP.md`. `config.py` e `painel/*` são "um de cada vez" e voltam no
+   merge.
 
 **Não começar** `[padrao]`, `Chunking`, `model_id`, `retrieve/*` — e **não
 implementar `R1.3`**: o complemento mostrou que MinHash a 0,85 fundiria o que
 `familias.py` separa de propósito e reintroduziria o `g045`. `R1.3` está
-absorvido por `C6`, que é do notebook.
-
-`config.py` e `painel/*` estão **livres** desde o merge do F4-M — mas continuam
-"um de cada vez": declare aqui antes de pegar.
+absorvido por `C6`, que é do notebook. **Não começar C7.b/C7.c** (onda 5,
+pede ablação). **Não começar F4-L / R1.1 neste PR** — o `libreoffice.py` já
+está em `main`; o conversor de legado é o próximo depois deste merge.
 
 ### Os dois documentos de recomendação
 

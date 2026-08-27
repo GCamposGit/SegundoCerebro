@@ -25,7 +25,7 @@ import sqlite3
 import re
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 import numpy as np
@@ -178,6 +178,18 @@ CREATE TABLE IF NOT EXISTS execucoes (
     chunks       INTEGER DEFAULT 0,
     status       TEXT NOT NULL DEFAULT 'em_andamento'
 );
+
+-- R1.4: a poisonous file is skipped on later waves, not retried every pass.
+-- `CREATE TABLE IF NOT EXISTS` is enough here — this is a new table, not a
+-- column on an old one. Hash change (the user replaced the file) clears the row.
+CREATE TABLE IF NOT EXISTS quarentena (
+    path               TEXT PRIMARY KEY,
+    hash               TEXT DEFAULT '',
+    motivo             TEXT NOT NULL,
+    tentativas         INTEGER NOT NULL DEFAULT 1,
+    ultima_tentativa   TEXT NOT NULL,
+    proxima_tentativa  TEXT NOT NULL
+);
 """
 
 TERMO = re.compile(r"[0-9A-Za-zÀ-ÿ][0-9A-Za-zÀ-ÿ\-\./_]*")
@@ -239,6 +251,23 @@ class Acerto:
     id: str
     score: float
     posicao: int
+
+
+MAX_TENTATIVAS_QUARENTENA = 2
+"""First failure plus one retry after backoff. A third try waits for the bytes to change."""
+
+BACKOFF_QUARENTENA_S = 3600.0
+"""One hour, then two. Tests shorten this; a wave of days must not spin on the same PDF."""
+
+
+@dataclass(frozen=True)
+class ItemQuarentena:
+    path: str
+    hash: str
+    motivo: str
+    tentativas: int
+    ultima_tentativa: str
+    proxima_tentativa: str
 
 
 class Store:
@@ -476,6 +505,107 @@ class Store:
             + extras,
         )
 
+    def registrar_quarentena(
+        self,
+        path: str,
+        *,
+        hash: str = "",
+        motivo: str = "",
+        agora: datetime | None = None,
+        backoff_s: float | None = None,
+    ) -> ItemQuarentena:
+        """Record a poisonous-file failure and schedule the next retry.
+
+        Same path, same hash: increment. Hash changed: the user replaced the
+        file, so the count restarts. Tests pass `agora` and `backoff_s`.
+        """
+        instante = agora or datetime.now(timezone.utc)
+        espera = BACKOFF_QUARENTENA_S if backoff_s is None else float(backoff_s)
+        atual = self.quarentena_de(path)
+        if atual is None or atual.hash != hash:
+            tentativas = 1
+        else:
+            tentativas = atual.tentativas + 1
+        if tentativas >= MAX_TENTATIVAS_QUARENTENA:
+            proxima = instante + timedelta(days=365 * 100)
+        else:
+            proxima = instante + timedelta(seconds=espera * (2 ** (tentativas - 1)))
+        item = ItemQuarentena(
+            path=path,
+            hash=hash,
+            motivo=(motivo or "")[:500],
+            tentativas=tentativas,
+            ultima_tentativa=instante.isoformat(timespec="seconds"),
+            proxima_tentativa=proxima.isoformat(timespec="seconds"),
+        )
+        self.con.execute(
+            """
+            INSERT INTO quarentena (path, hash, motivo, tentativas, ultima_tentativa, proxima_tentativa)
+            VALUES (?,?,?,?,?,?)
+            ON CONFLICT(path) DO UPDATE SET
+                hash=excluded.hash, motivo=excluded.motivo, tentativas=excluded.tentativas,
+                ultima_tentativa=excluded.ultima_tentativa, proxima_tentativa=excluded.proxima_tentativa
+            """,
+            (
+                item.path,
+                item.hash,
+                item.motivo,
+                item.tentativas,
+                item.ultima_tentativa,
+                item.proxima_tentativa,
+            ),
+        )
+        return item
+
+    def quarentena_de(self, path: str) -> ItemQuarentena | None:
+        linha = self.con.execute(
+            "SELECT path, hash, motivo, tentativas, ultima_tentativa, proxima_tentativa "
+            "FROM quarentena WHERE path = ?",
+            (path,),
+        ).fetchone()
+        return ItemQuarentena(**dict(linha)) if linha else None
+
+    def listar_quarentena(self) -> list[ItemQuarentena]:
+        linhas = self.con.execute(
+            "SELECT path, hash, motivo, tentativas, ultima_tentativa, proxima_tentativa "
+            "FROM quarentena ORDER BY path"
+        )
+        return [ItemQuarentena(**dict(l)) for l in linhas]
+
+    def limpar_quarentena(self, path: str) -> None:
+        self.con.execute("DELETE FROM quarentena WHERE path = ?", (path,))
+
+    def deve_pular_quarentena(
+        self,
+        path: str,
+        hash: str = "",
+        *,
+        agora: datetime | None = None,
+    ) -> bool:
+        """True when this file is still in backoff, or retries are exhausted.
+
+        A different hash means the bytes changed — do not skip, and drop the row
+        so the next failure starts the count again.
+        """
+        item = self.quarentena_de(path)
+        if item is None:
+            return False
+        if hash and item.hash and hash != item.hash:
+            self.limpar_quarentena(path)
+            return False
+        instante = agora or datetime.now(timezone.utc)
+        try:
+            proxima = datetime.fromisoformat(item.proxima_tentativa)
+        except ValueError:
+            return item.tentativas >= MAX_TENTATIVAS_QUARENTENA
+        if proxima.tzinfo is None:
+            proxima = proxima.replace(tzinfo=timezone.utc)
+        if instante.tzinfo is None:
+            instante = instante.replace(tzinfo=timezone.utc)
+        if item.tentativas >= MAX_TENTATIVAS_QUARENTENA:
+            return True
+        return instante < proxima
+
     def registrados(self, prefixo: str | None = None) -> dict[str, str]:
         """Caminho -> sha256 de tudo que está no registro, opcionalmente sob um prefixo."""
         if prefixo:
@@ -495,6 +625,7 @@ class Store:
         """
         n = self.remover_documento(path)
         self.con.execute("DELETE FROM documentos WHERE path = ?", (path,))
+        self.con.execute("DELETE FROM quarentena WHERE path = ?", (path,))
         return n
 
     def remover_documento(self, path: str) -> int:
@@ -509,18 +640,15 @@ class Store:
                 log.debug("remoção de vetores sem efeito para %s: %s", path, exc)
         return n
 
-    def gravar_chunks(
-        self,
-        chunks: Sequence[Chunk],
-        vetores: Sequence[np.ndarray],
-        mtime: float,
-        model_id: str = "",
-    ) -> None:
+    def gravar_textos(self, chunks: Sequence[Chunk]) -> None:
+        """SQLite + FTS only — the lexical half of a two-pass run (R3.2).
+
+        The vector table stays untouched so a MiniLM draft cannot land in an
+        e5-large column (384 vs 1024). Search works the same day via bm25 and
+        the filename ranker; pass 2 writes the final vectors on top.
+        """
         if not chunks:
             return
-        if len(chunks) != len(vetores):
-            raise ValueError(f"{len(chunks)} chunks e {len(vetores)} vetores")
-
         self.con.executemany(
             "INSERT OR REPLACE INTO chunks (id, path, caminho, ordinal, trilha, locator, kind, chars, texto)"
             " VALUES (?,?,?,?,?,?,?,?,?)",
@@ -539,6 +667,18 @@ class Store:
                 for c in chunks
             ],
         )
+
+    def gravar_vetores(
+        self,
+        chunks: Sequence[Chunk],
+        vetores: Sequence[np.ndarray],
+        mtime: float,
+        model_id: str = "",
+    ) -> None:
+        if not chunks:
+            return
+        if len(chunks) != len(vetores):
+            raise ValueError(f"{len(chunks)} chunks e {len(vetores)} vetores")
         extensao = Path(chunks[0].doc_path).suffix.lower()
         self.tabela.add(
             [
@@ -555,6 +695,68 @@ class Store:
                 for c, v in zip(chunks, vetores)
             ]
         )
+
+    def substituir_vetores(
+        self,
+        chunks: Sequence[Chunk],
+        vetores: Sequence[np.ndarray],
+        mtime: float,
+        model_id: str = "",
+    ) -> None:
+        """Drop the dense rows for this document and write new ones. Chunks stay.
+
+        Pass 2 of a two-pass run: the lexical side is already searchable, only
+        the embedding model changed. Deleting chunks here would drop FTS.
+        """
+        if not chunks:
+            return
+        path = chunks[0].doc_path
+        escapado = path.replace("'", "''")
+        try:
+            self.tabela.delete(f"path = '{escapado}'")
+        except Exception as exc:  # noqa: BLE001 — no vector table yet is pass 1
+            log.debug("substituição de vetores sem tabela para %s: %s", path, exc)
+        self.gravar_vetores(chunks, vetores, mtime, model_id)
+
+    def gravar_chunks(
+        self,
+        chunks: Sequence[Chunk],
+        vetores: Sequence[np.ndarray],
+        mtime: float,
+        model_id: str = "",
+    ) -> None:
+        if not chunks:
+            return
+        if len(chunks) != len(vetores):
+            raise ValueError(f"{len(chunks)} chunks e {len(vetores)} vetores")
+        self.gravar_textos(chunks)
+        self.gravar_vetores(chunks, vetores, mtime, model_id)
+
+    def carimbar_modelo(self, path: str, model_id: str) -> None:
+        """Pass 2: the bytes did not change, only the dense space did."""
+        self.con.execute(
+            "UPDATE documentos SET model_id = ?, indexado_em = ? WHERE path = ?",
+            (model_id, agora(), path),
+        )
+
+    def pendentes_de_modelo(self, model_id: str) -> list[str]:
+        """OK documents that have chunks and are not yet on `model_id`."""
+        linhas = self.con.execute(
+            "SELECT path FROM documentos WHERE status = 'ok' AND n_chunks > 0 "
+            "AND (model_id IS NULL OR model_id != ?) ORDER BY path",
+            (model_id,),
+        )
+        return [r["path"] for r in linhas]
+
+    def cobertura_modelos(self) -> dict[str, int]:
+        """How many OK documents sit on each model_id, plus the lexical-only count."""
+        por: dict[str, int] = {}
+        for linha in self.con.execute(
+            "SELECT COALESCE(model_id, '') AS model_id, count(*) AS n "
+            "FROM documentos WHERE status = 'ok' AND n_chunks > 0 GROUP BY 1"
+        ):
+            por[linha["model_id"] or "lexical"] = int(linha["n"])
+        return por
 
     def commit(self) -> None:
         self.con.commit()
@@ -803,6 +1005,7 @@ class Store:
             "chunks": self.con.execute("SELECT count(*) FROM chunks").fetchone()[0],
             "por_status": por_status,
             "modelos": modelos,
+            "quarentena": self.con.execute("SELECT count(*) FROM quarentena").fetchone()[0],
         }
 
     def verificar_consistencia(self) -> dict[str, int]:

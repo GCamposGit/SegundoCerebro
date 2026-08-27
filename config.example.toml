@@ -25,10 +25,17 @@ versao = 1
 # produzido. Ver ARCHITECTURE.md §4, "hardware muda velocidade, nunca conteúdo".
 
 [maquina]
-perfil = "normal"      # leve | normal | maximo  (completo→normal, gpu→maximo)
+perfil = "normal"      # leve | normal | maximo
+                       # presets do leigo: automatico | noturno | discreto  (R5.2)
 # threads = 10         # ausente: o perfil decide (leve = metade dos núcleos)
 lote = 32
 # provider = "cuda"    # exige onnxruntime-gpu; vazio deixa o runtime escolher
+
+# R3.2: busca útil no mesmo dia, vetores finais no passe 2. MiniLM não cabe
+# na tabela do e5-large (384d vs 1024d); o rascunho é parse + FTS.
+# [indexacao]
+# dois_passes = true
+# modelo_rascunho = "minilm"   # liga dois_passes; o rascunho denso só entra se a dim coincidir
 
 # ---------------------------------------------------------------------------
 # Herdado por toda base, sobrescrevível dentro de cada uma.

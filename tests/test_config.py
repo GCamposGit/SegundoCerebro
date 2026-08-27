@@ -398,6 +398,12 @@ def test_alias_completo_e_gpu_continuam_lendo(tmp_path):
     assert carregar(caminho2, ambiente=SEM_AMBIENTE).maquina.perfil == "maximo"
 
 
+def test_indexacao_rascunho_desconhecido_recusa(tmp_path):
+    caminho = escrever(tmp_path, '[indexacao]\nmodelo_rascunho = "gpt"\n[[base]]\nid = "a"\n')
+    with pytest.raises(ErroDeConfig, match="modelo_rascunho"):
+        carregar(caminho, ambiente=SEM_AMBIENTE)
+
+
 def test_perfil_invalido(tmp_path):
     caminho = escrever(tmp_path, '[maquina]\nperfil = "turbo"\n[[base]]\nid = "a"\n')
     with pytest.raises(ErroDeConfig, match="perfil de máquina"):
