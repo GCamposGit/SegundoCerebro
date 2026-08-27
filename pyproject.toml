@@ -23,8 +23,8 @@ gpu = [
     "nvidia-cufft-cu11==10.9.0.58",
     "nvidia-curand-cu11==10.3.0.86",
 ]
-# Declared now so `pip install .[ocr]` is a real extra when F4-O lands.
-# Nothing in the default install or the dispatcher imports this yet.
+# RapidOCR (ONNX). Default install does not OCR; `indexar --ocr` is a no-op
+# without this extra. Tesseract is a fallback if the binary is on PATH.
 ocr = [
     "rapidocr-onnxruntime>=1.3,<2",
 ]

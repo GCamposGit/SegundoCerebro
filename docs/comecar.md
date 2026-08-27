@@ -217,9 +217,11 @@ o motivo mais comum é o de baixo.
 
 Preferimos dizer isto do que deixar você descobrir depois.
 
-- **PDF digitalizado não é lido.** Se o PDF é a foto de uma página — sem texto
-  selecionável —, não há nada para indexar. Ele não é lido *em silêncio*: fica
-  registrado como vazio. Reconhecimento de imagem está por fazer.
+- **PDF digitalizado.** Sem o extra de OCR, a foto da página fica registrada
+  como vazio — não some em silêncio. Com `pip install segundocerebro[ocr]` e
+  `py -m segundocerebro.index.indexer --ocr`, o texto da imagem entra no
+  índice **depois** dos documentos que já têm camada de texto. Sem o extra,
+  o resto da indexação não muda.
 - **Não vigia as pastas.** Documento novo só entra quando você rodar a indexação
   outra vez.
 - **Só estes formatos:** PDF (`.pdf`), Word (`.docx`, `.docm`, `.doc`, `.rtf`),

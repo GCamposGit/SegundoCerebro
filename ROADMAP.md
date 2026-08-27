@@ -811,8 +811,8 @@ privada do desktop **não** trava nenhum destes:
 | R3.1 + C4.1 + R2.1 | Modelo (com fatia cross-lingual) + contexto no chunk — **um rebuild só** | desktop roda, notebook mede | 5 | depois da régua multi-perfil |
 | C7.b · C7.c | Cartão de modelo de planilha; número é payload no modelo | desktop | 5 | — |
 | C2 + C3.b–d | Glossário automático do corpus + reescrita lexical (mesmo ponto de código) | desktop extrai, notebook mede | 6 | — |
-| F4-L / R1.1 | OLE que mente + conversor de legado | desktop | 6 | F4-L (mente) já em main; **R1.1 neste PR** |
-| F4-O / R1.2 | OCR de PDF digitalizado | a combinar (despachante) | 6 | **sim** |
+| F4-L / R1.1 | OLE que mente + conversor de legado | desktop | 6 | F4-L (mente) + R1.1 ✅ PR #37 |
+| F4-O / R1.2 | OCR de PDF digitalizado | **desktop** | 6 | **neste PR** — despachante intocado (OCR não é extensão) |
 | F4-W / R5.1 | Watcher, com camada USN Journal | desktop | 6 | **sim** |
 | F4-S | SharePoint = pasta sincronizada, só política e tela | notebook | 6 | **sim** |
 | R6.2+C4.2 · R7.1 · R7.2+C6.a · R6.3 | Rerank v2 · tools · descriptions · tempo/pasta | notebook | 7 | — |
@@ -1685,16 +1685,20 @@ entender e o painel mostrar “arquivo só na nuvem”. Graph API continua F5.
 - **Saída:** a tela distingue placeholder de arquivo local; teste sem OneDrive
   real (atributo fabricado)
 
-#### F4-O — OCR — **a combinar** (depois de F4-M)
+#### F4-O — OCR — **desktop** (R1.2)
 
-Três perguntas do dourado ainda são `fora_de_escopo: ocr`. Parser novo = bump de
-versão + despachante. Dois PRs se o OCR entrar no laço e no ranking.
+O parser de PDF já marca `digitalizado` e devolve zero blocos. O OCR é a
+**segunda passada**, depois das quatro ondas de texto — não uma extensão nova,
+então o despachante não muda. Extra `[ocr]` (RapidOCR); sem o extra a indexação
+é bit a bit a de hoje.
 
-- **Toca:** módulo novo em `ingest/parsers/`, uma linha no despachante, testes
-  com PDF sintético digitalizado (não o acervo)
-- **Não toca:** `retrieve/*` no mesmo PR
-- **Saída:** um PDF sem camada de texto vira trechos; as três perguntas perdem
-  a anotação `ocr` **só** com número antes/depois no corporativo
+- **Toca:** `ingest/ocr.py`, `reader.py` (`ocr=`), fase no `indexer.py`,
+  `store.documentos_para_ocr`, `[indexacao] ocr`, testes com PDF sintético
+  digitalizado (VCE, não o acervo)
+- **Não toca:** `retrieve/*`, `parsers/__init__.py`, `[padrao]`
+- **Saída:** um PDF sem camada de texto vira trechos quando o extra está
+  instalado e `--ocr` foi pedido. g015/g025/g048 perdem `fora_de_escopo: ocr`
+  **só** com número antes/depois no corporativo (notebook)
 
 #### F4-P — Reconciliar os dois caminhos de recuperação — **notebook**
 

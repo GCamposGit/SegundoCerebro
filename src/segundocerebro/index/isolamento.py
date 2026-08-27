@@ -31,6 +31,8 @@ TIMEOUT_CONVERT_S = 90.0
 """R1.1: .doc/.ppt/.xls may spawn LibreOffice inside the parse child."""
 
 EXTENSOES_CONVERT = frozenset({".doc", ".ppt", ".xls"})
+TIMEOUT_OCR_S = 120.0
+"""R1.2: a scan may rasterise and OCR every page inside the parse child."""
 LOG_QUARENTENA = "quarentena.log"
 
 EXTENSOES_ISOLADAS = frozenset(
@@ -39,11 +41,15 @@ EXTENSOES_ISOLADAS = frozenset(
 """PDF, Office, OLE, RTF — the formats whose parser is a native library."""
 
 
-def timeout_para(tamanho_bytes: int, path: str | None = None) -> float:
+def timeout_para(
+    tamanho_bytes: int, path: str | None = None, *, ocr: bool = False
+) -> float:
     mb = max(0.0, float(tamanho_bytes) / 1_000_000)
     teto = TIMEOUT_BASE_S + TIMEOUT_POR_MB_S * mb
     if path and os.path.splitext(path)[1].lower() in EXTENSOES_CONVERT:
         teto += TIMEOUT_CONVERT_S
+    if ocr:
+        teto += TIMEOUT_OCR_S
     return teto
 
 
@@ -206,6 +212,7 @@ def parse_isolado(
     ram_mb: int | None = None,
     worker: str = "parse",
     indice: Path | None = None,
+    ocr: bool = False,
 ) -> ParseResult:
     """Parse one file, in a child when the format can abort the process.
 
@@ -218,6 +225,7 @@ def parse_isolado(
         "espera": espera,
         "limite_planilha_mb": limite_planilha_mb,
         "limites_mb": dict(limites_mb) if limites_mb else None,
+        "ocr": ocr,
     }
     try:
         tamanho = os.stat(path).st_size
@@ -238,7 +246,7 @@ def parse_isolado(
     if worker == "parse" and not deve_isolar(path):
         return parse_file(path, **kwargs)
 
-    teto = timeout if timeout is not None else timeout_para(tamanho, path)
+    teto = timeout if timeout is not None else timeout_para(tamanho, path, ocr=ocr)
     ram_bytes = int(ram_mb * 1024 * 1024) if ram_mb else 0
     if ram_bytes:
         kwargs["ram_bytes"] = ram_bytes

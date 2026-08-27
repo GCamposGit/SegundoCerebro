@@ -748,6 +748,21 @@ class Store:
         )
         return [r["path"] for r in linhas]
 
+    def documentos_para_ocr(self, versao: str) -> list[tuple[str, str]]:
+        """Scans waiting for OCR, or OCR'd with an older engine. (path, raiz).
+
+        `digitalizado` is already the mark — a second `precisa_ocr` column
+        would duplicate it. The queue is: no chunks yet, or `parser` is an
+        old `ocr:*` version.
+        """
+        linhas = self.con.execute(
+            "SELECT path, raiz FROM documentos WHERE digitalizado = 1 AND ("
+            "n_chunks = 0 OR (parser LIKE 'ocr:%' AND parser != ?)"
+            ") ORDER BY path",
+            (versao,),
+        )
+        return [(r["path"], r["raiz"]) for r in linhas]
+
     def cobertura_modelos(self) -> dict[str, int]:
         """How many OK documents sit on each model_id, plus the lexical-only count."""
         por: dict[str, int] = {}
