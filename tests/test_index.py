@@ -771,6 +771,7 @@ def test_versao_de_parser_vem_do_registro_de_extensoes() -> None:
     assert parser_version_for(".MSG") == "2", "extensão em maiúscula é a mesma extensão"
     assert parser_version_for(".csv") == "2"
     assert parser_version_for(".xlsx") == "2"
+    assert parser_version_for(".doc") == parser_version_for(".ppt") == parser_version_for(".xls") == "2"
     assert parser_version_for(".pdf") == VERSAO_INICIAL
     assert parser_version_for(".xyz") == VERSAO_INICIAL, "sem parser é repescado por status"
 

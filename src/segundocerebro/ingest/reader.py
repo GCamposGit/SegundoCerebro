@@ -31,6 +31,12 @@ log = get_logger("ingest.reader")
 RETRIES_PADRAO = 2
 ESPERA_PADRAO = 1.0
 
+# R1.1: OLE legado → OOXML via LibreOffice, then the modern parser.
+# The dispatcher is not this module's to edit (`parsers/__init__.py` is
+# "um de cada vez"). The convert lives here, next to C7.a recalc.
+EXTENSOES_LEGADO = {".doc": ".docx", ".ppt": ".pptx", ".xls": ".xlsx"}
+_CONTEUDO_JA_ESTRUTURADO = frozenset({"html", "xml", "pptx", "spreadsheetml"})
+
 
 class CloudOnlyFile(OSError):
     """The content is not on disk; reading it would pull it from the cloud."""
@@ -168,38 +174,54 @@ def parse_file(
     try:
         doc = parser(dados, nome)
     except Exception as exc:  # a corrupt file must not stop the indexing run
-        natureza = detectar(path, dados)
-        if not natureza.extensao_mente:
-            log.warning("falha ao interpretar %s: %s", path, exc)
-            return ParseResult(
-                path=path,
-                status=ParseStatus.ERROR,
-                detail=f"{type(exc).__name__}: {exc}",
-                sha256=sha,
-                natureza=natureza,
-            )
+        # R1.1: xlrd/ole_texto recusou, Calc/Writer still might. Encryption is
+        # not that class — LibreOffice would prompt and hang.
+        if extensao in EXTENSOES_LEGADO and "criptograf" not in str(exc).lower():
+            legado = _converter_legado(None, dados, nome, extensao)
+            if legado is not None:
+                doc = legado
+            else:
+                doc = None
+        else:
+            doc = None
+        if doc is None:
+            natureza = detectar(path, dados)
+            if not natureza.extensao_mente:
+                log.warning("falha ao interpretar %s: %s", path, exc)
+                return ParseResult(
+                    path=path,
+                    status=ParseStatus.ERROR,
+                    detail=f"{type(exc).__name__}: {exc}",
+                    sha256=sha,
+                    natureza=natureza,
+                )
 
-        # Não é corrupção: é outro formato com a extensão errada. Antes de
-        # desistir, tentar o parser do conteúdo — o `detalhe` já dizia qual era,
-        # e recusar um documento que sabemos interpretar seria desperdício.
-        alternativo = _reinterpretar(path, dados, nome, natureza.familia_real)
-        if alternativo is None:
-            # Dizer o conteúdo real no `detalhe` poupa a investigação que este
-            # caso já custou uma vez.
-            log.warning(
-                "%s tem extensão %s mas conteúdo %s — não é corrupção",
-                path,
-                os.path.splitext(path)[1].lower(),
-                natureza.familia_real,
-            )
-            return ParseResult(
-                path=path,
-                status=ParseStatus.UNSUPPORTED,
-                detail=f"extensão mente: conteúdo é {natureza.familia_real}",
-                sha256=sha,
-                natureza=natureza,
-            )
-        doc = alternativo
+            # Não é corrupção: é outro formato com a extensão errada. Antes de
+            # desistir, tentar o parser do conteúdo — o `detalhe` já dizia qual era,
+            # e recusar um documento que sabemos interpretar seria desperdício.
+            alternativo = _reinterpretar(path, dados, nome, natureza.familia_real)
+            if alternativo is None:
+                # Dizer o conteúdo real no `detalhe` poupa a investigação que este
+                # caso já custou uma vez.
+                log.warning(
+                    "%s tem extensão %s mas conteúdo %s — não é corrupção",
+                    path,
+                    os.path.splitext(path)[1].lower(),
+                    natureza.familia_real,
+                )
+                return ParseResult(
+                    path=path,
+                    status=ParseStatus.UNSUPPORTED,
+                    detail=f"extensão mente: conteúdo é {natureza.familia_real}",
+                    sha256=sha,
+                    natureza=natureza,
+                )
+            doc = alternativo
+
+    if extensao in EXTENSOES_LEGADO and doc.meta.get("convertido") != "libreoffice":
+        melhor = _converter_legado(doc, dados, nome, extensao)
+        if melhor is not None:
+            doc = melhor
 
     if doc.meta.get("sem_valor_em_cache") == "1":
         doc = _recalcular_planilha(doc, dados, nome, parser)
@@ -239,6 +261,46 @@ def _reinterpretar(path: str, dados: bytes, nome: str, familia: str) -> ParsedDo
         return None
     log.info("extensão mente: %s interpretado como %s", path, familia)
     return doc
+
+
+def _converter_legado(
+    doc: ParsedDoc | None,
+    dados: bytes,
+    nome: str,
+    extensao: str,
+) -> ParsedDoc | None:
+    """OLE → OOXML via LibreOffice, then the modern parser. `None` keeps the fallback.
+
+    Parsers never spawn soffice. Missing binary is the ole_texto/xlrd result,
+    not EMPTY — same contract as C7.a recalc.
+    """
+    if doc is not None and (doc.meta or {}).get("conteudo_real") in _CONTEUDO_JA_ESTRUTURADO:
+        return None
+    moderno = EXTENSOES_LEGADO.get(extensao)
+    if moderno is None:
+        return None
+    from .converters.libreoffice import converter
+    from .parsers import parser_for
+
+    convertido = converter(dados, extensao)
+    if convertido is None:
+        return None
+    parser_mod = parser_for(moderno)
+    if parser_mod is None:
+        return None
+    try:
+        novo = parser_mod(convertido, nome)
+    except Exception as exc:  # noqa: BLE001 — convert succeeded, modern parse did not
+        log.warning("%s: LibreOffice converteu %s mas o parser %s recusou: %s", nome, extensao, moderno, exc)
+        return None
+    if not novo.blocks or not novo.total_chars:
+        log.info("%s: LibreOffice converteu %s mas não saiu texto", nome, extensao)
+        return None
+    meta = dict(novo.meta)
+    meta["convertido"] = "libreoffice"
+    meta["formato"] = extensao.lstrip(".")
+    log.info("%s: legado %s via LibreOffice → %s (%d blocos)", nome, extensao, moderno, len(novo.blocks))
+    return ParsedDoc(name=novo.name, blocks=novo.blocks, meta=meta)
 
 
 def _recalcular_planilha(doc: ParsedDoc, dados: bytes, nome: str, parser) -> ParsedDoc:  # noqa: ANN001

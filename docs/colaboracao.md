@@ -641,30 +641,27 @@ sugestão; os três primeiros são a onda 1 e destravam as ondas 4 e 5.
    servidor em venv limpa, sem `PYTHONPATH`.
 4. ~~**C7.a + C7.d — perda silenciosa em planilha.**~~ **C7.d** PR #34, **C7.a**
    PR #35. Recálculo via LibreOffice headless — **mesmo binário do R1.1**.
-5. **R1.4 + R5.2 + R3.2 — neste PR (`f4-sobrevivencia`).** Quarentena de
-   arquivo venenoso, orçamento adaptativo, dois passes. Nada de `retrieve/`,
-   nada de `[padrao]`, nada de `model_id` no encoder padrão.
+5. ~~**R1.4 + R5.2 + R3.2**~~ — **fechado no PR #36.** Quarentena, orçamento,
+   dois passes (rascunho = parse+FTS).
+6. **F4-L / R1.1 — neste PR (`f4-l-legado-libreoffice`).** Converter `.doc` /
+   `.ppt` / `.xls` pelo mesmo `libreoffice.py` do C7.a. Parsers continuam
+   recebendo bytes; o `reader.py` é o único que pode chamar soffice. Sem
+   LibreOffice: fallback `ole_texto`/`xlrd` (suíte verde). Não toca o
+   despachante. HTML-como-xls e PPTX-como-ppt (já no F4-L mergeado) não
+   passam pelo convert.
 
-   **Premissa do dossiê que não sobreviveu ao código (R3.2):** MiniLM (384d,
-   janela 128) não convive na tabela Lance do e5-large (1024d), e a janela
-   diferente mudaria os ids de chunk — o passe 2 não seria byte-idêntico.
-   O rascunho que preserva identidade é parse + FTS; o passe 2 grava os
-   vetores finais. Fusão densa rascunho+final é pacote do notebook.
-
-   **Paths deste PR:** `index/isolamento.py` (novo), `index/orcamento.py`
-   (novo), `index/store.py` (tabela `quarentena`, `gravar_textos`),
-   `index/indexer.py`, `index/esforco.py` (aliases + sensor), `config.py`
-   (`[indexacao]`, presets do leigo), `config.example.toml`,
-   `ingest/report.py`, `painel/index.html` (uma linha), este arquivo,
-   `ROADMAP.md`. `config.py` e `painel/*` são "um de cada vez" e voltam no
-   merge.
+   **Paths deste PR:** `ingest/converters/libreoffice.py`, `ingest/reader.py`,
+   `ingest/parsers/word.py` / `slides.py` / `sheets.py` (só `version=2` em
+   `.doc` `.ppt` `.xls`), `index/isolamento.py` (timeout do convert),
+   `tests/test_libreoffice.py`, `tests/test_ingest.py`, `tests/test_index.py`,
+   `tests/test_quarentena.py`, este arquivo, `ROADMAP.md`. Nada de
+   `retrieve/`, nada de `[padrao]`, nada de `parsers/__init__.py`.
 
 **Não começar** `[padrao]`, `Chunking`, `model_id`, `retrieve/*` — e **não
 implementar `R1.3`**: o complemento mostrou que MinHash a 0,85 fundiria o que
 `familias.py` separa de propósito e reintroduziria o `g045`. `R1.3` está
 absorvido por `C6`, que é do notebook. **Não começar C7.b/C7.c** (onda 5,
-pede ablação). **Não começar F4-L / R1.1 neste PR** — o `libreoffice.py` já
-está em `main`; o conversor de legado é o próximo depois deste merge.
+pede ablação). **Não começar F4-O** (despachante + OCR).
 
 ### Os dois documentos de recomendação
 

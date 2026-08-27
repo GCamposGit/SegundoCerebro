@@ -957,6 +957,10 @@ def test_xls_assertionerror_sem_mensagem_vira_erro_com_detalhe(
         raise AssertionError()
 
     monkeypatch.setattr(xlrd, "open_workbook", recusa)
+    monkeypatch.setattr(
+        "segundocerebro.ingest.converters.libreoffice.converter",
+        lambda *a, **k: None,
+    )
     dados = _xls_ole_com_registros()
     with pytest.raises(ValueError, match="xlrd recusou"):
         parse_xls(dados, "quebrado.xls")
@@ -994,10 +998,118 @@ def test_pptx_salvo_como_ppt_nao_vira_sem_parser(tmp_path: Path) -> None:
     assert resultado.natureza.extensao_mente
 
 
-def test_ppt_que_nao_e_ole2_vira_erro_nao_sem_parser(tmp_path: Path) -> None:
+def test_ppt_que_nao_e_ole2_vira_erro_nao_sem_parser(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        "segundocerebro.ingest.converters.libreoffice.converter",
+        lambda *a, **k: None,
+    )
     alvo = tmp_path / "lixo.ppt"
     alvo.write_bytes(b"isto nao e um ppt")
     resultado = parse_file(str(alvo))
     assert resultado.status is ParseStatus.ERROR
     assert resultado.status is not ParseStatus.UNSUPPORTED
     assert "OLE2" in resultado.detail
+
+
+# --- R1.1: legado via LibreOffice (mesmo binário do C7.a) --------------------
+#
+# Parsers still get bytes. The reader is the only place that may spawn soffice.
+# The standard suite must pass without LibreOffice: missing binary is ole_texto.
+
+
+def test_doc_via_libreoffice_ganha_titulo_e_corpo(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        "segundocerebro.ingest.converters.libreoffice.converter",
+        lambda dados, origem, **kw: bytes_docx(),
+    )
+    alvo = tmp_path / "politica.doc"
+    alvo.write_bytes(b"isto nao e ole")
+    resultado = parse_file(str(alvo))
+    assert resultado.status is ParseStatus.OK
+    assert resultado.doc is not None
+    assert resultado.doc.meta.get("convertido") == "libreoffice"
+    assert resultado.doc.meta.get("formato") == "doc"
+    trilhas = [b.heading_path for b in resultado.doc.blocks]
+    assert any(t and t[0] == "Política de IA" for t in trilhas)
+    assert any("uso aceitável" in b.text for b in resultado.doc.blocks)
+
+
+def test_ppt_via_libreoffice_ganha_titulo_por_slide(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        "segundocerebro.ingest.converters.libreoffice.converter",
+        lambda dados, origem, **kw: bytes_pptx(),
+    )
+    alvo = tmp_path / "copilot.ppt"
+    alvo.write_bytes(b"isto nao e ole")
+    resultado = parse_file(str(alvo))
+    assert resultado.status is ParseStatus.OK
+    assert resultado.doc is not None
+    assert resultado.doc.meta.get("convertido") == "libreoffice"
+    assert any("Copilot" in (b.heading_path[0] if b.heading_path else b.text) for b in resultado.doc.blocks)
+
+
+def test_xls_via_libreoffice_ganha_cabecalho(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    monkeypatch.setattr(
+        "segundocerebro.ingest.converters.libreoffice.converter",
+        lambda dados, origem, **kw: bytes_xlsx(linhas=5),
+    )
+    alvo = tmp_path / "licencas.xls"
+    alvo.write_bytes(b"isto nao e ole")
+    resultado = parse_file(str(alvo))
+    assert resultado.status is ParseStatus.OK
+    assert resultado.doc is not None
+    assert resultado.doc.meta.get("convertido") == "libreoffice"
+    texto = "\n".join(b.text for b in resultado.doc.blocks)
+    assert "Licença" in texto or "Copilot" in texto
+
+
+def test_legado_sem_soffice_nao_some(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """Missing binary is ole_texto (or erro), never a crash and never EMPTY of a file we parsed."""
+    monkeypatch.setattr(
+        "segundocerebro.ingest.converters.libreoffice.converter",
+        lambda *a, **k: None,
+    )
+    alvo = tmp_path / "ata.doc"
+    alvo.write_bytes(b"isto nao e ole")
+    resultado = parse_file(str(alvo))
+    assert resultado.status is ParseStatus.ERROR
+    assert "OLE2" in resultado.detail
+
+
+def test_html_como_xls_nao_chama_soffice(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    chamou: list[str] = []
+    monkeypatch.setattr(
+        "segundocerebro.ingest.converters.libreoffice.converter",
+        lambda dados, origem, **kw: chamou.append(origem) or b"x",
+    )
+    alvo = tmp_path / "web.xls"
+    alvo.write_bytes(b"<html><table><tr><td>CT-VCE-2024-0142</td></tr></table></html>")
+    resultado = parse_file(str(alvo))
+    assert resultado.status is ParseStatus.OK
+    assert chamou == []
+    assert "CT-VCE-2024-0142" in resultado.doc.blocks[0].text
+
+
+def test_pptx_como_ppt_nao_chama_soffice(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    chamou: list[str] = []
+    monkeypatch.setattr(
+        "segundocerebro.ingest.converters.libreoffice.converter",
+        lambda dados, origem, **kw: chamou.append(origem) or bytes_pptx(),
+    )
+    alvo = tmp_path / "deck.ppt"
+    alvo.write_bytes(bytes_pptx())
+    resultado = parse_file(str(alvo))
+    assert resultado.status is ParseStatus.OK
+    assert chamou == []

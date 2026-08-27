@@ -27,6 +27,10 @@ log = get_logger("index.isolamento")
 
 TIMEOUT_BASE_S = 60.0
 TIMEOUT_POR_MB_S = 10.0
+TIMEOUT_CONVERT_S = 90.0
+"""R1.1: .doc/.ppt/.xls may spawn LibreOffice inside the parse child."""
+
+EXTENSOES_CONVERT = frozenset({".doc", ".ppt", ".xls"})
 LOG_QUARENTENA = "quarentena.log"
 
 EXTENSOES_ISOLADAS = frozenset(
@@ -35,9 +39,12 @@ EXTENSOES_ISOLADAS = frozenset(
 """PDF, Office, OLE, RTF — the formats whose parser is a native library."""
 
 
-def timeout_para(tamanho_bytes: int) -> float:
+def timeout_para(tamanho_bytes: int, path: str | None = None) -> float:
     mb = max(0.0, float(tamanho_bytes) / 1_000_000)
-    return TIMEOUT_BASE_S + TIMEOUT_POR_MB_S * mb
+    teto = TIMEOUT_BASE_S + TIMEOUT_POR_MB_S * mb
+    if path and os.path.splitext(path)[1].lower() in EXTENSOES_CONVERT:
+        teto += TIMEOUT_CONVERT_S
+    return teto
 
 
 def deve_isolar(path: str) -> bool:
@@ -231,7 +238,7 @@ def parse_isolado(
     if worker == "parse" and not deve_isolar(path):
         return parse_file(path, **kwargs)
 
-    teto = timeout if timeout is not None else timeout_para(tamanho)
+    teto = timeout if timeout is not None else timeout_para(tamanho, path)
     ram_bytes = int(ram_mb * 1024 * 1024) if ram_mb else 0
     if ram_bytes:
         kwargs["ram_bytes"] = ram_bytes
