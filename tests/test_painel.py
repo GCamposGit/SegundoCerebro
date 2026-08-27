@@ -627,6 +627,65 @@ def test_registro_exige_token(cliente) -> None:
     assert cliente.get("/api/registro").status_code == 403
 
 
+def test_conectar_claude_desktop_mescla_sem_apagar_os_outros(
+    cliente, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """O botão do leigo é o `--instalar` sem terminal. Mescla, nunca substitui."""
+    destino = tmp_path / "Claude" / "claude_desktop_config.json"
+    destino.parent.mkdir()
+    destino.write_text(
+        json.dumps({"mcpServers": {"outro": {"command": "echo"}}}), encoding="utf-8"
+    )
+    monkeypatch.setattr(
+        "segundocerebro.mcp.registrar.destino_de",
+        lambda c: destino if c == "claude-desktop" else None,
+    )
+
+    r = cliente.post(
+        "/api/conectar",
+        json={"base": "trabalho", "cliente": "claude-desktop"},
+        headers=cabecalho(),
+    )
+
+    assert r.status_code == 200
+    escrito = json.loads(destino.read_text(encoding="utf-8"))
+    assert "outro" in escrito["mcpServers"]
+    assert any(nome.startswith("segundocerebro") for nome in escrito["mcpServers"])
+    assert r.json()["acrescentados"]
+
+
+def test_conectar_cliente_desconhecido_nao_inventa_arquivo(cliente) -> None:
+    r = cliente.post(
+        "/api/conectar",
+        json={"base": "trabalho", "cliente": "generico"},
+        headers=cabecalho(),
+    )
+    assert r.status_code == 400
+    assert "Claude Desktop" in r.json()["erro"]
+
+
+def test_conectar_sem_app_instalado_nao_cria_pasta(
+    cliente, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Escrever config para um app que não está aqui é falha silenciosa."""
+    ausente = tmp_path / "nao-existe" / "config.json"
+    monkeypatch.setattr(
+        "segundocerebro.mcp.registrar.destino_de",
+        lambda c: ausente if c == "claude-desktop" else None,
+    )
+    r = cliente.post(
+        "/api/conectar",
+        json={"base": "trabalho", "cliente": "claude-desktop"},
+        headers=cabecalho(),
+    )
+    assert r.status_code == 409
+    assert not ausente.exists()
+
+
+def test_conectar_exige_token(cliente) -> None:
+    assert cliente.post("/api/conectar", json={"base": "trabalho"}).status_code == 403
+
+
 # --- conjunto dourado crescendo do uso real -----------------------------------
 
 
