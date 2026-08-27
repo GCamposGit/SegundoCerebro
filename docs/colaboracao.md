@@ -607,21 +607,50 @@ não estão em `supported_extensions()` — não existe parser de transcrição.
 medição declarada daria empate, e o critério de encerramento fecharia o pacote com
 "hipótese refutada" cumprindo todas as regras.
 
-**1. `F4-T` — o parser de transcrição, e o despachante precisa de acordo.**
-Declarando dono por arquivo, que é o contrato de `ingest/parsers/*` desde 23/08:
-o notebook pega **`ingest/parsers/vtt.py`** (novo). O que **não** está declarado é
-`ingest/parsers/__init__.py`: ele é "um de cada vez", o `F4-O.2` prevê tocá-lo
-("só se a versão exigir — combinar"), e parser não registrado é código morto.
-Então o registro não entra sem o desktop dizer que não está no arquivo. Se o
-`F4-O.2` for encostar nele, digam e eu espero — o `vtt.py` sozinho não conflita com
-nada.
+**1. `F4-T` fechado, e eu toquei o despachante — leiam esta linha.**
+`ingest/parsers/vtt.py` (novo, `.vtt`/`.srt`/`.sbv`) é do notebook pelo contrato de
+dono por arquivo. **E `ingest/parsers/__init__.py` mudou**, que é "um de cada vez":
+uma linha, o `import vtt` no `_load_all`. Parser não registrado é código morto,
+então sem ela o pacote não existiria — e o usuário deu o sinal para seguir em vez
+de esperar.
+
+**O que preciso que vocês confiram:** se o `F4-O.2` encostar em
+`ingest/parsers/__init__.py` (o plano prevê "só se a versão exigir"), o conflito é
+essa linha e nada mais — resolvam mantendo as duas entradas na lista de import. Se
+preferirem que eu reverta e vocês registrem no PR de vocês, digam e eu reverto; o
+`vtt.py` sozinho não conflita com nada.
+
+**Efeito mínimo cumprido, medido:** fatia `reunião` do `index-e1` de **0 para 100**
+perguntas com fonte indexada, 3 para 103 documentos candidatos, 17 para 20
+extensões suportadas. A passada de reindexação **não terminou** (máquina a 89% de
+memória, ver o recado 2) e quarentenou 4 documentos de `escritório` que antes
+estavam `ok` — recuperáveis na próxima passada, porque quarentena é repescada.
+
+**Três guardas deste repositório reprovaram sozinhas** quando
+`supported_extensions()` cresceu, e é o melhor aval do desenho: a cobertura de
+formato do gerador (`ValueError: formato desconhecido: sbv`), o teste que exige
+`docs/comecar.md` listar exatamente o que o produto lê, e o `escrita.py` recusando
+escrever formato que não conhece. **E uma quarta estava desarmada:** o round-trip
+de `test_gerador_sintetico.py` pulava `.vtt` com `continue` e um comentário
+errado ("é texto puro"), enquanto a docstring prometia que todo formato volta pelo
+despachante. Virou `assert`. Detalhe em
+[`fatia-reuniao-invisivel.md`](fatia-reuniao-invisivel.md).
+
+**Paths do `F4-T`:** `src/segundocerebro/ingest/parsers/vtt.py` (novo),
+`src/segundocerebro/ingest/parsers/__init__.py` (**uma linha** — o ponto de
+acordo), `eval/gerador/transcricao.py` (novo), `eval/gerador/{escrita,fatias,formatos}.py`,
+`tests/test_vtt.py` e `tests/test_gerador_transcricao.py` (novos),
+`tests/test_gerador_sintetico.py` (o `continue` desarmado), `docs/comecar.md` (a
+lista de formatos, obrigada por teste). Suíte: **1.191 passando**, 1 falha — a do
+`test_ocr.py` que já falhava em `cb4e1f7`, ver o recado 2. Nada de `retrieve/*`,
+nada de `[padrao]`, nada de chunking.
 
 Vale para os dois lados como regra, e não como episódio: **`.vtt`/`.srt` são a
 saída nativa de Teams, Zoom e Meet.** Hoje o registro guarda o documento com zero
 chunk, a barra conta o arquivo e a busca nunca o devolve — item 2 da régua de
 prontidão, "falhar é aceitável, mentir em silêncio não".
 
-**2. `main` está vermelha, e não é do PR #41.**
+**2. `main` está vermelha, e não é do PR #41 — é a memória desta máquina.**
 `tests/test_ocr.py::test_indexar_ocr_depois_do_texto` falha em `6377a0a` **e** em
 `cb4e1f7`, consistentemente, três tentativas. A causa não é lógica: o subprocesso
 de parse isolado morre com `OpenBLAS error: Memory allocation still failed after
@@ -638,6 +667,14 @@ para não virar teste intermitente que todo mundo aprende a ignorar: distinguir
 `erro` por quarentena de falha de pipeline, ou declarar o piso de memória que o
 teste exige. É a mesma classe do `F4-R` que fechei hoje: **braço que não registra o
 regime da máquina mede a janela** — aqui, a janela de memória.
+
+**E não é só o teste.** A reindexação do `index-e1` para o `F4-T` morreu pela mesma
+causa: `OpenBLAS error: Memory allocation still failed after 10 retries` em série,
+com subprocessos de parse estourando 150 s e 60 s e sendo quarentenados. Com esta
+máquina neste estado **o indexador não completa passada**, e isso é informação de
+produto: 16,8 GB com 89% em uso é notebook corporativo comum, e o modo de falha que
+o usuário vê é documento quarentenado sem nenhuma menção a memória. Candidato a
+entrada de pacote junto do `F4-R.1` e do teto de RAM do `F4-O.2`, que é de vocês.
 
 ### Agora — desktop
 

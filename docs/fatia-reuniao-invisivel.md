@@ -96,7 +96,26 @@ estão em formato de escritório e caem no grupo pela **pasta** (`PASTAS_DE_REUN
 Foi isso que escondeu a lacuna: a camada 1 mede 11 perguntas de reunião com
 recall@20 = 1,000, então nada indicava que o formato canônico não é lido.
 
-## O pacote que desbloqueia — `F4-T`
+## O pacote que desbloqueia — `F4-T`, **fechado em 27/08/2026**
+
+Entregue em `ingest/parsers/vtt.py` (`.vtt`, `.srt`, `.sbv`), com o registro no
+despachante. **Efeito mínimo cumprido**, medido no `index-e1`:
+
+| | antes | depois |
+|---|---:|---:|
+| documentos candidatos do grupo `reunião` | 3 | **103** |
+| perguntas de `reunião` com fonte indexada | **0** de 100 | **100** de 100 |
+| `supported_extensions()` | 17 | 20 |
+
+Duas ressalvas, porque o número sem elas seria melhor do que é: a passada de
+reindexação **não terminou** — foi morta em 10 min — e a máquina estava a 89% de
+memória, o que quarentenou 4 documentos de `escritório` que antes estavam `ok`
+(perguntas com fonte indexada: 1.540 → 1.536). Quarentena é repescada, então a
+próxima passada com memória disponível os recupera. Isso **não** invalida o
+efeito medido: os 100 `.vtt` entraram, e o Δ da fatia `reunião` é de 0 para 100.
+
+O contrato original do pacote, para registro:
+
 
 Não é parte da `F4-P.1`: é pré-requisito dela, e é um pacote de formato, com dono
 por arquivo.
@@ -105,7 +124,7 @@ por arquivo.
 |---|---|
 | Serve base desconhecida | **sim, e diretamente.** Transcrição de reunião entra no índice no formato em que o gravador a salva, em vez de ser contada e não indexada |
 | Hipótese | `.vtt`/`.srt` parseados como texto com marca de tempo removida entram no índice, e a fatia `reunião` da camada 2 passa de n=0 para n≈100 |
-| Efeito mínimo | **binário, e não é MRR:** as 100 perguntas de `reunião` passam a ter fonte indexada, e `supported_extensions()` cresce de 17 para 19. Sem isso a `F4-P.1` não tem fatia |
+| Efeito mínimo | **binário, e não é MRR:** as 100 perguntas de `reunião` passam a ter fonte indexada, e `supported_extensions()` cresce de 17 para 20. Sem isso a `F4-P.1` não tem fatia |
 | Orçamento | um parser, um teste de formato, sem grade. Não mexe em chunking nem em `[padrao]` |
 | Encerramento | se `.vtt` entrar e a fatia continuar vazia, o defeito é outro e o pacote reabre com o número novo na mão |
 | Classe | `tests/test_fonte_contrato.py` já está no lugar: quando o parser entrar, a `LACUNAS_DECLARADAS` falha e obriga a medir a fatia |
@@ -115,6 +134,49 @@ por arquivo.
   vez", e o desktop pode tocá-lo no `F4-O.2` — parser não registrado é código
   morto, então o registro **não** entra sem acordo
 - **Não toca:** `retrieve/*` (a classificação está certa), chunking, `[padrao]`
+
+## Registrar o parser disparou três guardas, e desarmou uma quarta
+
+Vale como aval do desenho do repositório: nenhuma das três foi eu me lembrando de
+conferir. Elas reprovaram sozinhas no momento em que `supported_extensions()`
+cresceu.
+
+1. **`eval/gerador/formatos.py`** deriva a cobertura de
+   `supported_extensions()` — "*parser novo sem fixture reprova, e quem registrou
+   o parser descobre no mesmo dia em vez de o corpus ficar cego por uma fase
+   inteira*". Reprovou com `ValueError: formato desconhecido: sbv`.
+2. **`tests/test_docs_do_usuario.py`** exige que `docs/comecar.md` liste
+   **exatamente** os formatos que o produto lê. Reprovou apontando os três que
+   faltavam — o que impede o inverso do defeito de hoje: produto que lê e doc que
+   não promete.
+3. **`eval/gerador/escrita.py`** não sabia escrever `.srt`/`.sbv` e recusou em vez
+   de escrever binário plausível.
+
+A quarta é a que interessa mais, porque ela **existia e estava desarmada**.
+`tests/test_gerador_sintetico.py::test_os_formatos_binarios_voltam_pelo_parser_do_projeto`
+promete, na docstring, que *"cada formato que o gerador escreve volta pelo
+despachante que o indexador usa"*. O código fazia:
+
+```python
+if parser is None:
+    continue  # `.vtt` é texto puro; o indexador o trata como tal
+```
+
+Ou seja: **o teste que teria pegado o defeito do `F4-T` pulava exatamente o caso
+do defeito, com um comentário explicando por quê.** O comentário estava errado —
+`.vtt` não era "tratado como texto", era ignorado — e a docstring já dizia o
+contrário do que o código fazia. O `continue` virou `assert parser is not None`, e
+as três extensões entraram na lista do round-trip.
+
+Isso acrescenta uma forma à classe da regra 12: **guarda desarmada por conveniência
+é pior que guarda ausente**, porque a suíte verde afirma o que ela deixou de
+verificar. Vale procurar `continue`/`skip` com comentário justificando o pulo.
+
+**Cuidado que isto obrigou a tomar:** transcrição é texto no disco mas **não é
+prosa**. Escrever o corpo de um `.srt` como parágrafo passaria as três guardas e
+produziria arquivo que o parser devolve **vazio** — o defeito de hoje ao contrário,
+e igualmente silencioso. Daí `eval/gerador/transcricao.py`, com uma definição de
+legenda e dois consumidores (a fatia de reunião e a de cobertura de formato).
 
 ## A ordem que isto impõe
 

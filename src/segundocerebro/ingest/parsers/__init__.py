@@ -100,6 +100,6 @@ def _load_all() -> None:
     global _LOADED
     if _LOADED:
         return
-    from . import mail, pdf, sheets, slides, text, word  # noqa: F401
+    from . import mail, pdf, sheets, slides, text, vtt, word  # noqa: F401
 
     _LOADED = True

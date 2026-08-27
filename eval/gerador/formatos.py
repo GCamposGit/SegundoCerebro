@@ -45,6 +45,7 @@ from __future__ import annotations
 from . import vocabulario as V
 from .cfb import escrever_cfb, msg_de
 from .nucleo import Doc, mkdoc, moeda, perg
+from .transcricao import POR_EXTENSAO, falas_de
 
 PASTA = "11. Formatos"
 
@@ -89,6 +90,13 @@ def _documento(rng, extensao: str, cid: str, valor: int):  # noqa: ANN001
     if extensao in STREAM_OLE:
         bruto = escrever_cfb({STREAM_OLE[extensao]: texto.encode("utf-16-le")})
         return Doc(f"{PASTA}/{nome}{extensao}", bruto.decode("latin-1"), formato="cfb_pronto")
+
+    if extensao in POR_EXTENSAO:
+        # Prosa dentro de um `.srt` nao tem marca de tempo, e o parser de
+        # transcricao devolve **vazio**: o documento entraria no corpus sem chunk
+        # e a pergunta apontaria para nada -- que e o defeito que o `F4-T` acabou
+        # de fechar. O corpo vira cue.
+        return mkdoc(PASTA, nome, POR_EXTENSAO[extensao](falas_de(texto)), extensao.lstrip("."))
 
     return mkdoc(PASTA, nome, texto, extensao.lstrip("."))
 

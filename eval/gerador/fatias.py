@@ -278,15 +278,16 @@ nao desconta a intersecao.
 """
 
 
-def _vtt(rng, falas):
-    """WebVTT com marca de tempo. `eval.fonte` classifica por extensao."""
-    blocos = ["WEBVTT", ""]
-    for k, fala in enumerate(falas):
-        ini, fim = 12 * k, 12 * k + 11
-        blocos.append(f"{ini // 60:02d}:{ini % 60:02d}.000 --> {fim // 60:02d}:{fim % 60:02d}.000")
-        blocos.append(fala)
-        blocos.append("")
-    return "\n".join(blocos)
+def _vtt(rng, falas):  # noqa: ANN001, ARG001
+    """WebVTT com marca de tempo. `eval.fonte` classifica por extensao.
+
+    Delega para `transcricao.vtt_de`: desde o `F4-T` a fatia de **cobertura de
+    formato** escreve as mesmas legendas, e duas definicoes divergiriam em
+    silencio -- cada uma certa sozinha.
+    """
+    from .transcricao import vtt_de
+
+    return vtt_de(falas)
 
 
 def f_reuniao(rng, n, ext):

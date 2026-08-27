@@ -138,6 +138,14 @@ a evidência datada em [`docs/historico-decisoes.md`](docs/historico-decisoes.md
   plausível — que passaria.
 - **Passada separada do indexador vale mais que a economia óbvia.** Grafo: 30 s
   contra 39 h, e foram cinco iterações de regra até a extração ficar certa.
+- **Régua que nomeia formato que o produto não ingere é regra sobre documento que
+  nunca existe — e a fatia sai vazia sem erro.** `retrieve/fonte.py` classificava
+  `.vtt` como grupo `reunião` e `hybrid.py` escolhia peso por esse grupo, com
+  `.vtt` fora de `supported_extensions()`. A fatia que decidiria a `F4-P.1` tinha
+  n=0 onde a declaração dizia n≈100, e a medição teria fechado o pacote como
+  "hipótese refutada" cumprindo todas as regras. Pego por auditoria **antes** de
+  medir; a porta é `tests/test_fonte_contrato.py`
+  (`docs/fatia-reuniao-invisivel.md`).
 - **Documento sem chunk é invisível até para o ranqueador de nome.** A fronteira
   do índice é de conteúdo, não de nome — formato novo é um conjunto de documentos
   saindo do zero absoluto.

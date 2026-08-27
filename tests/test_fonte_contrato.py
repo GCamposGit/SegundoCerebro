@@ -16,6 +16,11 @@ outro"), um nível acima: **a régua nomeia um formato que o produto não ingere
 O que passa a pegá-la sozinha é este arquivo — toda extensão citada em
 `retrieve/fonte.py` tem de estar em `supported_extensions()`, ou estar declarada
 aqui como lacuna conhecida, com o pacote que a fecha.
+
+**A lacuna que motivou o arquivo foi fechada no mesmo dia** pelo `F4-T`
+(`ingest/parsers/vtt.py`), e foi o quarto teste daqui que obrigou a limpar a
+tabela: sem ele a dívida sobreviveria ao conserto e a fatia continuaria sendo
+tratada como vazia depois de passar a medir.
 """
 
 from __future__ import annotations
@@ -30,17 +35,18 @@ from segundocerebro.retrieve.fonte import (
     grupo_de_fonte,
 )
 
-LACUNAS_DECLARADAS = {
-    ".vtt": "F4-T — parser de transcrição não existe; ver docs/fatia-reuniao-invisivel.md",
-    ".srt": "F4-T — idem",
-    ".sbv": "F4-T — idem",
-}
-"""Extensão que `fonte.py` classifica e o indexador **não** lê, com o pacote que fecha.
+LACUNAS_DECLARADAS: dict[str, str] = {}
+"""Vazia desde 27/08/2026, e o mecanismo fica.
 
-Entrada aqui é dívida declarada, não permissão: enquanto a extensão estiver
-nesta tabela, **nenhuma decisão de ranking pode ser tomada sobre o grupo dela** —
-a fatia é vazia por construção e qualquer Δ sai zero. Sair daqui é o aceite do
-pacote citado."""
+Ela nasceu com `.vtt`/`.srt`/`.sbv` e **esvaziou no mesmo dia**: o `F4-T` entregou
+`ingest/parsers/vtt.py` e o teste abaixo obrigou a limpar a entrada em vez de
+deixá-la sobreviver ao próprio conserto. Fica no lugar porque a próxima extensão
+que `retrieve/fonte.py` aprender a classificar antes de haver parser cai aqui, com
+o pacote que a fecha, em vez de produzir fatia vazia em silêncio."""
+
+_REGRA = """Entrada em LACUNAS_DECLARADAS é dívida declarada, não permissão:
+enquanto a extensão estiver lá, nenhuma decisão de ranking pode ser tomada sobre o
+grupo dela — a fatia é vazia por construção e qualquer Δ sai zero."""
 
 
 def test_email_e_lido_pelo_indexador() -> None:
