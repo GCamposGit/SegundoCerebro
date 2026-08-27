@@ -7,8 +7,11 @@ that continues on page 4.
 
 Scanned PDFs are the known trap. A page image yields almost no characters, and
 indexing it produces a document that exists in the index but answers nothing.
-Those are marked `digitalizado` and left without blocks, so they show up in the
-ingestion report as a decision to make (OCR or not) instead of as silent noise.
+The mark is **per page**: a native cover plus a photographed body used to look
+fine on file-level averages and the photo pages stayed invisible. Scan pages
+are marked `digitalizado` and left without blocks; native pages still emit
+text. The ingestion report then shows a decision to make (OCR or not)
+instead of silent noise.
 """
 
 from __future__ import annotations
@@ -25,6 +28,23 @@ from .text import blocos_de_markdown
 # tem dezenas deles.
 MIN_CHARS_POR_PAGINA = 15
 MIN_CHARS_COM_IMAGEM = 100
+
+
+def pagina_precisa_ocr(pagina, texto: str) -> bool:  # noqa: ANN001
+    """Scan detector at **page** grain, not file average.
+
+    A native cover plus a photographed body has a high mean char count, so the
+    file-level test never marked `digitalizado` and the photo pages stayed
+    invisible. Blank pages without an image are not scans.
+    """
+    chars = len((texto or "").strip())
+    try:
+        tem_imagem = bool(pagina.get_images())
+    except Exception:  # noqa: BLE001 — a broken image dict is not a scan
+        tem_imagem = False
+    if chars < MIN_CHARS_POR_PAGINA:
+        return tem_imagem
+    return tem_imagem and chars < MIN_CHARS_COM_IMAGEM
 
 
 MOTOR_PADRAO = "fonte"
@@ -149,6 +169,12 @@ def parse_pdf(dados: bytes, nome: str, motor: str = MOTOR_PADRAO) -> ParsedDoc:
         paginas_com_imagem = sum(1 for pagina in documento if pagina.get_images())
         sumario_nativo = _tem_sumario_nativo(documento)
         paginas = extrair(documento)
+        texto_de = {n: t for n, t in paginas}
+        paginas_ocr = [
+            i
+            for i, pagina in enumerate(documento, start=1)
+            if pagina_precisa_ocr(pagina, texto_de.get(i, ""))
+        ]
     finally:
         documento.close()
 
@@ -162,19 +188,18 @@ def parse_pdf(dados: bytes, nome: str, motor: str = MOTOR_PADRAO) -> ParsedDoc:
         "sumario_nativo": "1" if sumario_nativo else "0",
     }
 
-    quase_sem_texto = media_chars < MIN_CHARS_POR_PAGINA
-    imagem_com_pouco_texto = (
-        n_paginas > 0 and paginas_com_imagem == n_paginas and media_chars < MIN_CHARS_COM_IMAGEM
-    )
-    if n_paginas and (quase_sem_texto or imagem_com_pouco_texto):
+    ocr_set = set(paginas_ocr)
+    if paginas_ocr:
         meta["suspeita"] = "digitalizado"
         meta["chars_por_pagina"] = f"{media_chars:.0f}"
-        return ParsedDoc(name=nome, blocks=(), meta=meta)
+        meta["paginas_ocr"] = ",".join(str(n) for n in paginas_ocr)
+        if len(paginas_ocr) == n_paginas:
+            return ParsedDoc(name=nome, blocks=(), meta=meta)
 
     blocos: list[Block] = []
     pilha: list[tuple[int, str]] = []
     for numero, markdown in paginas:
-        if not markdown.strip():
+        if numero in ocr_set or not markdown.strip():
             continue
         blocos.extend(
             blocos_de_markdown(markdown, locator=f"p. {numero}", pilha=pilha, fallback_titulo=False)
@@ -185,7 +210,7 @@ def parse_pdf(dados: bytes, nome: str, motor: str = MOTOR_PADRAO) -> ParsedDoc:
         blocos = [
             Block(heading_path=(), text=t.strip(), locator=f"p. {n}", kind=BlockKind.TEXT)
             for n, t in paginas
-            if t.strip()
+            if t.strip() and n not in ocr_set
         ]
 
     return ParsedDoc(name=nome, blocks=tuple(blocos), meta=meta)

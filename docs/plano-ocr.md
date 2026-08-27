@@ -111,6 +111,20 @@ Não reconstruir heading a partir do OCR neste pacote: isso muda chunk e pede
 número. Um bloco por página com `locator=p. N` continua até o F4-O.3 dizer o
 contrário.
 
+**Medido em 27/08/2026**, desktop, três braços, um por hipótese:
+
+- **(a) adotada.** PDF misto (capa nativa + página-foto): a nativa vira trecho
+  sem passar pelo motor; a foto entra na fila e vira trecho com o extra. Sem
+  `--ocr` a capa já é buscável. Versão do parser de PDF **não** subiu: o texto
+  das páginas nativas não mudou.
+- **(b) refutada.** Identificador `NN-VCE-001` em corpo 10 pt, Helvetica,
+  RapidOCR 1.4.4: lê em **72 dpi e em 200 dpi**. 200 dpi não é a alavanca.
+  Raster de produção permanece `Matrix(2,2)` = 144 dpi. Não se mede outra
+  fonte/tamanho neste pacote.
+- **(c) adotada.** Raster é um gerador: 8 páginas-scan, pico de 1 pixmap vivo.
+  Teto = `ram_parse_mb` do `orcamento.py` (256 MB na máquina de 8 GB). Página
+  que não cabe cai para 72 dpi, nunca abaixo.
+
 ### F4-O.3 — o dourado corporativo, como regressão · notebook
 
 | Campo | Valor |

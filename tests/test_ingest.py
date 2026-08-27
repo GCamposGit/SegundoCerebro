@@ -92,6 +92,24 @@ def bytes_pdf(texto: str | None = "Contrato 4600009999 com a Nimbus Tecnologia."
     return dados
 
 
+def bytes_pdf_misto(
+    nativo: str = "Contrato 4600009999 com a Nimbus Tecnologia.",
+) -> bytes:
+    """Page 1 native text, page 2 image and no text layer — the mixed-PDF trap."""
+    import pymupdf
+
+    doc = pymupdf.open()
+    capa = doc.new_page()
+    capa.insert_text((72, 72), nativo, fontsize=11)
+    corpo = doc.new_page()
+    pix = pymupdf.Pixmap(pymupdf.csRGB, pymupdf.IRect(0, 0, 64, 64))
+    pix.set_rect(pix.irect, (200, 200, 200))
+    corpo.insert_image(pymupdf.Rect(0, 0, 500, 700), pixmap=pix)
+    dados = doc.tobytes()
+    doc.close()
+    return dados
+
+
 # --- texto e markdown --------------------------------------------------------
 
 
@@ -550,6 +568,17 @@ def test_pdf_pagina_de_imagem_com_pouco_texto_e_digitalizado() -> None:
     doc = parse_pdf(bytes_pdf(texto="Protocolo 4521/2025", com_imagem=True), "escaneado.pdf")
 
     assert doc.meta["suspeita"] == "digitalizado"
+
+
+def test_pdf_misto_marca_digitalizado_e_guarda_nativa() -> None:
+    """Native cover + photo body: file-level average used to hide the photo."""
+    doc = parse_pdf(bytes_pdf_misto(), "oficio.pdf")
+
+    assert doc.meta.get("suspeita") == "digitalizado"
+    assert doc.meta.get("paginas_ocr") == "2"
+    assert doc.blocks
+    assert any("4600009999" in b.text for b in doc.blocks)
+    assert all(b.locator != "p. 2" for b in doc.blocks)
 
 
 def test_pdf_curto_e_legitimo_nao_e_confundido_com_scan() -> None:

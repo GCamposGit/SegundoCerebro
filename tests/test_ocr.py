@@ -12,7 +12,7 @@ from segundocerebro.index.indexer import indexar
 from segundocerebro.index.isolamento import timeout_para
 from segundocerebro.index.store import Store
 from tests.test_index import DIM, EmbedderFalso
-from tests.test_ingest import bytes_pdf
+from tests.test_ingest import bytes_pdf, bytes_pdf_misto
 
 
 TEXTO_VCE = "Contrato NN-VCE-001 da Varzea Clara Energia."
@@ -120,6 +120,128 @@ def test_indexar_sem_ocr_nao_mexe_no_digitalizado(tmp_path: Path) -> None:
     assert estado.status == "vazio"
     assert estado.n_chunks == 0
     assert store.documentos_para_ocr(VERSAO) == [("escaneado.pdf", "teste")]
+    store.fechar()
+
+
+def test_pdf_misto_nativa_nao_passa_pelo_ocr(tmp_path: Path, monkeypatch) -> None:  # noqa: ANN001
+    """O.2a: photo page becomes a chunk; native page never hits the engine."""
+    chamadas: list[int] = []
+
+    def fake(imagem) -> str:  # noqa: ANN001
+        chamadas.append(1)
+        return "SCAN-VCE-001"
+
+    monkeypatch.setattr("segundocerebro.ingest.ocr.motor_imagem", fake)
+    alvo = tmp_path / "oficio.pdf"
+    alvo.write_bytes(bytes_pdf_misto())
+    resultado = parse_file(str(alvo), ocr=True)
+    assert resultado.status is ParseStatus.OK
+    assert resultado.doc is not None
+    assert len(chamadas) == 1
+    texto = " ".join(b.text for b in resultado.doc.blocks)
+    assert "4600009999" in texto
+    assert "SCAN-VCE-001" in texto
+    locators = {b.locator for b in resultado.doc.blocks}
+    assert "p. 1" in locators
+    assert "p. 2" in locators
+
+
+def test_indexar_misto_entra_na_fila_ocr(tmp_path: Path) -> None:
+    """Without --ocr the native page is searchable and the photo waits in queue."""
+    raiz = tmp_path / "corpus"
+    raiz.mkdir()
+    (raiz / "oficio.pdf").write_bytes(bytes_pdf_misto())
+    store = Store(tmp_path / "indice", DIM)
+    indexar(
+        Config(roots=[RootSpec(name="teste", path=raiz)]),
+        store,
+        EmbedderFalso(),
+        publicar=False,
+        reconciliar_ao_fim=False,
+        ocr=False,
+    )
+    estado = store.estado_documento("oficio.pdf")
+    assert estado is not None
+    assert estado.status == "ok"
+    assert estado.n_chunks >= 1
+    texto = " ".join(c.texto for c in store.chunks_de("oficio.pdf"))
+    assert "4600009999" in texto
+    assert store.documentos_para_ocr(VERSAO) == [("oficio.pdf", "teste")]
+    store.fechar()
+
+
+def test_ocr_rasteriza_uma_pagina_por_vez(monkeypatch) -> None:  # noqa: ANN001
+    """O.2c: N scan pages, at most one pixmap alive."""
+    import pymupdf
+
+    from segundocerebro.ingest.ocr import ocr_pdf
+
+    monkeypatch.setenv("SEGUNDOCEREBRO_OCR_FAKE", TEXTO_VCE)
+    doc = pymupdf.open()
+    for _ in range(8):
+        pagina = doc.new_page()
+        pix = pymupdf.Pixmap(pymupdf.csRGB, pymupdf.IRect(0, 0, 64, 64))
+        pix.set_rect(pix.irect, (180, 180, 180))
+        pagina.insert_image(pymupdf.Rect(0, 0, 500, 700), pixmap=pix)
+    dados = doc.tobytes()
+    doc.close()
+
+    vivo: list[object] = []
+    pico = [0]
+    from segundocerebro.ingest import ocr as mod
+
+    original = mod._iter_rasters
+
+    def envolto(dados_pdf, *, teto_mb=None):  # noqa: ANN001
+        for item in original(dados_pdf, teto_mb=teto_mb):
+            vivo.append(item)
+            pico[0] = max(pico[0], len(vivo))
+            yield item
+            vivo.pop()
+
+    monkeypatch.setattr(mod, "_iter_rasters", envolto)
+    paginas = ocr_pdf(dados, teto_mb=256)
+    assert paginas is not None
+    assert len(paginas) == 8
+    assert pico[0] == 1
+
+
+def test_dpi_ocr_respeita_teto_de_ram() -> None:
+    """A page bigger than the parse budget drops to 72 dpi, never below."""
+    import pymupdf
+
+    from segundocerebro.ingest.ocr import DPI_OCR, _dpi_cabivel
+
+    doc = pymupdf.open()
+    pagina = doc.new_page(width=595, height=842)
+    try:
+        assert _dpi_cabivel(pagina, teto_mb=1) == 72.0
+        assert _dpi_cabivel(pagina, teto_mb=256) == DPI_OCR
+    finally:
+        doc.close()
+
+
+def test_indexar_misto_com_ocr_junta_as_paginas(tmp_path: Path, monkeypatch) -> None:  # noqa: ANN001
+    # parse_isolado runs in a child: a monkeypatch of motor_imagem does not
+    # survive spawn. The env var does — same contract as the O.0 suite.
+    monkeypatch.setenv("SEGUNDOCEREBRO_OCR_FAKE", "SCAN-VCE-001")
+    raiz = tmp_path / "corpus"
+    raiz.mkdir()
+    (raiz / "oficio.pdf").write_bytes(bytes_pdf_misto())
+    store = Store(tmp_path / "indice", DIM)
+    progresso = indexar(
+        Config(roots=[RootSpec(name="teste", path=raiz)]),
+        store,
+        EmbedderFalso(),
+        publicar=False,
+        reconciliar_ao_fim=False,
+        ocr=True,
+    )
+    assert progresso.ocr >= 1
+    texto = " ".join(c.texto for c in store.chunks_de("oficio.pdf"))
+    assert "4600009999" in texto
+    assert "SCAN-VCE-001" in texto
+    assert store.documentos_para_ocr(VERSAO) == []
     store.fechar()
 
 
