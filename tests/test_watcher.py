@@ -3,8 +3,10 @@
 The guarantees that matter:
 
 - creating a `.txt` under a root is indexed;
+- deleting it drops it from the index;
 - a cloud placeholder is never opened;
-- two watchers on the same index refuse.
+- two watchers on the same index refuse;
+- cancel is `comando.txt`, the same IPC as the indexer.
 """
 
 from __future__ import annotations
@@ -50,6 +52,44 @@ def test_criar_txt_dispara_indexacao(tmp_path: Path) -> None:
     assert estado is not None
     assert estado.status == "ok"
     assert estado.n_chunks >= 1
+    store.fechar()
+
+
+def test_apagar_txt_sai_do_indice(tmp_path: Path) -> None:
+    """O leigo apaga o Word e espera que a busca pare de devolver o trecho."""
+    raiz, _cfg, store, obs = _base(tmp_path)
+    alvo = raiz / "nota.txt"
+    alvo.write_text("Contrato CT-VCE-2024-0142.\n", encoding="utf-8")
+    obs.enfileirar(alvo)
+    obs.drenar()
+    assert store.estado_documento("nota.txt") is not None
+
+    alvo.unlink()
+    obs.enfileirar_apagado(alvo)
+    feitos = obs.drenar()
+
+    assert feitos == ["nota.txt"]
+    assert store.estado_documento("nota.txt") is None
+    store.fechar()
+
+
+def test_salvar_por_cima_nao_esquece(tmp_path: Path) -> None:
+    """Word grava com delete+create. O último evento vence: indexa, não apaga."""
+    raiz, _cfg, store, obs = _base(tmp_path)
+    alvo = raiz / "nota.txt"
+    alvo.write_text("primeira\n", encoding="utf-8")
+    obs.enfileirar(alvo)
+    obs.drenar()
+
+    alvo.unlink()
+    obs.enfileirar_apagado(alvo)
+    alvo.write_text("PO-VCE-007 vigente\n", encoding="utf-8")
+    obs.enfileirar(alvo)
+    obs.drenar()
+
+    estado = store.estado_documento("nota.txt")
+    assert estado is not None
+    assert estado.status == "ok"
     store.fechar()
 
 
@@ -169,3 +209,47 @@ def test_watchdog_criar_arquivo_enfileira(tmp_path: Path) -> None:
         observer.stop()
         observer.join(timeout=3)
         store.fechar()
+
+
+def test_watchdog_apagar_arquivo_sai_do_indice(tmp_path: Path) -> None:
+    raiz, _cfg, store, obs = _base(tmp_path)
+    alvo = raiz / "viva.txt"
+    alvo.write_text("CT-VCE-2024-0142\n", encoding="utf-8")
+    obs.enfileirar(alvo)
+    obs.drenar()
+    assert store.estado_documento("viva.txt") is not None
+
+    obs.debounce_s = 0.05
+    observer = obs.iniciar_watchdog()
+    try:
+        alvo.unlink()
+        deadline = time.monotonic() + 4
+        while time.monotonic() < deadline:
+            obs.drenar()
+            if store.estado_documento("viva.txt") is None:
+                break
+            time.sleep(0.1)
+        assert store.estado_documento("viva.txt") is None
+    finally:
+        observer.stop()
+        observer.join(timeout=3)
+        store.fechar()
+
+
+def test_cancelar_por_comando_txt_encerra(tmp_path: Path) -> None:
+    """O contrato de IPC é o mesmo da indexação: comando.txt, sem socket."""
+    from segundocerebro.index.comando import pedir
+
+    _raiz, _cfg, store, obs = _base(tmp_path)
+
+    class Dummy:
+        def stop(self) -> None:
+            return None
+
+        def join(self, timeout: float | None = None) -> None:  # noqa: ARG002
+            return None
+
+    obs.iniciar_watchdog = lambda: Dummy()  # type: ignore[method-assign]
+    pedir(store.diretorio, "cancelar")
+    obs.correr(intervalo=0.01)
+    store.fechar()
