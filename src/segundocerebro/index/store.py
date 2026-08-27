@@ -190,6 +190,40 @@ CREATE TABLE IF NOT EXISTS quarentena (
     ultima_tentativa   TEXT NOT NULL,
     proxima_tentativa  TEXT NOT NULL
 );
+
+-- Quanto cada documento custou, por etapa e em tempo **ativo**.
+--
+-- Antes desta tabela o custo de indexar não era guardado em lugar nenhum:
+-- `documentos` tem tamanho, n_chunks, paginas, digitalizado — e nenhuma coluna
+-- de tempo. Sem isto não há como recalibrar sobre histórico, que é a lacuna
+-- estrutural que a v2 da estimativa fecha (`docs/spec-estimativa-v2.md` §10).
+--
+-- `suspeito` marca documento cujo relógio não pode ser usado: houve suspensão
+-- ou pausa enquanto ele estava em voo. Guardar a linha e marcá-la é melhor que
+-- descartar na origem — ela ainda serve para auditar por que a calibragem
+-- ignorou aquela passada.
+CREATE TABLE IF NOT EXISTS medicoes (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    execucao      INTEGER NOT NULL DEFAULT 0,
+    path          TEXT NOT NULL,
+    tipo          TEXT NOT NULL DEFAULT '',
+    mb            REAL NOT NULL DEFAULT 0,
+    n_chunks      INTEGER NOT NULL DEFAULT 0,
+    tokens        INTEGER NOT NULL DEFAULT 0,
+    s_parse       REAL,
+    s_chunk       REAL,
+    s_embed       REAL,
+    s_grava       REAL,
+    s_total_ativo REAL NOT NULL DEFAULT 0,
+    suspeito      INTEGER NOT NULL DEFAULT 0,
+    perfil        TEXT NOT NULL DEFAULT '',
+    fingerprint   TEXT NOT NULL DEFAULT '',
+    model_id      TEXT NOT NULL DEFAULT '',
+    situacao      TEXT NOT NULL DEFAULT '',
+    status        TEXT NOT NULL DEFAULT '',
+    quando        TEXT NOT NULL DEFAULT ''
+);
+CREATE INDEX IF NOT EXISTS idx_medicoes_tipo ON medicoes(tipo);
 """
 
 TERMO = re.compile(r"[0-9A-Za-zÀ-ÿ][0-9A-Za-zÀ-ÿ\-\./_]*")
@@ -451,6 +485,71 @@ class Store:
             (path,),
         ).fetchone()
         return EstadoDocumento(**dict(linha)) if linha else None
+
+    def estados(self) -> dict[str, EstadoDocumento]:
+        """Todo o registro de uma vez, para derivar o mapa restante.
+
+        Uma consulta em vez de N: o mapa é recalculado por diferença a cada
+        ciclo, e fazer `estado_documento` por arquivo transformaria a derivação
+        no gargalo que ela existe para evitar.
+        """
+        return {
+            r["path"]: EstadoDocumento(**dict(r))
+            for r in self.con.execute(
+                "SELECT path, tamanho, mtime, sha256, status, n_chunks,"
+                " model_id, chunker, parser FROM documentos"
+            )
+        }
+
+    def gravar_medicao(  # noqa: ANN001
+        self, obs, *, execucao: int = 0, fingerprint: str = "", model_id: str = ""
+    ) -> None:
+        """Uma linha por documento processado. Nunca no caminho de consulta."""
+        self.con.execute(
+            "INSERT INTO medicoes (execucao, path, tipo, mb, n_chunks, tokens,"
+            " s_parse, s_chunk, s_embed, s_grava, s_total_ativo, suspeito,"
+            " perfil, fingerprint, model_id, situacao, status, quando)"
+            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            (
+                execucao,
+                obs.rel,
+                obs.tipo,
+                obs.mb,
+                obs.n_chunks,
+                obs.tokens,
+                obs.s_parse,
+                obs.s_chunk,
+                obs.s_embed,
+                obs.s_grava,
+                obs.s_total_ativo,
+                1 if obs.suspeito else 0,
+                obs.perfil,
+                fingerprint,
+                model_id,
+                obs.situacao,
+                obs.status,
+                agora(),
+            ),
+        )
+
+    def podar_medicoes(self, por_tipo: int = 500) -> int:
+        """Reservatório: mantém as `por_tipo` mais recentes de cada tipo.
+
+        Os acumuladores da calibragem não precisam das linhas — elas existem
+        para reajuste, auditoria e para o autoteste. Sem poda, `medicoes` cresce
+        junto com `documentos` para sempre.
+        """
+        cur = self.con.execute(
+            "DELETE FROM medicoes WHERE id IN ("
+            "  SELECT id FROM ("
+            "    SELECT id, row_number() OVER"
+            "      (PARTITION BY tipo ORDER BY id DESC) AS pos"
+            "    FROM medicoes"
+            "  ) WHERE pos > ?"
+            ")",
+            (por_tipo,),
+        )
+        return cur.rowcount or 0
 
     COLUNAS_NATUREZA = (
         "familia_real",
