@@ -843,10 +843,21 @@ async function atualizarIndexacao() {
     + quarentena
     + rascunho;
 
+  // No estado `cego` — máquina sem calibragem local — `p.restante` é a frase
+  // inteira ("medindo esta máquina"), não uma duração. Encaixá-la nas frases
+  // abaixo produzia "faltam medindo esta máquina" e "a estimativa de medindo
+  // esta máquina não vale enquanto isso". Os **dois** pontos onde o texto entra
+  // numa frase precisam do mesmo guarda — o segundo veio com o estado `travada`.
+  const semTempo = p.estimativa_estado === "cego";
+  const falta = semTempo
+    ? p.restante
+    : `faltam ${p.restante}`
+      + (p.decomposicao ? ` — ${p.decomposicao}` : "");
   $("idxFalta").textContent = travada
-    ? `sem avanço há ${humanoSeg(p.sem_avanco_segundos)} — a estimativa de ${p.restante} não vale enquanto isso`
+    ? `sem avanço há ${humanoSeg(p.sem_avanco_segundos)}`
+      + (semTempo ? "" : ` — a estimativa de ${p.restante} não vale enquanto isso`)
     : (rodando
-      ? `faltam ${p.restante}`
+      ? falta
       : (pausada && p.pausada_ha_segundos
         ? `pausada há ${humanoSeg(p.pausada_ha_segundos)}`
         : (p.resumo || "")));

@@ -1,11 +1,19 @@
 # Estimar quanto tempo a indexação leva
 
+> **Superado em 27/08/2026 por [`spec-estimativa-v2.md`](spec-estimativa-v2.md),
+> que é o método em vigor.** Este documento segue valendo por uma razão: os
+> **quatro modos de errar** que ele estabeleceu continuam corretos, e a v2 os
+> mantém. O que a v2 substitui é a *tabela de coeficientes* — que se revelou o
+> produto de duas grandezas separáveis (tokens por megabyte, do formato; e
+> segundos por token, da máquina), e cinco defeitos que estavam em produção
+> estão medidos na §1 dela.
+>
 > Medido em 16/08/2026, sobre o run completo do corpus de trabalho: 1.601
 > documentos, 1.458 com texto, 92.125 chunks, 64 h de parede entre 13 e 16/08.
 > Base empírica da F3.5 bloco D.
 
 Documento de método, não de opinião. Quem for implementar a barra de progresso
-tira daqui os coeficientes e, principalmente, os quatro modos de errar.
+tira daqui os **quatro modos de errar**; os coeficientes saem da v2.
 
 ---
 

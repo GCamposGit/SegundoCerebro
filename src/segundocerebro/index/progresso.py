@@ -37,7 +37,7 @@ from pathlib import Path
 from typing import Any
 
 from ..logger import get_logger
-from .estimativa import Estimador, Relogio, faixa_humana
+from .estimativa import CEGO, Estimador, Relogio, decompor, faixa_humana
 
 log = get_logger("index.progresso")
 
@@ -195,6 +195,10 @@ class Publicador:
             # nada anda é a mentira que custou 3 h 22 min sem ninguém perceber.
             status = "travada"
         faixa = self.estimador.restante()
+        # O estado sai junto com a faixa, calculado da **mesma** faixa. Pedir o
+        # estado depois recalcularia o Monte Carlo e poderia rotular um número
+        # que não é o exibido.
+        estado = self.estimador.estado(faixa)
         agora = time.time()
         pausada_ha = self.relogio.pausa_atual if status == "pausada" else 0.0
         return {
@@ -211,9 +215,15 @@ class Publicador:
             # varia quase 600× entre a mediana e o pior caso, e barra por contagem
             # anda em solavancos.
             "fracao": round(self.estimador.fracao, 4),
-            "restante_segundos": round(faixa.p50),
-            "restante_p90_segundos": round(faixa.p90),
-            "restante": faixa_humana(faixa),
+            # `cego` não publica tempo: número sem base local é mentira, e o
+            # painel precisa poder mostrar o mapa sem inventar previsão.
+            "restante_segundos": None if estado == CEGO else round(faixa.p50),
+            "restante_p90_segundos": None if estado == CEGO else round(faixa.p90),
+            "restante": faixa_humana(faixa, estado),
+            "estimativa_estado": estado,
+            "cobertura": round(self.estimador.cobertura, 3),
+            "decomposicao": decompor(self.estimador, faixa) or None,
+            "mapa": self.estimador.mapa.como_json(),
             # Ativo = indexando de fato. Corrido = relógio de parede desde o
             # primeiro start desta passada (sobrevive a reboot).
             "ativo_segundos": round(self.relogio.ativo),

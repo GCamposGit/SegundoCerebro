@@ -25,6 +25,24 @@ from segundocerebro.index.progresso import (
 
 MB = 1_000_000
 
+def _obs(rel, tamanho, segundos):
+    """Observação mínima: a v2 registra medição por etapa, não um total solto."""
+    from segundocerebro.index.calibracao import tipo_de
+    from segundocerebro.index.estimativa import Observacao
+
+    return Observacao(
+        rel=rel,
+        tipo=tipo_de(rel),
+        mb=tamanho / 1_048_576,
+        n_chunks=1,
+        tokens=120,
+        s_embed=segundos * 0.8,
+        s_grava=segundos * 0.2,
+        s_total_ativo=segundos,
+    )
+
+
+
 
 def publicador(tmp_path: Path) -> Publicador:
     e = Estimador()
@@ -45,7 +63,7 @@ def test_publica_fracao_por_trabalho_e_nao_por_contagem(tmp_path: Path) -> None:
     e = Estimador()
     e.declarar([("pequeno.docx", 1000), ("enorme.xlsx", 100 * MB)])
     p = Publicador(indice=tmp_path, estimador=e, intervalo=0.0)
-    e.registrar("pequeno.docx", 1000, 1.0)
+    e.registrar(_obs("pequeno.docx", 1000, 1.0))
     p.publicar(forcar=True)
 
     dados = ler(tmp_path)
@@ -59,8 +77,13 @@ def test_publica_restante_em_linguagem_humana(tmp_path: Path) -> None:
 
     dados = ler(tmp_path)
     assert "restante" in dados and "s" not in dados["restante"].split()[0][-1:]
-    assert dados["restante_segundos"] > 0
-    assert dados["restante_p90_segundos"] >= dados["restante_segundos"]
+    # Máquina sem calibragem local: o estado é `cego` e **nenhum tempo** é
+    # publicado — número sem base local é mentira (spec §9). O texto diz o que
+    # está acontecendo em vez de inventar uma faixa.
+    assert dados["estimativa_estado"] == "cego"
+    assert dados["restante_segundos"] is None
+    assert "medindo" in dados["restante"]
+    assert dados["restante_p90_segundos"] is None
 
 
 def test_ativo_e_parado_ficam_separados(tmp_path: Path) -> None:
@@ -87,7 +110,7 @@ def test_intervalo_limita_a_gravacao(tmp_path: Path) -> None:
     p.publicar(forcar=True)
     primeiro = caminho_de(tmp_path).read_text(encoding="utf-8")
 
-    p.estimador.registrar("0.pdf", MB, 1.0)
+    p.estimador.registrar(_obs("0.pdf", MB, 1.0))
     p.publicar()  # dentro do intervalo: não deve gravar
 
     assert caminho_de(tmp_path).read_text(encoding="utf-8") == primeiro
@@ -196,13 +219,13 @@ def parado(tmp_path: Path, **kw) -> Publicador:
 
 def test_sem_avanco_zera_quando_documento_anda(tmp_path: Path) -> None:
     p = parado(tmp_path, limite_sem_avanco=0.05)
-    p.estimador.registrar("0.pdf", MB, 1.0)
+    p.estimador.registrar(_obs("0.pdf", MB, 1.0))
     assert p.sem_avanco() == 0.0
 
     time.sleep(0.08)
     assert p.sem_avanco() >= 0.05, "nada mudou: o relógio de parada tem de correr"
 
-    p.estimador.registrar("1.pdf", MB, 1.0)
+    p.estimador.registrar(_obs("1.pdf", MB, 1.0))
     assert p.sem_avanco() == 0.0, "documento novo reabre o crédito"
 
 
