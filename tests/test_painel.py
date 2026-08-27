@@ -412,7 +412,20 @@ def test_barra_le_o_que_o_indexador_publicou(cliente, caminho: Path) -> None:
     indice.mkdir()
     e = Estimador()
     e.declarar([("a.pdf", 1_000_000), ("b.pdf", 1_000_000)])
-    e.registrar("a.pdf", 1_000_000, 10.0)
+    from segundocerebro.index.estimativa import Observacao
+
+    e.registrar(
+        Observacao(
+            rel="a.pdf",
+            tipo="pdf",
+            mb=1_000_000 / 1_048_576,
+            n_chunks=4,
+            tokens=480,
+            s_embed=8.0,
+            s_grava=2.0,
+            s_total_ativo=10.0,
+        )
+    )
     p = Publicador(indice=indice, estimador=e, intervalo=0.0)
     p.anotar(arquivo="b.pdf")
     p.publicar(forcar=True)
@@ -960,3 +973,22 @@ def test_retomada_relata_falha_do_agendador_com_causa(cliente, monkeypatch) -> N
 def test_retomada_exige_token(cliente) -> None:
     assert cliente.get("/api/retomada").status_code == 403
     assert cliente.post("/api/retomada", json={"ligar": True}).status_code == 403
+
+
+def test_barra_nao_diz_faltam_quando_nao_ha_tempo() -> None:
+    """No estado `cego` o texto da estimativa é a frase inteira.
+
+    `faixa_humana` devolve "medindo esta máquina" quando não há calibragem
+    local — número sem base local é mentira (spec §9). Prefixar isso com
+    "faltam" produzia "faltam medindo esta máquina" na tela do usuário.
+    """
+    from pathlib import Path
+
+    html = Path("src/segundocerebro/painel/index.html").read_text(encoding="utf-8")
+    assert 'p.estimativa_estado === "cego"' in html, (
+        "o painel voltou a prefixar o texto da estimativa sem olhar o estado"
+    )
+    # e o prefixo só aparece no ramo com tempo
+    prefixo = html.index("`faltam ${p.restante}`")
+    guarda = html.index('const semTempo = p.estimativa_estado === "cego";')
+    assert guarda < prefixo, "o guarda tem de vir antes do prefixo"
