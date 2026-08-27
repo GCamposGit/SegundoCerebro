@@ -616,11 +616,19 @@ sugestão; os três primeiros são a onda 1 e destravam as ondas 4 e 5.
    corpus gerado vai para o `.gitignore`. É o padrão que `eval/sintetico/` já
    segue — não commitar corpus. Determinismo obrigatório: seed única, iteração
    ordenada, sem depender de locale.
-2. **C5.a — porta de custo do MIRACL.** Smoke de throughput **antes** de baixar
-   qualquer coisa, publicado em `docs/custo-miracl.md`. Regra já acordada: custo
-   por modelo acima de ~12 h (uma noite) ⇒ MIRACL sai da ablação, com a decisão
-   registrada. Se entrar: amostrado, desktop-only, índice em diretório
-   descartável — **nunca** uma `[[base]]` (invariante 7).
+2. ~~**C5.a — porta de custo do MIRACL.**~~ **Fechado em 26/08/2026.**
+   [`docs/custo-miracl.md`](custo-miracl.md). O MIRACL publicado **não tem `pt`**
+   (18 línguas, Zhang et al. 2023) — a porta descobre isso sem baixar. MIRACL sai
+   da ablação por `lingua_ausente`; a conta de 12 h fica para o próximo corpus PT
+   da mesma ordem (semente GPU: 1M ≈ 22,5 h, 100k ≈ 2,2 h). O smoke (`--medir`)
+   recusa trava viva e **não rodou** nesta passada: a indexação do acervo privado
+   segue no fundo.
+
+   **Paths deste PR:** `eval/custo_miracl.py`, `eval/test_custo_miracl.py`,
+   `docs/custo-miracl.md`, este arquivo, `ROADMAP.md`. `eval/` é do notebook; o
+   desktop pega estes dois arquivos neste PR e devolve no merge — o mesmo
+   contrato do `C3.a` com `store.py`. Nada de `retrieve/*`, nada de `[padrao]`,
+   nada de encoder no caminho padrão da suíte.
 3. **F6-A / R8.1 — empacotamento.** `[project.dependencies]` com pins
    (`fastembed>=0.8,<0.9` — a lição do pooling CLS→mean já foi paga),
    `requirements.txt` vira lockfile de CI, extras `[gpu]`/`[ocr]`, matriz
