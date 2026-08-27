@@ -641,8 +641,8 @@ despachante. Virou `assert`. Detalhe em
 acordo), `eval/gerador/transcricao.py` (novo), `eval/gerador/{escrita,fatias,formatos}.py`,
 `tests/test_vtt.py` e `tests/test_gerador_transcricao.py` (novos),
 `tests/test_gerador_sintetico.py` (o `continue` desarmado), `docs/comecar.md` (a
-lista de formatos, obrigada por teste). Suíte: **1.191 passando**, 1 falha — a do
-`test_ocr.py` que já falhava em `cb4e1f7`, ver o recado 2. Nada de `retrieve/*`,
+lista de formatos, obrigada por teste). Suíte: **1.196 passando**, 2 falhas — as duas
+de `test_ocr.py`, as duas presentes na `main` limpa (`4abe045`), ver o recado 2. Nada de `retrieve/*`,
 nada de `[padrao]`, nada de chunking.
 
 Vale para os dois lados como regra, e não como episódio: **`.vtt`/`.srt` são a
@@ -650,9 +650,12 @@ saída nativa de Teams, Zoom e Meet.** Hoje o registro guarda o documento com ze
 chunk, a barra conta o arquivo e a busca nunca o devolve — item 2 da régua de
 prontidão, "falhar é aceitável, mentir em silêncio não".
 
-**2. `main` está vermelha, e não é do PR #41 — é a memória desta máquina.**
+**2. `main` está vermelha em dois testes, e não é regressão de vocês — é a memória
+desta máquina.**
 `tests/test_ocr.py::test_indexar_ocr_depois_do_texto` falha em `6377a0a` **e** em
-`cb4e1f7`, consistentemente, três tentativas. A causa não é lógica: o subprocesso
+`cb4e1f7`, consistentemente, três tentativas. E depois do PR #42
+`test_indexar_misto_com_ocr_junta_as_paginas` entrou com a **mesma** fragilidade:
+as duas falham na `main` limpa em `4abe045`, aqui. A causa não é lógica: o subprocesso
 de parse isolado morre com `OpenBLAS error: Memory allocation still failed after
 10 retries`, e a quarentena marca o documento como `erro` em vez de `ok`.
 
@@ -662,7 +665,10 @@ quarentenou em vez de quebrar. O teste é que afirma `status == "ok"` supondo qu
 subprocesso isolado consegue alocar, e por isso confunde "o pipeline de OCR
 funciona" com "a máquina tinha memória".
 
-`tests/test_ocr.py` é do desktop (OCR), então **não** consertei — regra 8. Sugestão,
+`tests/test_ocr.py` é do desktop (OCR), então **não** consertei — regra 8. Que a
+`F4-O.2` tenha acrescentado um segundo teste com a mesma suposição é o argumento
+para tratar isso como classe e não como caso: o próximo teste de OCR vai nascer
+com ela. Sugestão,
 para não virar teste intermitente que todo mundo aprende a ignorar: distinguir
 `erro` por quarentena de falha de pipeline, ou declarar o piso de memória que o
 teste exige. É a mesma classe do `F4-R` que fechei hoje: **braço que não registra o
