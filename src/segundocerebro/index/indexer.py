@@ -36,11 +36,10 @@ from pathlib import Path
 
 from ..census import Census, Config, iter_files, relatar_exclusoes
 from ..config import ErroDeConfig, LimitesDeIndexacao, carregar
-from ..ingest.chunking import CHUNKER_VERSION, ChunkConfig, chunk_document
+from ..ingest.chunking import CHUNKER_VERSION, Chunk, ChunkConfig, chunk_document
 from ..ingest.parsers import parser_version_for
-from ..ingest.document import ParseResult, ParseStatus
+from ..ingest.document import BlockKind, ParseResult, ParseStatus
 from ..ingest.natureza import EXTENSOES_DE_TEXTO_BRUTO
-from ..ingest.reader import parse_file
 from .prioridade import ONDAS, indexaveis, onda_de, ordenar as ordenar_fila
 from .prioridade import pasta_de, vigentes as vigentes_de
 from ..logger import get_logger
@@ -52,10 +51,12 @@ from .esforco import PERFIS_DE_ESFORCO, ControleEsforco
 from .esforco import aplicar as aplicar_esforco
 from .esforco import limpar_pedido, na_bateria
 from .estimativa import Estimador, Relogio, faixa_humana
+from .isolamento import deve_isolar, parse_isolado
+from .orcamento import PRESETS_LEIGO, Recursos, ajustar_ao_vivo, derivar, medir
 from .progresso import Publicador
 from .progresso import ler as ler_progresso
 from .reconciliar import Reconciliacao, reconciliar
-from .store import Store
+from .store import ChunkArmazenado, Store
 
 log = get_logger("index.indexer")
 
@@ -88,10 +89,12 @@ class Progresso:
     inalterados: int = 0
     indexados: int = 0
     chunks: int = 0
+    quarentena: int = 0
     falhas: dict[str, int] = field(default_factory=dict)
     segundos: float = 0.0
     interrompido: bool = False
     reconciliacao: Reconciliacao | None = None
+    cobertura: dict[str, int] = field(default_factory=dict)
 
     def registrar_falha(self, status: str) -> None:
         self.falhas[status] = self.falhas.get(status, 0) + 1
@@ -104,6 +107,8 @@ class Progresso:
             f"{self.indexados} processados",
             f"{self.chunks} chunks",
         ]
+        if self.quarentena:
+            partes.append(f"{self.quarentena} em quarentena")
         if self.falhas:
             partes.append("falhas: " + ", ".join(f"{k}={v}" for k, v in sorted(self.falhas.items())))
         if self.reconciliacao is not None and (self.reconciliacao.houve_mudanca or self.reconciliacao.recusada):
@@ -342,15 +347,59 @@ def _parsear_um(
     path: str,
     limite_planilha_mb: float | None,
     limites_mb: dict[str, float] | None,
+    ram_parse_mb: int | None = None,
+    indice: str | None = None,
 ):
     """Top-level so ThreadPoolExecutor can pickle it on Windows spawn later."""
-    return parse_file(
+    return parse_isolado(
         path,
         retries=1,
         espera=0.5,
         limite_planilha_mb=limite_planilha_mb,
         limites_mb=limites_mb,
+        ram_mb=ram_parse_mb,
+        indice=Path(indice) if indice else None,
     )
+
+
+def _venenoso(resultado: ParseResult) -> bool:
+    """The class R1.4 isolates: crash, timeout, empty binary, parser abort."""
+    if resultado.status is not ParseStatus.ERROR:
+        return False
+    detalhe = (resultado.detail or "").lower()
+    if detalhe.startswith("arquivo de 0 bytes"):
+        return True
+    if "timeout" in detalhe or "subprocesso morreu" in detalhe:
+        return True
+    return deve_isolar(resultado.path)
+
+
+def _chunk_de(arm: ChunkArmazenado) -> Chunk:
+    trilha = tuple(p for p in arm.trilha.split(" > ") if p) if arm.trilha else ()
+    kind = BlockKind(arm.kind) if arm.kind else BlockKind.TEXT
+    return Chunk(
+        id=arm.id,
+        doc_path=arm.path,
+        ordinal=arm.ordinal,
+        heading_path=trilha,
+        text=arm.texto,
+        locator=arm.locator,
+        kind=kind,
+    )
+
+
+def _cobertura(store: Store, model_id: str, totais: int) -> dict[str, object]:
+    por = store.cobertura_modelos()
+    com_chunks = sum(por.values())
+    finais = por.get(model_id, 0)
+    return {
+        "com_chunks": com_chunks,
+        "final": finais,
+        "totais": totais,
+        "busca_pct": round(100 * com_chunks / totais) if totais else 0,
+        "final_pct": round(100 * finais / totais) if totais else 0,
+        "por_modelo": por,
+    }
 
 
 def indexar(
@@ -374,6 +423,9 @@ def indexar(
     parse_workers: int | None = None,
     apenas_onda: int | None = None,
     exigir_exclusoes: bool = False,
+    dois_passes: bool = False,
+    ram_parse_mb: int | None = None,
+    recursos: Recursos | None = None,
 ) -> Progresso:
     """Index the corpus. `prefixo` restricts to a subtree by **filtering**.
 
@@ -395,6 +447,16 @@ def indexar(
     if esforco and esforco.get("perfil"):
         controle = ControleEsforco(store.diretorio, str(esforco["perfil"]))
         esforco = controle.como_json()
+
+    medido = recursos if recursos is not None else medir()
+    orc = derivar(
+        medido,
+        str((esforco or {}).get("perfil") or (controle.perfil if controle else "normal")),
+        lote_pedido=lote,
+    )
+    lote = min(max(1, int(lote)), orc.lote_embed)
+    if ram_parse_mb is None:
+        ram_parse_mb = orc.ram_parse_mb
 
     trava = TravaDeIndice(store.diretorio)
     execucao = store.iniciar_execucao(
@@ -506,7 +568,7 @@ def indexar(
             mapa_limites.pop(".txt", None)
 
     workers = parse_workers if parse_workers is not None else (
-        controle.plano.parse_workers if controle else _parse_workers_padrao()
+        min(controle.plano.parse_workers, orc.parse_workers) if controle else orc.parse_workers
     )
     workers = max(1, int(workers))
     fila: EmbedFila | None = None
@@ -564,6 +626,30 @@ def indexar(
                 progresso.documentos += 1
                 estado = store.estado_documento(arquivo.rel)
                 versao_parser = parser_version_for(os.path.splitext(arquivo.rel)[1])
+                sha_conhecido = estado.sha256 if estado is not None else ""
+                if store.deve_pular_quarentena(arquivo.rel, sha_conhecido):
+                    progresso.quarentena += 1
+                    progresso.registrar_falha("quarentena")
+                    estimador.pular(arquivo.rel, arquivo.size)
+                    if publicador is not None:
+                        publicador.anotar(
+                            falhas=progresso.falhas,
+                            quarentena=progresso.quarentena,
+                        )
+                        publicador.publicar()
+                    continue
+                if (
+                    dois_passes
+                    and estado is not None
+                    and estado.status == ParseStatus.OK.value
+                    and estado.n_chunks > 0
+                    and estado.chunker == CHUNKER_VERSION
+                    and estado.parser == versao_parser
+                    and estado.tamanho == arquivo.size
+                    and abs(estado.mtime - arquivo.mtime) <= 1e-6
+                ):
+                    # Pass 1 already wrote FTS. Pass 2 re-embeds without opening the file.
+                    continue
                 if not _precisa_indexar(estado, arquivo, embedder.model_id, versao_parser):
                     progresso.pulados += 1
                     # Sai do restante sem entrar na calibragem: pular é grátis, e
@@ -580,6 +666,7 @@ def indexar(
         teto_fila = max(workers * 2, 2)
 
         def gravar_ok(root, arquivo, estado, resultado, chunks, vetores, comeco) -> None:  # noqa: ANN001
+            store.limpar_quarentena(arquivo.rel)
             store.remover_documento(arquivo.rel)
             store.gravar_chunks(chunks, vetores, arquivo.mtime, embedder.model_id)
             store.registrar_documento(
@@ -641,19 +728,26 @@ def indexar(
                 return True
 
         def honrar_comando() -> None:
-            nonlocal esforco
-            if controle is not None:
-                pids = list(getattr(fila, "pids", []) or []) if fila is not None else []
-                if controle.atualizar(pids=pids):
-                    esforco = controle.como_json()
-                    if fila is not None:
-                        fila.ajustar(
-                            {g.indice: (g.duty if g.ativo else 0.0) for g in controle.plano.gpus},
-                            {g.indice: g.duty for g in controle.plano.gpus if g.ativo},
-                        )
-                    if publicador is not None:
-                        publicador.anotar(esforco=esforco, recursos=controle.plano.como_json())
-                        publicador.publicar(forcar=True)
+            nonlocal esforco, lote, orc
+            pids = list(getattr(fila, "pids", []) or []) if fila is not None else []
+            if controle is not None and controle.atualizar(pids=pids):
+                esforco = controle.como_json()
+                if fila is not None:
+                    fila.ajustar(
+                        {g.indice: (g.duty if g.ativo else 0.0) for g in controle.plano.gpus},
+                        {g.indice: g.duty for g in controle.plano.gpus if g.ativo},
+                    )
+                if publicador is not None:
+                    publicador.anotar(esforco=esforco, recursos=controle.plano.como_json())
+                    publicador.publicar(forcar=True)
+            fresco = medir()
+            novo = ajustar_ao_vivo(orc, fresco)
+            if novo.perfil != orc.perfil or novo.lote_embed != lote:
+                aplicar_esforco(novo.perfil, pids=pids)
+                lote = novo.lote_embed
+                orc = novo
+                if publicador is not None:
+                    publicador.anotar(orcamento=novo.como_json())
             if aguardar_comando(
                 store.diretorio,
                 relogio=relogio,
@@ -693,6 +787,8 @@ def indexar(
                     str(arquivo.path),
                     limite_planilha_mb,
                     mapa_limites or None,
+                    ram_parse_mb,
+                    str(store.diretorio),
                 )
                 inflight[fut] = (root, arquivo, estado, time.perf_counter())
 
@@ -704,6 +800,19 @@ def indexar(
         def aplicar(root, arquivo, estado, resultado, comeco) -> None:  # noqa: ANN001
             relogio.tique()
             if resultado.status is not ParseStatus.OK or resultado.doc is None:
+                if _venenoso(resultado):
+                    item = store.registrar_quarentena(
+                        arquivo.rel,
+                        hash=resultado.sha256 or (estado.sha256 if estado else ""),
+                        motivo=resultado.detail,
+                    )
+                    progresso.quarentena += 1
+                    log.warning(
+                        "quarentena (%s, tentativa %d): %s",
+                        item.motivo or resultado.status.value,
+                        item.tentativas,
+                        arquivo.rel,
+                    )
                 store.remover_documento(arquivo.rel)
                 store.registrar_documento(
                     path=arquivo.rel,
@@ -854,6 +963,36 @@ def indexar(
                     raise PedidoDeParada()
 
             ritmo = controle.plano.duty_padrao if controle is not None else 1.0
+            if dois_passes:
+                store.limpar_quarentena(arquivo.rel)
+                store.remover_documento(arquivo.rel)
+                store.gravar_textos(chunks)
+                store.registrar_documento(
+                    path=arquivo.rel,
+                    raiz=root.name,
+                    tamanho=arquivo.size,
+                    mtime=arquivo.mtime,
+                    sha256=resultado.sha256,
+                    status=ParseStatus.OK.value,
+                    n_chunks=len(chunks),
+                    model_id="",
+                    chunker=CHUNKER_VERSION,
+                    parser=parser_version_for(os.path.splitext(arquivo.rel)[1]),
+                    natureza=resultado.natureza,
+                )
+                store.commit()
+                progresso.indexados += 1
+                progresso.chunks += len(chunks)
+                estimador.registrar(arquivo.rel, arquivo.size, time.perf_counter() - comeco)
+                if publicador is not None:
+                    publicador.anotar(
+                        chunks=progresso.chunks,
+                        falhas=progresso.falhas,
+                        cobertura=_cobertura(store, embedder.model_id, estimador.documentos_totais),
+                        etapa=None,
+                    )
+                    publicador.publicar()
+                return
             if fila is not None:
                 while len(pend_embed) >= max(1, len(controle.plano.gpu_ids_ativos) if controle else n_gpus):
                     fechar_um_embed(block=True)
@@ -926,6 +1065,65 @@ def indexar(
                 progresso.interrompido = True
                 break
 
+        def embeber_um(path_rel: str) -> None:
+            estado = store.estado_documento(path_rel)
+            if estado is None or estado.n_chunks <= 0:
+                return
+            armazenados = store.chunks_de(path_rel)
+            if not armazenados:
+                return
+            chunks = [_chunk_de(a) for a in armazenados]
+            arquivo_mtime = estado.mtime
+
+            def ao_embed(feitos: int, total: int) -> None:
+                relogio.tique()
+                if publicador is not None:
+                    publicador.anotar(
+                        arquivo=path_rel,
+                        etapa="embed",
+                        trecho=feitos,
+                        trechos=total,
+                    )
+                    publicador.publicar()
+                honrar_comando()
+                if interrupcao.pedida:
+                    raise PedidoDeParada()
+
+            ritmo = controle.plano.duty_padrao if controle is not None else 1.0
+            try:
+                vetores = embedder.embed_passagens(
+                    [c.embedding_text for c in chunks],
+                    batch_size=lote,
+                    ao_progresso=ao_embed,
+                    ritmo=ritmo,
+                )
+            except TypeError as erro:
+                if "ao_progresso" not in str(erro) and "ritmo" not in str(erro):
+                    raise
+                vetores = embedder.embed_passagens(
+                    [c.embedding_text for c in chunks], batch_size=lote
+                )
+            except PedidoDeParada:
+                progresso.interrompido = True
+                return
+            store.substituir_vetores(chunks, vetores, arquivo_mtime, embedder.model_id)
+            store.carimbar_modelo(path_rel, embedder.model_id)
+            store.commit()
+            if publicador is not None:
+                publicador.anotar(
+                    cobertura=_cobertura(store, embedder.model_id, estimador.documentos_totais),
+                    etapa=None,
+                )
+                publicador.publicar()
+
+        if dois_passes and not progresso.interrompido:
+            for path_rel in store.pendentes_de_modelo(embedder.model_id):
+                honrar_comando()
+                if interrupcao.pedida:
+                    progresso.interrompido = True
+                    break
+                embeber_um(path_rel)
+
     # A passada só vale para reconciliar se percorreu o escopo inteiro. Com
     # `--limite` ou interrupção, um caminho ausente de `vistos` significa "não
     # cheguei lá", e não "não existe mais".
@@ -952,11 +1150,24 @@ def indexar(
         publicador.encerrar("interrompida" if progresso.interrompido else "concluida")
     consistencia = store.verificar_consistencia()
     if consistencia["diferenca"]:
-        log.error(
-            "ÍNDICE INCONSISTENTE: %d vetores para %d chunks (diferença %+d) — reindexar do zero",
-            consistencia["vetores"],
-            consistencia["chunks"],
-            consistencia["diferenca"],
+        if dois_passes and consistencia["diferenca"] < 0:
+            log.warning(
+                "rascunho: %d trechos ainda sem vetor final — o passe 2 não terminou",
+                -consistencia["diferenca"],
+            )
+        else:
+            log.error(
+                "ÍNDICE INCONSISTENTE: %d vetores para %d chunks (diferença %+d) — reindexar do zero",
+                consistencia["vetores"],
+                consistencia["chunks"],
+                consistencia["diferenca"],
+            )
+    progresso.cobertura = store.cobertura_modelos()
+    progresso.quarentena = max(progresso.quarentena, int(store.estatisticas().get("quarentena") or 0))
+    if publicador is not None:
+        publicador.anotar(
+            quarentena=progresso.quarentena,
+            cobertura=_cobertura(store, embedder.model_id, estimador.documentos_totais),
         )
     store.encerrar_execucao(
         execucao,
@@ -985,9 +1196,24 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--threads", type=int, help="sobrepõe as threads da máquina")
     parser.add_argument(
         "--perfil",
-        choices=PERFIS_DE_ESFORCO,
-        help="nível de esforço; sobrepõe o [maquina] perfil. 'leve' cede a vez ao "
-        "que está em primeiro plano e recusa rodar na bateria",
+        choices=(*PERFIS_DE_ESFORCO, *PRESETS_LEIGO),
+        help="nível de esforço; sobrepõe o [maquina] perfil. Presets do leigo: "
+        "automatico (cede ao usuário), noturno (tudo), discreto (mínimo). "
+        "'leve' recusa rodar na bateria",
+    )
+    parser.add_argument(
+        "--dois-passes",
+        action="store_true",
+        dest="dois_passes",
+        help="R3.2: parse+FTS primeiro (busca útil no mesmo dia) e embed depois. "
+        "O índice final é o mesmo de uma passada só",
+    )
+    parser.add_argument(
+        "--modelo-rascunho",
+        choices=sorted(MODELOS),
+        dest="modelo_rascunho",
+        help="liga dois passes. MiniLM não cabe na tabela do e5-large (384d vs 1024d); "
+        "o rascunho nesses casos é lexical",
     )
     parser.add_argument(
         "--parse-workers",
@@ -1134,6 +1360,7 @@ def main(argv: list[str] | None = None) -> int:
             parse_workers=args.parse_workers,
             apenas_onda=args.apenas_onda,
             exigir_exclusoes=args.exigir_exclusoes,
+            dois_passes=bool(args.dois_passes or args.modelo_rascunho or conf.indexacao.ativo),
         )
     except ErroDeConfig as erro:
         log.error("%s", erro)

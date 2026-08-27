@@ -163,6 +163,8 @@ def _percentual_gpu(perfil: str, gpu: GpuInfo, todas: list[GpuInfo]) -> int:
 def planar(perfil: str, *, nucleos: int | None = None, gpus: list[GpuInfo] | None = None) -> Plano:
     """Descobre o hardware se não vier dado — testes passam a lista."""
     perfil = normalizar_perfil(perfil)
+    if perfil == "automatico":
+        perfil = "normal"
     total = nucleos if nucleos is not None else (os.cpu_count() or 4)
     total = max(1, int(total))
     usados = nucleos_para(perfil, total)
@@ -209,10 +211,11 @@ def aplicar(perfil: str, *, pids: list[int] | None = None, nucleos: int | None =
     duas coisas é motivo para não indexar. O relatório de volta existe para a
     tela poder dizer "pedi leve e o sistema não deixou" em vez de mentir.
     """
-    perfil = normalizar_perfil(perfil)
+    pedido = normalizar_perfil(perfil)
+    perfil = "normal" if pedido == "automatico" else pedido
     plano = planar(perfil, nucleos=nucleos)
     feito: dict[str, object] = {
-        "perfil": perfil,
+        "perfil": pedido,
         "prioridade": None,
         "e_s": None,
         "afinidade": None,
@@ -270,7 +273,7 @@ def aplicar(perfil: str, *, pids: list[int] | None = None, nucleos: int | None =
         if "aviso" not in feito:
             feito["aviso"] = str(erro)
 
-    log.info("perfil de esforço '%s' aplicado: %s", perfil, {k: feito[k] for k in ("prioridade", "e_s", "cpu_nucleos")})
+    log.info("perfil de esforço '%s' aplicado: %s", pedido, {k: feito[k] for k in ("prioridade", "e_s", "cpu_nucleos")})
     return feito
 
 
@@ -305,12 +308,12 @@ def ler_pedido(indice: Path) -> str | None:
     except OSError:
         return None
     perfil = normalizar_perfil(texto)
-    return perfil if perfil in PERFIS_DE_ESFORCO else None
+    return perfil if perfil in PERFIS_DE_ESFORCO or perfil == "automatico" else None
 
 
 def pedir(indice: Path, perfil: str) -> None:
     perfil = normalizar_perfil(perfil)
-    if perfil not in PERFIS_DE_ESFORCO:
+    if perfil not in PERFIS_DE_ESFORCO and perfil != "automatico":
         raise ValueError(f"perfil desconhecido: {perfil}")
     alvo = caminho_pedido(indice)
     alvo.parent.mkdir(parents=True, exist_ok=True)

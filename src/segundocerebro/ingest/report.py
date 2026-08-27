@@ -121,6 +121,17 @@ def render_markdown(r: dict) -> str:
     for status, n in r["por_status"].most_common():
         add(f"| {status} | {n} | {n / total * 100:.1f}% |")
     add("")
+    n_quarentena = r.get("quarentena") or 0
+    if n_quarentena:
+        add(
+            f"**{n_quarentena} arquivo(s) não puderam ser lidos** e foram para a "
+            "quarentena — a passada seguiu. A lista está no índice, não no stack trace."
+        )
+        add("")
+        for rel in r.get("exemplos_quarentena") or []:
+            add(f"- `{rel}`")
+        add("")
+
     n_sem_cache = r.get("formulas_sem_cache") or 0
     if n_sem_cache:
         add(

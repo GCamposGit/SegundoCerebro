@@ -830,10 +830,18 @@ async function atualizarIndexacao() {
   const d = p.documentos || {};
   const falhas = p.falhas || {};
   const adiados = falhas.adiado ? ` · ${falhas.adiado} adiados` : "";
+  const nQuarentena = p.quarentena || falhas.quarentena || 0;
+  const quarentena = nQuarentena ? ` · ${nQuarentena} não puderam ser lidos` : "";
+  const cob = p.cobertura || {};
+  const rascunho = (cob.busca_pct != null && cob.final_pct != null && cob.busca_pct !== cob.final_pct)
+    ? ` · busca em ${cob.busca_pct}% · qualidade final em ${cob.final_pct}%`
+    : "";
   $("idxResumo").textContent =
     `${ROTULO_STATUS[p.status] || p.status} · ${pct}% · ${d.feitos}/${d.totais} documentos`
     + (p.chunks ? ` · ${Number(p.chunks).toLocaleString("pt-BR")} trechos` : "")
-    + adiados;
+    + adiados
+    + quarentena
+    + rascunho;
 
   $("idxFalta").textContent = travada
     ? `sem avanço há ${humanoSeg(p.sem_avanco_segundos)} — a estimativa de ${p.restante} não vale enquanto isso`
