@@ -813,6 +813,7 @@ privada do desktop **não** trava nenhum destes:
 | C2 + C3.b–d | Glossário automático do corpus + reescrita lexical (mesmo ponto de código) | desktop extrai, notebook mede | 6 | — |
 | F4-L / R1.1 | OLE que mente + conversor de legado | desktop | 6 | F4-L (mente) + R1.1 ✅ PR #37 |
 | F4-O / R1.2 | OCR de PDF digitalizado | **desktop** + notebook (O.3) | 6 | **O.0 ✅** PR #38 · **O.1 neste PR** · O.2/O.3 em [`docs/plano-ocr.md`](docs/plano-ocr.md) |
+| F4-T | Parser de transcrição (`.vtt`/`.srt`): a saída nativa de todo gravador de reunião é contada e não indexada | notebook (`vtt.py`); despachante a combinar | 6 | **sim** — pré-requisito da `F4-P.1`. Laudo: [`docs/fatia-reuniao-invisivel.md`](docs/fatia-reuniao-invisivel.md) |
 | F4-W / R5.1 | Watcher, com camada USN Journal | desktop | 6 | **sim** |
 | F4-S | SharePoint = pasta sincronizada, só política e tela | notebook | 6 | **sim** |
 | R6.2+C4.2 · R7.1 · R7.2+C6.a · R6.3 | Rerank v2 · tools · descriptions · tempo/pasta | notebook | 7 | — |
@@ -1812,6 +1813,22 @@ nome, na transcrição o nome só tem assunto e data. `n = 11` é sinal, não de
 ---
 
 #### F4-P.1 — Peso de nome por tipo de fonte — **notebook**
+
+> **BLOQUEADA em 27/08/2026, antes de medir, pelo `F4-T`.** A fatia que decidiria
+> o pacote tem **n=0**, não n≈100: as 100 perguntas de `reunião` da camada 2
+> apontam para `.vtt`, e `.vtt`/`.srt`/`.sbv` **não estão** em
+> `supported_extensions()` — não existe parser de transcrição. Auditado no
+> `index-e1`: grupo `reunião` com **3** documentos candidatos de 200 registrados,
+> e **0** das 100 perguntas com fonte indexada.
+>
+> Rodar a medição declarada daria Δ pareado 0,000, IC cruzando zero, e o critério
+> de encerramento fecharia o pacote com **"hipótese refutada"** — cumprindo todas
+> as regras e registrando a conclusão errada. Laudo e a classe generalizada em
+> [`docs/fatia-reuniao-invisivel.md`](docs/fatia-reuniao-invisivel.md); a porta que
+> passa a pegá-la é `tests/test_fonte_contrato.py`.
+>
+> O que estava pronto continua válido: o mecanismo, a definição única de grupo e a
+> base da camada 2. O que não existe é a fatia.
 
 > **Aberto em 25/08/2026, e é a metade que a regra 11 tinha adiado.** A `F4-P`
 > cortou a varredura por não haver efeito mínimo declarado. Ela mediu um, e no

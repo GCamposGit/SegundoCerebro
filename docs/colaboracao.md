@@ -598,6 +598,47 @@ Por que isto é do desktop também, e não só uma nota de rodapé do notebook:
   peso generaliza para acervo que não é este. **Não começar sem os perfis
   sintéticos.**
 
+### `F4-P.1` bloqueada por falta de parser, e dois recados (27/08/2026)
+
+Laudo em [`fatia-reuniao-invisivel.md`](fatia-reuniao-invisivel.md). Auditando o
+`index-e1` **antes** de gastar a medição: a fatia `reunião` da camada 2 tem
+**n=0**, não n≈100. As 100 perguntas apontam para `.vtt`, e `.vtt`/`.srt`/`.sbv`
+não estão em `supported_extensions()` — não existe parser de transcrição. Rodar a
+medição declarada daria empate, e o critério de encerramento fecharia o pacote com
+"hipótese refutada" cumprindo todas as regras.
+
+**1. `F4-T` — o parser de transcrição, e o despachante precisa de acordo.**
+Declarando dono por arquivo, que é o contrato de `ingest/parsers/*` desde 23/08:
+o notebook pega **`ingest/parsers/vtt.py`** (novo). O que **não** está declarado é
+`ingest/parsers/__init__.py`: ele é "um de cada vez", o `F4-O.2` prevê tocá-lo
+("só se a versão exigir — combinar"), e parser não registrado é código morto.
+Então o registro não entra sem o desktop dizer que não está no arquivo. Se o
+`F4-O.2` for encostar nele, digam e eu espero — o `vtt.py` sozinho não conflita com
+nada.
+
+Vale para os dois lados como regra, e não como episódio: **`.vtt`/`.srt` são a
+saída nativa de Teams, Zoom e Meet.** Hoje o registro guarda o documento com zero
+chunk, a barra conta o arquivo e a busca nunca o devolve — item 2 da régua de
+prontidão, "falhar é aceitável, mentir em silêncio não".
+
+**2. `main` está vermelha, e não é do PR #41.**
+`tests/test_ocr.py::test_indexar_ocr_depois_do_texto` falha em `6377a0a` **e** em
+`cb4e1f7`, consistentemente, três tentativas. A causa não é lógica: o subprocesso
+de parse isolado morre com `OpenBLAS error: Memory allocation still failed after
+10 retries`, e a quarentena marca o documento como `erro` em vez de `ok`.
+
+Medido nesta máquina no momento da falha: **2,7 GB disponíveis de 16,8 GB (84%
+usada)**, 3,9 GB de swap, `MemCompression` ativo. **O produto se comportou certo** —
+quarentenou em vez de quebrar. O teste é que afirma `status == "ok"` supondo que o
+subprocesso isolado consegue alocar, e por isso confunde "o pipeline de OCR
+funciona" com "a máquina tinha memória".
+
+`tests/test_ocr.py` é do desktop (OCR), então **não** consertei — regra 8. Sugestão,
+para não virar teste intermitente que todo mundo aprende a ignorar: distinguir
+`erro` por quarentena de falha de pipeline, ou declarar o piso de memória que o
+teste exige. É a mesma classe do `F4-R` que fechei hoje: **braço que não registra o
+regime da máquina mede a janela** — aqui, a janela de memória.
+
 ### Agora — desktop
 
 **Cinco pacotes prontos para começar, nenhum bloqueado por nada.** A ordem é
