@@ -99,13 +99,24 @@ o container OLE que mente sobre o próprio conteúdo.
 
 ## Próximo passo
 
-1. **A varredura de peso de nome por tipo de fonte**, que a `F4-P` deixou com o
-   efeito mínimo que lhe faltava — nDCG@5 de reunião **−0,089 [−0,172, −0,017]**,
-   IC que não cruza zero. A regra 11 a cortou em 25/08 por não haver esse número;
-   agora há. **E a outra metade também**: o `E1` fechou no mesmo dia, e o corpus
-   dele dá `reunião` com n=30 ou n≈100 contra os 11 do dourado real — é a camada
-   2, a que fala de base desconhecida. O pacote é o `F4-P.1`.
-2. **`F6`** — restam `F6-C` (desktop) e `F6-B` (estágio 0 do painel); a `F6-A`
+> **A varredura de peso de nome por tipo de fonte saiu desta lista em 27/08/2026.**
+> Ela tinha o efeito mínimo que lhe faltava — nDCG@5 de reunião
+> **−0,089 [−0,172, −0,017]**, IC que não cruza zero — e a `F4-P.1` **fechou como
+> hipótese mal especificada**, não como refutação: a alavanca zerava o peso do nome
+> nos candidatos de reunião, que são as **vítimas**, e 11 de 12 dos documentos que
+> causam o dano são de escritório
+> ([`docs/ablacao-f4p1-nome-por-fonte.md`](docs/ablacao-f4p1-nome-por-fonte.md)).
+> **Não reabre com outra grade.**
+
+1. **`F4-R.1` — o regime de máquina observável**, e é pré-requisito da passada de
+   calibragem no acervo real: sem ele a `Calibracao` aprende coeficiente de dois
+   regimes misturados (22× de diferença) com milhares de observações a favor.
+   `esforco.py` está emprestado ao notebook por declaração na §6 de
+   [`docs/colaboracao.md`](docs/colaboracao.md), porque o desktop não tem bateria
+   nem CPU híbrida e não reproduz o defeito.
+2. **`F4-O.3` — o dourado de OCR** (`g015`/`g025`/`g048`), que é do notebook e
+   destravou quando o `F4-O.2` entrou na `main` no PR #42.
+3. **`F6`** — restam `F6-C` (desktop) e `F6-B` (estágio 0 do painel); a `F6-A`
    fechou no PR #14. A
    `F6-D` (`docs/comecar.md`) e a `F6-E` (pasta hostil) fecharam em 25/08/2026, e
    o `Q5` P0 — e2e do protocolo MCP — também. Do `Q2` sobram lockfile e extras,
@@ -133,6 +144,13 @@ a evidência datada em [`docs/historico-decisoes.md`](docs/historico-decisoes.md
   chunk (o teste dizia 19 onde havia 1.850); máquina nomeada e estado térmico
   para latência (1,6× de variação); braços misturados contaminam o barato com o
   caro, e o número contaminado é plausível.
+- **Braço de velocidade sem regime de máquina gravado mede a janela, não o
+  braço.** A mesma máscara de afinidade custa 0× num regime e 8× noutro, e a mesma
+  máquina entrega 0,141 e 3,19 s/chunk sem nada do produto mudar — 22×, contra os
+  1,6× que a lição térmica de latência previa. Só braços **intercalados** dentro da
+  janela pegam isso; blocos em sequência produzem tabela coerente e causa falsa, e
+  foi o que aconteceu com o achado 16.1 e com a minha hipótese substituta
+  (`docs/afinidade-e-estado-de-maquina.md`).
 - **Recorte derivável não se anota; anotação que o índice não dá se confere a
   cada rodada.** Regra derivada errou por prefixo de pasta e deu número menor e
   plausível — que passaria.

@@ -723,6 +723,49 @@ ao grupo do **candidato**; o nome igual escondeu que são populações diferente
    `tests/test_saneamento.py`, porque a que existia é pulada quando a lista local
    está vazia — num clone limpo não havia guarda nenhuma. **Confiram se a passada
    de vocês fez o mesmo antes do próximo commit.**
+### A afinidade: 16.1 retratado, e o notebook pega `esforco.py` emprestado (27/08/2026)
+
+Laudo em
+[`afinidade-e-estado-de-maquina.md`](afinidade-e-estado-de-maquina.md). Em uma
+linha: **o achado 16.1 media a janela, não a máscara.** A mesma máscara do perfil
+`normal` mede 0,141 e 3,19 s/chunk no mesmo notebook, conforme um regime de
+agendamento do Windows que o produto não observa — e no regime benigno ela custa
+**zero**. A causa que o 16.1 propôs (colisão de threads intra-op do ORT) está
+refutada, e a minha hipótese substituta (reaplicar afinidade sobre threadpool
+viva, `indexer.py:925`) também.
+
+Três coisas que o desktop precisa saber:
+
+1. **Não existe "~12× de vazão" esperando um conserto de máscara.** Quem tratar
+   o 16.1 como pendência de otimização vai afinar máscara contra uma janela. O
+   bloco na spec está marcado como retratado, com ponteiro para o laudo.
+2. **A medição da estimativa v2 nas 980 Ti muda de requisito.** Ela era "modelo
+   sequencial vs pipeline GPU" (spec §14); passa a precisar do regime gravado em
+   cada observação, senão mede o mesmo artefato num hardware onde ninguém vai
+   procurar por ele. No desktop o regime provavelmente é constante — o que é uma
+   informação, e vale registrar como tal em vez de assumir.
+3. **`index/esforco.py` fica emprestado ao notebook neste pacote**, pelo contrato
+   que já rodou duas vezes (o `C3.a` com `store.py`, o `C5.a` com `eval/`):
+   declarado aqui antes de começar, devolvido no merge. O motivo não é
+   conveniência — é que **o desktop não tem bateria nem CPU híbrida**, e o defeito
+   é condicional ao regime de agendamento de um notebook. Quem conserta tem de ser
+   quem consegue reproduzir. Se o desktop preferir ficar com o arquivo, o pacote
+   volta a ser dele e o notebook entrega só a medição; diga na §7.
+
+**Nada de código de produto neste PR** — o instrumento vai versionado, o
+conserto não. `eval/regime.py` é o harness que recusa o método que produziu a
+conclusão errada: braços intercalados obrigatórios, contraste recusado com menos
+de duas réplicas por braço, e regime de energia no relato de toda observação.
+Máscara **não** muda aqui: o estado lento ainda não é reproduzível sob comando, e
+trocar a máscara antes disso mede a janela outra vez. O item 1 do pacote é achar o
+gatilho do EcoQoS; a ordem inteira, com efeito mínimo declarado e regra de
+encerramento, está no laudo.
+
+**Paths deste PR (notebook):** `docs/afinidade-e-estado-de-maquina.md` (novo),
+`eval/regime.py` + `eval/test_regime.py` (novos), `docs/spec-estimativa-v2.md`
+(bloco 16.1 marcado como retratado), `ROADMAP.md` (pacote `F4-R`), este arquivo,
+`CLAUDE.md`. `ROADMAP.md` é "um de cada vez" e volta no merge. Nada de
+`retrieve/*`, nada de `[padrao]`, nada de `index/esforco.py` **neste** PR.
 
 ### Agora — desktop
 
