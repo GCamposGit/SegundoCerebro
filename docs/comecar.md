@@ -219,10 +219,11 @@ Preferimos dizer isto do que deixar você descobrir depois.
 
 - **PDF digitalizado.** Sem o extra de OCR, a foto da página fica registrada
   como vazio — não some em silêncio. Com `pip install segundocerebro[ocr]` e
-  `py -m segundocerebro.index.indexer --ocr`, o sistema **tenta** ler a
-  imagem **depois** dos documentos que já têm camada de texto. A qualidade
-  em ofício antigo ainda não foi medida; não é garantia de que o PDF vira
-  trecho buscável. Sem o extra, o resto da indexação não muda.
+  `py -m segundocerebro.index.indexer --ocr`, o RapidOCR lê a imagem
+  **depois** dos documentos que já têm camada de texto. Medido: um
+  identificador impresso numa página-foto volta intacto. Ofício antigo
+  (letra pequena, página mista) ainda não foi medido; não é garantia de
+  que o PDF vira trecho buscável. Sem o extra, o resto da indexação não muda.
 - **Não vigia as pastas.** Documento novo só entra quando você rodar a indexação
   outra vez.
 - **Só estes formatos:** PDF (`.pdf`), Word (`.docx`, `.docm`, `.doc`, `.rtf`),

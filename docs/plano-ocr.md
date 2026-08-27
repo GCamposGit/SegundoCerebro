@@ -81,6 +81,13 @@ Paths previstos: `ingest/ocr.py` (API do RapidOCR pinada pelo teste),
 Se a API do `rapidocr_onnxruntime` não for a tuple/dict que o código adivinha,
 o teste quebra **aqui**, barato, em vez de no acervo de 10 GB.
 
+**Medido em 27/08/2026**, desktop, `rapidocr-onnxruntime==1.4.4`, raster
+`Matrix(2, 2)`, fixture VCE gerado no teste, **sem** `OCR_FAKE`. Identificador
+`NN-VCE-001` volta exato; a frase plantada também. API observada:
+`(linhas, elapsed)` com `linhas = [[box, text, confidence], ...]`. Hipótese
+**não** refutada. O.2 pode começar depois deste merge. Ofício antigo, página
+mista e dpi continuam O.2; o dourado continua O.3.
+
 ### F4-O.2 — a unidade é a página, o raster cabe na máquina · desktop
 
 Só começa com F4-O.1 verde. Senão estamos afinando dpi de um motor que não lê PT.
@@ -146,9 +153,9 @@ F4-O.0  porta (já)          ──► F4-O.1  motor real
 
 ## O que o leigo vê, até lá
 
-`docs/comecar.md` não pode falar como se o extra já lesse o ofício. A frase
-honesta: tenta; qualidade não medida; sem extra o resto não muda. F4-O.1 verde
-é o que autoriza linguagem mais forte.
+`docs/comecar.md` depois do O.1: o extra lê com RapidOCR e um identificador
+impresso volta intacto; ofício antigo e página mista ainda não foram medidos.
+Sem extra o resto não muda.
 
 ---
 

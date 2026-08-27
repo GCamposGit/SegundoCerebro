@@ -645,24 +645,24 @@ sugestão; os três primeiros são a onda 1 e destravam as ondas 4 e 5.
    dois passes (rascunho = parse+FTS).
 6. ~~**F4-L / R1.1**~~ — **fechado no PR #37.** Converter legado via o mesmo
    soffice do C7.a.
-7. ~~**F4-O / R1.2 — porta (`f4-o-ocr`).**~~ Fila depois das ondas de texto,
-   extra `[ocr]`, suíte sem o extra idêntica. **Não é OCR de produção:** os
-   testes usam motor falso. O restante está em
-   [`plano-ocr.md`](plano-ocr.md) — O.1 motor real, O.2 página/dpi/RAM, O.3
-   dourado (notebook). **Não começar O.1 neste PR.**
+7. ~~**F4-O / R1.2 — porta (`f4-o-ocr`).**~~ PR #38. Fila depois das ondas
+   de texto, extra `[ocr]`, suíte sem o extra idêntica. Motor falso.
+8. ~~**F4-O plano (`f4-o-plano`).**~~ PR #40. Contrato O.1/O.2/O.3 em
+   [`plano-ocr.md`](plano-ocr.md).
+9. **F4-O.1 — neste PR (`f4-o1-motor`).** RapidOCR no raster de produção
+   (`Matrix(2,2)`) recupera identificador VCE plantado (`NN-VCE-001`) numa
+   página-imagem, **sem** `OCR_FAKE`. Marker `ocr` fora da suíte padrão e
+   do CI. **Não começa O.2.**
 
-8. **F4-O plano — neste PR (`f4-o-plano`).** Zero código de motor. Só o
-   contrato das três fatias, para o ROADMAP não tratar a porta como fase
-   fechada.
-
-   **Paths deste PR:** `docs/plano-ocr.md` (novo), `ROADMAP.md`, este arquivo,
-   `docs/comecar.md` (uma ressalva: o extra *tenta*, qualidade não medida).
+   **Paths deste PR:** `ingest/ocr.py` (API 1.3–1.4 pinada em comentário),
+   `tests/test_ocr_motor.py` (novo), `pyproject.toml` (marker `ocr`),
+   `docs/plano-ocr.md`, `docs/comecar.md`, este arquivo, `ROADMAP.md`.
    `ROADMAP.md` é "um de cada vez" e volta no merge. Nada de `retrieve/`,
-   nada de `[padrao]`, nada de `ingest/ocr.py` neste PR.
+   nada de `[padrao]`, nada de `parsers/__init__.py`.
 
-   **Estimativa v2** está em `main` (PR #39). Este PR só alinha o ROADMAP à
-   porta do OCR. Depois do merge o notebook puxa. O desktop mede a v2 nas
-   980 Ti (spec §14: modelo sequencial vs pipeline GPU) **antes** de abrir O.1.
+   **Estimativa v2 nas 980 Ti:** a passada do acervo privado ainda é o
+   processo da v1 (GPUs ocupadas). Não interromper. Medição da spec §14
+   fica para a próxima passada com o código novo.
 
 **Não começar** `[padrao]`, `Chunking`, `model_id`, `retrieve/*` — e **não
 implementar `R1.3`**: o complemento mostrou que MinHash a 0,85 fundiria o que
