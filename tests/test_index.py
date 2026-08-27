@@ -769,8 +769,23 @@ def test_versao_de_parser_vem_do_registro_de_extensoes() -> None:
 
     assert parser_version_for(".msg") == parser_version_for(".eml") == "2"
     assert parser_version_for(".MSG") == "2", "extensão em maiúscula é a mesma extensão"
+    assert parser_version_for(".csv") == "2"
+    assert parser_version_for(".xlsx") == "2"
     assert parser_version_for(".pdf") == VERSAO_INICIAL
     assert parser_version_for(".xyz") == VERSAO_INICIAL, "sem parser é repescado por status"
+
+
+def test_flag_de_texto_nao_adia_csv() -> None:
+    """C7.d: `--pular-texto-acima-de` is the .txt gate, not a second CSV hide."""
+    from segundocerebro.config import LimitesDeIndexacao
+    from segundocerebro.index.indexer import _limites_efetivos
+
+    mapa = _limites_efetivos(LimitesDeIndexacao(txt=2, csv=0), 1.0)
+    assert mapa[".txt"] == 1.0
+    assert ".csv" not in mapa
+
+    com_teto_de_base = _limites_efetivos(LimitesDeIndexacao(txt=2, csv=5), 1.0)
+    assert com_teto_de_base[".csv"] == 5.0
 
 
 # --- recorte por extensão ---------------------------------------------------

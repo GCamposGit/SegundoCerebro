@@ -798,7 +798,7 @@ def test_estado_traz_limites_padrao(cliente) -> None:
     dados = cliente.get("/api/estado", headers=cabecalho()).json()
     limites = dados["bases"][0]["limites"]
     assert limites["txt"] == 2.0
-    assert limites["csv"] == 2.0
+    assert limites["csv"] == 0.0
     assert limites["pdf"] == 0.0
 
 

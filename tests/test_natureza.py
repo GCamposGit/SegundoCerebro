@@ -386,6 +386,14 @@ def test_csv_abaixo_do_limite_passa(tmp_path: Path) -> None:
     assert parse_file(str(alvo), limite_texto_mb=2.0).status is ParseStatus.OK
 
 
+def test_csv_nao_e_adiado_pelo_limite_de_texto(tmp_path: Path) -> None:
+    """C7.d: the text-size shortcut must not hide a dump the digest now covers."""
+    alvo = tmp_path / "dump.csv"
+    alvo.write_text("a,b\n" + "1,2\n" * 80, encoding="utf-8")
+
+    assert parse_file(str(alvo), limite_texto_mb=0.0001).status is ParseStatus.OK
+
+
 def test_limite_de_texto_nao_afeta_markdown(tmp_path: Path) -> None:
     alvo = tmp_path / "nota.md"
     alvo.write_text("# Título\n\nCorpo com texto suficiente para virar bloco.\n", encoding="utf-8")

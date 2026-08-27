@@ -108,12 +108,13 @@ def parse_file(
     """Read and parse one file, turning every failure into a recorded status.
 
     `limites_mb` adia pelo tamanho em disco **antes** de abrir, por extensão.
-    `limite_texto_mb` é o atalho legado para `.txt`/`.csv`. `limite_planilha_mb`
-    adia planilhas pelo XML de abas, que o tamanho em disco não prevê. As três
-    decisões moram aqui, e não no indexador, pelo mesmo motivo que a recusa de
-    placeholder de nuvem mora aqui: é uma decisão sobre **abrir ou não abrir o
-    conteúdo**, e ter dois lugares que decidem isso é como o portão único se
-    perde.
+    `limite_texto_mb` é o atalho legado para `.txt` (C7.d: CSV left this gate —
+    the spreadsheet parser turns a dump into a digest instead of hiding the
+    file). `limite_planilha_mb` adia planilhas pelo XML de abas, que o tamanho
+    em disco não prevê. As três decisões moram aqui, e não no indexador, pelo
+    mesmo motivo que a recusa de placeholder de nuvem mora aqui: é uma decisão
+    sobre **abrir ou não abrir o conteúdo**, e ter dois lugares que decidem
+    isso é como o portão único se perde.
     """
     from .parsers import parser_for  # local import keeps the registry lazy
 
@@ -126,10 +127,8 @@ def parse_file(
     if limite_texto_mb is not None:
         if limite_texto_mb > 0:
             mapa[".txt"] = limite_texto_mb
-            mapa[".csv"] = limite_texto_mb
         else:
             mapa.pop(".txt", None)
-            mapa.pop(".csv", None)
     teto = mapa.get(extensao)
     if teto is not None and teto > 0:
         adiado = _adiar_por_tamanho(path, teto)
@@ -202,6 +201,9 @@ def parse_file(
             )
         doc = alternativo
 
+    if doc.meta.get("sem_valor_em_cache") == "1":
+        doc = _recalcular_planilha(doc, dados, nome, parser)
+
     natureza = detectar(path, dados, doc)
     if not doc.blocks or not doc.total_chars:
         detalhe = "digitalizado, sem camada de texto" if natureza.digitalizado else "nenhum texto extraível"
@@ -237,6 +239,32 @@ def _reinterpretar(path: str, dados: bytes, nome: str, familia: str) -> ParsedDo
         return None
     log.info("extensão mente: %s interpretado como %s", path, familia)
     return doc
+
+
+def _recalcular_planilha(doc: ParsedDoc, dados: bytes, nome: str, parser) -> ParsedDoc:  # noqa: ANN001
+    """LibreOffice writes cached values; without it the flag stays (C7.a).
+
+    Parsers never spawn soffice — they return bytes. This is the one place
+    allowed to try, and a missing binary is a visible warning, not EMPTY.
+    """
+    from .converters.libreoffice import recalcular_xlsx
+
+    convertido = recalcular_xlsx(dados)
+    if convertido is None:
+        log.info("%s: fórmulas sem cache e LibreOffice ausente — valor não entra no índice", nome)
+        return doc
+    try:
+        novo = parser(convertido, nome)
+    except Exception as exc:  # noqa: BLE001 — convert succeeded, parse of the result did not
+        log.warning("%s: recálculo LibreOffice produziu arquivo ilegível: %s", nome, exc)
+        return doc
+    if novo.meta.get("sem_valor_em_cache") == "1" or not novo.blocks:
+        log.info("%s: LibreOffice converteu mas o cache da fórmula continua vazio", nome)
+        return doc
+    meta = dict(novo.meta)
+    meta["recalculado"] = "libreoffice"
+    log.info("%s: recálculo via LibreOffice preencheu fórmulas sem cache", nome)
+    return ParsedDoc(name=novo.name, blocks=novo.blocks, meta=meta)
 
 
 def empty_doc(nome: str, **meta: str) -> ParsedDoc:

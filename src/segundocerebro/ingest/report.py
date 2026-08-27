@@ -57,6 +57,8 @@ def executar(cfg: Config, alvo_amostra: int = 0, limite_mb: float = 0.0) -> dict
     chars_de_chunk_por_extensao: Counter[str] = Counter()
     exemplos: dict[str, list[str]] = defaultdict(list)
     segundos_por_extensao: Counter[str] = Counter()
+    formulas_sem_cache = 0
+    exemplos_sem_cache: list[str] = []
     cfg_chunk = ChunkConfig()
 
     inicio = time.perf_counter()
@@ -75,6 +77,10 @@ def executar(cfg: Config, alvo_amostra: int = 0, limite_mb: float = 0.0) -> dict
             chunks = chunk_document(resultado.doc, arquivo.rel, cfg_chunk)
             chunks_por_extensao[ext] += len(chunks)
             chars_de_chunk_por_extensao[ext] += sum(c.chars for c in chunks)
+            if resultado.doc.meta.get("sem_valor_em_cache") == "1":
+                formulas_sem_cache += 1
+                if len(exemplos_sem_cache) < 12:
+                    exemplos_sem_cache.append(arquivo.rel)
         if resultado.status is not ParseStatus.OK and len(exemplos[resultado.status.value]) < 12:
             exemplos[resultado.status.value].append(arquivo.rel)
         if i % 100 == 0:
@@ -92,6 +98,8 @@ def executar(cfg: Config, alvo_amostra: int = 0, limite_mb: float = 0.0) -> dict
         "chars_de_chunk_por_extensao": chars_de_chunk_por_extensao,
         "segundos_por_extensao": segundos_por_extensao,
         "exemplos": exemplos,
+        "formulas_sem_cache": formulas_sem_cache,
+        "exemplos_sem_cache": exemplos_sem_cache,
     }
 
 
@@ -113,6 +121,17 @@ def render_markdown(r: dict) -> str:
     for status, n in r["por_status"].most_common():
         add(f"| {status} | {n} | {n / total * 100:.1f}% |")
     add("")
+    n_sem_cache = r.get("formulas_sem_cache") or 0
+    if n_sem_cache:
+        add(
+            f"**{n_sem_cache} planilha(s) com fórmulas não calculadas.** "
+            "Sem LibreOffice o número (Equity Value, total) não entra no índice. "
+            "Instalar o `soffice` e reindexar preenche o cache (C7.a)."
+        )
+        add("")
+        for rel in r.get("exemplos_sem_cache") or []:
+            add(f"- `{rel}`")
+        add("")
 
     add("## Por formato")
     add("")

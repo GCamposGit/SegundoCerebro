@@ -639,14 +639,14 @@ sugestão; os três primeiros são a onda 1 e destravam as ondas 4 e 5.
    `requirements.txt` vira lockfile de CI, extras `[gpu]`/`[ocr]`, matriz
    `windows`+`ubuntu`+`macos` no CI. Alvo: `pip install` + um comando sobe o
    servidor em venv limpa, sem `PYTHONPATH`.
-4. **C7.a + C7.d — perda silenciosa em planilha.** `data_only=True` faz planilha
-   nunca aberta pelo Excel vir com célula vazia: o Equity Value simplesmente não
-   entra no índice. O aviso já existe em `sheets.py:420`; falta a rota de
-   recálculo via LibreOffice headless — **mesmo binário do R1.1**. E `.csv` está
-   registrado no parser de texto (`text.py:109`): depois da primeira janela as
-   linhas ficam órfãs sem cabeçalho. Rota própria no pipeline de planilha.
-   *Dimensionamento honesto:* no acervo corporativo são **2 CSVs**; os 85 do
-   complemento vêm da varredura de disco inteiro, não de uma base.
+4. **C7.a + C7.d — perda silenciosa em planilha.** ~~**C7.d fechado no PR #34**~~
+   (CSV na rota de planilha; teto de 2 MB deixou de esconder o arquivo). **C7.a
+   neste PR:** recálculo via LibreOffice headless — **mesmo binário do R1.1**.
+   Planilha com fórmula sem cache (`sem_valor_em_cache`) entra em
+   `soffice --convert-to xlsx`; sem o binário, o aviso fica no relatório de
+   ingestão. Suíte padrão passa sem LibreOffice (fallback testado com mock).
+   `.tsv` **não** entra aqui: registrar a extensão exige fixture no gerador,
+   que é do notebook.
 5. **F4-L, F4-W, R1.4, R5.2, R3.2** — como já estavam, mais quarentena de
    arquivo venenoso, orçamento adaptativo de recursos e indexação em dois passes.
 
