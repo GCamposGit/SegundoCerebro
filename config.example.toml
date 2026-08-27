@@ -36,6 +36,8 @@ lote = 32
 # [indexacao]
 # dois_passes = true
 # modelo_rascunho = "minilm"   # liga dois_passes; o rascunho denso só entra se a dim coincidir
+# ocr = true                  # R1.2: depois do texto, OCR nos PDF digitalizados
+                              # exige pip install segundocerebro[ocr]
 
 # ---------------------------------------------------------------------------
 # Herdado por toda base, sobrescrevível dentro de cada uma.

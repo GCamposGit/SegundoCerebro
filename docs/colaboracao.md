@@ -643,25 +643,28 @@ sugestão; os três primeiros são a onda 1 e destravam as ondas 4 e 5.
    PR #35. Recálculo via LibreOffice headless — **mesmo binário do R1.1**.
 5. ~~**R1.4 + R5.2 + R3.2**~~ — **fechado no PR #36.** Quarentena, orçamento,
    dois passes (rascunho = parse+FTS).
-6. **F4-L / R1.1 — neste PR (`f4-l-legado-libreoffice`).** Converter `.doc` /
-   `.ppt` / `.xls` pelo mesmo `libreoffice.py` do C7.a. Parsers continuam
-   recebendo bytes; o `reader.py` é o único que pode chamar soffice. Sem
-   LibreOffice: fallback `ole_texto`/`xlrd` (suíte verde). Não toca o
-   despachante. HTML-como-xls e PPTX-como-ppt (já no F4-L mergeado) não
-   passam pelo convert.
+6. ~~**F4-L / R1.1**~~ — **fechado no PR #37.** Converter legado via o mesmo
+   soffice do C7.a.
+7. **F4-O / R1.2 — neste PR (`f4-o-ocr`).** OCR de PDF digitalizado **depois**
+   das ondas de texto. Extra `[ocr]` (RapidOCR); sem o extra a passada é
+   idêntica à de hoje. Não é extensão nova: o parser de PDF já marca
+   `digitalizado`, e a fila é essa coluna (não uma `precisa_ocr` duplicada).
+   **Não toca o despachante.** g015/g025/g048 saem de `fora_de_escopo` só com
+   número do notebook no corporativo.
 
-   **Paths deste PR:** `ingest/converters/libreoffice.py`, `ingest/reader.py`,
-   `ingest/parsers/word.py` / `slides.py` / `sheets.py` (só `version=2` em
-   `.doc` `.ppt` `.xls`), `index/isolamento.py` (timeout do convert),
-   `tests/test_libreoffice.py`, `tests/test_ingest.py`, `tests/test_index.py`,
-   `tests/test_quarentena.py`, este arquivo, `ROADMAP.md`. Nada de
-   `retrieve/`, nada de `[padrao]`, nada de `parsers/__init__.py`.
+   **Paths deste PR:** `ingest/ocr.py` (novo), `ingest/reader.py` (`ocr=`),
+   `index/indexer.py` (fase depois das 4 ondas), `index/store.py`
+   (`documentos_para_ocr`), `index/isolamento.py`, `config.py`
+   (`[indexacao] ocr`), `config.example.toml`, `docs/comecar.md`,
+   `tests/test_ocr.py`, este arquivo, `ROADMAP.md`. `config.py` é "um de
+   cada vez" e volta no merge. Nada de `retrieve/`, nada de `[padrao]`,
+   nada de `parsers/__init__.py`.
 
 **Não começar** `[padrao]`, `Chunking`, `model_id`, `retrieve/*` — e **não
 implementar `R1.3`**: o complemento mostrou que MinHash a 0,85 fundiria o que
 `familias.py` separa de propósito e reintroduziria o `g045`. `R1.3` está
 absorvido por `C6`, que é do notebook. **Não começar C7.b/C7.c** (onda 5,
-pede ablação). **Não começar F4-O** (despachante + OCR).
+pede ablação).
 
 ### Os dois documentos de recomendação
 

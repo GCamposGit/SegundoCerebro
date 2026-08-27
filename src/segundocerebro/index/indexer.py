@@ -34,9 +34,10 @@ from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from dataclasses import dataclass, field, replace
 from pathlib import Path
 
-from ..census import Census, Config, iter_files, relatar_exclusoes
+from ..census import Census, Config, FileEntry, iter_files, relatar_exclusoes
 from ..config import ErroDeConfig, LimitesDeIndexacao, carregar
 from ..ingest.chunking import CHUNKER_VERSION, Chunk, ChunkConfig, chunk_document
+from ..ingest.ocr import VERSAO as OCR_VERSAO
 from ..ingest.parsers import parser_version_for
 from ..ingest.document import BlockKind, ParseResult, ParseStatus
 from ..ingest.natureza import EXTENSOES_DE_TEXTO_BRUTO
@@ -90,6 +91,7 @@ class Progresso:
     indexados: int = 0
     chunks: int = 0
     quarentena: int = 0
+    ocr: int = 0
     falhas: dict[str, int] = field(default_factory=dict)
     segundos: float = 0.0
     interrompido: bool = False
@@ -107,6 +109,8 @@ class Progresso:
             f"{self.indexados} processados",
             f"{self.chunks} chunks",
         ]
+        if self.ocr:
+            partes.append(f"{self.ocr} via OCR")
         if self.quarentena:
             partes.append(f"{self.quarentena} em quarentena")
         if self.falhas:
@@ -285,8 +289,8 @@ Encontrado em 13/08/2026, com um `.docx` travado durante a reconstrução.
   para trás, já que `CHUNKER_VERSION` não cobre versão de parser
 
 `vazio` fica de fora de propósito: é determinístico dados os mesmos bytes e o
-mesmo parser, e repescar custaria reprocessar 12 PDFs digitalizados de até 61
-páginas a cada passada, sem nada a ganhar até existir OCR."""
+mesmo parser. PDFs digitalizados são a fila da fase OCR (R1.2), não desta
+repesca — reparseá-los como PDF barato apagaria o texto do OCR."""
 
 
 def _precisa_indexar(estado, arquivo, model_id: str, parser: str) -> bool:  # noqa: ANN001
@@ -294,6 +298,11 @@ def _precisa_indexar(estado, arquivo, model_id: str, parser: str) -> bool:  # no
         return True
     if estado.status in STATUS_PARA_REPESCAR:
         return True
+    bytes_mudaram = estado.tamanho != arquivo.size or abs(estado.mtime - arquivo.mtime) > 1e-6
+    if (estado.parser or "").startswith("ocr:"):
+        # Cheap PDF parse would wipe OCR text back to vazio. The OCR phase
+        # owns these rows unless the file itself changed.
+        return bytes_mudaram
     if estado.model_id != model_id or estado.chunker != CHUNKER_VERSION:
         return True
     # Parser corrigido alcança o que já está indexado. Sem esta linha, o único
@@ -301,9 +310,15 @@ def _precisa_indexar(estado, arquivo, model_id: str, parser: str) -> bool:  # no
     # chunks exigiu em 21/08/2026, e é o que o comentário acima admitia faltar.
     if estado.parser != parser:
         return True
-    if estado.tamanho != arquivo.size or abs(estado.mtime - arquivo.mtime) > 1e-6:
+    if bytes_mudaram:
         return True
     return False
+
+
+def _parser_gravado(resultado: ParseResult, rel: str) -> str:
+    if resultado.doc is not None and resultado.doc.meta.get("fonte") == "ocr":
+        return resultado.doc.meta.get("parser") or OCR_VERSAO
+    return parser_version_for(os.path.splitext(rel)[1])
 
 
 def _extensoes(bruto: str | None) -> frozenset[str] | None:
@@ -349,6 +364,7 @@ def _parsear_um(
     limites_mb: dict[str, float] | None,
     ram_parse_mb: int | None = None,
     indice: str | None = None,
+    ocr: bool = False,
 ):
     """Top-level so ThreadPoolExecutor can pickle it on Windows spawn later."""
     return parse_isolado(
@@ -359,6 +375,7 @@ def _parsear_um(
         limites_mb=limites_mb,
         ram_mb=ram_parse_mb,
         indice=Path(indice) if indice else None,
+        ocr=ocr,
     )
 
 
@@ -426,6 +443,7 @@ def indexar(
     dois_passes: bool = False,
     ram_parse_mb: int | None = None,
     recursos: Recursos | None = None,
+    ocr: bool = False,
 ) -> Progresso:
     """Index the corpus. `prefixo` restricts to a subtree by **filtering**.
 
@@ -679,11 +697,13 @@ def indexar(
                 n_chunks=len(chunks),
                 model_id=embedder.model_id,
                 chunker=CHUNKER_VERSION,
-                parser=parser_version_for(os.path.splitext(arquivo.rel)[1]),
+                parser=_parser_gravado(resultado, arquivo.rel),
                 natureza=resultado.natureza,
             )
             store.commit()
             progresso.indexados += 1
+            if resultado.doc is not None and resultado.doc.meta.get("fonte") == "ocr":
+                progresso.ocr += 1
             progresso.chunks += len(chunks)
             estimador.registrar(arquivo.rel, arquivo.size, time.perf_counter() - comeco)
             if publicador is not None:
@@ -824,7 +844,7 @@ def indexar(
                     detalhe=resultado.detail[:500],
                     model_id=embedder.model_id,
                     chunker=CHUNKER_VERSION,
-                    parser=parser_version_for(os.path.splitext(arquivo.rel)[1]),
+                    parser=_parser_gravado(resultado, arquivo.rel),
                     natureza=resultado.natureza,
                 )
                 store.commit()
@@ -866,7 +886,7 @@ def indexar(
                     n_chunks=estado.n_chunks,
                     model_id=embedder.model_id,
                     chunker=CHUNKER_VERSION,
-                    parser=parser_version_for(os.path.splitext(arquivo.rel)[1]),
+                    parser=_parser_gravado(resultado, arquivo.rel),
                     natureza=resultado.natureza,
                 )
                 store.commit()
@@ -896,7 +916,7 @@ def indexar(
                     n_chunks=0,
                     model_id=embedder.model_id,
                     chunker=CHUNKER_VERSION,
-                    parser=parser_version_for(os.path.splitext(arquivo.rel)[1]),
+                    parser=_parser_gravado(resultado, arquivo.rel),
                     natureza=resultado.natureza,
                 )
                 store.commit()
@@ -929,7 +949,7 @@ def indexar(
                     )[:500],
                     model_id=embedder.model_id,
                     chunker=CHUNKER_VERSION,
-                    parser=parser_version_for(ext),
+                    parser=_parser_gravado(resultado, arquivo.rel),
                     natureza=resultado.natureza,
                 )
                 store.commit()
@@ -977,11 +997,13 @@ def indexar(
                     n_chunks=len(chunks),
                     model_id="",
                     chunker=CHUNKER_VERSION,
-                    parser=parser_version_for(os.path.splitext(arquivo.rel)[1]),
+                    parser=_parser_gravado(resultado, arquivo.rel),
                     natureza=resultado.natureza,
                 )
                 store.commit()
                 progresso.indexados += 1
+                if resultado.doc is not None and resultado.doc.meta.get("fonte") == "ocr":
+                    progresso.ocr += 1
                 progresso.chunks += len(chunks)
                 estimador.registrar(arquivo.rel, arquivo.size, time.perf_counter() - comeco)
                 if publicador is not None:
@@ -1116,6 +1138,59 @@ def indexar(
                 )
                 publicador.publicar()
 
+        if ocr and not progresso.interrompido:
+            from ..ingest.ocr import backend_disponivel
+
+            if backend_disponivel() is None:
+                log.info(
+                    "OCR pedido mas nenhum motor disponível — pip install segundocerebro[ocr]"
+                )
+            else:
+                for rel, raiz_nome in store.documentos_para_ocr(OCR_VERSAO):
+                    honrar_comando()
+                    if interrupcao.pedida:
+                        progresso.interrompido = True
+                        break
+                    root = next((r for r in cfg.roots if r.name == raiz_nome), None)
+                    if root is None and len(cfg.roots) == 1:
+                        root = cfg.roots[0]
+                    if root is None:
+                        continue
+                    abs_path = str(Path(root.path) / rel.replace("/", os.sep))
+                    if not os.path.isfile(abs_path):
+                        continue
+                    st = os.stat(abs_path)
+                    arquivo = FileEntry(
+                        root=root,
+                        path=abs_path,
+                        rel=rel,
+                        size=st.st_size,
+                        mtime=st.st_mtime,
+                        depth=rel.count("/"),
+                        top_folder=rel.split("/")[0] if "/" in rel else "",
+                        attrs=0,
+                    )
+                    if publicador is not None:
+                        publicador.anotar(arquivo=rel, etapa="ocr", falhas=progresso.falhas)
+                        publicador.publicar()
+                    resultado = parse_isolado(
+                        abs_path,
+                        retries=1,
+                        espera=0.5,
+                        limite_planilha_mb=limite_planilha_mb,
+                        limites_mb=mapa_limites or None,
+                        ram_mb=ram_parse_mb,
+                        indice=store.diretorio,
+                        ocr=True,
+                    )
+                    aplicar(
+                        root,
+                        arquivo,
+                        store.estado_documento(rel),
+                        resultado,
+                        time.perf_counter(),
+                    )
+
         if dois_passes and not progresso.interrompido:
             for path_rel in store.pendentes_de_modelo(embedder.model_id):
                 honrar_comando()
@@ -1200,6 +1275,13 @@ def main(argv: list[str] | None = None) -> int:
         help="nível de esforço; sobrepõe o [maquina] perfil. Presets do leigo: "
         "automatico (cede ao usuário), noturno (tudo), discreto (mínimo). "
         "'leve' recusa rodar na bateria",
+    )
+    parser.add_argument(
+        "--ocr",
+        action="store_true",
+        help="R1.2: depois das ondas de texto, OCR nos PDF digitalizados. "
+        "Exige o extra [ocr] (RapidOCR) ou Tesseract. Sem motor a passada "
+        "é idêntica à de hoje",
     )
     parser.add_argument(
         "--dois-passes",
@@ -1361,6 +1443,7 @@ def main(argv: list[str] | None = None) -> int:
             apenas_onda=args.apenas_onda,
             exigir_exclusoes=args.exigir_exclusoes,
             dois_passes=bool(args.dois_passes or args.modelo_rascunho or conf.indexacao.ativo),
+            ocr=bool(args.ocr or conf.indexacao.ocr),
         )
     except ErroDeConfig as erro:
         log.error("%s", erro)

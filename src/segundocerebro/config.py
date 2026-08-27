@@ -384,6 +384,8 @@ class Indexacao:
 
     modelo_rascunho: str = ""
     dois_passes: bool = False
+    ocr: bool = False
+    """R1.2: after the text waves, OCR scanned PDFs. Off = identical to today."""
 
     @property
     def ativo(self) -> bool:
@@ -780,7 +782,14 @@ def _indexacao(dados: Mapping[str, Any]) -> Indexacao:
     dois = dados.get("dois_passes", False)
     if isinstance(dois, str):
         dois = dois.strip().lower() in {"1", "true", "sim", "yes"}
-    return Indexacao(modelo_rascunho=rascunho, dois_passes=bool(dois) or bool(rascunho))
+    ocr = dados.get("ocr", False)
+    if isinstance(ocr, str):
+        ocr = ocr.strip().lower() in {"1", "true", "sim", "yes"}
+    return Indexacao(
+        modelo_rascunho=rascunho,
+        dois_passes=bool(dois) or bool(rascunho),
+        ocr=bool(ocr),
+    )
 
 
 def _maquina(dados: Mapping[str, Any], ambiente: Mapping[str, str]) -> Maquina:

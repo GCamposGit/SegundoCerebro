@@ -110,6 +110,7 @@ def parse_file(
     limite_planilha_mb: float | None = None,
     limite_texto_mb: float | None = None,
     limites_mb: Mapping[str, float] | None = None,
+    ocr: bool = False,
 ) -> ParseResult:
     """Read and parse one file, turning every failure into a recorded status.
 
@@ -228,6 +229,17 @@ def parse_file(
 
     natureza = detectar(path, dados, doc)
     if not doc.blocks or not doc.total_chars:
+        if ocr and natureza.digitalizado:
+            ocr_doc = _ocr_pdf(dados, nome)
+            if ocr_doc is not None and ocr_doc.blocks:
+                natureza = detectar(path, dados, ocr_doc)
+                return ParseResult(
+                    path=path,
+                    status=ParseStatus.OK,
+                    doc=ocr_doc,
+                    sha256=sha,
+                    natureza=natureza,
+                )
         detalhe = "digitalizado, sem camada de texto" if natureza.digitalizado else "nenhum texto extraível"
         return ParseResult(
             path=path,
@@ -261,6 +273,13 @@ def _reinterpretar(path: str, dados: bytes, nome: str, familia: str) -> ParsedDo
         return None
     log.info("extensão mente: %s interpretado como %s", path, familia)
     return doc
+
+
+def _ocr_pdf(dados: bytes, nome: str) -> ParsedDoc | None:
+    """Second pass on a scan. Missing extra is `None`, not EMPTY-with-a-lie."""
+    from .ocr import doc_de_ocr
+
+    return doc_de_ocr(dados, nome)
 
 
 def _converter_legado(
