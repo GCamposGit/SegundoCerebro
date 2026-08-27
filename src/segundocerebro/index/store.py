@@ -851,12 +851,15 @@ class Store:
         """Scans waiting for OCR, or OCR'd with an older engine. (path, raiz).
 
         `digitalizado` is already the mark — a second `precisa_ocr` column
-        would duplicate it. The queue is: no chunks yet, or `parser` is an
-        old `ocr:*` version.
+        would duplicate it. The queue is: still on the PDF parser (full scan
+        with no chunks, or mixed file with native chunks), or an older `ocr:*`.
         """
+        # Mixed PDFs (native cover + scan body) already have chunks from the
+        # native pages; `n_chunks = 0` would hide them. Anything still on the
+        # PDF parser, or on an older `ocr:*`, is waiting.
         linhas = self.con.execute(
             "SELECT path, raiz FROM documentos WHERE digitalizado = 1 AND ("
-            "n_chunks = 0 OR (parser LIKE 'ocr:%' AND parser != ?)"
+            "parser IS NULL OR parser NOT LIKE 'ocr:%' OR parser != ?"
             ") ORDER BY path",
             (versao,),
         )

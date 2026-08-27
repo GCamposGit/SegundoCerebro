@@ -184,6 +184,15 @@ def derivar(
     )
 
 
+def teto_ram_pagina_ocr_mb(orcamento: Orcamento) -> int:
+    """One OCR pixmap must fit in the parse budget. No new layperson preset.
+
+    The page-by-page raster (F4-O.2) reads this instead of inventing a second
+    ceiling. Tight machines already have `ram_parse_mb = 256`.
+    """
+    return max(64, int(orcamento.ram_parse_mb))
+
+
 def ajustar_ao_vivo(orcamento: Orcamento, recursos: Recursos) -> Orcamento:
     """Re-derive from fresh sensors. `noturno` never yields; the others do.
 

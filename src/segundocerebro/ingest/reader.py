@@ -228,18 +228,18 @@ def parse_file(
         doc = _recalcular_planilha(doc, dados, nome, parser)
 
     natureza = detectar(path, dados, doc)
+    if ocr and natureza.digitalizado:
+        ocr_doc = _ocr_pdf(dados, nome, nativo=doc)
+        if ocr_doc is not None and ocr_doc.blocks:
+            natureza = detectar(path, dados, ocr_doc)
+            return ParseResult(
+                path=path,
+                status=ParseStatus.OK,
+                doc=ocr_doc,
+                sha256=sha,
+                natureza=natureza,
+            )
     if not doc.blocks or not doc.total_chars:
-        if ocr and natureza.digitalizado:
-            ocr_doc = _ocr_pdf(dados, nome)
-            if ocr_doc is not None and ocr_doc.blocks:
-                natureza = detectar(path, dados, ocr_doc)
-                return ParseResult(
-                    path=path,
-                    status=ParseStatus.OK,
-                    doc=ocr_doc,
-                    sha256=sha,
-                    natureza=natureza,
-                )
         detalhe = "digitalizado, sem camada de texto" if natureza.digitalizado else "nenhum texto extraível"
         return ParseResult(
             path=path,
@@ -275,11 +275,15 @@ def _reinterpretar(path: str, dados: bytes, nome: str, familia: str) -> ParsedDo
     return doc
 
 
-def _ocr_pdf(dados: bytes, nome: str) -> ParsedDoc | None:
-    """Second pass on a scan. Missing extra is `None`, not EMPTY-with-a-lie."""
+def _ocr_pdf(dados: bytes, nome: str, nativo: ParsedDoc | None = None) -> ParsedDoc | None:
+    """Second pass on scan pages. Missing extra is `None`, not EMPTY-with-a-lie.
+
+    `nativo` is the cheap parse: mixed PDFs keep those blocks and only the
+    photo pages go through the engine.
+    """
     from .ocr import doc_de_ocr
 
-    return doc_de_ocr(dados, nome)
+    return doc_de_ocr(dados, nome, nativo=nativo)
 
 
 def _converter_legado(

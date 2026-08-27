@@ -5,7 +5,14 @@ from __future__ import annotations
 from dataclasses import replace
 
 from segundocerebro.config import carregar, nucleos_para
-from segundocerebro.index.orcamento import Recursos, ajustar_ao_vivo, derivar, perfil_de_preset, preset_de
+from segundocerebro.index.orcamento import (
+    Recursos,
+    ajustar_ao_vivo,
+    derivar,
+    perfil_de_preset,
+    preset_de,
+    teto_ram_pagina_ocr_mb,
+)
 
 SEM_AMBIENTE: dict[str, str] = {}
 
@@ -31,6 +38,7 @@ def test_maquina_de_8gb_encolhe_lote_e_workers() -> None:
     assert orc.parse_workers == 1
     assert orc.lote_embed == 8
     assert orc.ram_parse_mb == 256
+    assert teto_ram_pagina_ocr_mb(orc) == 256
 
 
 def test_usuario_ativo_no_automatico_cai_para_leve() -> None:

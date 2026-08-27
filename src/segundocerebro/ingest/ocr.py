@@ -59,21 +59,55 @@ def backend_disponivel() -> str | None:
     return None
 
 
-def _imagens_das_paginas(dados: bytes):
-    """Rasterise each PDF page. Copy the buffer — pymupdf reuses it."""
+DPI_OCR = 144
+"""Production raster: 72 × 2. F4-O.2b: a 10 pt identifier is read at 72 dpi
+too, so 200 dpi is not the lever — keep the current matrix."""
+
+
+def _teto_ocr_mb() -> int:
+    from ..index.orcamento import derivar, medir, teto_ram_pagina_ocr_mb
+
+    return teto_ram_pagina_ocr_mb(derivar(medir()))
+
+
+def _dpi_cabivel(pagina, teto_mb: int, dpi_alvo: float = DPI_OCR) -> float:  # noqa: ANN001
+    """Drop dpi so one pixmap fits in the parse budget. Never below 72."""
+    rect = pagina.rect
+    bytes_a_1dpi = max(1.0, (float(rect.width) / 72.0) * (float(rect.height) / 72.0) * 3.0)
+    teto = max(1, int(teto_mb)) * 1024 * 1024
+    max_dpi = (teto / bytes_a_1dpi) ** 0.5
+    return max(72.0, min(float(dpi_alvo), max_dpi))
+
+
+def _iter_rasters(dados: bytes, *, teto_mb: int | None = None):
+    """Yield `(page_number, rgb_array)` for pages that need OCR, one at a time.
+
+    The list form copied every pixmap; an 80-page scan at 200 dpi is ~1 GB.
+    """
     import numpy as np
     import pymupdf
 
+    from .parsers.pdf import pagina_precisa_ocr
+
+    teto = teto_mb if teto_mb is not None else _teto_ocr_mb()
     documento = pymupdf.open(stream=dados, filetype="pdf")
-    imagens = []
     try:
-        for pagina in documento:
-            pix = pagina.get_pixmap(matrix=pymupdf.Matrix(2, 2), alpha=False)
-            arr = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.h, pix.w, pix.n)
-            imagens.append(arr.copy())
+        for i, pagina in enumerate(documento, start=1):
+            texto = pagina.get_text() or ""
+            if not pagina_precisa_ocr(pagina, texto):
+                continue
+            dpi = _dpi_cabivel(pagina, teto)
+            pix = pagina.get_pixmap(matrix=pymupdf.Matrix(dpi / 72.0, dpi / 72.0), alpha=False)
+            arr = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.h, pix.w, pix.n).copy()
+            pix = None
+            yield i, arr
     finally:
         documento.close()
-    return imagens
+
+
+def _imagens_das_paginas(dados: bytes):
+    """Materialise rasters. One-page tests still use this; production iterates."""
+    return [arr for _, arr in _iter_rasters(dados)]
 
 
 _rapid: object | None = None
@@ -125,32 +159,50 @@ def _texto_de(imagem) -> str:  # noqa: ANN001
     return ""
 
 
-def ocr_pdf(dados: bytes) -> list[PaginaTexto] | None:
-    """OCR every page. `None` if no backend; empty list if the engine saw nothing."""
+def ocr_pdf(dados: bytes, *, teto_mb: int | None = None) -> list[PaginaTexto] | None:
+    """OCR pages that need it. `None` if no backend; empty if the engine saw nothing.
+
+    Native pages are skipped (same detector as the PDF parser). One pixmap
+    at a time, sized to the parse RAM ceiling.
+    """
     if backend_disponivel() is None:
         return None
+    paginas: list[PaginaTexto] = []
     try:
-        imagens = _imagens_das_paginas(dados)
+        for i, imagem in _iter_rasters(dados, teto_mb=teto_mb):
+            try:
+                texto = _texto_de(imagem)
+            except Exception as exc:  # noqa: BLE001
+                log.warning("OCR falhou na página %d: %s", i, exc)
+                texto = ""
+            del imagem
+            paginas.append(PaginaTexto(numero=i, texto=texto))
     except Exception as exc:  # noqa: BLE001 — a bad scan must not kill the wave
         log.warning("OCR não rasterizou o PDF: %s", exc)
         return None
-    paginas: list[PaginaTexto] = []
-    for i, imagem in enumerate(imagens, start=1):
-        try:
-            texto = _texto_de(imagem)
-        except Exception as exc:  # noqa: BLE001
-            log.warning("OCR falhou na página %d: %s", i, exc)
-            texto = ""
-        paginas.append(PaginaTexto(numero=i, texto=texto))
     return paginas
 
 
-def doc_de_ocr(dados: bytes, nome: str) -> ParsedDoc | None:
-    """ParsedDoc with one block per page that yielded text. `None` if OCR is off."""
+def _numero_do_locator(locator: str) -> int:
+    partes = (locator or "").split()
+    try:
+        return int(partes[-1])
+    except (ValueError, IndexError):
+        return 0
+
+
+def doc_de_ocr(
+    dados: bytes, nome: str, nativo: ParsedDoc | None = None
+) -> ParsedDoc | None:
+    """ParsedDoc: native blocks kept, OCR blocks only for photo pages.
+
+    `None` if OCR is off or produced nothing — the caller then keeps the
+    cheap parse, which is what mixed PDFs need.
+    """
     paginas = ocr_pdf(dados)
     if paginas is None:
         return None
-    blocos = [
+    blocos_ocr = [
         Block(
             heading_path=(),
             text=p.texto,
@@ -160,18 +212,32 @@ def doc_de_ocr(dados: bytes, nome: str) -> ParsedDoc | None:
         for p in paginas
         if p.texto.strip()
     ]
-    if not blocos:
+    if not blocos_ocr:
         return None
-    backend = backend_disponivel() or "ocr"
-    return ParsedDoc(
-        name=nome,
-        blocks=tuple(blocos),
-        meta={
-            "formato": "pdf",
-            "fonte": "ocr",
-            "backend": backend,
-            "parser": VERSAO,
-            "paginas": str(len(paginas)),
-            "suspeita": "digitalizado",
-        },
+    ocr_paginas = {p.numero for p in paginas}
+    nativos = [
+        b
+        for b in (nativo.blocks if nativo is not None else ())
+        if _numero_do_locator(b.locator) not in ocr_paginas
+    ]
+    blocos = sorted(
+        (*nativos, *blocos_ocr),
+        key=lambda b: _numero_do_locator(b.locator),
     )
+    backend = backend_disponivel() or "ocr"
+    n_paginas = (nativo.meta.get("paginas") if nativo is not None else None) or str(
+        max((p.numero for p in paginas), default=len(paginas))
+    )
+    meta = {
+        "formato": "pdf",
+        "fonte": "ocr",
+        "backend": backend,
+        "parser": VERSAO,
+        "paginas": str(n_paginas),
+        "suspeita": "digitalizado",
+    }
+    if nativo is not None:
+        for chave in ("motor", "paginas_ocr", "sumario_nativo"):
+            if nativo.meta.get(chave):
+                meta[chave] = nativo.meta[chave]
+    return ParsedDoc(name=nome, blocks=tuple(blocos), meta=meta)

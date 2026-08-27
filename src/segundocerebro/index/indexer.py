@@ -1048,8 +1048,10 @@ def indexar(
                 # O atalho reaproveita os chunks que já estão lá. Se o parser
                 # mudou, são chunks de outro texto — reaproveitá-los anularia a
                 # repesca e deixaria o documento repescando a cada passada, para
-                # sempre, sem nunca mudar.
-                and estado.parser == parser_version_for(os.path.splitext(arquivo.rel)[1])
+                # sempre, sem nunca mudar. Mixed PDFs are the trap: first wave
+                # stores native pages as `ok` with the PDF parser; OCR of the
+                # photo pages is a new parse of the same bytes.
+                and estado.parser == _parser_gravado(resultado, arquivo.rel)
             ):
                 store.registrar_documento(
                     path=arquivo.rel,

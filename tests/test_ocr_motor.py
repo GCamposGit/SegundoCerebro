@@ -103,3 +103,30 @@ def test_rapidocr_recupera_identificador_plantado(scan_vce: bytes) -> None:
     texto = " ".join(b.text for b in doc.blocks)
     assert IDENTIFICADOR in texto
     assert any(b.locator == "p. 1" for b in doc.blocks)
+
+
+def _texto_em_dpi(fontsize: float, dpi: float) -> str:
+    """Raster a 10 pt line at `dpi` and run RapidOCR. Not the production path."""
+    import numpy as np
+    import pymupdf
+
+    origem = pymupdf.open()
+    pagina = origem.new_page(width=595, height=842)
+    pagina.insert_text((72, 140), TEXTO_PLANTADO, fontsize=fontsize, fontname="helv")
+    pix = pagina.get_pixmap(matrix=pymupdf.Matrix(dpi / 72.0, dpi / 72.0), alpha=False)
+    origem.close()
+    arr = np.frombuffer(pix.samples, dtype=np.uint8).reshape(pix.h, pix.w, pix.n).copy()
+    saida = RapidOCR()(arr)
+    linhas = saida[0] or []
+    return " ".join(item[1] for item in linhas if isinstance(item, list) and len(item) >= 2)
+
+
+def test_dpi_200_nao_e_alavanca_em_10pt() -> None:
+    """O.2b: 10 pt Helvetica is read at 72 dpi too — 200 dpi is not the lever.
+
+    Adopting 200 would cost RAM without buying recall on this fixture.
+    Production raster stays 144 (`Matrix(2,2)`). Another size is another package.
+    """
+    assert os.environ.get("SEGUNDOCEREBRO_OCR_FAKE") is None
+    assert IDENTIFICADOR in _texto_em_dpi(10, 72)
+    assert IDENTIFICADOR in _texto_em_dpi(10, 200)
