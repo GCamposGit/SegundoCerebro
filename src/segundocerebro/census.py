@@ -74,6 +74,22 @@ DEFAULT_EXCLUDE_GLOBS: tuple[str, ...] = (
 
 NO_EXTENSION = "(sem extensão)"
 
+# Size bands for E6.1. Chosen so a generator can sample "small note / office
+# file / big PDF / huge dump" without seeing a single path. Inclusive upper
+# bound except the last, which is open.
+FAIXAS_TAMANHO: tuple[tuple[int, str], ...] = (
+    (16 * 1024, "<16KiB"),
+    (64 * 1024, "16-64KiB"),
+    (256 * 1024, "64-256KiB"),
+    (1024 * 1024, "256KiB-1MiB"),
+    (4 * 1024 * 1024, "1-4MiB"),
+    (16 * 1024 * 1024, "4-16MiB"),
+    (64 * 1024 * 1024, "16-64MiB"),
+)
+FAIXA_TAMANHO_RESTO = ">=64MiB"
+EXTENSOES_PDF_DOCX = (".pdf", ".docx")
+"""The already-published office mix (PDF+DOCX ~74% of a real archive)."""
+
 
 @dataclass(frozen=True)
 class RootSpec:
@@ -246,6 +262,7 @@ class Census:
     by_year: dict[str, Bucket] = field(default_factory=dict)
     by_top_folder: dict[str, Bucket] = field(default_factory=dict)
     by_depth: Counter = field(default_factory=Counter)
+    by_size: dict[str, Bucket] = field(default_factory=dict)
     pinned_files: int = 0
     unpinned_files: int = 0
     hidden_files: int = 0
@@ -292,6 +309,7 @@ class Census:
         _bucket(self.by_extension, _extension_of(path)).add(size, cloud_only)
         _bucket(self.by_year, _year_of(mtime)).add(size, cloud_only)
         _bucket(self.by_top_folder, f"{root.name}/{top_folder}").add(size, cloud_only)
+        _bucket(self.by_size, faixa_tamanho(size)).add(size, cloud_only)
         self.by_depth[depth] += 1
 
         if attrs & FILE_ATTRIBUTE_PINNED:
@@ -323,6 +341,7 @@ class Census:
             "by_year": {k: v.as_dict() for k, v in sorted(self.by_year.items())},
             "by_top_folder": {k: v.as_dict() for k, v in _sorted_by_files(self.by_top_folder)},
             "by_depth": dict(sorted(self.by_depth.items())),
+            "by_size": {k: v.as_dict() for k, v in self.by_size.items()},
             "pinned_files": self.pinned_files,
             "unpinned_files": self.unpinned_files,
             "hidden_files": self.hidden_files,
@@ -341,6 +360,71 @@ class Census:
 
 
 # --- helpers ---------------------------------------------------------------
+
+
+def faixa_tamanho(n: int) -> str:
+    """Which E6.1 size band this file falls in. No path involved."""
+    n = max(0, int(n))
+    for teto, nome in FAIXAS_TAMANHO:
+        if n < teto:
+            return nome
+    return FAIXA_TAMANHO_RESTO
+
+
+def distribuicao_de(census: Census) -> dict[str, object]:
+    """Shape of an archive for the synthetic generator — never a filename.
+
+    E6.1. The census JSON (`as_dict`) carries `largest.path` and folder
+    names; those must not leave this machine. This dict is the contract the
+    generator can consume: format mix, size bands, folder depth, and the
+    PDF+DOCX fraction already published as ~74% of a real office archive.
+    """
+    total = census.total.files
+    denom = max(1, total)
+
+    def _frac(n: int) -> float:
+        return round(n / denom, 6)
+
+    formato = {
+        ext: {
+            "arquivos": b.files,
+            "bytes": b.bytes,
+            "fracao": _frac(b.files),
+        }
+        for ext, b in _sorted_by_files(census.by_extension)
+    }
+    pdf_docx = sum(census.by_extension[e].files for e in EXTENSOES_PDF_DOCX if e in census.by_extension)
+    return {
+        "arquivos": total,
+        "bytes": census.total.bytes,
+        "formato": formato,
+        "fracao_pdf_docx": _frac(pdf_docx),
+        "tamanho": {
+            nome: {
+                "arquivos": b.files,
+                "bytes": b.bytes,
+                "fracao": _frac(b.files),
+            }
+            for nome, b in census.by_size.items()
+        },
+        "profundidade": {
+            str(depth): {"arquivos": count, "fracao": _frac(count)}
+            for depth, count in sorted(census.by_depth.items())
+        },
+    }
+
+
+def _tem_caminho(obj: object) -> bool:
+    """True if a nested dict still carries a path — the leak E6.1 exists to stop."""
+    if isinstance(obj, dict):
+        for chave, valor in obj.items():
+            if chave in {"path", "caminho", "largest", "by_top_folder", "by_root", "reparse_dirs"}:
+                return True
+            if _tem_caminho(valor):
+                return True
+    elif isinstance(obj, (list, tuple)):
+        return any(_tem_caminho(item) for item in obj)
+    return False
 
 
 def _extension_of(path: str) -> str:
@@ -810,6 +894,12 @@ def _parse_args(argv: list[str] | None) -> argparse.Namespace:
     parser.add_argument("roots", nargs="*", help="caminhos das raízes (alternativa a --config)")
     parser.add_argument("--config", type=Path, help="arquivo TOML com as raízes")
     parser.add_argument("--json", type=Path, dest="json_out", help="grava o resultado em JSON")
+    parser.add_argument(
+        "--distribuicao",
+        type=Path,
+        help="grava só a forma do acervo (formato/tamanho/profundidade), sem nomes de arquivo. "
+        "É o contrato do E6.1 para o gerador sintético.",
+    )
     parser.add_argument("--out", type=Path, help="grava o relatório markdown (padrão: stdout)")
     parser.add_argument("--exclude-dir", action="append", default=[], help="nome de pasta a excluir (repetível)")
     parser.add_argument("--exclude-glob", action="append", default=[], help="padrão de arquivo a excluir (repetível)")
@@ -862,6 +952,14 @@ def main(argv: list[str] | None = None) -> int:
             json.dumps(census.as_dict(cfg.top), ensure_ascii=False, indent=2), encoding="utf-8"
         )
         log.info("JSON gravado em %s", args.json_out)
+
+    if args.distribuicao:
+        forma = distribuicao_de(census)
+        args.distribuicao.parent.mkdir(parents=True, exist_ok=True)
+        args.distribuicao.write_text(
+            json.dumps(forma, ensure_ascii=False, indent=2), encoding="utf-8"
+        )
+        log.info("distribuição gravada em %s", args.distribuicao)
 
     if census.total.cloud_only_files:
         log.warning(

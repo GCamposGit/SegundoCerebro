@@ -24,9 +24,13 @@ from segundocerebro.census import (
     FILE_ATTRIBUTE_RECALL_ON_DATA_ACCESS,
     Config,
     RootSpec,
+    _tem_caminho,
+    distribuicao_de,
+    faixa_tamanho,
     human_bytes,
     is_cloud_only,
     load_config,
+    main,
     render_markdown,
     run_census,
 )
@@ -156,6 +160,57 @@ def test_never_opens_file_content(corpus: RootSpec, monkeypatch: pytest.MonkeyPa
     result = run_census([corpus])
 
     assert result.total.files == 6
+
+
+def test_distribuicao_nao_leva_nome_de_arquivo(corpus: RootSpec) -> None:
+    """E6.1: a forma do acervo, não o acervo. `as_dict` vaza path em `largest`."""
+    census = run_census([corpus])
+    bruto = census.as_dict()
+    forma = distribuicao_de(census)
+
+    assert any(item.get("path") for item in bruto["largest"])
+    assert not _tem_caminho(forma)
+    assert forma["arquivos"] == 6
+    assert forma["formato"][".pdf"]["arquivos"] == 2
+    assert forma["formato"][".docx"]["arquivos"] == 2
+    assert forma["fracao_pdf_docx"] == pytest.approx(4 / 6)
+    assert forma["profundidade"]["0"]["arquivos"] == 1
+    assert forma["profundidade"]["2"]["arquivos"] == 2
+    assert sum(b["arquivos"] for b in forma["tamanho"].values()) == 6
+    assert all(v < 16 * 1024 for v in (1000, 2000, 300, 500, 400, 10))
+    assert set(forma["tamanho"]) == {"<16KiB"}
+
+
+def test_faixa_tamanho_tem_teto_aberto() -> None:
+    assert faixa_tamanho(0) == "<16KiB"
+    assert faixa_tamanho(16 * 1024 - 1) == "<16KiB"
+    assert faixa_tamanho(16 * 1024) == "16-64KiB"
+    assert faixa_tamanho(64 * 1024 * 1024) == ">=64MiB"
+
+
+def test_exemplo_versionado_e_o_mesmo_contrato() -> None:
+    """O .toml que o gerador vai ler usa as mesmas faixas que o censo emite."""
+    import tomllib
+
+    from segundocerebro.census import FAIXA_TAMANHO_RESTO, FAIXAS_TAMANHO
+
+    repo = Path(__file__).resolve().parents[1]
+    texto = (repo / "eval" / "sintetico" / "distribuicao.example.toml").read_text(encoding="utf-8")
+    dados = tomllib.loads(texto)
+    assert dados["fracao_pdf_docx"] == pytest.approx(0.74)
+    faixas = {nome for _teto, nome in FAIXAS_TAMANHO} | {FAIXA_TAMANHO_RESTO}
+    assert set(dados["tamanho"]) == faixas
+    assert abs(sum(dados["formato"].values()) - 1.0) < 0.02
+    assert "path" not in texto and "caminho" not in texto.lower()
+
+
+def test_cli_distribuicao_nao_grava_caminho(corpus: RootSpec, tmp_path: Path) -> None:
+    saida = tmp_path / "forma.json"
+    rc = main([str(corpus.path), "--distribuicao", str(saida)])
+    assert rc == 0
+    forma = json.loads(saida.read_text(encoding="utf-8"))
+    assert not _tem_caminho(forma)
+    assert forma["arquivos"] == 6
 
 
 def test_missing_root_is_reported_not_raised(tmp_path: Path) -> None:

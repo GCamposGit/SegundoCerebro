@@ -1,0 +1,40 @@
+# Contrato E6.1 — forma de um acervo de escritório, sem nenhum nome de arquivo.
+#
+# O censo emite o mesmo schema (`py -m segundocerebro.census --distribuicao`).
+# O gerador sintético (E1, notebook) consome estes pesos; este arquivo é o
+# exemplo versionado, não um dump de pasta real.
+#
+# `fracao_pdf_docx` ~0,74 é o agregado já publicado do acervo de referência
+# (PDF+DOCX). Os demais pesos são a forma típica, não uma medição nova.
+
+fracao_pdf_docx = 0.74
+
+[formato]
+".pdf" = 0.48
+".docx" = 0.26
+".xlsx" = 0.08
+".pptx" = 0.05
+".doc" = 0.03
+".xls" = 0.02
+".msg" = 0.02
+".txt" = 0.03
+".md" = 0.02
+".ppt" = 0.01
+
+[tamanho]
+"<16KiB" = 0.18
+"16-64KiB" = 0.22
+"64-256KiB" = 0.24
+"256KiB-1MiB" = 0.18
+"1-4MiB" = 0.10
+"4-16MiB" = 0.05
+"16-64MiB" = 0.02
+">=64MiB" = 0.01
+
+[profundidade]
+"0" = 0.08
+"1" = 0.28
+"2" = 0.34
+"3" = 0.20
+"4" = 0.07
+"5" = 0.03
