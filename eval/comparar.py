@@ -122,7 +122,42 @@ def _recortes(depois: Resultado) -> list[tuple[str, list[str]]]:
     recortes: list[tuple[str, list[str]]] = [("**conjunto no escopo**", ids(no_escopo.itens))]
     recortes += [(f"idioma · {rot}", ids(itens)) for rot, itens in no_escopo.por_fatia()]
     recortes += [(f"fonte · {rot}", ids(itens)) for rot, itens in no_escopo.por_grupo_de_fonte()]
+    # A interseção dos dois eixos, e não só as margens: um pacote pode subir o
+    # grupo e derrubar dentro dele a fatia que dependia do sinal mexido. Ver
+    # `Resultado.por_grupo_e_fatia`.
+    recortes += [(f"fonte ∩ idioma · {rot}", ids(itens)) for rot, itens in no_escopo.por_grupo_e_fatia()]
     return recortes
+
+
+def _insensivel(antes: Resultado, depois: Resultado, ids: Sequence[str]) -> bool:
+    """Os dois braços devolveram o **mesmo ranking** em toda pergunta deste recorte?
+
+    Δ zero tem duas causas que a tabela não distinguia, e elas pedem decisões
+    opostas:
+
+    - **empate** — a mudança agiu e o efeito não se separa do ruído. A regra de
+      encerramento se aplica: não adota, encerra o pacote;
+    - **insensibilidade** — a variável manipulada não toca nenhum documento
+      desta fatia, então o Δ é zero **por construção**. Aqui a regra de
+      encerramento não se aplica: não houve medição, e fechar como "hipótese
+      refutada" registra uma conclusão que o dado não sustenta.
+
+    Medido na `F4-P.1` em 27/08/2026: a fatia `reunião` da camada 2 tem n=100, e
+    o ranqueador de nome **não pontua um único documento de reunião** naquele
+    corpus — os nomes gerados (`Ata reuniao ATA-000.txt`, `Gravacao_<data>.vtt`)
+    não casam com as consultas. Zerar o peso do nome ali não tinha em que agir. A
+    tabela dizia `➖ empate` em todas as células, e a regra declarada mandaria
+    fechar o pacote como refutado.
+
+    Compara o **ranking recuperado**, e não a métrica: dois braços podem trocar
+    documentos fora do alcance da fonte esperada e mover métrica nenhuma. Ranking
+    igual em todas as perguntas é a única evidência de que não houve manipulação.
+    """
+    alvo = set(ids)
+    a = {i.pergunta.id: tuple(i.recuperados) for i in antes.itens if i.pergunta.id in alvo}
+    d = {i.pergunta.id: tuple(i.recuperados) for i in depois.itens if i.pergunta.id in alvo}
+    comuns = a.keys() & d.keys()
+    return bool(comuns) and all(a[i] == d[i] for i in comuns)
 
 
 def _tabela_de_delta(antes: Resultado, depois: Resultado) -> list[str]:
@@ -153,11 +188,15 @@ def _tabela_de_delta(antes: Resultado, depois: Resultado) -> list[str]:
         "|---|---:|:---:|:--:|:---:|:--:|:---:|:--:|",
     ]
     marca = {GANHA: "✅", PERDE: "❌", EMPATE: "➖"}
+    insensiveis: list[str] = []
     for rotulo, ids_do_recorte in _recortes(depois):
         if not ids_do_recorte:
             linhas.append(f"| {rotulo} | 0 | — | | — | | — | |")
             continue
         alvo = set(ids_do_recorte)
+        cego = _insensivel(antes, depois, ids_do_recorte)
+        if cego:
+            insensiveis.append(rotulo)
         celulas = []
         n = 0
         for metrica, k in (("recall", 1), ("mrr", K_MRR), ("ndcg", 5)):
@@ -166,10 +205,35 @@ def _tabela_de_delta(antes: Resultado, depois: Resultado) -> list[str]:
             a, d, comuns = alinhar(a_serie, d_serie)
             delta = ic_do_delta(a, d)
             n = len(comuns)
-            celulas.append(f"{delta} | {marca[delta.veredito]}")
+            # `∅` e não `➖`: nesta fatia os dois braços são o mesmo ranking, então
+            # não houve o que empatar. Ver `_insensivel`.
+            celulas.append(f"{delta} | {'∅' if cego else marca[delta.veredito]}")
         aviso = " ⚠" if n < N_MINIMO else ""
         linhas.append(f"| {rotulo}{aviso} | {n} | " + " | ".join(celulas) + " |")
     linhas.append("")
+
+    if insensiveis:
+        todas = len(insensiveis) == len([r for r, ids in _recortes(depois) if ids])
+        linhas.append(
+            "**`∅` — fatia insensível, e isto não é empate.** Nestas os dois braços "
+            "devolveram **exatamente o mesmo ranking em todas as perguntas**: a variável "
+            "manipulada não toca nenhum documento da fatia, e o Δ é zero por construção. "
+            "A regra de encerramento (`empate encerra o pacote com \"hipótese refutada\"`) "
+            "**não se aplica** aqui — não houve medição do efeito, e registrar refutação "
+            "seria concluir do que o dado não diz. O que falta é instrumento, não veredito: "
+            + ", ".join(f"`{r}`" for r in insensiveis[:8])
+            + ("…" if len(insensiveis) > 8 else "")
+            + "."
+        )
+        if todas:
+            linhas.append("")
+            linhas.append(
+                "> **Nenhum recorte foi sensível: esta comparação não mediu nada.** Os dois "
+                "braços produziram rankings idênticos em todo o conjunto. Antes de reportar "
+                "qualquer veredito, conferir que a bandeira do braço chega ao recuperador **e** "
+                "que a variável manipulada age sobre os documentos desta base."
+            )
+        linhas.append("")
 
     geral_a = antes.restrito_ao_escopo()
     geral_d = depois.restrito_ao_escopo()

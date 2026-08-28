@@ -232,3 +232,106 @@ def test_entregue_envolve_os_dois_bracos() -> None:
             assert isinstance(r, CaminhoEntregue), f"braço `{papel}` ficou fora do caminho entregue"
     finally:
         rodar._montar = guardado
+
+
+def item_de(id_: str, fonte: str, idioma: str, idioma_fonte: str) -> ResultadoPergunta:
+    """Item com os dois eixos controlados: grupo derivado da fonte, fatia do idioma."""
+    return ResultadoPergunta(
+        pergunta=Pergunta(
+            id=id_, tipo="exato", pergunta=f"pergunta {id_}", fontes=(fonte,),
+            idioma=idioma, idioma_fonte=idioma_fonte,
+        ),
+        recuperados=[], posicao_primeiro_acerto=1,
+        recall={1: 1.0, 10: 1.0}, mrr=1.0, ndcg={5: 1.0, 10: 1.0},
+    )
+
+
+def test_o_recorte_traz_a_intersecao_dos_dois_eixos_e_nao_so_as_margens() -> None:
+    """Contrato escrito da `F4-P.1`: a célula `reunião ∩ cross-lingual` na tabela.
+
+    Os dois eixos separados escondem compensação — o pacote zera o peso do nome
+    no grupo `reunião` e o nome é justamente a ponte PT↔EN de parte dele.
+    """
+    r = resultado("x", [
+        item_de("m1", "09. Meetings/g.vtt", "pt", "pt"),
+        item_de("m2", "09. Meetings/g.vtt", "en", "pt"),
+        item_de("e1", "01. Contratos/c.pdf", "pt", "pt"),
+    ])
+    celulas = dict(r.por_grupo_e_fatia())
+
+    assert "reunião ∩ cross-lingual" in celulas
+    assert [i.pergunta.id for i in celulas["reunião ∩ cross-lingual"]] == ["m2"]
+    assert [i.pergunta.id for i in celulas["reunião ∩ mesma-língua"]] == ["m1"]
+
+
+def test_a_intersecao_mostra_celula_vazia_dentro_de_grupo_que_existe() -> None:
+    """Vazio dentro de grupo que existe é diagnóstico; some só o grupo inexistente."""
+    r = resultado("x", [item_de("m1", "09. Meetings/g.vtt", "pt", "pt")])
+    celulas = dict(r.por_grupo_e_fatia())
+
+    assert celulas["reunião ∩ cross-lingual"] == []      # existe, e é zero à mostra
+    assert not any(rot.startswith("email") for rot in celulas)  # grupo ausente não polui
+
+
+def item_com_ranking(id_: str, recuperados: list[str], posicao: int | None) -> ResultadoPergunta:
+    return ResultadoPergunta(
+        pergunta=Pergunta(id=id_, tipo="exato", pergunta=f"p {id_}", fontes=("alvo.pdf",)),
+        recuperados=recuperados,
+        posicao_primeiro_acerto=posicao,
+        recall={1: 0.0, 10: 0.0}, mrr=0.0, ndcg={5: 0.0, 10: 0.0},
+    )
+
+
+def test_ranking_identico_e_insensibilidade_e_nao_empate() -> None:
+    """Δ zero tem duas causas, e elas pedem decisões opostas.
+
+    Medido na `F4-P.1`: a fatia `reunião` da camada 2 tinha n=100 e o ranqueador
+    de nome não pontuava **nenhum** documento de reunião naquele corpus. Zerar o
+    peso dele não tinha em que agir, a tabela dizia `empate` em toda célula, e a
+    regra declarada mandaria fechar o pacote como "hipótese refutada".
+    """
+    from eval.comparar import _insensivel
+
+    mesmo = ["a.pdf", "b.pdf", "c.pdf"]
+    antes = resultado("a", [item_com_ranking("g1", mesmo, 1), item_com_ranking("g2", mesmo, 2)])
+    depois = resultado("b", [item_com_ranking("g1", mesmo, 1), item_com_ranking("g2", mesmo, 2)])
+
+    assert _insensivel(antes, depois, ["g1", "g2"])
+
+
+def test_ranking_diferente_sem_mudar_metrica_ainda_e_sensivel() -> None:
+    """Trocar documentos fora do alcance da fonte não move métrica — mas houve efeito.
+
+    Por isso a checagem é sobre o **ranking recuperado** e não sobre o Δ: um
+    recorte onde a mudança agiu e não pagou é empate de verdade, e a regra de
+    encerramento vale nele.
+    """
+    from eval.comparar import _insensivel
+
+    antes = resultado("a", [item_com_ranking("g1", ["a.pdf", "b.pdf"], 1)])
+    depois = resultado("b", [item_com_ranking("g1", ["a.pdf", "z.pdf"], 1)])
+
+    assert not _insensivel(antes, depois, ["g1"])
+
+
+def test_recorte_vazio_nao_e_declarado_insensivel() -> None:
+    """Sem pergunta em comum não há o que afirmar — e `n=0` já aparece na tabela."""
+    from eval.comparar import _insensivel
+
+    antes = resultado("a", [item_com_ranking("g1", ["a.pdf"], 1)])
+    depois = resultado("b", [item_com_ranking("g1", ["a.pdf"], 1)])
+
+    assert not _insensivel(antes, depois, [])
+
+
+def test_a_tabela_marca_a_fatia_insensivel_e_recusa_o_veredito() -> None:
+    """O relatório tem de dizer, em texto, que ali não houve medição."""
+    mesmo = ["a.pdf", "b.pdf"]
+    itens = [item_com_ranking(f"g{i}", mesmo, 1) for i in range(3)]
+    antes, depois = resultado("a", itens), resultado("b", list(itens))
+
+    texto = render(comparar(antes, depois), "a", "b", "ctx", antes=antes, depois=depois)
+
+    assert "∅" in texto
+    assert "não é empate" in texto
+    assert "esta comparação não mediu nada" in texto

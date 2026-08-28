@@ -85,6 +85,29 @@ class CaminhoEntregue:
     fator: int = FATOR_DE_CHUNKS
     _avisou: bool = field(default=False, repr=False)
 
+    def __post_init__(self) -> None:
+        """Recusa na montagem quem não tem `buscar_chunks`, e diz o que fazer.
+
+        Sem isto o erro só aparece na **primeira pergunta**, como
+        `AttributeError: 'BuscaPorNomeDeArquivo' object has no attribute
+        'buscar_chunks'`, depois de carregar índice e modelo — e o texto não diz
+        que o problema é a combinação de bandeiras. Aconteceu em 27/08/2026
+        medindo a `F4-P.1`: `--entregue` com o `--antes` no default `baseline`,
+        que é busca só por nome de arquivo e não tem caminho de trecho nenhum.
+
+        A classe é a mesma que o `F4-P.0` fechou por outro lado: **combinação de
+        bandeiras que não pode funcionar tem de falhar na montagem, não no meio
+        da passada** — a essa altura já se pagou o carregamento e, num braço
+        longo, já se esperou.
+        """
+        if not hasattr(self.interno, "buscar_chunks"):
+            nome = getattr(self.interno, "nome", type(self.interno).__name__)
+            raise TypeError(
+                f"`--entregue` mede `buscar_chunks`, e {nome} não tem esse caminho. "
+                "Use um recuperador de trecho nos dois braços "
+                "(`--antes hibrido --depois hibrido`), ou tire `--entregue`."
+            )
+
     @property
     def nome(self) -> str:
         interno = getattr(self.interno, "nome", type(self.interno).__name__)

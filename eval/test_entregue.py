@@ -167,3 +167,65 @@ def test_entra_no_harness_como_recuperador_qualquer(indice) -> None:  # noqa: AN
 
     assert resultado.recall(1) == 1.0
     assert "buscar_chunks" in resultado.retriever
+
+
+def test_recusa_na_montagem_quem_nao_tem_caminho_de_trecho() -> None:
+    """`--entregue` sobre `baseline` falhava na primeira pergunta, não na montagem.
+
+    Medindo a `F4-P.1` em 27/08/2026 a passada carregou índice e modelo, correu
+    até a primeira consulta e morreu com `AttributeError` — sem dizer que o
+    problema era a combinação de bandeiras. Classe: **combinação impossível falha
+    na montagem, não no meio da passada.**
+    """
+    class SemTrecho:
+        nome = "baseline (nome de arquivo)"
+
+        def search(self, consulta: str, k: int) -> list:
+            return []
+
+    with pytest.raises(TypeError, match="não tem esse caminho"):
+        CaminhoEntregue(interno=SemTrecho())
+
+
+def test_aceita_quem_tem_buscar_chunks() -> None:
+    class ComTrecho:
+        nome = "hibrido"
+
+        def buscar_chunks(self, consulta: str, k: int) -> list:
+            return []
+
+    assert CaminhoEntregue(interno=ComTrecho()).nome.endswith("caminho entregue (buscar_chunks)")
+
+
+def test_a_prosa_do_relatorio_nao_pode_contradizer_o_codigo() -> None:
+    """O texto que o relatório imprime sobre este caminho tem de bater com o que roda.
+
+    Até 27/08/2026 o `--entregue` imprimia, em todo relatório: *"o
+    `RanqueadorDeNome` **não participa** deste caminho"*. Era verdade até a
+    `F4-P` (25/08) criar `BuscaHibrida._nome_por_chunk` e levar o sinal de nome
+    para `buscar_chunks`. Ficaram dois dias — e a `F4-P.1`, cujo assunto é
+    exatamente o peso do nome nesse caminho, teria saído com um parágrafo
+    dizendo ao leitor que a medição não media nada.
+
+    O **comportamento** já tinha teste (`tests/test_hybrid.py`); a **prosa** não
+    tinha nenhum. Classe: *relatório que se explica com um fato que deixou de ser
+    verdade* — e nada falha, porque cada metade está certa sozinha.
+    """
+    import inspect
+
+    from eval import rodar
+    from segundocerebro.retrieve.hybrid import BuscaHibrida
+
+    fonte = inspect.getsource(rodar._montar)
+    participa = hasattr(BuscaHibrida, "_nome_por_chunk")
+
+    if participa:
+        assert "não participa" not in fonte, (
+            "o relatório do `--entregue` afirma que o ranqueador de nome não participa "
+            "deste caminho, e `BuscaHibrida._nome_por_chunk` existe — a prosa está "
+            "atrasada em relação ao código"
+        )
+        assert "_nome_por_chunk" in fonte, (
+            "o sinal de nome participa do caminho entregue e o relatório não explica "
+            "como; quem lê a ablação precisa saber que trecho recebe a contribuição"
+        )
