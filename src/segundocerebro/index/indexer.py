@@ -28,7 +28,6 @@ from __future__ import annotations
 import argparse
 import os
 import signal
-import sys
 import time
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
 from dataclasses import dataclass, field, replace
@@ -46,7 +45,7 @@ from .prioridade import ONDAS, indexaveis, onda_de, ordenar as ordenar_fila
 from .prioridade import pasta_de, vigentes as vigentes_de
 from ..logger import get_logger
 from .embeddings import MODELOS, Embedder
-from .gpu_pool import EmbedFila, contar_gpus, dispositivos_embed
+from .gpu_pool import EmbedFila, dispositivos_embed
 from .comando import aguardar as aguardar_comando
 from .comando import limpar as limpar_comando
 from .esforco import PERFIS_DE_ESFORCO, ControleEsforco

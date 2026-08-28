@@ -67,7 +67,6 @@ def _montar(args, cfg):  # noqa: ANN001
 
     from segundocerebro.index.embeddings import Embedder
     from segundocerebro.index.store import IndiceEmEscrita, Store, recusar_se_indexando
-    from segundocerebro.retrieve.hybrid import BuscaHibrida
 
     indice = args.indice or args.base_cfg.indice
     try:

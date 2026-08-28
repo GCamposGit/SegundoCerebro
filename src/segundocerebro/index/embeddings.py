@@ -19,7 +19,6 @@ spec, not to the call site.
 
 from __future__ import annotations
 
-import os
 import time
 from collections.abc import Callable, Iterable, Sequence
 from dataclasses import dataclass

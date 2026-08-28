@@ -19,7 +19,6 @@ from eval.custo_miracl import (
     MOTIVO_CABE,
     MOTIVO_CUSTO,
     MOTIVO_LINGUA,
-    PORTA_HORAS,
     decidir_custo,
     horas,
     taxa_semente,

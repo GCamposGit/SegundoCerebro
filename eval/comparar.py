@@ -283,11 +283,11 @@ def render(
         "",
         f"- **antes:** {nome_antes}",
         f"- **depois:** {nome_depois}",
-        f"- posição do primeiro acerto; `—` significa não achado em nenhuma posição",
+        "- posição do primeiro acerto; `—` significa não achado em nenhuma posição",
         "",
         "## Veredito",
         "",
-        f"| Critério | Limite | Medido | |",
+        "| Critério | Limite | Medido | |",
         "|---|---:|---:|:--:|",
         f"| regressão em caso-armadilha | 0 | {len(criticas)} | {'✅' if not criticas else '❌'} |",
         f"| perguntas caindo do 1º lugar | {MAX_QUEDAS_DO_PRIMEIRO} | {len(quedas)} "

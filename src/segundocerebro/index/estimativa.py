@@ -39,7 +39,7 @@ import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from .calibracao import Calibracao, prior_de, tipo_de
+from .calibracao import Calibracao, tipo_de
 from .mapa import Mapa
 
 # ---------------------------------------------------------------------------

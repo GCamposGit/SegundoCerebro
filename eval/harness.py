@@ -17,7 +17,7 @@ from typing import Protocol
 
 from .fonte import GRUPOS, grupo_de_pergunta
 from .estatistica import N_MINIMO, ic_da_media
-from .idioma import CROSS_LINGUAL, EN, FATIAS, INDEFINIDO, MESMA_LINGUA, MISTO, NAO_DECLARADO, PT, detectar
+from .idioma import CROSS_LINGUAL, EN, FATIAS, INDEFINIDO, MESMA_LINGUA, MISTO, PT, detectar
 from .idioma import fatia as fatia_de
 from .metrics import MODO_QUALQUER, MODO_TODAS, media, ndcg_at_k, recall_at_k, reciprocal_rank
 

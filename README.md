@@ -1,6 +1,7 @@
 # Segundo Cérebro
 
 [![tests](https://github.com/GCamposGit/SegundoCerebro/actions/workflows/tests.yml/badge.svg)](https://github.com/GCamposGit/SegundoCerebro/actions/workflows/tests.yml)
+[![coverage](https://img.shields.io/badge/coverage-%E2%89%A5_80%25-informational)](.github/workflows/tests.yml)
 [![license](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![python](https://img.shields.io/badge/python-3.12-blue.svg)](pyproject.toml)
 

@@ -6,6 +6,9 @@ venv/
 *.egg-info/
 .pytest_cache/
 .ruff_cache/
+.coverage
+coverage.xml
+htmlcov/
 
 # Pesos de modelo (BGE-M3, reranker) — baixados, nunca versionados
 models/*
