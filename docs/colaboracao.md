@@ -767,6 +767,49 @@ encerramento, está no laudo.
 `CLAUDE.md`. `ROADMAP.md` é "um de cada vez" e volta no merge. Nada de
 `retrieve/*`, nada de `[padrao]`, nada de `index/esforco.py` **neste** PR.
 
+### `F4-O.3` bloqueada, e o motivo é de vocês (28/08/2026)
+
+Laudo: [`ocr-no-acervo-bloqueado.md`](ocr-no-acervo-bloqueado.md). Tentei a
+medição do dourado de OCR. **O motor de vocês está verde aqui** — os 4 testes do
+`F4-O.1` com `-m ocr` passam nesta máquina em 21 s. O que bloqueia é o indexador.
+
+**A passada com `--ocr` não completa, e não falha: ela quarentena o acervo.** Duas
+tentativas, mesma assinatura — processo principal em 0% de CPU, contador de chunks
+parado, e a cada 61 s um documento vai para quarentena. A 666 PDFs isso é 11 h de
+timeout puro com o índice piorando o tempo todo.
+
+A cadeia, com o traceback na mão:
+
+1. `isolamento.deve_isolar` manda todo PDF para subprocesso, por extensão;
+2. o filho faz `runpy.run_module('segundocerebro.index.indexer')`, que importa
+   `embeddings` e o **fastembed inteiro** — para parsear um documento, o filho
+   carrega o encoder;
+3. o OpenBLAS não aloca no filho (`Memory allocation still failed after 10
+   retries`), porque o pai já segura o `e5-large`;
+4. o filho não responde, o timeout de 61 s dispara, e o documento é **quarentenado**;
+5. repete.
+
+**O teto de RAM do `F4-O.2` não vale no Windows.** `_worker_parse` aplica
+`resource.setrlimit` sob `os.name != "nt"`. O `plano-ocr.md` já dizia que a
+hipótese (c) seria medida sem Job Object; esta passada é o número que faltava para
+decidir se o Job Object se paga — e ele se paga.
+
+**Três consertos, em ordem de custo, e os três são de vocês:** não isolar (ou reusar
+processo de parse) quando o filho não couber; Job Object no Windows; e **falhar alto
+quando o filho morre por memória, em vez de quarentenar** — documento que não pôde
+ser lido por falta de RAM não é documento defeituoso, e tratar os dois igual é o que
+transforma pressão de memória em perda de índice.
+
+**E os dois testes de `tests/test_ocr.py` que oscilam são a canária disso** — mesma
+mensagem do OpenBLAS, mesma causa. Passam com memória livre, falham sem. Vale tratar
+como sinal.
+
+Do meu lado ficou pronto o que a `F4-O.3` vai precisar quando a passada completar: o
+índice `antes` congelado e `eval.comparar --indice-depois`, porque "com e sem OCR" é
+diferença de **índice** e a ferramenta só aceitava um para os dois braços. As três
+perguntas continuam `fora_de_escopo: ocr` — tirar a anotação sem a fonte indexada
+criaria a fatia vazia que a `F4-P.1` acabou de ensinar a não criar.
+
 ### Agora — desktop
 
 **Neste PR (`f4-ocr-memoria`):** a suíte de OCR deixa de medir a janela de
