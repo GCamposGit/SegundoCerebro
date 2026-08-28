@@ -52,6 +52,20 @@ def test_subprocesso_abortado_nao_derruba_o_pai(tmp_path: Path) -> None:
     assert "subprocesso morreu" in log.read_text(encoding="utf-8")
 
 
+def test_filho_que_morre_leva_stderr_no_detalhe(tmp_path: Path) -> None:
+    """OpenBLAS writes to fd 2 and abort()s. The registered status must quote it.
+
+    Without this, the layperson sees a quarantined document and no mention of
+    memory — measured on the notebook 27/08/2026, 16.8 GB at 89% used.
+    """
+    alvo = tmp_path / "x.pdf"
+    alvo.write_bytes(b"%PDF-1.4\n")
+    resultado = parse_isolado(str(alvo), worker="abort_stderr", indice=tmp_path)
+    assert resultado.status.value == "erro"
+    assert "subprocesso morreu" in resultado.detail
+    assert "Memory allocation" in resultado.detail
+
+
 def test_subprocesso_pendurado_estoura_o_timeout(tmp_path: Path) -> None:
     alvo = tmp_path / "x.pdf"
     alvo.write_bytes(b"%PDF-1.4\n")

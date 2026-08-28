@@ -769,11 +769,12 @@ encerramento, está no laudo.
 
 ### Agora — desktop
 
-**Neste PR (`q4-politica-excecoes`):** Q4 — política de `except Exception`.
-Sufixo de motivo nos BLE001 já existentes + seção em `ARCHITECTURE.md` +
-teste que lê o código (`tests/test_politica_excecoes.py`). **Não toca o laço
-do indexador além do comentário.** Nada de `retrieve/*`, nada de `[padrao]`.
-O Q1 (ruff/format/types/cov no CI) vem em seguida, **branch própria**.
+**Neste PR (`f4-ocr-memoria`):** a suíte de OCR deixa de medir a janela de
+RAM. `indexar(..., ocr=True)` aceita quarentena por recurso; o método é
+`ocr_produziu_texto_ou_declarou_recurso` + um teste que lê o fonte. O filho
+de parse isolado passa a gravar o stderr no detalhe (OpenBLAS).
+**Não toca o laço do indexador.** Nada de `retrieve/*`, nada de `[padrao]`.
+O BLE001 de `eval/regime.py` já veio no #55 — não reaparece aqui.
 
 **Cinco pacotes prontos para começar, nenhum bloqueado por nada.** A ordem é
 sugestão; os três primeiros são a onda 1 e destravam as ondas 4 e 5.

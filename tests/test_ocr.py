@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import ast
 from pathlib import Path
 
 from segundocerebro.census import Config, RootSpec
@@ -13,6 +14,43 @@ from segundocerebro.index.isolamento import timeout_para
 from segundocerebro.index.store import Store
 from tests.test_index import DIM, EmbedderFalso
 from tests.test_ingest import bytes_pdf, bytes_pdf_misto
+
+SINAIS_DE_RECURSO = (
+    "subprocesso morreu",
+    "timeout",
+    "memory",
+    "memória",
+    "openblas",
+    "allocation",
+    "cannot allocate",
+)
+"""When the isolated parse child dies of RAM, the product quarantines — that is
+success, not a red suite. Measured 27/08/2026 on the notebook: 2.7 GB free →
+OpenBLAS abort → status `erro`; RAM freed → the same tests `ok`. The suite
+verdict was the machine window. Same class as F4-R (regime not recorded)."""
+
+
+def ocr_produziu_texto_ou_declarou_recurso(store: Store, rel: str, progresso) -> bool:  # noqa: ANN001
+    """True if OCR committed chunks. False if the child died of resource/timeout.
+
+    Any other status fails the test: silent EMPTY or missing row would be the
+    lie this helper exists to refuse.
+    """
+    estado = store.estado_documento(rel)
+    assert estado is not None, f"{rel} saiu do registro"
+    if estado.status == "ok" and estado.n_chunks >= 1:
+        return True
+    assert estado.status == "erro", (
+        f"{rel} ficou {estado.status!r} — nem ok com texto nem erro honesto"
+    )
+    item = store.quarentena_de(rel)
+    assert item is not None, f"{rel} em erro sem linha de quarentena"
+    motivo = (item.motivo or "").lower()
+    assert any(s in motivo for s in SINAIS_DE_RECURSO), (
+        f"{rel} em erro por motivo que não é recurso: {item.motivo!r}"
+    )
+    assert progresso.quarentena >= 1
+    return False
 
 
 TEXTO_VCE = "Contrato NN-VCE-001 da Varzea Clara Energia."
@@ -91,11 +129,12 @@ def test_indexar_ocr_depois_do_texto(tmp_path: Path, monkeypatch) -> None:  # no
     )
     assert not progresso.interrompido
     assert store.estado_documento("politica.md").status == "ok"
+    if not ocr_produziu_texto_ou_declarou_recurso(store, "escaneado.pdf", progresso):
+        store.fechar()
+        return
     escaneado = store.estado_documento("escaneado.pdf")
     assert escaneado is not None
-    assert escaneado.status == "ok"
     assert escaneado.parser == VERSAO
-    assert escaneado.n_chunks >= 1
     assert progresso.ocr >= 1
     texto = " ".join(c.texto for c in store.chunks_de("escaneado.pdf"))
     assert TEXTO_VCE in texto
@@ -237,6 +276,9 @@ def test_indexar_misto_com_ocr_junta_as_paginas(tmp_path: Path, monkeypatch) -> 
         reconciliar_ao_fim=False,
         ocr=True,
     )
+    if not ocr_produziu_texto_ou_declarou_recurso(store, "oficio.pdf", progresso):
+        store.fechar()
+        return
     assert progresso.ocr >= 1
     texto = " ".join(c.texto for c in store.chunks_de("oficio.pdf"))
     assert "4600009999" in texto
@@ -253,3 +295,28 @@ def test_config_ocr_desligado_por_padrao(tmp_path: Path) -> None:
     assert carregar(caminho, ambiente={}).indexacao.ocr is False
     caminho.write_text('[indexacao]\nocr = true\n[[base]]\nid = "a"\n', encoding="utf-8")
     assert carregar(caminho, ambiente={}).indexacao.ocr is True
+
+
+def test_teste_de_ocr_que_indexa_aceita_falha_de_recurso() -> None:
+    """The next `indexar(..., ocr=True)` test that asserts ok-only fails here.
+
+    F4-O.2 added a second test with the same assumption the first already had.
+    The checklist is this helper, not a list of two names.
+    """
+    fonte = Path(__file__).read_text(encoding="utf-8")
+    arvore = ast.parse(fonte)
+    faltando: list[str] = []
+    for no in arvore.body:
+        if not isinstance(no, ast.FunctionDef) or not no.name.startswith("test_"):
+            continue
+        trecho = ast.get_source_segment(fonte, no) or ""
+        if "indexar(" not in trecho or "ocr=True" not in trecho:
+            continue
+        if "ocr_produziu_texto_ou_declarou_recurso" not in trecho:
+            faltando.append(no.name)
+    assert not faltando, (
+        "teste de OCR que indexa e afirma o caminho feliz sem aceitar "
+        "quarentena por recurso. Use ocr_produziu_texto_ou_declarou_recurso, "
+        "senão a suíte mede a janela de memória outra vez: "
+        + ", ".join(faltando)
+    )

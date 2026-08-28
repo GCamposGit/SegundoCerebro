@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import multiprocessing
 import os
+import tempfile
 import time
 from collections.abc import Mapping
 from pathlib import Path
@@ -100,6 +101,12 @@ def _worker_abort(conn, path: str, kwargs: dict) -> None:  # noqa: ANN001, ARG00
     os.abort()
 
 
+def _worker_abort_stderr(conn, path: str, kwargs: dict) -> None:  # noqa: ANN001, ARG001
+    """Same death, after writing to fd 2 — OpenBLAS dies like this."""
+    os.write(2, b"OpenBLAS error: Memory allocation still failed after 10 retries\n")
+    os.abort()
+
+
 def _worker_hang(conn, path: str, kwargs: dict) -> None:  # noqa: ANN001, ARG001
     """Test helper: the child never returns — the timeout has to kill it."""
     time.sleep(3600)
@@ -108,11 +115,35 @@ def _worker_hang(conn, path: str, kwargs: dict) -> None:  # noqa: ANN001, ARG001
 WORKERS = {
     "parse": _worker_parse,
     "abort": _worker_abort,
+    "abort_stderr": _worker_abort_stderr,
     "hang": _worker_hang,
 }
 
 
-def _despachar(nome: str, conn, path: str, kwargs: dict) -> None:  # noqa: ANN001
+def _redirigir_stderr(caminho: str) -> None:
+    """Point fd 2 at `caminho`. OpenBLAS writes to the fd, not to sys.stderr."""
+    fd = os.open(caminho, os.O_WRONLY | os.O_CREAT | os.O_APPEND)
+    try:
+        os.dup2(fd, 2)
+    finally:
+        os.close(fd)
+
+
+def _cauda_stderr(caminho: str) -> str:
+    try:
+        bruto = Path(caminho).read_bytes()
+    except OSError:
+        return ""
+    texto = bruto.decode("utf-8", errors="replace").strip()
+    return texto[-400:]
+
+
+def _despachar(nome: str, conn, path: str, kwargs: dict, stderr_path: str = "") -> None:  # noqa: ANN001
+    if stderr_path:
+        try:
+            _redirigir_stderr(stderr_path)
+        except OSError:
+            pass
     WORKERS[nome](conn, path, kwargs)
 
 
@@ -253,7 +284,13 @@ def parse_isolado(
 
     ctx = multiprocessing.get_context("spawn")
     receptor, emissor = ctx.Pipe(duplex=False)
-    proc = ctx.Process(target=_despachar, args=(worker, emissor, path, kwargs), daemon=True)
+    stderr_fd, stderr_path = tempfile.mkstemp(prefix="parse-isolado-", suffix=".stderr")
+    os.close(stderr_fd)
+    proc = ctx.Process(
+        target=_despachar,
+        args=(worker, emissor, path, kwargs, stderr_path),
+        daemon=True,
+    )
     proc.start()
     emissor.close()
     if ram_bytes and os.name == "nt" and proc.pid:
@@ -263,6 +300,7 @@ def parse_isolado(
             log.debug("Job Object recusou o teto de RAM: %s", exc)
 
     resultado: ParseResult | None = None
+    estourou = False
     try:
         if receptor.poll(teto):
             try:
@@ -270,22 +308,40 @@ def parse_isolado(
             except EOFError:
                 resultado = None
         else:
+            estourou = True
             _matar(proc)
-            detalhe = f"timeout de {teto:.0f}s"
-            _anotar_log(indice, f"{path}\t{detalhe}")
-            log.warning("parse isolado estourou %.0fs: %s", teto, path)
-            return ParseResult(path=path, status=ParseStatus.ERROR, detail=detalhe)
     finally:
         receptor.close()
         if proc.is_alive():
             _matar(proc)
         proc.join(timeout=1)
+        cauda = _cauda_stderr(stderr_path)
+        _apagar_stderr(stderr_path)
+
+    if estourou:
+        detalhe = _detalhe_com_stderr(f"timeout de {teto:.0f}s", cauda)
+        _anotar_log(indice, f"{path}\t{detalhe}")
+        log.warning("parse isolado estourou %.0fs: %s", teto, path)
+        return ParseResult(path=path, status=ParseStatus.ERROR, detail=detalhe)
 
     if resultado is not None:
         return resultado
 
     sinal = proc.exitcode
-    detalhe = f"subprocesso morreu (código {sinal})"
+    detalhe = _detalhe_com_stderr(f"subprocesso morreu (código {sinal})", cauda)
     _anotar_log(indice, f"{path}\t{detalhe}")
     log.warning("parse isolado morreu código %s: %s", sinal, path)
     return ParseResult(path=path, status=ParseStatus.ERROR, detail=detalhe)
+
+
+def _detalhe_com_stderr(base: str, cauda: str) -> str:
+    if not cauda:
+        return base
+    return f"{base}: {cauda}"
+
+
+def _apagar_stderr(caminho: str) -> None:
+    try:
+        os.unlink(caminho)
+    except OSError:
+        return
