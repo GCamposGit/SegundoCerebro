@@ -278,15 +278,16 @@ nao desconta a intersecao.
 """
 
 
-def _vtt(rng, falas):
-    """WebVTT com marca de tempo. `eval.fonte` classifica por extensao."""
-    blocos = ["WEBVTT", ""]
-    for k, fala in enumerate(falas):
-        ini, fim = 12 * k, 12 * k + 11
-        blocos.append(f"{ini // 60:02d}:{ini % 60:02d}.000 --> {fim // 60:02d}:{fim % 60:02d}.000")
-        blocos.append(fala)
-        blocos.append("")
-    return "\n".join(blocos)
+def _vtt(rng, falas):  # noqa: ANN001, ARG001
+    """WebVTT com marca de tempo. `eval.fonte` classifica por extensao.
+
+    Delega para `transcricao.vtt_de`: desde o `F4-T` a fatia de **cobertura de
+    formato** escreve as mesmas legendas, e duas definicoes divergiriam em
+    silencio -- cada uma certa sozinha.
+    """
+    from .transcricao import vtt_de
+
+    return vtt_de(falas)
 
 
 def f_reuniao(rng, n, ext):
@@ -296,6 +297,13 @@ def f_reuniao(rng, n, ext):
     ser 14x mais sensivel no grupo de reuniao. O arquivo se chama
     `Gravacao_2025-03-14_0930.vtt` -- data e hora, como gravador de reuniao nomeia
     -- e a resposta so existe no texto falado, com hesitacao e repeticao.
+
+    **E esta e a fatia que decide o `F4-P.1`**, que zera o peso do nome quando o
+    documento candidato e transcricao. O corpus real tem 11 perguntas de reuniao
+    e o IC pareado delas e mais largo que o efeito; aqui a fatia cresce com
+    `--n-por-fatia`, que e a unica razao de a decisao poder sair da camada 2.
+    O `.vtt` tambem e o que faz `retrieve/fonte.py` classificar por formato, sem
+    olhar a pasta.
     """
     docs, ps = [], []
     for i in range(n):
@@ -325,7 +333,7 @@ def f_reuniao(rng, n, ext):
         ps.append(perg(f"q-rn-{i:03d}", "reuniao", pergunta, moeda(valor), [d.caminho],
                        idioma=idioma, idioma_fonte=idioma_fonte,
                        armadilha="identificador so na fala; nome do arquivo e data e hora",
-                       feature_alvo="nomes/F4-P/C3.a", cruza_idioma=cruzado))
+                       feature_alvo="nomes/fonte/F4-P/F4-P.1/C3.a", cruza_idioma=cruzado))
     return docs, ps
 
 
@@ -371,7 +379,7 @@ def f_email(rng, n, ext):
         ps.append(perg(f"q-em-{i:03d}", "email", pergunta, f"{prazo} dias", [d.caminho],
                        idioma=idioma, idioma_fonte=idioma_fonte,
                        armadilha="assunto generico (RES: RES: ENC:); resposta so no corpo",
-                       feature_alvo="F4-P/parser de email", cruza_idioma=cruzado))
+                       feature_alvo="fonte/F4-P/parser de email", cruza_idioma=cruzado))
     return docs, ps
 
 

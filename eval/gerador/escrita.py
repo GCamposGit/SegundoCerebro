@@ -29,13 +29,17 @@ from pathlib import Path
 
 from segundocerebro.census import caminho_estendido
 
-FORMATOS_DE_TEXTO = ("txt", "md", "markdown", "csv", "vtt", "eml", "rtf")
+FORMATOS_DE_TEXTO = ("txt", "md", "markdown", "csv", "vtt", "srt", "sbv", "eml", "rtf")
 """Formatos que sao texto no disco.
 
-`vtt` e `eml` sao formato para o harness -- `eval.fonte` classifica por extensao
-(`EXTENSOES_DE_TRANSCRICAO`, `EXTENSOES_DE_EMAIL`) -- e o parser de email de
-21/08 le MIME. `rtf` e texto marcado que o parser de texto do produto le.
+`vtt`, `srt`, `sbv` e `eml` sao formato para o harness -- `eval.fonte` classifica
+por extensao (`EXTENSOES_DE_TRANSCRICAO`, `EXTENSOES_DE_EMAIL`) -- e o parser de
+email de 21/08 le MIME. `rtf` e texto marcado que o parser de texto do produto le.
 Escrever binario neles nao acrescentaria nada e tiraria a legibilidade do corpus.
+
+**Texto no disco nao quer dizer prosa.** As tres de transcricao levam legenda com
+marca de tempo, montada por `gerador/transcricao.py`: desde o `F4-T` o produto le
+esses formatos, e um arquivo de prosa com extensao `.srt` volta vazio do parser.
 """
 
 

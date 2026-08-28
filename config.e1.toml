@@ -1,0 +1,64 @@
+# Base do corpus sintético do `E1` — a camada 2 da avaliação, a que decide.
+#
+# O corpus **não** é versionado: ele é reprodutível por semente, e commitar 2.112
+# arquivos gerados seria guardar a saída em vez da regra que a produz. Regenerar:
+#
+#   py -m eval.gerador --seed 42 --n-por-fatia 100 --out corpus-e1
+#   py -m eval.adaptador_sintetico --entrada corpus-e1 --saida corpus-e1/perguntas.jsonl
+#   py -m segundocerebro.index.indexer --config config.e1.toml --base e1
+#
+# O modelo é o **mesmo do acervo corporativo**, e isso não é detalhe: com um
+# encoder denso mais fraco o ranqueador de nome pesa relativamente mais, e o Δ de
+# um pacote que mexe justamente nele sairia inflado. Medir a camada 2 com modelo
+# diferente do de produção mediria o modelo.
+
+versao = 1
+
+[maquina]
+perfil = "normal"
+
+[padrao]
+modelo = "e5-large"
+
+[[base]]
+id = "e1"
+nome = "Corpus sintético E1 (camada 2)"
+descricao = "Gerado por `eval.gerador`, semente 42. Não é acervo real de ninguém."
+indice = "index-e1"
+dourado = "corpus-e1/perguntas.jsonl"
+modelo = "e5-large"
+raizes = [
+    { nome = "e1", caminho = "corpus-e1" },
+]
+
+# Exclusão **declarada e medida**, pelo mesmo mecanismo que o `F4-M` usa no
+# acervo real: o pacote não some com documento em silêncio, ele diz qual e por quê.
+#
+# `16. Anexos volumosos` são as fatias `chunk_hostil` e `planilha_despejo` do
+# gerador — "1 linha relevante em 4000". Medido nesta máquina em 26/08/2026, com
+# a passada parada em 26%:
+#
+# | pasta                  | docs          | chunks              | chunks/doc |
+# |------------------------|---------------|---------------------|-----------|
+# | `16. Anexos volumosos` | 200 de 3.833  | 7.564 de 8.364 (90%)| 48,8      |
+# | `12. Normas`           | 600           | 600                 | 1,0       |
+# | `15. Bilingue`         | 200           | 200                 | 1,0       |
+#
+# 5% dos documentos custando 90% dos chunks, a 2,76 s por chunk medidos. Com elas
+# a passada projeta ~20.000 chunks (≈16 h ativas); sem elas, ~5.000 (≈4 h).
+#
+# **E elas medem chunking, não o ranqueador de nome**, que é a hipótese do
+# `F4-P.1`. As 200 perguntas que apontam para cá saem como *fora de escopo* no
+# relatório do harness — visíveis, e nos dois braços. Os dois braços veem o mesmo
+# corpus, então o Δ pareado não fica enviesado; o que muda é a dificuldade
+# absoluta, e isso está declarado na ablação do pacote.
+#
+# Para medir chunking, tirar esta seção e pagar as 16 h — é o custo real da fatia.
+# `dirs` sao prefixos relativos a RAIZ, nao nomes de pasta soltos -- e o gerador
+# escreve em `<out>/corpus/`, entao o prefixo tem de comecar por `corpus/`. A
+# primeira versao desta regra dizia so `16. Anexos volumosos`, casou com **nada**,
+# e nao houve aviso nenhum: a passada seguiu como se a exclusao existisse. Ver a
+# conferencia obrigatoria no cabecalho.
+[[base.exclude.papel]]
+dirs = ["corpus/16. Anexos volumosos"]
+globs = ["*"]

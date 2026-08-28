@@ -789,7 +789,7 @@ privada do desktop **não** trava nenhum destes:
 | F4-M | `[base.exclude.papel]` + `Meetings/` por papel | notebook | — | ✅ **fechado** (PR #10) |
 | ~~R9.1 + C5.b~~ | **Absorvido pelo `E1`** em 24/08/2026. O gerador passou a ser do **notebook** — ver a seção de pacotes E e [`docs/avaliacao-pacote-e1.md`](docs/avaliacao-pacote-e1.md) | notebook | 2 | **o desktop não pega este** |
 | E5 | **IC bootstrap em toda métrica** — `Δ ± IC95`, teste pareado, regra de adoção | notebook | **1** | ✅ **fechado** — e achou que a **porta 5 não rodava**; ver [`docs/rigor-estatistico.md`](docs/rigor-estatistico.md) |
-| E1 + E2 | Gerador sintético endurecido (7 condições do laudo) + matriz de armadilhas | notebook | **1** | **sim, agora** — passou à frente da `F4-P` em 25/08 (regra de ouro: é o instrumento de base desconhecida) |
+| E1 + E2 | Gerador sintético endurecido (7 condições do laudo) + matriz de armadilhas | notebook | **1** | ✅ **fechado em 25/08/2026** — `E1.a`–`f`, PRs #27, #28 e #29 |
 | E3 | Protocolo de três camadas + test-set selado (`seed + caps`) | acordo | 3 | depois do `E1` |
 | E4 | Red-team por fase, modelo DynaBench | notebook | 4 | no fecho da fase corrente |
 | Q1 · Q2 | CI com lint/format/types/cov · `pyproject` como fonte única | qualquer | — | **sim** — eixo ortogonal, não decide ranking |
@@ -813,6 +813,7 @@ privada do desktop **não** trava nenhum destes:
 | C2 + C3.b–d | Glossário automático do corpus + reescrita lexical (mesmo ponto de código) | desktop extrai, notebook mede | 6 | — |
 | F4-L / R1.1 | OLE que mente + conversor de legado | desktop | 6 | F4-L (mente) + R1.1 ✅ PR #37 |
 | F4-O / R1.2 | OCR de PDF digitalizado | **desktop** + notebook (O.3) | 6 | **O.0 ✅** PR #38 · **O.1 neste PR** · O.2/O.3 em [`docs/plano-ocr.md`](docs/plano-ocr.md) |
+| F4-T | Parser de transcrição (`.vtt`/`.srt`/`.sbv`) — a saída nativa de todo gravador de reunião era contada e não indexada | notebook | 6 | ✅ **fechado em 27/08/2026**: fatia `reunião` de **0 para 100** perguntas alcançáveis, 17 → 20 extensões. [`docs/fatia-reuniao-invisivel.md`](docs/fatia-reuniao-invisivel.md) |
 | F4-W / R5.1 | Watcher, com camada USN Journal | desktop | 6 | **sim** |
 | F4-S | SharePoint = pasta sincronizada, só política e tela | notebook | 6 | **sim** |
 | R6.2+C4.2 · R7.1 · R7.2+C6.a · R6.3 | Rerank v2 · tools · descriptions · tempo/pasta | notebook | 7 | — |
@@ -1731,8 +1732,11 @@ Plano do que falta, com hipótese / efeito mínimo / empate encerra, em
 > ganho todo concentrado nas 11 perguntas de reunião — e a tabela de simulação do
 > `E5` mostra que +0,273 concentrado em três perguntas **empata**. Gastar a
 > varredura para chegar a "empate" é o padrão que a regra 11 existe para cortar.
-> Ela volta quando houver **duas** coisas que hoje não existem: os perfis
-> sintéticos do `E1` (para saber se o peso generaliza) e n maior na fatia.
+> Ela volta quando houver **duas** coisas que em 25/08 de manhã não existiam: os
+> perfis sintéticos do `E1` (para saber se o peso generaliza) e n maior na fatia.
+> **As duas passaram a existir no mesmo dia** — o `E1` fechou, e o corpus dele dá
+> `reunião` com n=30 em `--n-por-fatia 30` e n≈100 em `--n-por-fatia 100`, contra
+> os 11 do dourado real. O pacote é o `F4-P.1`, declarado abaixo.
 >
 > **Fechado em 25/08/2026, aceite cumprido** —
 > [`docs/ablacao-f4p-nome-no-entregue.md`](docs/ablacao-f4p-nome-no-entregue.md).
@@ -1750,7 +1754,9 @@ Plano do que falta, com hipótese / efeito mínimo / empate encerra, em
 >    o próprio número de aceite (0,551) é o número dele.
 > 3. **A varredura de peso por tipo de fonte volta a ser defensável.** A regra 11 a
 >    cortou por não haver efeito mínimo declarado; agora há, e é esta perda em
->    reunião. Continua faltando a outra metade — os perfis sintéticos do `E1`.
+>    reunião. **A outra metade também já existe** — o `E1` fechou no mesmo dia e
+>    o corpus dele foi construído para esta pergunta. A frase original desta
+>    linha dizia o contrário e foi corrigida; ver a caixa da `F4-P`.
 >
 > **Classe generalizada** (regra 12): "o eval mede um caminho e o cliente executa
 > outro" ficou fechada pelo `F4-P.0` — `eval/entregue.py` e `--entregue` em
@@ -1803,6 +1809,85 @@ nome, na transcrição o nome só tem assunto e data. `n = 11` é sinal, não de
   preferência por nome foi medida e está errada, ver `docs/dourado-cobertura.md`)
 - **Saída:** decisão registrada, com armadilhas medidas, um número por grupo de
   fonte e a distância até o teto
+
+---
+
+#### F4-P.1 — Peso de nome por tipo de fonte — **notebook**
+
+> **Estava BLOQUEADA, e o `F4-T` a desbloqueou no mesmo dia (27/08/2026).** A fatia que decidiria
+> o pacote tem **n=0**, não n≈100: as 100 perguntas de `reunião` da camada 2
+> apontam para `.vtt`, e `.vtt`/`.srt`/`.sbv` **não estão** em
+> `supported_extensions()` — não existe parser de transcrição. Auditado no
+> `index-e1`: grupo `reunião` com **3** documentos candidatos de 200 registrados,
+> e **0** das 100 perguntas com fonte indexada.
+>
+> Rodar a medição declarada daria Δ pareado 0,000, IC cruzando zero, e o critério
+> de encerramento fecharia o pacote com **"hipótese refutada"** — cumprindo todas
+> as regras e registrando a conclusão errada. Laudo e a classe generalizada em
+> [`docs/fatia-reuniao-invisivel.md`](docs/fatia-reuniao-invisivel.md); a porta que
+> passa a pegá-la é `tests/test_fonte_contrato.py`.
+>
+> O que estava pronto continua válido: o mecanismo, a definição única de grupo e a
+> base da camada 2.
+>
+> **FECHADA em 27/08/2026 — hipótese mal especificada, não refutada.**
+> [`docs/ablacao-f4p1-nome-por-fonte.md`](docs/ablacao-f4p1-nome-por-fonte.md). A
+> medição rodou (2.119 perguntas, fatia `reunião` com n=100 e 100 de 100 fontes
+> indexadas) e deu **`+0.000 [+0.000, +0.000]` em todas as células**. Intervalo de
+> largura zero é ausência de manipulação, não empate: no corpus sintético o
+> ranqueador de nome **não pontua um único documento de reunião** (0 de 40
+> sondadas), então zerar o peso dele não tinha em que agir.
+>
+> E o motivo de fechar é mais forte que o instrumento. Na camada 1, onde o dano de
+> **−0,089** existe, os documentos que passam à frente da fonte de reunião são
+> **11 de escritório contra 1 de reunião**: a alavanca zera o peso nas **vítimas**,
+> não na causa. O contrato derivou o efeito mínimo de uma fatia definida pelo grupo
+> da **fonte esperada** e aplicou a alavanca ao grupo do **candidato** — dois
+> conjuntos diferentes, e o nome igual escondeu isso.
+>
+> `PESO_NOME_POR_GRUPO` e `retrieve/fonte.py` ficam, desligados por padrão e
+> exercitados por teste: a definição única de grupo já se paga servindo o recorte
+> do harness. Não reabre com outra grade.
+
+> **Aberto em 25/08/2026, e é a metade que a regra 11 tinha adiado.** A `F4-P`
+> cortou a varredura por não haver efeito mínimo declarado. Ela mediu um, e no
+> mesmo dia o `E1` entregou a outra condição. As duas linhas abaixo são o que
+> desbloqueou o pacote, e nenhuma delas é intuição:
+>
+> - **efeito mínimo**: nDCG@5 de reunião **−0,089 [−0,172, −0,017]** no caminho
+>   entregue, a única célula da tabela pareada da `F4-P` cujo IC não cruza zero;
+> - **instrumento**: o corpus do `E1` tem o eixo `grupo_de_fonte`, e a fatia
+>   `f_reuniao` foi escrita para esta pergunta —
+>   *"a `F4-P` decide sobre reunião e sobre cross-lingual"*, na docstring dela.
+>   `reunião` sai com n=30 em `--n-por-fatia 30` e n≈100 em `--n-por-fatia 100`,
+>   contra os **11** do dourado real.
+
+**A camada que decide é a 2, e isto não é detalhe de procedimento.** No dourado
+real a fatia `reunião` tem n=11 e o Δ pareado dela na `F4-P` saiu com IC de
+largura 0,165 em MRR — maior que o efeito de +0,074 que se espera recuperar.
+Medir a decisão ali seria pedir à fatia que responda o que ela não consegue
+distinguir, que é a forma exata que o `E5` provou indetectável. O dourado real
+entra como **piso de regressão**, e só.
+
+| Campo | Valor |
+|-------|--------|
+| Dono | **notebook** |
+| Paths | `src/segundocerebro/retrieve/fonte.py` (novo), `retrieve/hybrid.py`, `eval/fonte.py`, `eval/comparar.py`, testes dos três |
+| **Serve base desconhecida** | sim, e é a razão de existir. A regra é de **formato e vocabulário genérico** — `.vtt`/`.srt`/`.sbv` é transcrição onde estiver, `.msg`/`.eml` é email onde estiver. A afirmação é estrutural: **a transcrição tem no nome o assunto e a data, nunca o identificador**, porque é assim que gravador de reunião nomeia arquivo. Isso vale no acervo do próximo, não só no nosso |
+| **Hipótese** | zerar o peso do ranqueador de nome **para o documento candidato do grupo `reunião`**, mantendo 0,5 nos demais, melhora a fatia `reunião` sem derrubar o agregado |
+| **Efeito mínimo** | fatia `reunião` do corpus sintético do `E1` (n≈100), Δ pareado de **MRR@10 ≥ +0,05 com IC95 que não cruza zero**. Declarado antes de gerar o corpus |
+| **Orçamento** | **uma** medição. Sem grade: o valor 0 não é escolhido por busca, vem do que `dourado-cobertura.md` já mediu (reunião com `nome = 0` dá MRR 0,459 contra 0,287). Segunda passada exigiria acervo novo, não outra grade |
+| **Critério de encerramento** | empate no Δ pareado **encerra** o pacote com "hipótese refutada" no doc. Também encerra se o piso cair: recall@1 agregado do dourado real abaixo de 0,551, ou orçamento de armadilha estourado |
+| **Classe generalizada** | "a régua que mede e a regra que ranqueia divergem em silêncio". Hoje `grupo_de_fonte` só existe em `eval/`, e nada impede o produto de classificar diferente do relatório. A função passa a morar em `retrieve/` e o `eval/` a importa — **uma definição**, com teste que falha se o `eval` ganhar a sua própria cópia |
+| Saída | teste na suíte padrão, sem GPU e sem `perguntas.jsonl`; ablação em `docs/` com os dois braços e as duas camadas |
+
+- **Toca:** o que está em Paths. **Não** `[padrao]` sem o desktop saber
+- **Não toca:** indexador, parsers, chunking, o glossário
+- **A interseção que precisa aparecer no relatório:** no dourado real, 3 das 11
+  perguntas de reunião são cross-lingual, e o nome é a ponte PT↔EN. Zerar o peso
+  na reunião tira a ponte de 27% do grupo que se quer melhorar. **A tabela tem de
+  trazer a célula `reunião ∩ cross-lingual`**, não só os dois eixos — foi a
+  ressalva que o `C3.a` registrou e que o teto de oráculo não descontava
 
 ---
 

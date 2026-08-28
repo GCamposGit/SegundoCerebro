@@ -240,8 +240,13 @@ Preferimos dizer isto do que deixar você descobrir depois.
   desligado** só entra na próxima indexação.
 - **Só estes formatos:** PDF (`.pdf`), Word (`.docx`, `.docm`, `.doc`, `.rtf`),
   Excel (`.xlsx`, `.xlsm`, `.xls`), PowerPoint (`.pptx`, `.pptm`, `.ppt`), e-mail
-  (`.msg`, `.eml`) e texto (`.txt`, `.md`, `.markdown`, `.csv`). O que está fora
-  fica marcado como "sem leitor" — não desaparece sem aviso.
+  (`.msg`, `.eml`), transcrição de reunião (`.vtt`, `.srt`, `.sbv`) e texto
+  (`.txt`, `.md`, `.markdown`, `.csv`). O que está fora fica marcado como "sem
+  leitor" — não desaparece sem aviso.
+- **Transcrição de reunião entra desde 27/08/2026**, e é a legenda que o Teams, o
+  Zoom e o Meet salvam sozinhos. O trecho devolvido traz o instante da fala
+  (`12:30`), para você abrir a gravação no ponto. Antes disso o arquivo era
+  contado na barra e nunca aparecia na busca.
 - **Não escreve texto, de propósito.** Não existe "resume isto" no servidor. Uma
   etapa de geração aqui passaria a custar dinheiro por pergunta e amarraria você a
   um fornecedor. Quem escreve é o assistente que você já paga.

@@ -117,6 +117,7 @@ def _montar(args, cfg):  # noqa: ANN001
         peso_denso=args.peso_denso if args.peso_denso is not None else pesos.denso,
         peso_lexical=pesos.lexical,
         peso_nome=args.peso_nome if args.peso_nome is not None else pesos.nome,
+        nome_por_fonte=args.nome_por_fonte,
         glossario=Glossario.de_arquivo(args.glossario) if args.glossario else None,
         reranker=reranker,
     )
@@ -235,6 +236,12 @@ def main(argv: list[str] | None = None) -> int:
         "--sem-rerank",
         action="store_true",
         help="desliga o reranking mesmo que a base o configure — é o braço de ablação",
+    )
+    parser.add_argument(
+        "--nome-por-fonte",
+        action="store_true",
+        help="peso do ranqueador de nome por tipo do documento candidato — zera na "
+        "transcrição de reunião. `F4-P.1`, ver `retrieve/fonte.py`",
     )
     parser.add_argument(
         "--entregue",

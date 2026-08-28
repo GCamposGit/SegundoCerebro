@@ -598,6 +598,132 @@ Por que isto é do desktop também, e não só uma nota de rodapé do notebook:
   peso generaliza para acervo que não é este. **Não começar sem os perfis
   sintéticos.**
 
+### `F4-P.1` bloqueada por falta de parser, e dois recados (27/08/2026)
+
+Laudo em [`fatia-reuniao-invisivel.md`](fatia-reuniao-invisivel.md). Auditando o
+`index-e1` **antes** de gastar a medição: a fatia `reunião` da camada 2 tem
+**n=0**, não n≈100. As 100 perguntas apontam para `.vtt`, e `.vtt`/`.srt`/`.sbv`
+não estão em `supported_extensions()` — não existe parser de transcrição. Rodar a
+medição declarada daria empate, e o critério de encerramento fecharia o pacote com
+"hipótese refutada" cumprindo todas as regras.
+
+**1. `F4-T` fechado, e eu toquei o despachante — leiam esta linha.**
+`ingest/parsers/vtt.py` (novo, `.vtt`/`.srt`/`.sbv`) é do notebook pelo contrato de
+dono por arquivo. **E `ingest/parsers/__init__.py` mudou**, que é "um de cada vez":
+uma linha, o `import vtt` no `_load_all`. Parser não registrado é código morto,
+então sem ela o pacote não existiria — e o usuário deu o sinal para seguir em vez
+de esperar.
+
+**O que preciso que vocês confiram:** se o `F4-O.2` encostar em
+`ingest/parsers/__init__.py` (o plano prevê "só se a versão exigir"), o conflito é
+essa linha e nada mais — resolvam mantendo as duas entradas na lista de import. Se
+preferirem que eu reverta e vocês registrem no PR de vocês, digam e eu reverto; o
+`vtt.py` sozinho não conflita com nada.
+
+**Efeito mínimo cumprido, medido:** fatia `reunião` do `index-e1` de **0 para 100**
+perguntas com fonte indexada, 3 para 103 documentos candidatos, 17 para 20
+extensões suportadas. A passada de reindexação **não terminou** (máquina a 89% de
+memória, ver o recado 2) e quarentenou 4 documentos de `escritório` que antes
+estavam `ok` — recuperáveis na próxima passada, porque quarentena é repescada.
+
+**Três guardas deste repositório reprovaram sozinhas** quando
+`supported_extensions()` cresceu, e é o melhor aval do desenho: a cobertura de
+formato do gerador (`ValueError: formato desconhecido: sbv`), o teste que exige
+`docs/comecar.md` listar exatamente o que o produto lê, e o `escrita.py` recusando
+escrever formato que não conhece. **E uma quarta estava desarmada:** o round-trip
+de `test_gerador_sintetico.py` pulava `.vtt` com `continue` e um comentário
+errado ("é texto puro"), enquanto a docstring prometia que todo formato volta pelo
+despachante. Virou `assert`. Detalhe em
+[`fatia-reuniao-invisivel.md`](fatia-reuniao-invisivel.md).
+
+**Paths do `F4-T`:** `src/segundocerebro/ingest/parsers/vtt.py` (novo),
+`src/segundocerebro/ingest/parsers/__init__.py` (**uma linha** — o ponto de
+acordo), `eval/gerador/transcricao.py` (novo), `eval/gerador/{escrita,fatias,formatos}.py`,
+`tests/test_vtt.py` e `tests/test_gerador_transcricao.py` (novos),
+`tests/test_gerador_sintetico.py` (o `continue` desarmado), `docs/comecar.md` (a
+lista de formatos, obrigada por teste). Suíte: **1.196 passando**, 2 falhas — as duas
+de `test_ocr.py`, as duas presentes na `main` limpa (`4abe045`), ver o recado 2. Nada de `retrieve/*`,
+nada de `[padrao]`, nada de chunking.
+
+Vale para os dois lados como regra, e não como episódio: **`.vtt`/`.srt` são a
+saída nativa de Teams, Zoom e Meet.** Hoje o registro guarda o documento com zero
+chunk, a barra conta o arquivo e a busca nunca o devolve — item 2 da régua de
+prontidão, "falhar é aceitável, mentir em silêncio não".
+
+**2. Dois testes de OCR passam ou falham só em função da memória livre — e isso é
+o achado, não o incidente.**
+`tests/test_ocr.py::test_indexar_ocr_depois_do_texto` falha em `6377a0a` **e** em
+`cb4e1f7`, consistentemente, três tentativas. E depois do PR #42
+`test_indexar_misto_com_ocr_junta_as_paginas` entrou com a **mesma** fragilidade:
+as duas falham na `main` limpa em `4abe045`, aqui. A causa não é lógica: o subprocesso
+de parse isolado morre com `OpenBLAS error: Memory allocation still failed after
+10 retries`, e a quarentena marca o documento como `erro` em vez de `ok`.
+
+Medido nesta máquina, mesmo commit, mesma suíte, no mesmo dia:
+
+| memória livre | `tests/test_ocr.py` |
+|---|---|
+| 2,7 GB de 16,8 GB (84% usada) | **2 falhas** |
+| 2,7 GB, repetido três vezes | 2 falhas, consistente |
+| memória liberada pelo usuário | **1.208 passando, 0 falhas** |
+
+Ou seja: o veredito da suíte é função do que mais estava aberto na máquina. **O produto se comportou certo** —
+quarentenou em vez de quebrar. O teste é que afirma `status == "ok"` supondo que o
+subprocesso isolado consegue alocar, e por isso confunde "o pipeline de OCR
+funciona" com "a máquina tinha memória".
+
+`tests/test_ocr.py` é do desktop (OCR), então **não** consertei — regra 8. Que a
+`F4-O.2` tenha acrescentado um segundo teste com a mesma suposição é o argumento
+para tratar isso como classe e não como caso: o próximo teste de OCR vai nascer
+com ela. Sugestão,
+para não virar teste intermitente que todo mundo aprende a ignorar: distinguir
+`erro` por quarentena de falha de pipeline, ou declarar o piso de memória que o
+teste exige. É a mesma classe do `F4-R` que fechei hoje: **braço que não registra o
+regime da máquina mede a janela** — aqui, a janela de memória.
+
+**E não é só o teste.** A reindexação do `index-e1` para o `F4-T` morreu pela mesma
+causa: `OpenBLAS error: Memory allocation still failed after 10 retries` em série,
+com subprocessos de parse estourando 150 s e 60 s e sendo quarentenados. Com esta
+máquina neste estado **o indexador não completa passada**, e isso é informação de
+produto: 16,8 GB com 89% em uso é notebook corporativo comum, e o modo de falha que
+o usuário vê é documento quarentenado sem nenhuma menção a memória. Candidato a
+entrada de pacote junto do `F4-R.1` e do teto de RAM do `F4-O.2`, que é de vocês.
+
+### `F4-P.1` fechada por especificação, não por empate (27/08/2026)
+
+Laudo: [`ablacao-f4p1-nome-por-fonte.md`](ablacao-f4p1-nome-por-fonte.md). A
+medição rodou depois que a `F4-T` encheu a fatia, e deu `+0.000 [+0.000, +0.000]`
+em **todas** as células. Intervalo de largura zero não é empate — é ausência de
+manipulação: no corpus sintético o ranqueador de nome não pontua um único
+documento de reunião, então zerar o peso dele não tinha em que agir.
+
+E o achado que fecha o pacote: na camada 1, onde o dano de −0,089 existe, os
+documentos que passam à frente da fonte de reunião são **11 de escritório contra 1
+de reunião**. A alavanca zerava o peso nas vítimas. O contrato derivou o efeito
+mínimo de uma fatia definida pelo grupo da **fonte esperada** e aplicou a alavanca
+ao grupo do **candidato**; o nome igual escondeu que são populações diferentes.
+
+**O que isto muda para vocês**, e é a parte que vale além deste pacote:
+
+1. **`eval/comparar.py` passa a distinguir empate de insensibilidade.** Quando os
+   dois braços devolvem o mesmo ranking em toda pergunta do recorte, a célula sai
+   `∅` e o relatório diz, em texto, que a regra de encerramento **não se aplica**.
+   Se um braço de vocês sair todo `∅`, é sinal de que a bandeira não está agindo —
+   não de que a hipótese caiu.
+2. **O relatório do `--entregue` mentia.** Ele afirmava que o ranqueador de nome
+   não participa de `buscar_chunks`, coisa que a `F4-P` mudou em 25/08. Qualquer
+   ablação de vocês nesse caminho saía com esse parágrafo. Corrigido, e com teste
+   que lê o fonte e reprova se a prosa negar o código.
+3. **`--entregue` com `--antes` no default (`baseline`) quebrava** com
+   `AttributeError` na primeira consulta, depois de carregar índice e modelo. Passa
+   a recusar na montagem.
+4. **O indexador vaza nome de usuário para o `.mcp.json`, que é versionado.**
+   Indexar uma base nova acrescenta uma entrada com o caminho absoluto do
+   interpretador. Revertido aqui; guarda estrutural nova em
+   `tests/test_saneamento.py`, porque a que existia é pulada quando a lista local
+   está vazia — num clone limpo não havia guarda nenhuma. **Confiram se a passada
+   de vocês fez o mesmo antes do próximo commit.**
+
 ### Agora — desktop
 
 **Cinco pacotes prontos para começar, nenhum bloqueado por nada.** A ordem é

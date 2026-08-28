@@ -259,15 +259,24 @@ def test_os_formatos_binarios_voltam_pelo_parser_do_projeto(tmp_path: Path) -> N
     from segundocerebro.ingest.parsers import parser_for
 
     from eval.gerador.nucleo import Doc, escrever
+    from eval.gerador.transcricao import POR_EXTENSAO, falas_de
 
     marca = "CT-RT-042 valor total R$ 1.234.567,89"
     for formato, ext in (("pdf", ".pdf"), ("xlsx", ".xlsx"), ("pptx", ".pptx"),
-                         ("docx", ".docx"), ("eml", ".eml"), ("vtt", ".vtt")):
-        doc = Doc(f"round/trip_{formato}{ext}", marca, formato=formato)
+                         ("docx", ".docx"), ("eml", ".eml"),
+                         ("vtt", ".vtt"), ("srt", ".srt"), ("sbv", ".sbv")):
+        # Transcrição é texto no disco, mas **não é prosa**: sem marca de tempo o
+        # parser do `F4-T` devolve zero blocos, e um `.srt` de prosa entraria no
+        # corpus como documento vazio. O corpo vira cue pelo mesmo construtor que
+        # o gerador usa.
+        corpo = POR_EXTENSAO[ext](falas_de(marca)) if ext in POR_EXTENSAO else marca
+        doc = Doc(f"round/trip_{formato}{ext}", corpo, formato=formato)
         escrever(doc, tmp_path)
         parser = parser_for(ext)
-        if parser is None:
-            continue  # `.vtt` é texto puro; o indexador o trata como tal
+        # Era `continue`, e o `continue` escondia justamente o defeito do `F4-T`:
+        # o gerador escrevia `.vtt` que o produto não lia, e o teste passava. A
+        # docstring já prometia o contrário do que o código fazia.
+        assert parser is not None, f"{ext}: o gerador escreve e o produto não lê"
         lido = parser((tmp_path / doc.caminho).read_bytes(), f"trip_{formato}{ext}")
         texto = "\n".join(b.text for b in lido.blocks)
         assert "CT-RT-042" in texto, f"{formato}: o identificador não voltou"
