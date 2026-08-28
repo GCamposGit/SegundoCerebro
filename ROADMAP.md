@@ -814,6 +814,7 @@ privada do desktop **não** trava nenhum destes:
 | F4-L / R1.1 | OLE que mente + conversor de legado | desktop | 6 | F4-L (mente) + R1.1 ✅ PR #37 |
 | F4-O / R1.2 | OCR de PDF digitalizado | **desktop** + notebook (O.3) | 6 | **O.0 ✅** PR #38 · **O.1 neste PR** · O.2/O.3 em [`docs/plano-ocr.md`](docs/plano-ocr.md) |
 | F4-T | Parser de transcrição (`.vtt`/`.srt`/`.sbv`) — a saída nativa de todo gravador de reunião era contada e não indexada | notebook | 6 | ✅ **fechado em 27/08/2026**: fatia `reunião` de **0 para 100** perguntas alcançáveis, 17 → 20 extensões. [`docs/fatia-reuniao-invisivel.md`](docs/fatia-reuniao-invisivel.md) |
+| F4-R | Regime de máquina: a indexação varia 22× por estado do SO que o produto não observa | notebook (`esforco.py` emprestado) | 6 | **R.1 sim** — achar o gatilho. Laudo: [`docs/afinidade-e-estado-de-maquina.md`](docs/afinidade-e-estado-de-maquina.md) |
 | F4-W / R5.1 | Watcher, com camada USN Journal | desktop | 6 | **sim** |
 | F4-S | SharePoint = pasta sincronizada, só política e tela | notebook | 6 | **sim** |
 | R6.2+C4.2 · R7.1 · R7.2+C6.a · R6.3 | Rerank v2 · tools · descriptions · tempo/pasta | notebook | 7 | — |
@@ -1714,6 +1715,34 @@ Plano do que falta, com hipótese / efeito mínimo / empate encerra, em
   `[padrao]`. `ocr = true` **não** vira padrão antes do O.3
 - **Saída da fase:** O.1+O.2 verdes na máquina com extra; O.3 medido ou
   declarado “motor não alcança este acervo”. Empate no O.3 deixa `--ocr` opt-in
+
+#### F4-R — Regime de máquina — **notebook** (`esforco.py` emprestado)
+
+Aberto em 27/08/2026 por uma retratação, não por uma ideia. O achado 16.1 da
+spec de estimativa dizia que a máscara de afinidade do perfil `normal` custa
+**12×**; medindo com braços intercalados, a mesma máscara custa **zero** no regime
+benigno e **8×** noutro, e a mesma máquina entrega 0,141 e 3,19 s/chunk sem que
+nada do produto mude. Laudo, com as três hipóteses refutadas:
+[`docs/afinidade-e-estado-de-maquina.md`](docs/afinidade-e-estado-de-maquina.md).
+
+Não é pacote de laboratório: a máquina do leigo é um notebook Windows híbrido, e
+o perfil **padrão** é o que converte um estado de 2× num estado de 16×.
+
+| Fatia | Porta | Começa |
+|---|---|---|
+| **R.1** o regime fica observável e **reproduzível sob comando** (gatilho do EcoQoS isolado; tomada/bateria e classe de eficiência gravados em toda observação) | ligar e desligar o estado lento por comando, e o braço `contiguo6` reproduzir 3,1 e 0,18 sob demanda | **sim**, nada bloqueia |
+| **R.2** a `Calibracao` não agrupa regimes — regime na chave da observação, ou descarte declarado | teste que prova que observação de regime diferente não entra no mesmo coeficiente | depois do R.1 |
+| **R.3** escolher a máscara. Candidato **não medido**: `[0,2,4,5,6,7]` (2 de P-core + 4 de E-core) contra `[0..5]` | ≤1,5× do `livre` no regime lento **e** ≤1,1× do `contiguo6` no benigno. Empate ⇒ hipótese refutada e o pacote vira remover a máscara | depois do R.1 |
+
+- **Toca (R.1):** harness de medição, `index/esforco.py` (relato do regime), doc
+- **Toca (R.2):** `index/calibracao.py`, `tests/test_calibracao.py`
+- **Toca (R.3):** `index/esforco.py` (`_afinidade`), com número dos dois regimes
+- **Não toca:** `retrieve/*`, `[padrao]`, `model_id`, chunking. Nada de grade de
+  máscaras, e **nada de trocar máscara antes do R.1** — sem o estado
+  reproduzível, o braço mede a janela, que é o erro retratado
+- **Saída da fase:** R.1 verde é o que autoriza R.2 e R.3. Sem R.1, a passada de
+  calibragem no acervo real **não roda**: ela aprenderia coeficiente de dois
+  regimes misturados, com viés a favor e milhares de observações
 
 #### F4-P — Reconciliar os dois caminhos de recuperação — **notebook**
 

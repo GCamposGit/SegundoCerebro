@@ -625,6 +625,15 @@ das entradas**.
 ## 16. Dois limites achados validando a implementação
 
 **16.1 — A afinidade de CPU do perfil de esforço custa 12×, não 2×.**
+
+> **Retratado em 27/08/2026.** O número existe; a causa atribuída aqui, não.
+> A mesma máscara mede 0,141 e 3,19 s/chunk conforme um estado do sistema
+> operacional que o produto não observa — e no estado benigno a máscara custa
+> **zero**. A suspeita de colisão de threads intra-op do ORT está refutada, e
+> com ela a leitura de que há "~12× de vazão" à espera de um conserto de
+> máscara. Ler [`afinidade-e-estado-de-maquina.md`](afinidade-e-estado-de-maquina.md)
+> antes de usar qualquer número deste bloco. O parágrafo abaixo fica como
+> registro do que foi medido e de como foi concluído errado.
 E isso **invalida um número que reportei antes**: eu disse que o perfil `normal`
 custava 1,20× ponta a ponta. Aquela medição não aplicava a afinidade que a
 produção aplica — foi exatamente o erro que este repositório já catalogou
