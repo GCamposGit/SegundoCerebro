@@ -47,6 +47,7 @@ from ..config import (
     gravar,
 )
 from ..index.indexer import NOME_DA_TRAVA
+from ..index.watcher import NOME_DA_TRAVA as NOME_DO_OBSERVADOR
 from ..logger import get_logger
 from ..retrieve.glossario import ErroDeGlossario, Glossario
 
@@ -202,6 +203,7 @@ def criar_app(
                         "indice": str(b.indice),
                         "indexada": b.indexada,
                         "indexando": (b.indice / NOME_DA_TRAVA).exists(),
+                        "observando": (b.indice / NOME_DO_OBSERVADOR).exists(),
                         "modelo": b.modelo,
                         "pesos": dict(b.pesos.__dict__),
                         "busca": dict(b.busca.__dict__),
@@ -407,6 +409,7 @@ def criar_app(
                 "bases": {
                     b.id: {
                         "indexando": (b.indice / NOME_DA_TRAVA).exists(),
+                        "observando": (b.indice / NOME_DO_OBSERVADOR).exists(),
                         "progresso": ler(b.indice),
                     }
                     for b in conf.bases
@@ -757,6 +760,46 @@ def criar_app(
         log.info("indexação da base '%s' iniciada (pid %s, perfil %s)", base.id, filho.pid, perfil)
         return JSONResponse({"base": base.id, "pid": filho.pid, "perfil": perfil})
 
+    async def observar(request: Request) -> JSONResponse:
+        """Dispara o observador como processo independente.
+
+        Mesmo contrato do indexar: fechar o painel não mata o filho. A trava
+        é `watcher.lock`, não `indexacao.lock` — os dois processos convivem.
+        """
+        if not autorizado(request):
+            return JSONResponse({"erro": "token inválido"}, status_code=403)
+        corpo = await request.json()
+        try:
+            conf = _config()
+            base = _base(conf, corpo)
+        except ErroDeConfig as erro:
+            return JSONResponse({"erro": str(erro)}, status_code=400)
+
+        if (base.indice / NOME_DO_OBSERVADOR).exists():
+            return JSONResponse(
+                {"erro": f"a base '{base.id}' já está sendo observada"}, status_code=409
+            )
+
+        comando = [
+            sys.executable, "-m", "segundocerebro.index.watcher",
+            "--base", base.id, "--config", str(caminho_config),
+        ]
+        extras: dict[str, Any] = {"cwd": str(caminho_config.parent)}
+        if hasattr(subprocess, "DETACHED_PROCESS"):
+            extras["creationflags"] = subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP
+        else:
+            extras["start_new_session"] = True
+
+        filho = subprocess.Popen(  # noqa: S603 — comando montado aqui, não pelo usuário
+            comando,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            stdin=subprocess.DEVNULL,
+            **extras,
+        )
+        log.info("observador da base '%s' iniciado (pid %s)", base.id, filho.pid)
+        return JSONResponse({"base": base.id, "pid": filho.pid})
+
     async def registro(request: Request) -> JSONResponse:
         """O trecho de `.mcp.json` da base — o último degrau para usar de verdade."""
         if not autorizado(request):
@@ -885,6 +928,7 @@ def criar_app(
             Route("/api/censo", censo, methods=["POST"]),
             Route("/api/base", criar_base, methods=["POST"]),
             Route("/api/indexar", indexar, methods=["POST"]),
+            Route("/api/observar", observar, methods=["POST"]),
             Route("/api/comando", comando, methods=["POST"]),
             Route("/api/registro", registro),
             Route("/api/conectar", conectar, methods=["POST"]),

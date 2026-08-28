@@ -609,6 +609,41 @@ def test_comando_grava_o_arquivo_ao_lado_do_indice(cliente, caminho: Path) -> No
     assert ler(indice) is None
 
 
+def test_observar_recusa_base_ja_observada(cliente, caminho: Path) -> None:
+    """A trava é do observador; o painel só não deve pedir o que vai falhar."""
+    from segundocerebro.index.watcher import NOME_DA_TRAVA as NOME_DO_OBSERVADOR
+
+    (caminho.parent / "it").mkdir(exist_ok=True)
+    (caminho.parent / "it" / NOME_DO_OBSERVADOR).write_text("1", encoding="utf-8")
+
+    r = cliente.post("/api/observar", json={"base": "trabalho"}, headers=cabecalho())
+    assert r.status_code == 409 and "já está sendo observada" in r.json()["erro"]
+
+
+def test_observar_dispara_processo_independente(
+    cliente, caminho: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    vistos: list[list[str]] = []
+
+    class Dummy:
+        pid = 4242
+
+    def fake_popen(cmd, **kwargs):  # noqa: ANN001, ANN003
+        vistos.append(list(cmd))
+        assert kwargs.get("stdout") is not None
+        return Dummy()
+
+    monkeypatch.setattr("segundocerebro.painel.app.subprocess.Popen", fake_popen)
+    r = cliente.post("/api/observar", json={"base": "trabalho"}, headers=cabecalho())
+    assert r.status_code == 200
+    assert r.json()["pid"] == 4242
+    assert vistos and "segundocerebro.index.watcher" in vistos[0]
+
+
+def test_observar_exige_token(cliente) -> None:
+    assert cliente.post("/api/observar", json={"base": "trabalho"}).status_code == 403
+
+
 def test_indexar_recusa_base_ja_indexando(cliente, caminho: Path) -> None:
     """A trava é do indexador; o painel só não deve pedir o que vai falhar."""
     (caminho.parent / "it").mkdir(exist_ok=True)
@@ -618,7 +653,7 @@ def test_indexar_recusa_base_ja_indexando(cliente, caminho: Path) -> None:
     assert r.status_code == 409 and "já está sendo indexada" in r.json()["erro"]
 
 
-@pytest.mark.parametrize("rota", ["/api/censo", "/api/base", "/api/indexar"])
+@pytest.mark.parametrize("rota", ["/api/censo", "/api/base", "/api/indexar", "/api/observar"])
 def test_estagio_zero_exige_token(cliente, rota: str) -> None:
     assert cliente.post(rota, json={}).status_code == 403
 
