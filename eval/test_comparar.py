@@ -211,6 +211,7 @@ def test_entregue_envolve_os_dois_bracos() -> None:
         rerank_depois = None
         peso_nome_depois = None
         nome_por_fonte_depois = False
+        indice_depois = None
         sem_rerank = True
 
     class Falso:
@@ -336,3 +337,33 @@ def test_a_tabela_marca_a_fatia_insensivel_e_recusa_o_veredito() -> None:
     assert "∅" in texto
     assert "não é empate" in texto
     assert "esta comparação não mediu nada" in texto
+
+
+def test_o_arremedo_de_args_do_proprio_comparar_cobre_o_que_ele_le() -> None:
+    """O contrato que faltava: o irmão de `_CAMPOS_DE_MONTAGEM`, do lado de fora.
+
+    `_CAMPOS_DE_MONTAGEM` confere o que `rodar._montar` lê. Ninguém conferia o que
+    `comparar._montar` lê do **próprio** `args` — e é lá que moram os braços
+    assimétricos. O resultado é que cada bandeira nova (`--rerank-depois`,
+    `--peso-nome-depois`, `--nome-por-fonte-depois`, `--indice-depois`) quebrou o
+    arremedo de `Args` deste arquivo com `AttributeError`, uma de cada vez.
+
+    Quebrar no teste é barato; o que este teste garante é que o defeito continue
+    barato quando a quinta bandeira aparecer, em vez de aparecer numa passada de
+    vinte minutos.
+    """
+    import inspect
+    import re
+
+    import eval.comparar as mod
+
+    lidos = set(re.findall(r"\bargs\.(\w+)", inspect.getsource(mod._montar)))
+    # `args.base_cfg` e companhia entram no arremedo como atributos de classe.
+    fonte_do_teste = inspect.getsource(test_entregue_envolve_os_dois_bracos)
+    declarados = set(re.findall(r"^\s{8}(\w+) = ", fonte_do_teste, re.M))
+
+    faltam = sorted(lidos - declarados)
+    assert not faltam, (
+        "`comparar._montar` lê estes campos e o arremedo de `Args` do teste não os "
+        f"declara: {faltam}. Acrescentar ao arremedo — é ele que segura o contrato."
+    )
