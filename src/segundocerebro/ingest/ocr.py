@@ -44,7 +44,7 @@ def backend_disponivel() -> str | None:
         return "teste"
     try:
         import rapidocr_onnxruntime  # noqa: F401
-    except Exception:  # noqa: BLE001
+    except Exception:  # noqa: BLE001 — probe de import: extra [ocr] ausente é no-op
         pass
     else:
         return "rapidocr"
@@ -53,7 +53,7 @@ def backend_disponivel() -> str | None:
     if shutil.which("tesseract"):
         try:
             import pytesseract  # noqa: F401
-        except Exception:  # noqa: BLE001
+        except Exception:  # noqa: BLE001 — probe de import: pytesseract ausente
             return None
         return "tesseract"
     return None
@@ -172,7 +172,7 @@ def ocr_pdf(dados: bytes, *, teto_mb: int | None = None) -> list[PaginaTexto] | 
         for i, imagem in _iter_rasters(dados, teto_mb=teto_mb):
             try:
                 texto = _texto_de(imagem)
-            except Exception as exc:  # noqa: BLE001
+            except Exception as exc:  # noqa: BLE001 — laço de onda: página de scan hostil não mata o OCR do arquivo
                 log.warning("OCR falhou na página %d: %s", i, exc)
                 texto = ""
             del imagem

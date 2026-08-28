@@ -74,7 +74,7 @@ Um revisor sênior honesto elogiaria antes de criticar. Estes pontos são raros 
 **Ação.** Regra em `colaboracao.md`: novo módulo ≤ ~500 linhas; os 4 acima só decompõem **oportunisticamente** (quando um pacote R/C já for tocá-los — nunca refactor-só-por-refactor, que quebra `git blame` das docstrings-decisão). `app.py` é o candidato natural: rotas por domínio em módulos, tabela de rotas central.
 **Aceite.** Regra escrita; cada decomposição em PR próprio com suíte verde e zero mudança de comportamento.
 
-### Q4 — Política de exceções escrita (os 34 `BLE001`) — **P1 · produto** · Dono: qualquer
+### Q4 — Política de exceções escrita (os 34 `BLE001`) — **P1 · produto** · Dono: desktop · **neste PR**
 **Mantido em P1 e reenquadrado em 25/08:** isto é a política de arquivo hostil, que é o que uma base desconhecida tem de sobra. O aceite ganha um item de produto: nenhum caminho de ingestão pode engolir exceção **e** seguir como se o documento tivesse entrado — o `sem_parser` silencioso é dessa família.
 **Evidência.** 31 `except Exception` concentrados nas bordas certas (subprocesso, parse, CUDA — defensável), mas a política é tácita. Revisor sênior pergunta: "quando `except Exception` é aceitável aqui?"
 **Ação.** Seção curta em `ARCHITECTURE.md`: permitido apenas em (a) borda de subprocesso/arquivo hostil, (b) loop de onda que não pode morrer, (c) probe de hardware; sempre com log da exceção real e nunca no caminho de consulta MCP sem re-raise tipado. Cada `noqa: BLE001` ganha o sufixo de motivo (`# noqa: BLE001 — borda de parse, arquivo hostil`); os que não se justificarem, estreitar.

@@ -106,7 +106,7 @@ def preparar() -> None:
     if callable(preload):
         try:
             preload()
-        except Exception as erro:  # noqa: BLE001
+        except Exception as erro:  # noqa: BLE001 — probe de hardware: preload de DLL CUDA é best-effort
             log.warning("preload_dlls() falhou: %s", erro)
     _preparado = True
 

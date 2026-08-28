@@ -29,7 +29,7 @@ def pytest_sessionstart(session: pytest.Session) -> None:  # noqa: ARG001
         return
     try:
         conf = carregar(config, validar=False)
-    except Exception:  # noqa: BLE001
+    except Exception:  # noqa: BLE001 — config.toml local ilegível não aborta a suíte
         return
     ocupados = []
     for base in conf.bases:

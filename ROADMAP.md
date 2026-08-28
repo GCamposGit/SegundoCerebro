@@ -1464,7 +1464,7 @@ do produto, é de ferramenta de teste, e já estava no repositório.
 | Q1 | CI ganha lint, format, types e coverage (a config do `ruff` não está commitada e os 95 `noqa` são carga de culto) | qualquer | **P0** |
 | Q2 | `pyproject` como fonte única: `dependencies = []` contradiz o `requirements.txt` | desktop (é `R8.1`) | **P0** |
 | Q3 | Teto de tamanho de módulo como regra de processo IA — decomposição só oportunista | cada um no seu | **P3 · vitrine** |
-| Q4 | Política escrita de `except Exception` (os 34 `BLE001`) | qualquer | P1 |
+| Q4 | Política escrita de `except Exception` (os 34 `BLE001`) | desktop | P1 · **neste PR** |
 | Q5 | **e2e do protocolo MCP** (**feito** em 25/08 — `tests/test_protocolo_mcp.py`) · property-based `consulta_fts`/`chave_de_familia` (P1) · smoke de mutação (P3) | notebook + desktop | **P0 feito / P1 / P3** |
 | Q6 | template de PR (**feito** em 25/08 — é onde as regras 10 a 12 mordem) · `CONTRIBUTING`, `SECURITY`, `pip-audit` | qualquer | **P0 feito / P2** |
 | Q7 | Tag e CHANGELOG por fase fechada | qualquer | **P3 · vitrine** |

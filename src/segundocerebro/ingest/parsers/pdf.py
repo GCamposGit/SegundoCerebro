@@ -96,7 +96,7 @@ def _paginas_por_tamanho_de_fonte(documento) -> list[tuple[int, str]]:  # noqa: 
         linhas: list[list[tuple[float, str]]] = []
         try:
             dados = pagina.get_text("dict")
-        except Exception:  # noqa: BLE001
+        except Exception:  # noqa: BLE001 — borda de parse: dict de página malformado não derruba o PDF
             continue
         for bloco in dados.get("blocks", []):
             for linha in bloco.get("lines", []):

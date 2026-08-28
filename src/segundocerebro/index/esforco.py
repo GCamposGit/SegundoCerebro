@@ -238,7 +238,7 @@ def aplicar(perfil: str, *, pids: list[int] | None = None, nucleos: int | None =
     for pid in pids or []:
         try:
             alvos.append(psutil.Process(pid))
-        except Exception:  # noqa: BLE001
+        except Exception:  # noqa: BLE001 — PID recém-morto não é motivo para não indexar
             continue
 
     # `leve` fica abaixo do normal, não em `IDLE`: em idle o indexador só anda
@@ -254,7 +254,7 @@ def aplicar(perfil: str, *, pids: list[int] | None = None, nucleos: int | None =
             for proc in alvos:
                 proc.nice(alvo_nice)
             feito["prioridade"] = perfil
-        except Exception as erro:  # noqa: BLE001
+        except Exception as erro:  # noqa: BLE001 — mudar prioridade é best-effort
             log.warning("não consegui mudar a prioridade: %s", erro)
             feito["aviso"] = str(erro)
 
@@ -262,7 +262,7 @@ def aplicar(perfil: str, *, pids: list[int] | None = None, nucleos: int | None =
         try:
             alvos[0].ionice(getattr(psutil, "IOPRIO_LOW", 1))
             feito["e_s"] = "baixa"
-        except Exception as erro:  # noqa: BLE001
+        except Exception as erro:  # noqa: BLE001 — ionice indisponível nesta plataforma
             log.debug("prioridade de E/S indisponível: %s", erro)
 
     cores = _afinidade(plano.cpu_nucleos, plano.cpu_total)
@@ -271,7 +271,7 @@ def aplicar(perfil: str, *, pids: list[int] | None = None, nucleos: int | None =
             if hasattr(proc, "cpu_affinity"):
                 proc.cpu_affinity(cores)
         feito["afinidade"] = cores
-    except Exception as erro:  # noqa: BLE001
+    except Exception as erro:  # noqa: BLE001 — afinidade de CPU é best-effort
         log.debug("afinidade de CPU indisponível: %s", erro)
         if "aviso" not in feito:
             feito["aviso"] = str(erro)
@@ -290,7 +290,7 @@ def na_bateria() -> bool | None:
         import psutil
 
         energia = psutil.sensors_battery()
-    except Exception:  # noqa: BLE001
+    except Exception:  # noqa: BLE001 — probe de bateria: sensor ausente não pára a passada
         return None
     if energia is None:
         return None

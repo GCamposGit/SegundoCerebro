@@ -56,7 +56,7 @@ class TravaDeObservador:
             import psutil
 
             return psutil.Process(pid).create_time()
-        except Exception:  # noqa: BLE001
+        except Exception:  # noqa: BLE001 — psutil ausente: criação do PID desconhecida
             return None
 
     def marca(self) -> str:
@@ -80,7 +80,7 @@ class TravaDeObservador:
             os.kill(pid, 0)
         except OSError:
             return False
-        except Exception:  # noqa: BLE001
+        except Exception:  # noqa: BLE001 — PID recusado sem OSError: supor vivo
             return True
         if criacao is None:
             return True
@@ -233,7 +233,7 @@ class Observador:
         try:
             self.store.esquecer_documento(prefixo)
             self.store.commit()
-        except Exception as erro:  # noqa: BLE001
+        except Exception as erro:  # noqa: BLE001 — esquecer documento não pode derrubar o observador
             log.warning("não consegui esquecer %s: %s", prefixo, erro)
             with self._fila:
                 self._pendentes[str(path)] = (time.monotonic(), "esquecer")

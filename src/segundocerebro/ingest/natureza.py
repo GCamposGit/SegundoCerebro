@@ -151,7 +151,7 @@ def mb_de_abas(dados: bytes) -> float | None:
                 )
                 / 1e6
             )
-    except Exception:  # noqa: BLE001
+    except Exception:  # noqa: BLE001 — zip hostil: tamanho de abas ilegível não é corrupção da planilha
         return None
 
 

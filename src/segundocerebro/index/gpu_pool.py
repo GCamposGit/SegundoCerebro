@@ -122,7 +122,7 @@ def _worker(device: str, modelo: str, cache: str, pedidos, respostas) -> None:
         try:
             vetores = embedder.embed_passagens(textos, batch_size=lote, ritmo=ritmo)
             respostas.put((jid, [v.tolist() for v in vetores], None))
-        except Exception as erro:  # noqa: BLE001
+        except Exception as erro:  # noqa: BLE001 — worker da GPU devolve o erro na fila; o processo não morre
             respostas.put((jid, None, str(erro)))
 
 

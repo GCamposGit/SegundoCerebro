@@ -174,7 +174,7 @@ def parse_file(
 
     try:
         doc = parser(dados, nome)
-    except Exception as exc:  # a corrupt file must not stop the indexing run
+    except Exception as exc:  # noqa: BLE001 — a corrupt file must not stop the indexing run
         # R1.1: xlrd/ole_texto recusou, Calc/Writer still might. Encryption is
         # not that class — LibreOffice would prompt and hang.
         if extensao in EXTENSOES_LEGADO and "criptograf" not in str(exc).lower():

@@ -74,7 +74,7 @@ def _providers() -> list[str]:
     if callable(debug):
         try:
             debug()
-        except Exception:  # noqa: BLE001
+        except Exception:  # noqa: BLE001 — probe: dump de providers CUDA é best-effort
             pass
     return list(ort.get_available_providers())
 
@@ -218,14 +218,14 @@ def _smoke_rerank(modelo: str) -> int:
     t0 = time.perf_counter()
     try:
         enc_cuda = _carregar_rerank(modelo, ["CUDAExecutionProvider"])
-    except Exception as erro:  # noqa: BLE001
+    except Exception as erro:  # noqa: BLE001 — probe: carregar reranker GPU; o smoke existe para o erro cru
         log.error("carregar reranker no GPU falhou: %s", erro)
         return 3
     log.info("reranker CUDA pronto em %.1fs", time.perf_counter() - t0)
 
     try:
         scores = list(enc_cuda.rerank(CONSULTA_RERANK, docs25))
-    except Exception as erro:  # noqa: BLE001
+    except Exception as erro:  # noqa: BLE001 — probe: forward do reranker GPU
         log.error("forward pass do reranker no GPU falhou: %s", erro)
         return 3
     if not _scores_finitos(scores):
@@ -247,13 +247,13 @@ def _smoke_rerank(modelo: str) -> int:
     t0 = time.perf_counter()
     try:
         enc_cpu = _carregar_rerank(modelo, ["CPUExecutionProvider"])
-    except Exception as erro:  # noqa: BLE001
+    except Exception as erro:  # noqa: BLE001 — probe: carregar reranker CPU
         log.error("carregar reranker na CPU falhou: %s", erro)
         return 3
     log.info("reranker CPU pronto em %.1fs", time.perf_counter() - t0)
     try:
         scores_cpu = list(enc_cpu.rerank(CONSULTA_RERANK, docs25))
-    except Exception as erro:  # noqa: BLE001
+    except Exception as erro:  # noqa: BLE001 — probe: forward do reranker CPU
         log.error("forward pass do reranker na CPU falhou: %s", erro)
         return 3
     if not _scores_finitos(scores_cpu):
@@ -311,7 +311,7 @@ def _smoke_pool() -> int:
             len(vistos),
             len(next(iter(vistos.values()))),
         )
-    except Exception as erro:  # noqa: BLE001
+    except Exception as erro:  # noqa: BLE001 — probe: pool GPU; o smoke existe para o erro cru
         log.error("pool falhou: %s", erro)
         return 3
     finally:
