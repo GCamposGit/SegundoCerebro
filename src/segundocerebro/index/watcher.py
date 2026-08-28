@@ -9,9 +9,10 @@ Two watchers on the same index refuse. That lock is `watcher.lock`, not
 `indexacao.lock`: holding the indexer lock for the lifetime of this process
 would make the inner `indexar` raise `TravaOcupada` against itself.
 
-What changed while this process was off is a different class — that is the
-USN Journal layer (`R5.1`), not this module. The honest recovery is one
-`indexar` pass.
+What changed while this process was off is the USN catch-up in `usn.py`
+(`R5.1`). Watchdog stays the live loop. A wrapped journal does not pretend
+to have recovered — that gap is one `indexar` pass, same as a volume
+without a journal.
 """
 
 from __future__ import annotations
@@ -30,11 +31,13 @@ from .comando import CANCELAR, PAUSAR
 from .comando import ler as ler_comando
 from .indexer import TravaOcupada, indexar
 from .store import Store
+from .usn import Fonte, varrer
 
 log = get_logger("index.watcher")
 
 NOME_DA_TRAVA = "watcher.lock"
 DEBOUNCE_PADRAO = 0.8
+INTERVALO_USN_PADRAO = 30.0
 
 
 class ObservadorOcupado(RuntimeError):
@@ -119,12 +122,14 @@ class Observador:
         *,
         debounce_s: float = DEBOUNCE_PADRAO,
         indexar_fn: object | None = None,
+        fonte_usn: Fonte | None = None,
     ) -> None:
         self.cfg = cfg
         self.store = store
         self.embedder = embedder
         self.debounce_s = debounce_s
         self._indexar = indexar_fn or indexar
+        self._fonte_usn = fonte_usn
         # path → (quando, acao). Last event wins so a Word atomic save
         # (delete + create in the same second) indexes the new file instead
         # of forgetting it.
@@ -180,6 +185,22 @@ class Observador:
         if not os.path.isfile(caminho_estendido(str(path))):
             return False
         return True
+
+    def recuperar_ausencia(self) -> list[str]:
+        """Enqueue what changed while this process was off. Empty if no USN."""
+        raizes = [Path(root.path) for root in self.cfg.roots]
+        try:
+            mudancas = varrer(raizes, self.store.diretorio, fonte=self._fonte_usn)
+        except Exception as erro:  # noqa: BLE001 — catch-up USN não pode derrubar o observador
+            log.warning("catch-up USN falhou: %s", erro)
+            return []
+        feitos: list[str] = []
+        for caminho in mudancas:
+            self.enfileirar(caminho)
+            prefixo = self.prefixo_de(caminho)
+            if prefixo:
+                feitos.append(prefixo)
+        return feitos
 
     def enfileirar(self, path: Path) -> None:
         if not self.candidato(path):
@@ -307,8 +328,11 @@ class Observador:
         observer.start()
         return observer
 
-    def correr(self, *, intervalo: float = 0.2) -> None:
+    def correr(
+        self, *, intervalo: float = 0.2, intervalo_usn: float = INTERVALO_USN_PADRAO
+    ) -> None:
         """Block until cancel or Ctrl+C. Drain is what actually indexes."""
+        self.recuperar_ausencia()
         observer = self.iniciar_watchdog()
         log.info(
             "observando %s raiz(es) · debounce %.1fs · índice em %s",
@@ -316,6 +340,7 @@ class Observador:
             self.debounce_s,
             self.store.diretorio,
         )
+        ultimo_usn = time.monotonic()
         try:
             while True:
                 cmd = ler_comando(self.store.diretorio)
@@ -324,6 +349,10 @@ class Observador:
                     return
                 if cmd != PAUSAR:
                     self.drenar()
+                    agora = time.monotonic()
+                    if intervalo_usn > 0 and agora - ultimo_usn >= intervalo_usn:
+                        self.recuperar_ausencia()
+                        ultimo_usn = agora
                 time.sleep(intervalo)
         except KeyboardInterrupt:
             log.info("observador interrompido")

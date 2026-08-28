@@ -20,6 +20,7 @@ import pytest
 from segundocerebro.census import Config, RootSpec
 from segundocerebro.index.indexer import Progresso
 from segundocerebro.index.store import Store
+from segundocerebro.index.usn import Journal, Registro
 from segundocerebro.index.watcher import (
     NOME_DA_TRAVA,
     Observador,
@@ -27,6 +28,7 @@ from segundocerebro.index.watcher import (
     TravaDeObservador,
 )
 from tests.test_index import DIM, EmbedderFalso
+from tests.test_usn import FonteFalsa
 
 
 def _base(tmp_path: Path) -> tuple[Path, Config, Store, Observador]:
@@ -236,6 +238,36 @@ def test_watchdog_apagar_arquivo_sai_do_indice(tmp_path: Path) -> None:
         store.fechar()
 
 
+def test_ao_religar_usn_enfileira_o_que_mudou_desligado(tmp_path: Path) -> None:
+    """Watcher off → file saved → catch-up indexes it. The USN extra."""
+    raiz, _cfg, store, obs = _base(tmp_path)
+    alvo = raiz / "nota.txt"
+    alvo.write_text("PO-VCE-007 vigente\n", encoding="utf-8")
+    fonte = FonteFalsa(journal=Journal(journal_id=1, first_usn=0, next_usn=10))
+    obs._fonte_usn = fonte
+    assert obs.recuperar_ausencia() == []
+
+    fonte.registros = [Registro(frn=1, reason=0x100, attrs=0x20)]
+    fonte.caminhos = {1: alvo}
+    fonte.journal = Journal(journal_id=1, first_usn=0, next_usn=20)
+    assert obs.recuperar_ausencia() == ["nota.txt"]
+    assert obs.drenar() == ["nota.txt"]
+    estado = store.estado_documento("nota.txt")
+    assert estado is not None
+    assert estado.status == "ok"
+    store.fechar()
+
+
+def test_catch_up_roda_antes_do_watchdog() -> None:
+    """If catch-up starts after the observer, the window between the two is lost."""
+    import inspect
+
+    from segundocerebro.index.watcher import Observador
+
+    fonte = inspect.getsource(Observador.correr)
+    assert fonte.index("recuperar_ausencia") < fonte.index("iniciar_watchdog")
+
+
 def test_cancelar_por_comando_txt_encerra(tmp_path: Path) -> None:
     """O contrato de IPC é o mesmo da indexação: comando.txt, sem socket."""
     from segundocerebro.index.comando import pedir
@@ -251,5 +283,5 @@ def test_cancelar_por_comando_txt_encerra(tmp_path: Path) -> None:
 
     obs.iniciar_watchdog = lambda: Dummy()  # type: ignore[method-assign]
     pedir(store.diretorio, "cancelar")
-    obs.correr(intervalo=0.01)
+    obs.correr(intervalo=0.01, intervalo_usn=0)
     store.fechar()
