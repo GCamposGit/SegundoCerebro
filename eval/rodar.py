@@ -139,10 +139,12 @@ def _montar(args, cfg):  # noqa: ANN001
         retriever = CaminhoEntregue(interno=retriever)
         contexto += (
             "\n**Caminho medido: o que o cliente MCP recebe** (`buscar_chunks`), e não"
-            " o `search` de nível de documento que o resto da série usa. A diferença que"
-            " importa: o `RanqueadorDeNome` **não participa** deste caminho — ele pontua"
-            " documentos, e não há posição de trecho honesta para dar a ele. Ver"
-            " `eval/entregue.py`."
+            " o `search` de nível de documento que o resto da série usa. Os quatro sinais"
+            " participam dos dois caminhos desde a `F4-P` (25/08/2026): o ranqueador de"
+            " nome pontua **documento**, e `BuscaHibrida._nome_por_chunk` entrega essa"
+            " contribuição a **um** trecho por documento — o melhor que a fusão já tem"
+            " dele, ou o primeiro quando a fusão não tem nenhum. Ver `eval/entregue.py`"
+            " e `retrieve/hybrid.py`."
         )
 
     if getattr(args, "com_grafo", False):

@@ -111,3 +111,72 @@ def test_a_propria_lista_nao_esta_versionada() -> None:
     assert rel not in {p.relative_to(REPO).as_posix() for p in versionados()}, (
         f"{rel} entrou no Git — é o arquivo que existe justamente para não entrar"
     )
+
+
+HOME_ABSOLUTO = re.compile(
+    r"(?:[A-Za-z]:[\\/]{1,2}Users[\\/]{1,2}|/home/|/Users/)(?P<usuario>[A-Za-zÀ-ÿ0-9._-]+)"
+)
+"""Caminho para a pasta de um usuário nomeado. Regra de **forma**, não de vocabulário.
+
+Complementa `test_nenhum_nome_real_em_arquivo_versionado`, que depende de uma
+lista local e é **pulado** quando ela está vazia — então num clone limpo não há
+guarda nenhuma contra este vazamento. Este pega sem lista, porque não é preciso
+saber o nome de ninguém para saber que `C:/Users/<alguém>` não é do repositório.
+
+A classe de caractere é `[\\\\/]{1,2}` e não `/`: no JSON que o indexador escreve a
+barra invertida vem **duplicada** (`C:\\\\Users\\\\...`), e um padrão que só casasse
+barra normal passaria por cima do caso real — que é justamente o que motivou o
+teste."""
+
+PLACEHOLDERS = frozenset({
+    "usuario", "seu_usuario", "seu-usuario", "seuusuario", "username", "user",
+    "nome-de-usuario", "nome_de_usuario", "you", "voce", "você", "alguem", "alguém",
+})
+"""Comparados em minúsculas. `SEU_USUARIO` é o que `config.example.toml` usa.
+
+A lista é **explícita** de propósito, em vez de uma regra larga tipo "tudo em
+maiúsculas é placeholder": nome de usuário real em maiúsculas existe, e uma
+exceção que se aplica sozinha é a forma de guarda que deixa passar o caso que
+importa. `C:/Users/<usuario>/...` em documentação pode ficar."""
+
+
+def test_nenhum_caminho_de_pasta_de_usuario_em_arquivo_versionado() -> None:
+    """O indexador escreve `.mcp.json`, e `.mcp.json` é versionado.
+
+    Em 27/08/2026, indexar a base sintética `e1` acrescentou ao `.mcp.json`
+    rastreado uma entrada com o **caminho absoluto do interpretador**, contendo o
+    nome de usuário da máquina. O repositório é público. Nada avisou: o arquivo
+    simplesmente aparece modificado, e `git add -A` o levaria junto.
+
+    Classe: **arquivo versionado que um comando reescreve em tempo de execução
+    vaza o ambiente de quem rodou.** Vale para `.mcp.json` e para o próximo que
+    aparecer, e é por isso que a regra é de forma e não uma exceção para um
+    arquivo.
+    """
+    achados: list[str] = []
+    for caminho in versionados():
+        if caminho.suffix.lower() not in SUFIXOS_DE_TEXTO or not caminho.exists():
+            continue
+        if caminho.name == "test_saneamento.py":
+            continue  # este arquivo cita o padrão para explicá-lo
+        try:
+            linhas = caminho.read_text(encoding="utf-8").splitlines()
+        except (UnicodeDecodeError, OSError):
+            continue
+        rel = caminho.relative_to(REPO).as_posix()
+        for n, linha in enumerate(linhas, start=1):
+            for m in HOME_ABSOLUTO.finditer(linha):
+                usuario = m.group("usuario")
+                if usuario.lower() in PLACEHOLDERS:
+                    continue
+                # `C:/Users/.../Documentos` — elipse é omissão, não nome.
+                if set(usuario) == {"."}:
+                    continue
+                achados.append(f"{rel}:{n} (usuário {mascarar(usuario)})")
+
+    assert not achados, (
+        "caminho de pasta de usuário em arquivo versionado — o repositório é "
+        "público. Se veio de comando que reescreve arquivo rastreado (o "
+        "indexador faz isso com `.mcp.json`), reverter e usar caminho relativo:\n  "
+        + "\n  ".join(achados)
+    )

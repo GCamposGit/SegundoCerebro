@@ -337,6 +337,30 @@ class Resultado:
         os distingue."""
         return [(g, self.subgrupo(grupo_de_fonte=g)) for g in GRUPOS]
 
+    def por_grupo_e_fatia(self) -> list[tuple[str, list[ResultadoPergunta]]]:
+        """A **interseção** dos dois eixos — e não só as margens deles.
+
+        Os dois eixos separados escondem a compensação: um pacote pode subir o
+        grupo `reunião` no agregado e, dentro dele, derrubar justamente as
+        perguntas cross-lingual — porque o ranqueador de nome é a ponte PT↔EN, e
+        zerá-lo tira a ponte de quem depende dela. No dourado real isso é 3 das 11
+        perguntas de reunião, 27% do grupo que se quer melhorar. Foi a ressalva
+        que o `C3.a` registrou e que o teto de oráculo não descontava, e é
+        requisito escrito do contrato da `F4-P.1`.
+
+        Só saem as combinações de **grupo não vazio**: célula vazia dentro de
+        grupo que existe é informação (o grupo não tem aquele idioma), mas doze
+        linhas de zero para grupos que este acervo não tem é ruído, e a tabela de
+        margem já mostra que o grupo é vazio.
+        """
+        saida: list[tuple[str, list[ResultadoPergunta]]] = []
+        for g in GRUPOS:
+            if not self.subgrupo(grupo_de_fonte=g):
+                continue
+            for f in FATIAS:
+                saida.append((f"{g} ∩ {f}", self.subgrupo(grupo_de_fonte=g, fatia=f)))
+        return saida
+
     def restrito_ao_escopo(self) -> "Resultado":
         """Same result, keeping only the questions this phase can answer.
 
