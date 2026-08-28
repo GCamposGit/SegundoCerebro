@@ -7,7 +7,6 @@ vez, não o caso consertado.
 
 from __future__ import annotations
 
-import math
 import random
 
 import pytest
@@ -15,7 +14,6 @@ import pytest
 from segundocerebro.index.calibracao import (
     Ajuste,
     Calibracao,
-    PerfilMaquina,
     encolher,
     impressao_da_maquina,
     prior_de,

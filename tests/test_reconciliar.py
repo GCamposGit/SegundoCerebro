@@ -11,7 +11,6 @@ from __future__ import annotations
 from pathlib import Path
 
 import numpy as np
-import pytest
 
 from segundocerebro.index.reconciliar import LIMITE_SEGURANCA, reconciliar
 from segundocerebro.index.store import Store

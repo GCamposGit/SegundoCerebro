@@ -6,6 +6,35 @@ on:
   pull_request:
 
 jobs:
+  # Q1: ruff config is in pyproject.toml. Without this job two agents on
+  # two machines lint with whatever they have installed, and the noqas
+  # become cargo cult.
+  lint:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+      - name: Install ruff
+        run: pip install ruff==0.16.5
+      - name: ruff check
+        run: python -m ruff check src tests eval
+
+  types:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+      - name: Install package and pyright
+        run: pip install -e . ; pip install pyright==1.1.411
+      - name: pyright
+        run: python -m pyright src
+
   pytest:
     runs-on: windows-latest
     strategy:
@@ -21,10 +50,11 @@ jobs:
           cache: "pip"
 
       - name: Install package
-        run: pip install -e .
+        run: pip install -e . ; pip install pytest-cov
 
       - name: Run test suite
-        run: python -m pytest tests/ eval/ -q
+        # Floor is measured, then −2 p.p. (Q1). Do not raise it toward 100.
+        run: python -m pytest tests/ eval/ -q --cov=segundocerebro --cov-report=xml --cov-fail-under=80
 
   # R8.1: the layperson path is `pip install` + one command, on any OS.
   # Full pytest stays on Windows — the corpus and the long-path/cloud

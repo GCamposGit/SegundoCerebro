@@ -28,6 +28,13 @@ gpu = [
 ocr = [
     "rapidocr-onnxruntime>=1.3,<2",
 ]
+# Q1: lint, types, coverage. The pytest job on CI stays `pip install -e .`
+# plus this extra; ruff/pyright jobs install only what they need.
+dev = [
+    "ruff==0.16.5",
+    "pyright==1.1.411",
+    "pytest-cov>=5,<8",
+]
 
 [project.scripts]
 segundocerebro-censo = "segundocerebro.census:main"
@@ -60,3 +67,39 @@ markers = [
   #     py -m pytest -m ocr
   "ocr: exige extra [ocr] (RapidOCR) — fora da suíte padrão e do CI",
 ]
+
+# Q1 — lint. Select is the subset that passes today without growing noqa
+# (ANN/BLE/S stay as existing suppressions, not as CI rules). E501 is line
+# length: ruff format would rewrite 136 files, including retrieve/ and the
+# indexer loop, so format --check is a dedicated PR, not this one.
+# E741 (`l` as loop variable), E702 (semicolon in the generator) and E401
+# (multi-import) are style of files this package does not reformat.
+[tool.ruff]
+target-version = "py312"
+src = ["src", "tests", "eval"]
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F"]
+ignore = ["E501", "E741", "E702", "E401"]
+
+[tool.ruff.lint.per-file-ignores]
+# Notebook-owned ranking. Unused import is not a ranking change; Q1 does
+# not rewrite retrieve/* to satisfy F401.
+"src/segundocerebro/retrieve/**" = ["F401"]
+
+# Q1 — types. basic, with the report codes that currently fire turned off
+# so the job is a gate rather than a 50-error wall. Re-enable module by
+# module; the list is the ladder, not a waiver.
+[tool.pyright]
+pythonVersion = "3.12"
+typeCheckingMode = "basic"
+include = ["src"]
+reportMissingImports = "none"
+reportArgumentType = "none"
+reportCallIssue = "none"
+reportAttributeAccessIssue = "none"
+reportReturnType = "none"
+reportOptionalMemberAccess = "none"
+reportOptionalCall = "none"
+reportGeneralTypeIssues = "none"

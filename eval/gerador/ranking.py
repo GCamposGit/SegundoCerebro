@@ -16,7 +16,7 @@ data, número e post-mortem no `docs/historico-decisoes.md`.
 from __future__ import annotations
 
 from . import vocabulario as V
-from .nucleo import Doc, mkdoc, moeda, perg
+from .nucleo import mkdoc, moeda, perg
 
 # --- grafias de identificador ------------------------------------------------
 

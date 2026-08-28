@@ -12,7 +12,6 @@ from pathlib import Path
 
 import numpy as np
 
-from segundocerebro.census import Config, RootSpec
 from segundocerebro.index.indexer import TravaDeIndice, indexar
 from segundocerebro.index.store import Store
 from tests.test_index import DIM, EmbedderFalso, corpus
