@@ -357,8 +357,10 @@ def main(argv: list[str] | None = None) -> int:
         log.error("a base '%s' não declara nenhuma raiz — nada a observar", base.id)
         return 2
 
+    from .cuda_runtime import aplicar_provider
     from .embeddings import Embedder
 
+    aplicar_provider(conf.maquina.provider)
     threads = conf.maquina.threads_efetivos()
     embedder = Embedder(base.modelo, threads=threads)
     store = Store(args.indice or base.indice, embedder.dim)

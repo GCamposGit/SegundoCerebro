@@ -1659,6 +1659,9 @@ def main(argv: list[str] | None = None) -> int:
     from ..config import normalizar_perfil
 
     perfil = normalizar_perfil(args.perfil or conf.maquina.perfil)
+    from .cuda_runtime import aplicar_provider
+
+    aplicar_provider(conf.maquina.provider)
     esforco = aplicar_esforco(perfil)
     if perfil == "leve" and na_bateria():
         # Quem escolheu "leve" escolheu não sentir a indexação, e 39 h de

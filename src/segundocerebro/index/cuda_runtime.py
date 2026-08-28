@@ -53,9 +53,10 @@ MSG_MINILM = (
     "entra no identificador do índice."
 )
 MSG_EP = (
-    "O CUDA não carregou neste Python. Tire SEGUNDOCEREBRO_PROVIDER=cuda para "
-    "indexar na CPU — é o padrão — ou instale o extra [gpu] com "
-    "`pip install -e .[gpu]` (CUDA 11.8, não 13)."
+    "O CUDA não carregou neste Python. O `onnxruntime` CPU (o que o fastembed "
+    "puxa sozinho) tampa o extra [gpu]. Neste desktop: "
+    "`pip uninstall -y onnxruntime` e `pip install -r requirements-gpu.txt`. "
+    "Ou tire SEGUNDOCEREBRO_PROVIDER=cuda para indexar na CPU — é o padrão."
 )
 MSG_DRIVER = (
     "O driver NVIDIA 590 ou mais novo largou esta placa de vídeo. Fique no "
@@ -114,6 +115,23 @@ def preparar() -> None:
 def provider_pedido() -> str:
     """`cuda` only when asked. Anything else is CPU — F6-C default."""
     return "cuda" if os.environ.get("SEGUNDOCEREBRO_PROVIDER", "").lower() == "cuda" else "cpu"
+
+
+def aplicar_provider(provider: str | None) -> str:
+    """Copy `[maquina] provider` into the env if the env is empty.
+
+    F6-C made empty env mean CPU. The desktop's `config.toml` says `cuda`;
+    without this, the indexer never starts the GPU pool and the cards sit at
+    1% while the pass runs on the CPU. Env still wins when set.
+    """
+    pedido = (os.environ.get("SEGUNDOCEREBRO_PROVIDER") or "").strip()
+    if pedido:
+        return pedido.lower()
+    p = (provider or "").strip().lower()
+    if p:
+        os.environ["SEGUNDOCEREBRO_PROVIDER"] = p
+        return p
+    return "cpu"
 
 
 def listar_gpus() -> list[dict[str, str]]:
@@ -214,13 +232,15 @@ def diagnosticar(
     if versao_ort is None and providers is None:
         return DiagnosticoCuda(False, SEM_ORT, MSG_SEM_ORT)
 
+    # CPU wheel shadowing the extra [gpu] is not CUDA 13. Check the EP first
+    # when the caller already listed providers (smoke / indexer).
+    if providers is not None and "CUDAExecutionProvider" not in providers:
+        return DiagnosticoCuda(False, EP_AUSENTE, MSG_EP)
+
     if versao_ort and _parse_versao(versao_ort) >= ORT_CUDA13 and _tem_maxwell(gpus):
         return DiagnosticoCuda(False, CUDA13, MSG_CUDA13)
 
     if _driver_largou_maxwell(gpus):
         return DiagnosticoCuda(False, DRIVER, MSG_DRIVER)
-
-    if providers is not None and "CUDAExecutionProvider" not in providers:
-        return DiagnosticoCuda(False, EP_AUSENTE, MSG_EP)
 
     return DiagnosticoCuda(True, OK, MSG_OK)
