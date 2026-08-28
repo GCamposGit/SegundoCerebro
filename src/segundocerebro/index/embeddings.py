@@ -184,7 +184,7 @@ class Embedder:
                 self._modelo = TextEmbedding(self.spec.nome, **kwargs)
             except RuntimeError:
                 raise
-            except Exception as erro:  # noqa: BLE001
+            except Exception as erro:  # noqa: BLE001 — probe de hardware: falha CUDA vira RuntimeError tipado
                 if kwargs.get("providers") == ["CUDAExecutionProvider"]:
                     raise RuntimeError(
                         "O CUDA não carregou neste computador. Tire "

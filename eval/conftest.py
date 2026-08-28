@@ -18,11 +18,11 @@ def pytest_sessionstart(session: pytest.Session) -> None:  # noqa: ARG001
     try:
         from segundocerebro.config import carregar
         from segundocerebro.index.store import IndiceEmEscrita, recusar_se_indexando
-    except Exception:  # noqa: BLE001
+    except Exception:  # noqa: BLE001 — suíte de eval sem o pacote completo
         return
     try:
         conf = carregar(config, validar=False)
-    except Exception:  # noqa: BLE001
+    except Exception:  # noqa: BLE001 — config.toml local ilegível não aborta a suíte
         return
     ocupados = []
     for base in conf.bases:

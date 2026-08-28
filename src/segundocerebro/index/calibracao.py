@@ -762,7 +762,7 @@ class Calibracao:
                 (self.fingerprint, self.base_id),
             ):
                 self.formatos[tipo] = PerfilFormato.de_json(tipo, json.loads(dados))
-        except Exception as erro:  # noqa: BLE001
+        except Exception as erro:  # noqa: BLE001 — calibragem ilegível: prior é melhor que passada morta
             log.warning("calibração ilegível, começando do prior: %s", erro)
         return self
 
@@ -789,7 +789,7 @@ class Calibracao:
             )
             con.commit()
             self._sujo = False
-        except Exception as erro:  # noqa: BLE001
+        except Exception as erro:  # noqa: BLE001 — gravar calibragem não pode derrubar a indexação
             log.warning("calibração não pôde ser gravada: %s", erro)
 
     def fechar(self) -> None:
@@ -895,7 +895,7 @@ class Calibracao:
             )
             con.commit()
             return int(cur.lastrowid)
-        except Exception as erro:  # noqa: BLE001
+        except Exception as erro:  # noqa: BLE001 — registrar previsão é telemetria, não requisito
             log.debug("previsão não registrada: %s", erro)
             return None
 
@@ -927,5 +927,5 @@ class Calibracao:
                     "calibragem suspeita: %d de %d execuções passaram da p90 prevista",
                     fora[1], fora[0],
                 )
-        except Exception as erro:  # noqa: BLE001
+        except Exception as erro:  # noqa: BLE001 — fechar previsão é telemetria, não requisito
             log.debug("previsão não fechada: %s", erro)

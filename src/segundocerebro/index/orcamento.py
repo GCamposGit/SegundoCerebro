@@ -112,7 +112,7 @@ def medir(*, nucleos: int | None = None) -> Recursos:
             from .gpu_pool import contar_gpus
 
             gpus = contar_gpus()
-        except Exception:  # noqa: BLE001
+        except Exception:  # noqa: BLE001 — probe de GPU: ausente é zero, não aborta
             gpus = 0
     return Recursos(
         nucleos=max(1, int(n)),
@@ -232,5 +232,5 @@ def _na_bateria() -> bool | None:
         from .esforco import na_bateria
 
         return na_bateria()
-    except Exception:  # noqa: BLE001
+    except Exception:  # noqa: BLE001 — probe de bateria: sensor ausente não pára
         return None

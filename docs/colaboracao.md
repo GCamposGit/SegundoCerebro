@@ -600,6 +600,12 @@ Por que isto é do desktop também, e não só uma nota de rodapé do notebook:
 
 ### Agora — desktop
 
+**Neste PR (`q4-politica-excecoes`):** Q4 — política de `except Exception`.
+Sufixo de motivo nos BLE001 já existentes + seção em `ARCHITECTURE.md` +
+teste que lê o código (`tests/test_politica_excecoes.py`). **Não toca o laço
+do indexador além do comentário.** Nada de `retrieve/*`, nada de `[padrao]`.
+O Q1 (ruff/format/types/cov no CI) vem em seguida, **branch própria**.
+
 **Cinco pacotes prontos para começar, nenhum bloqueado por nada.** A ordem é
 sugestão; os três primeiros são a onda 1 e destravam as ondas 4 e 5.
 

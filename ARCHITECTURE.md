@@ -262,6 +262,24 @@ o caso em que o chunk sozinho é ambíguo ("depende de..." depende de quê?).
 **Metadados por chunk:** arquivo de origem, caminho de headings, wikilinks de
 saída, tags, frontmatter, datas de criação/modificação, tipo de documento.
 
+**Arquivo hostil e `except Exception`.** Uma pasta que nunca vimos tem arquivo
+hostil de sobra — PDF truncado, OLE que mente, extra opcional ausente, sensor
+que esta máquina não tem. Falhar é aceitável; travar a passada ou indexar como
+se o documento tivesse texto, não. `except Exception` só é permitido em três
+casos:
+
+| Caso | Onde | O que não pode |
+|------|------|----------------|
+| **(a) Borda de arquivo hostil** | parsers, `reader.parse_file`, conversão legado | Engolir a exceção e seguir como `OK`. O `ParseStatus` fica gravado (`ERROR`, `UNSUPPORTED`, `EMPTY`, …) e o log carrega o tipo e a mensagem reais |
+| **(b) Laço de onda que não pode morrer** | indexador, OCR por página, worker de GPU | Um arquivo derrubar os outros. Log + status; a passada segue |
+| **(c) Probe de hardware ou import opcional** | CUDA, psutil, extra `[ocr]`, caps do gerador | Um sensor ausente abortar a indexação. Sentinela (`None`, `0`, `False`) é resposta válida da probe |
+
+Fora desses três, estreitar o `except` ao tipo. No caminho de consulta MCP
+(`mcp/server.py`, `retrieve/`) a exceção ou é tipada (`ErroDeConfig` e irmãs)
+ou sobe — nunca vira lista vazia. Cada `# noqa: BLE001` leva o motivo depois
+de um travessão (`—`); a suíte recusa o sufixo ausente
+(`tests/test_politica_excecoes.py`).
+
 ### Camada 2 — Índice
 
 | Componente | Escolha | Motivo |

@@ -92,7 +92,7 @@ def detectar_caps():
         try:
             __import__(modulo)
             caps[formato] = True
-        except Exception:
+        except Exception:  # noqa: BLE001 — probe de import: formato binário ausente
             caps[formato] = False
     return caps
 

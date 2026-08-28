@@ -183,7 +183,7 @@ class TravaDeIndice:
             os.kill(pid, 0)
         except OSError:
             return False
-        except Exception:  # noqa: BLE001
+        except Exception:  # noqa: BLE001 — PID recusado sem OSError: supor vivo
             return True
         if criacao is None:
             # Trava do formato antigo, sem instante de criação: não há como
@@ -1294,7 +1294,7 @@ def indexar(
                 try:
                     resultado, s_parse = fut.result()
                     crono.etapas["parse"] = s_parse
-                except Exception as erro:  # noqa: BLE001
+                except Exception as erro:  # noqa: BLE001 — laço de onda: parse hostil vira ERROR, a passada segue
                     log.error("parse falhou em %s: %s", arquivo.rel, erro)
                     resultado = ParseResult(
                         path=str(arquivo.path),
