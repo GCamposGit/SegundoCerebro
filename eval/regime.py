@@ -190,7 +190,12 @@ def medir_neste_processo(mascara: list[int] | None, chunks: int, threads: int) -
         if mascara is not None:
             proc.cpu_affinity(mascara)
         mascara_efetiva = list(proc.cpu_affinity())
-    except Exception:  # noqa: BLE001
+    except Exception:  # noqa: BLE001 — sonda de máscara não aborta a medição
+        # `mascara_efetiva` fica vazia, e é isso que o relatório registra: a
+        # observação sai declarando que a afinidade **não** foi aplicada, em vez
+        # de sair como se tivesse sido. psutil ausente, plataforma sem afinidade
+        # de CPU e máscara recusada pelo SO caem todas aqui, e as três têm a
+        # mesma consequência para quem lê o número.
         pass
 
     antes = estado()
