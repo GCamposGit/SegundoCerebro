@@ -1830,11 +1830,24 @@ nome, na transcrição o nome só tem assunto e data. `n = 11` é sinal, não de
 > O que estava pronto continua válido: o mecanismo, a definição única de grupo e a
 > base da camada 2.
 >
-> **Estado agora:** com `ingest/parsers/vtt.py` em pé, a fatia mede **100 de 100**
-> perguntas com fonte indexada e 103 documentos candidatos. **A medição declarada
-> ainda não rodou** — falta ela, e só ela, para o pacote fechar ou ser refutado de
-> verdade. Não rodou nesta passada porque a máquina estava a 89% de memória e o
-> indexador morreu com falha de alocação do OpenBLAS antes de terminar.
+> **FECHADA em 27/08/2026 — hipótese mal especificada, não refutada.**
+> [`docs/ablacao-f4p1-nome-por-fonte.md`](docs/ablacao-f4p1-nome-por-fonte.md). A
+> medição rodou (2.119 perguntas, fatia `reunião` com n=100 e 100 de 100 fontes
+> indexadas) e deu **`+0.000 [+0.000, +0.000]` em todas as células**. Intervalo de
+> largura zero é ausência de manipulação, não empate: no corpus sintético o
+> ranqueador de nome **não pontua um único documento de reunião** (0 de 40
+> sondadas), então zerar o peso dele não tinha em que agir.
+>
+> E o motivo de fechar é mais forte que o instrumento. Na camada 1, onde o dano de
+> **−0,089** existe, os documentos que passam à frente da fonte de reunião são
+> **11 de escritório contra 1 de reunião**: a alavanca zera o peso nas **vítimas**,
+> não na causa. O contrato derivou o efeito mínimo de uma fatia definida pelo grupo
+> da **fonte esperada** e aplicou a alavanca ao grupo do **candidato** — dois
+> conjuntos diferentes, e o nome igual escondeu isso.
+>
+> `PESO_NOME_POR_GRUPO` e `retrieve/fonte.py` ficam, desligados por padrão e
+> exercitados por teste: a definição única de grupo já se paga servindo o recorte
+> do harness. Não reabre com outra grade.
 
 > **Aberto em 25/08/2026, e é a metade que a regra 11 tinha adiado.** A `F4-P`
 > cortou a varredura por não haver efeito mínimo declarado. Ela mediu um, e no

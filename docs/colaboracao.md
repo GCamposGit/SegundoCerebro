@@ -650,8 +650,8 @@ saída nativa de Teams, Zoom e Meet.** Hoje o registro guarda o documento com ze
 chunk, a barra conta o arquivo e a busca nunca o devolve — item 2 da régua de
 prontidão, "falhar é aceitável, mentir em silêncio não".
 
-**2. `main` está vermelha em dois testes, e não é regressão de vocês — é a memória
-desta máquina.**
+**2. Dois testes de OCR passam ou falham só em função da memória livre — e isso é
+o achado, não o incidente.**
 `tests/test_ocr.py::test_indexar_ocr_depois_do_texto` falha em `6377a0a` **e** em
 `cb4e1f7`, consistentemente, três tentativas. E depois do PR #42
 `test_indexar_misto_com_ocr_junta_as_paginas` entrou com a **mesma** fragilidade:
@@ -659,8 +659,15 @@ as duas falham na `main` limpa em `4abe045`, aqui. A causa não é lógica: o su
 de parse isolado morre com `OpenBLAS error: Memory allocation still failed after
 10 retries`, e a quarentena marca o documento como `erro` em vez de `ok`.
 
-Medido nesta máquina no momento da falha: **2,7 GB disponíveis de 16,8 GB (84%
-usada)**, 3,9 GB de swap, `MemCompression` ativo. **O produto se comportou certo** —
+Medido nesta máquina, mesmo commit, mesma suíte, no mesmo dia:
+
+| memória livre | `tests/test_ocr.py` |
+|---|---|
+| 2,7 GB de 16,8 GB (84% usada) | **2 falhas** |
+| 2,7 GB, repetido três vezes | 2 falhas, consistente |
+| memória liberada pelo usuário | **1.208 passando, 0 falhas** |
+
+Ou seja: o veredito da suíte é função do que mais estava aberto na máquina. **O produto se comportou certo** —
 quarentenou em vez de quebrar. O teste é que afirma `status == "ok"` supondo que o
 subprocesso isolado consegue alocar, e por isso confunde "o pipeline de OCR
 funciona" com "a máquina tinha memória".
@@ -681,6 +688,41 @@ máquina neste estado **o indexador não completa passada**, e isso é informaç
 produto: 16,8 GB com 89% em uso é notebook corporativo comum, e o modo de falha que
 o usuário vê é documento quarentenado sem nenhuma menção a memória. Candidato a
 entrada de pacote junto do `F4-R.1` e do teto de RAM do `F4-O.2`, que é de vocês.
+
+### `F4-P.1` fechada por especificação, não por empate (27/08/2026)
+
+Laudo: [`ablacao-f4p1-nome-por-fonte.md`](ablacao-f4p1-nome-por-fonte.md). A
+medição rodou depois que a `F4-T` encheu a fatia, e deu `+0.000 [+0.000, +0.000]`
+em **todas** as células. Intervalo de largura zero não é empate — é ausência de
+manipulação: no corpus sintético o ranqueador de nome não pontua um único
+documento de reunião, então zerar o peso dele não tinha em que agir.
+
+E o achado que fecha o pacote: na camada 1, onde o dano de −0,089 existe, os
+documentos que passam à frente da fonte de reunião são **11 de escritório contra 1
+de reunião**. A alavanca zerava o peso nas vítimas. O contrato derivou o efeito
+mínimo de uma fatia definida pelo grupo da **fonte esperada** e aplicou a alavanca
+ao grupo do **candidato**; o nome igual escondeu que são populações diferentes.
+
+**O que isto muda para vocês**, e é a parte que vale além deste pacote:
+
+1. **`eval/comparar.py` passa a distinguir empate de insensibilidade.** Quando os
+   dois braços devolvem o mesmo ranking em toda pergunta do recorte, a célula sai
+   `∅` e o relatório diz, em texto, que a regra de encerramento **não se aplica**.
+   Se um braço de vocês sair todo `∅`, é sinal de que a bandeira não está agindo —
+   não de que a hipótese caiu.
+2. **O relatório do `--entregue` mentia.** Ele afirmava que o ranqueador de nome
+   não participa de `buscar_chunks`, coisa que a `F4-P` mudou em 25/08. Qualquer
+   ablação de vocês nesse caminho saía com esse parágrafo. Corrigido, e com teste
+   que lê o fonte e reprova se a prosa negar o código.
+3. **`--entregue` com `--antes` no default (`baseline`) quebrava** com
+   `AttributeError` na primeira consulta, depois de carregar índice e modelo. Passa
+   a recusar na montagem.
+4. **O indexador vaza nome de usuário para o `.mcp.json`, que é versionado.**
+   Indexar uma base nova acrescenta uma entrada com o caminho absoluto do
+   interpretador. Revertido aqui; guarda estrutural nova em
+   `tests/test_saneamento.py`, porque a que existia é pulada quando a lista local
+   está vazia — num clone limpo não havia guarda nenhuma. **Confiram se a passada
+   de vocês fez o mesmo antes do próximo commit.**
 
 ### Agora — desktop
 

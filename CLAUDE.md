@@ -138,6 +138,19 @@ a evidência datada em [`docs/historico-decisoes.md`](docs/historico-decisoes.md
   plausível — que passaria.
 - **Passada separada do indexador vale mais que a economia óbvia.** Grafo: 30 s
   contra 39 h, e foram cinco iterações de regra até a extração ficar certa.
+- **Δ zero tem duas causas, e a regra de encerramento só vale para uma.** Empate é
+  a mudança ter agido sem se separar do ruído; insensibilidade é a variável não
+  tocar nenhum documento da fatia, e aí o zero é por construção. Na `F4-P.1` a
+  fatia tinha n=100 e a variável tinha n=0 — o ranqueador de nome não pontuava um
+  único documento de reunião no corpus sintético. A porta é
+  `eval/comparar.py::_insensivel`, que compara o **ranking recuperado** e marca a
+  célula com `∅`.
+- **Efeito medido numa fatia não autoriza alavanca sobre os documentos daquela
+  fatia.** O dano de nome em reunião é real (−0,089), e 11 de 12 dos documentos que
+  causam esse dano são de **escritório**. A `F4-P.1` zerava o peso nos candidatos
+  de reunião, que são as vítimas. Fatia definida pela **fonte esperada** e alavanca
+  aplicada ao **candidato** são populações diferentes
+  (`docs/ablacao-f4p1-nome-por-fonte.md`).
 - **Régua que nomeia formato que o produto não ingere é regra sobre documento que
   nunca existe — e a fatia sai vazia sem erro.** `retrieve/fonte.py` classificava
   `.vtt` como grupo `reunião` e `hybrid.py` escolhia peso por esse grupo, com
