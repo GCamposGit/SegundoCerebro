@@ -2,11 +2,17 @@
 
 from __future__ import annotations
 
+import os
+
+import pytest
+
 from segundocerebro.index.cuda_runtime import (
     CUDA13,
     DRIVER,
+    EP_AUSENTE,
     MINILM,
     SEM_GPU,
+    aplicar_provider,
     diagnosticar,
 )
 from segundocerebro.index.smoke_cuda import (
@@ -76,6 +82,30 @@ def test_ort_118_no_maxwell_e_aceitavel() -> None:
         gpus=MAXWELL, versao_ort="1.18.0", providers=["CUDAExecutionProvider"]
     )
     assert diag.ok
+
+
+def test_ort_cpu_tampando_gpu_nao_e_cuda13() -> None:
+    """fastembed puxa onnxruntime 1.29 CPU e o extra [gpu] some. Não é CUDA 13."""
+    diag = diagnosticar(
+        gpus=MAXWELL,
+        versao_ort="1.29.0",
+        providers=["CPUExecutionProvider", "AzureExecutionProvider"],
+    )
+    assert not diag.ok
+    assert diag.codigo == EP_AUSENTE
+    assert "onnxruntime" in diag.mensagem
+    assert "CUDA 13" not in diag.mensagem
+
+
+def test_aplicar_provider_config_preenche_env_vazio(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("SEGUNDOCEREBRO_PROVIDER", raising=False)
+    assert aplicar_provider("cuda") == "cuda"
+    assert os.environ.get("SEGUNDOCEREBRO_PROVIDER") == "cuda"
+
+
+def test_aplicar_provider_env_vence_config(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("SEGUNDOCEREBRO_PROVIDER", "cpu")
+    assert aplicar_provider("cuda") == "cpu"
 
 
 def test_driver_590_no_maxwell_recusa_em_portugues() -> None:
