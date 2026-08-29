@@ -994,6 +994,45 @@ def test_servidor_mcp_sobe_com_o_painel_ausente(tmp_path: Path, monkeypatch) -> 
         __import__("segundocerebro.painel.app")
 
 
+def test_o_painel_nao_carrega_o_encoder_so_para_abrir() -> None:
+    """A outra metade da invariante 6: o painel não paga o caminho de consulta.
+
+    O teste acima prova que o servidor MCP vive sem o painel. Este prova a
+    direção inversa, que ninguém estava conferindo: abrir o painel **não** pode
+    arrastar o encoder.
+
+    Medido em 29/08/2026: `import segundocerebro.painel.app` custava 1,08 s e
+    deixava `fastembed` carregado, por causa de duas linhas —
+    `from ..index.indexer import NOME_DA_TRAVA` e o par dela em `watcher` — que
+    existiam para ler o nome de um arquivo de trava. `index/store.py` já
+    documentava a regra ("consultar a trava sem importar o indexador"); faltava
+    quem a conferisse. Com a constante em `index/travas.py`, 0,11 s.
+
+    Subprocesso porque `sys.modules` desta sessão já está sujo: dentro do próprio
+    pytest, `fastembed` foi carregado por qualquer outro teste antes deste.
+    """
+    import subprocess
+    import sys
+
+    codigo = (
+        "import sys; import segundocerebro.painel.app as _; "
+        "print(','.join(m for m in ("
+        "'fastembed','onnxruntime','segundocerebro.index.indexer',"
+        "'segundocerebro.index.watcher','segundocerebro.index.embeddings',"
+        "'segundocerebro.retrieve.hybrid') if m in sys.modules))"
+    )
+    proc = subprocess.run(
+        [sys.executable, "-c", codigo], capture_output=True, text=True, check=False
+    )
+    assert proc.returncode == 0, proc.stderr
+    carregados = [m for m in proc.stdout.strip().split(",") if m]
+    assert not carregados, (
+        f"abrir o painel carregou {carregados}. O painel é o primeiro degrau de quem "
+        "instala do zero (estágio 0 da F6-B): ele abre antes de existir índice, modelo "
+        "baixado ou encoder. Constante de trava mora em `index/travas.py`."
+    )
+
+
 class _BloqueiaPainel:
     def find_module(self, nome, caminho=None):  # noqa: ANN001, ANN201 - protocolo antigo
         return None

@@ -59,12 +59,9 @@ from .progresso import Publicador
 from .progresso import ler as ler_progresso
 from .reconciliar import Reconciliacao, reconciliar
 from .store import ChunkArmazenado, Store
+from .travas import NOME_DA_TRAVA as NOME_DA_TRAVA  # reexport histórico: painel e testes o pedem daqui
 
 log = get_logger("index.indexer")
-
-NOME_DA_TRAVA = "indexacao.lock"
-"""Nome do arquivo de trava, exportado porque o painel também precisa vê-lo —
-medir enquanto o índice está sendo reescrito mede um alvo em movimento."""
 
 LOTE_EMBEDDING = 32
 INTERVALO_LOG = 25

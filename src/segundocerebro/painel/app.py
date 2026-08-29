@@ -46,8 +46,7 @@ from ..config import (
     carregar,
     gravar,
 )
-from ..index.indexer import NOME_DA_TRAVA
-from ..index.watcher import NOME_DA_TRAVA as NOME_DO_OBSERVADOR
+from ..index.travas import NOME_DA_TRAVA, NOME_DO_OBSERVADOR
 from ..logger import get_logger
 from ..retrieve.glossario import ErroDeGlossario, Glossario
 from .erros import MedicaoIndisponivel

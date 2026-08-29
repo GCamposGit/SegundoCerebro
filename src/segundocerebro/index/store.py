@@ -32,13 +32,16 @@ import numpy as np
 
 from ..ingest.chunking import Chunk
 from ..logger import get_logger
+from .travas import NOME_DA_TRAVA as NOME_DA_TRAVA  # reexport: ver o comentário abaixo
 
 log = get_logger("index.store")
 
-NOME_DA_TRAVA = "indexacao.lock"
-"""Mesmo arquivo que `index.indexer.TravaDeIndice`. Duplicado de propósito:
-eval e a suíte precisam consultar a trava **sem** importar o indexador (GPU,
-encoder, laço)."""
+# `NOME_DA_TRAVA` é importado no topo, de `index/travas.py`, e segue alcançável
+# por `index.store` porque é assim que a suíte e o `eval/` o pedem. Era declarado
+# aqui, com a justificativa de que eval e testes precisam consultar a trava **sem**
+# importar o indexador (GPU, encoder, laço) — a justificativa continua valendo, e
+# desde 29/08/2026 `indexer.py` lê a mesma constante em vez de declarar a segunda
+# cópia.
 
 
 class IndiceEmEscrita(RuntimeError):
