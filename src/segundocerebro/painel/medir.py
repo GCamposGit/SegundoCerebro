@@ -20,12 +20,14 @@ from ..config import Busca, Pesos
 from ..index.embeddings import Embedder
 from ..index.store import Store
 from ..logger import get_logger
+from ..repositorio import em_checkout
+from ..repositorio import raiz as raiz_do_repositorio
 from ..retrieve.hybrid import BuscaHibrida
+from .erros import MedicaoIndisponivel
 
 log = get_logger("painel.medir")
 
-REPO = Path(__file__).resolve().parent.parent.parent.parent
-GOLDEN_PADRAO = REPO / "eval" / "golden" / "perguntas.jsonl"
+GOLDEN_PADRAO = raiz_do_repositorio() / "eval" / "golden" / "perguntas.jsonl"
 
 
 @dataclass
@@ -46,7 +48,17 @@ class Medidor:
         return self._abertos[base.id]
 
     def __call__(self, base, pesos: Pesos, busca: Busca) -> dict[str, Any]:  # noqa: ANN001
-        from eval.harness import avaliar, carregar_perguntas, conferir_base, resolver_dourado
+        # A única dependência do produto sobre `eval/`, e ela é declarada:
+        # `tests/test_pacote.py` varre `src/` atrás de qualquer outra e reprova
+        # se aparecer, e exige que esta esteja guardada.
+        try:
+            from eval.harness import avaliar, carregar_perguntas, conferir_base, resolver_dourado
+        except ModuleNotFoundError as erro:
+            raise MedicaoIndisponivel(
+                "esta instalação não traz o harness de avaliação: `eval/` fica fora do "
+                "pacote porque carrega o conjunto dourado. Para medir, rode o painel a "
+                f"partir de um clone do repositório (aqui: {'sim' if em_checkout() else 'não'})."
+            ) from erro
 
         # Explícito mesmo quando cai no padrão: o painel não mede o exemplo
         # sintético contra o índice de outra base.

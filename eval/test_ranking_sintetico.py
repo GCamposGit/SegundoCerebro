@@ -24,14 +24,27 @@ from eval.harness import Pergunta
 
 RETRIEVE = Path(__file__).resolve().parents[1] / "src" / "segundocerebro" / "retrieve"
 
-SEM_FATIA_PROPRIA: dict[str, str] = {}
-"""Módulos que não ganham fatia, com o motivo. **Hoje está vazia, e é o ponto.**
+SEM_FATIA_PROPRIA: dict[str, str] = {
+    "contrato": (
+        "declaração de tipo, não mecanismo: `Hit` e o protocolo `Retriever` não "
+        "pontuam, ordenam nem filtram nada — não há comportamento que uma fatia "
+        "possa exercitar. Entrou em 29/08/2026 quando os dois nomes saíram de "
+        "`eval/harness.py`, porque `retrieve/hybrid.py` os importava de volta e "
+        "`eval` não vai no pacote."
+    ),
+}
+"""Módulos que não ganham fatia, com o motivo.
 
-Os sete mecanismos de `retrieve/` são todos exercitados. A tabela existe pelo
-mesmo desenho de `SEM_FIXTURE_POSSIVEL` na pasta hostil — a lacuna declarada é a
-única que não vira dívida — e há um teste que a impede de crescer por
-conveniência. Vazia, ela documenta que não há dívida; se alguém acrescentar uma
-linha, tem de escrever por quê.
+Os mecanismos de `retrieve/` são todos exercitados. A tabela existe pelo mesmo
+desenho de `SEM_FIXTURE_POSSIVEL` na pasta hostil — a lacuna declarada é a única
+que não vira dívida — e há um teste que a impede de crescer por conveniência.
+Quem acrescenta uma linha tem de escrever por quê.
+
+**Ela ficou vazia até 29/08/2026, e a primeira entrada não é dívida: é um arquivo
+sem comportamento.** A régua deste teste é "arquivo em `retrieve/` é mecanismo", e
+ela vale porque nenhum arquivo ali era outra coisa. `contrato.py` é a exceção que
+a régua não previa, e declará-la é mais barato que afrouxar a régua — afrouxar
+deixaria passar o mecanismo de verdade que entrasse depois.
 
 A primeira versão declarava `hybrid` aqui, supondo que a fusão não teria fatia
 própria. O teste reprovou: `hybrid` é citado por `duplicatas`, `cross_lingual`,

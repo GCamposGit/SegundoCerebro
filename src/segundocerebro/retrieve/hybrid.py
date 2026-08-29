@@ -25,6 +25,7 @@ from dataclasses import dataclass, replace
 from ..index.embeddings import Embedder
 from ..index.store import Store
 from ..logger import get_logger
+from .contrato import Hit
 from .familias import chave_de_familia, colapsar
 from .fonte import REUNIAO, grupo_de_fonte
 from .glossario import Glossario
@@ -522,9 +523,12 @@ class BuscaHibrida:
         supplies one — a single chunk per document, mirroring this collapse — so
         the signal exists on the path the MCP client actually executes. This
         method stays the historical series (F0 → F4 was measured here).
-        """
-        from eval.harness import Hit
 
+        `Hit` used to be imported here from `eval.harness`, which made this
+        method — the whole historical series — raise `ModuleNotFoundError` on an
+        installed package, because `pyproject.toml` ships `src/` and nothing
+        else. It lives in `retrieve/contrato.py` since 29/08/2026.
+        """
         rankings_chunk, pesos, _, _ = self._rankings_de_chunk(consulta)
 
         rankings_doc: list[list[str]] = []

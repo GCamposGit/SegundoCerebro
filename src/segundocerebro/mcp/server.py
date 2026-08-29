@@ -42,7 +42,6 @@ from ..retrieve.hybrid import BuscaHibrida
 
 log = get_logger("mcp.server")
 
-REPO = Path(__file__).resolve().parent.parent.parent.parent
 K_PADRAO = 8
 K_MAX = 50
 JANELA_PADRAO = 1
