@@ -15,6 +15,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Protocol
 
+from .cobertura import Cobertura
+from .cobertura import bloco as bloco_de_cobertura
 from .fonte import GRUPOS, grupo_de_pergunta
 from .estatistica import N_MINIMO, ic_da_media
 from .idioma import CROSS_LINGUAL, EN, FATIAS, INDEFINIDO, MESMA_LINGUA, MISTO, PT, detectar
@@ -499,7 +501,17 @@ def _alinhamento(ks: tuple[int, ...]) -> str:
     return "|---|---:|" + "---:|" * (len(ks) + 1 + len(KS_NDCG))
 
 
-def render_markdown(resultado: Resultado, titulo: str, contexto: str = "") -> str:
+def render_markdown(
+    resultado: Resultado, titulo: str, contexto: str = "", *, cobertura: Cobertura | None = None
+) -> str:
+    """O relatório de uma passada.
+
+    `cobertura` é palavra-chave e sem valor implícito de conveniência: quando não
+    vem, a seção sai dizendo **"não medida"** em vez de não sair. Um relatório sem
+    a seção seria indistinguível de um relatório cujo conjunto alcança o acervo
+    inteiro, e essa confusão é a que a `F4-D` fecha — a métrica só se lê junto com
+    a fração do acervo que as perguntas conseguem tocar.
+    """
     linhas: list[str] = []
     add = linhas.append
 
@@ -530,6 +542,10 @@ def render_markdown(resultado: Resultado, titulo: str, contexto: str = "") -> st
         ndcgs = " | ".join(f"{r.ndcg(k=k):.3f}" for k in KS_NDCG)
         add(f"| {rotulo} | {len(r.itens)} | {vals} | {r.mrr():.3f} | {ndcgs} |")
     add("")
+
+    # Logo depois da tabela que ela qualifica, e não no fim: a cobertura muda como
+    # a linha de cima se lê, e seção de ressalva no rodapé não é lida.
+    linhas.extend(bloco_de_cobertura(cobertura))
 
     add(f"## Fora de escopo — {len(excluidas)} de {len(resultado.itens)}")
     add("")

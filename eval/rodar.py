@@ -31,6 +31,7 @@ from segundocerebro.retrieve.hybrid import BuscaHibrida
 from segundocerebro.retrieve.rerank import CANDIDATOS_PARA_RERANK
 
 from .baselines import BuscaPorNomeDeArquivo
+from .cobertura import medir as medir_cobertura
 from .harness import (
     GOLDEN,
     avaliar,
@@ -307,6 +308,16 @@ def main(argv: list[str] | None = None) -> int:
         nivel = log.error if d.especie == "silenciosa" else log.warning
         nivel("escopo/%s: %s — %s", d.especie, d.id, d.detalhe)
     _conferir_idioma(perguntas, store)
+    # O universo do baseline por nome é o disco, e o do híbrido é o que tem
+    # trecho indexado. Os dois são cobertura, mas não a mesma: existir não é ser
+    # legível, e o relatório diz qual dos dois mediu.
+    cobertura = medir_cobertura(universo, perguntas, de_conteudo=store is not None)
+    log.info(
+        "cobertura: %.1f%% do universo por pasta, %.1f%% como fonte esperada (%d documentos)",
+        100 * cobertura.alcance,
+        100 * cobertura.fracao_de_fontes,
+        cobertura.universo,
+    )
 
     try:
         resultado = avaliar(retriever, perguntas)
@@ -314,7 +325,7 @@ def main(argv: list[str] | None = None) -> int:
         if store is not None:
             store.fechar()
 
-    relatorio = render_markdown(resultado, titulo, contexto)
+    relatorio = render_markdown(resultado, titulo, contexto, cobertura=cobertura)
 
     entregar(relatorio, args.out)
     if args.out:

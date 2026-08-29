@@ -32,6 +32,8 @@ from pathlib import Path
 from segundocerebro.logger import get_logger
 from segundocerebro.retrieve.hybrid import BuscaHibrida
 
+from .cobertura import bloco as bloco_de_cobertura
+from .cobertura import medir as medir_cobertura
 from .harness import KS_NDCG, Resultado, avaliar, carregar_perguntas, conferir_base, entregar, verificar_escopo
 from .idioma import CROSS_LINGUAL, MESMA_LINGUA
 
@@ -308,10 +310,12 @@ def main(argv: list[str] | None = None) -> int:
     except ValueError as erro:
         log.error("%s", erro)
         return 2
-    for d in verificar_escopo(perguntas, set(store.paths_com_chunks())):
+    universo = set(store.paths_com_chunks())
+    for d in verificar_escopo(perguntas, universo):
         (log.error if d.especie == "silenciosa" else log.warning)(
             "escopo/%s: %s — %s", d.especie, d.id, d.detalhe
         )
+    cobertura = medir_cobertura(universo, perguntas)
 
     try:
         medidas = medir(store, embedder, base, perguntas, args.threads)
@@ -322,6 +326,7 @@ def main(argv: list[str] | None = None) -> int:
         f"> Medido na condição C: {estat['documentos']} documentos, {estat['chunks']} chunks, "
         f"{len(medidas[0].resultado.itens)} perguntas no escopo, modelo `{embedder.model_id}`, "
         f"{base.busca.candidatos} candidatos por ranking antes da fusão."
+        "\n\n" + "\n".join(bloco_de_cobertura(cobertura))
     )
     # O baseline não entra na passada: ele ranqueia a árvore de arquivos, não o
     # índice, e construí-lo aqui misturaria dois universos numa tabela só. Entra

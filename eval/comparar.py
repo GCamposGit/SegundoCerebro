@@ -26,6 +26,8 @@ from segundocerebro.logger import get_logger
 from segundocerebro.retrieve.hybrid import CANDIDATOS
 from segundocerebro.retrieve.rerank import CANDIDATOS_PARA_RERANK
 
+from .cobertura import bloco as bloco_de_cobertura
+from .cobertura import medir as medir_cobertura
 from .estatistica import EMPATE, GANHA, N_MINIMO, PERDE, alinhar, ic_do_delta
 from .harness import (
     K_MRR,
@@ -529,8 +531,10 @@ def main(argv: list[str] | None = None) -> int:
 
     resultados = {}
     contexto_partes = []
+    universos: dict[str, tuple[set[str], bool]] = {}
     for papel, nome in (("antes", args.antes), ("depois", args.depois)):
-        retriever, _, contexto, store, _ = _montar(nome, args, cfg, papel)
+        retriever, _, contexto, store, universo = _montar(nome, args, cfg, papel)
+        universos[papel] = (universo, store is not None)
         try:
             resultados[papel] = avaliar(retriever, perguntas)
         finally:
@@ -539,12 +543,21 @@ def main(argv: list[str] | None = None) -> int:
         log.info("%s: %s", papel, retriever.nome)
         contexto_partes.append(f"**{papel}** — {contexto.splitlines()[0]}")
 
+    # O Δ pareado é imune ao tamanho do universo — os dois braços veem o mesmo
+    # acervo. A cobertura entra por outro motivo: ela diz sobre que fração do
+    # acervo o Δ foi medido, e empate sobre 3 pastas de 30 não é "nada mudou".
+    universo_depois, de_conteudo = universos["depois"]
+    cobertura = medir_cobertura(universo_depois, perguntas, de_conteudo=de_conteudo)
+
     movimentos = comparar(resultados["antes"], resultados["depois"])
     relatorio = render(
         movimentos,
         resultados["antes"].retriever,
         resultados["depois"].retriever,
-        f"{len(perguntas)} perguntas no escopo.\n\n" + "\n\n".join(contexto_partes),
+        f"{len(perguntas)} perguntas no escopo.\n\n"
+        + "\n\n".join(contexto_partes)
+        + "\n\n"
+        + "\n".join(bloco_de_cobertura(cobertura)),
         antes=resultados["antes"],
         depois=resultados["depois"],
     )

@@ -115,8 +115,14 @@ o container OLE que mente sobre o próprio conteúdo.
    [`docs/colaboracao.md`](docs/colaboracao.md), porque o desktop não tem bateria
    nem CPU híbrida e não reproduz o defeito.
 2. **`F4-O.3` — o dourado de OCR** (`g015`/`g025`/`g048`), que é do notebook e
-   destravou quando o `F4-O.2` entrou na `main` no PR #42.
-3. **`F6`** — restam `F6-C` (desktop) e `F6-B` (estágio 0 do painel); a `F6-A`
+   **está bloqueada desde 28/08/2026** — não pelo dourado nem pelo motor: com
+   `--ocr` a passada quarentena o acervo a 61 s por documento, com 0% de CPU
+   ([`docs/ocr-no-acervo-bloqueado.md`](docs/ocr-no-acervo-bloqueado.md)).
+3. **`F4-D.2` — `dourado-v1` é frase, não mecanismo.** Achado ao fechar a `F4-D`
+   em 29/08/2026: nada congela quais ids compõem a série histórica, e o conjunto
+   é gitignorado — pergunta editada move a linha de base sem deixar diff. A outra
+   metade da `F4-D` (a cobertura em todo relatório) fechou.
+4. **`F6`** — restam `F6-C` (desktop) e `F6-B` (estágio 0 do painel); a `F6-A`
    fechou no PR #14. A
    `F6-D` (`docs/comecar.md`) e a `F6-E` (pasta hostil) fecharam em 25/08/2026, e
    o `Q5` P0 — e2e do protocolo MCP — também. Do `Q2` sobram lockfile e extras,
@@ -185,6 +191,13 @@ a evidência datada em [`docs/historico-decisoes.md`](docs/historico-decisoes.md
   quatro `metricas-f2-*` commitados (20/08) e 3 h 22 min de máquina com medição
   contaminada (26/08). O que resolve é contagem **por regra** conferida contra
   zero antes de pagar o custo — `docs/duas-falhas-silenciosas.md`.
+- **Número que qualifica a métrica não mora em documento.** A cobertura do
+  dourado foi medida à mão em 24/08 e envelheceu duas vezes em quatro dias — o
+  `ROADMAP.md` guardava 18,2%, o doc guardava 25%, e o número era 38,5%. Enquanto
+  isso o `recall@1` seguia sendo citado como se valesse para o acervo inteiro. O
+  que resolve é o relatório **recalcular** a ressalva a cada passada e não
+  conseguir sair sem ela: `render_markdown` sem cobertura imprime "não medida"
+  (`eval/cobertura.py`, `docs/dourado-cobertura.md`).
 - **Quem publica progresso não pode ser quem trabalha.** A thread principal
   dentro de uma chamada só do ONNX não volta para atualizar a barra, e o arquivo
   congela dizendo "indexando" com ETA. Vigia em thread separada, e `lote` de embed
@@ -295,6 +308,11 @@ Três regras, e as duas últimas são de 25/08/2026
 ([`docs/regra-de-ouro.md`](docs/regra-de-ouro.md)):
 
 - **Nenhuma otimização de precisão sem número antes e depois** (invariante 4).
+- **Nenhum relatório sem a cobertura que ele alcança** — quantas pastas do índice
+  as perguntas conseguem tocar entra ao lado da tabela, medida na hora
+  (`py -m eval.cobertura --base <id>`). Cobertura baixa é limitação declarada, não
+  reprovação; omiti-la é que faz a métrica de um canto do acervo ser lida como a
+  do acervo.
 - **Nenhuma varredura sem efeito mínimo e fatia declarados antes**; empate
   encerra o pacote.
 - **Nenhum defeito consertado sem a classe generalizada** — qual teste ou método
