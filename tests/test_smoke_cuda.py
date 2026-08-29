@@ -14,6 +14,7 @@ from segundocerebro.index.cuda_runtime import (
     SEM_GPU,
     aplicar_provider,
     diagnosticar,
+    resolver_provider,
 )
 from segundocerebro.index.smoke_cuda import (
     CANDIDATOS_RERANK,
@@ -97,15 +98,44 @@ def test_ort_cpu_tampando_gpu_nao_e_cuda13() -> None:
     assert "CUDA 13" not in diag.mensagem
 
 
-def test_aplicar_provider_config_preenche_env_vazio(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_resolver_provider_config_vale_com_env_vazio(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A pergunta "qual provider vence" não precisa escrever em lugar nenhum.
+
+    Este teste chamava `aplicar_provider`, que escreve em `os.environ` — e o
+    `monkeypatch.delenv` acima não desfazia, porque monkeypatch só restaura o que
+    ele mesmo mexeu e a variável nem existia. `SEGUNDOCEREBRO_PROVIDER=cuda`
+    sobrevivia à sessão e derrubava seis testes de `tests/test_watcher.py`.
+    """
     monkeypatch.delenv("SEGUNDOCEREBRO_PROVIDER", raising=False)
-    assert aplicar_provider("cuda") == "cuda"
-    assert os.environ.get("SEGUNDOCEREBRO_PROVIDER") == "cuda"
+    assert resolver_provider("cuda") == "cuda"
+    assert os.environ.get("SEGUNDOCEREBRO_PROVIDER") is None, "resolver não escreve"
 
 
-def test_aplicar_provider_env_vence_config(monkeypatch: pytest.MonkeyPatch) -> None:
+def test_resolver_provider_env_vence_config(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("SEGUNDOCEREBRO_PROVIDER", "cpu")
-    assert aplicar_provider("cuda") == "cpu"
+    assert resolver_provider("cuda") == "cpu"
+
+
+def test_aplicar_provider_publica_para_os_filhos(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Quem escreve é `aplicar_provider`, e só o `main()` de um processo a chama.
+
+    A escrita é o mecanismo — os processos de embed herdam o ambiente —, então ela
+    continua sendo testada. O que mudou é que agora o teste declara a variável
+    antes, para o monkeypatch ter o que restaurar; e a fixture `ambiente_devolvido`
+    de `tests/conftest.py` fecha a classe mesmo quando alguém esquecer.
+    """
+    monkeypatch.setenv("SEGUNDOCEREBRO_PROVIDER", "")
+    assert aplicar_provider("cuda") == "cuda"
+    assert os.environ["SEGUNDOCEREBRO_PROVIDER"] == "cuda"
+
+
+def test_o_provider_nao_atravessa_para_o_teste_seguinte() -> None:
+    """O teste acima escreveu `cuda` no ambiente; aqui já não está.
+
+    É o caso concreto da classe que `tests/test_isolamento_da_suite.py` prova em
+    geral, e mora aqui porque foi aqui que ela custou seis falhas.
+    """
+    assert (os.environ.get("SEGUNDOCEREBRO_PROVIDER") or "").lower() != "cuda"
 
 
 def test_driver_590_no_maxwell_recusa_em_portugues() -> None:

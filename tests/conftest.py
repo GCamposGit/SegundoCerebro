@@ -7,6 +7,8 @@ and load e5-large. Tests never asked for that.
 
 from __future__ import annotations
 
+import os
+from collections.abc import Iterator
 from pathlib import Path
 
 import pytest
@@ -39,6 +41,34 @@ def pytest_sessionstart(session: pytest.Session) -> None:  # noqa: ARG001
             ocupados.append(str(erro))
     if ocupados:
         pytest.exit("indexação viva — pause com comando.txt:\n" + "\n".join(ocupados), returncode=4)
+
+
+@pytest.fixture(autouse=True)
+def ambiente_devolvido() -> Iterator[None]:
+    """Nenhum teste entrega `os.environ` alterado ao próximo — nem via produção.
+
+    `monkeypatch.setenv/delenv` desfaz o que **o monkeypatch** fez. Escrita que
+    veio do código de produto dentro do teste não é rastreada, e
+    `monkeypatch.delenv(..., raising=False)` sobre variável ausente não registra
+    nem sequer um valor a restaurar. Medido em 29/08/2026:
+    `test_aplicar_provider_config_preenche_env_vazio` deixava
+    `SEGUNDOCEREBRO_PROVIDER=cuda` no processo, e as seis primeiras chamadas a
+    `indexar()` depois dele — todas em `tests/test_watcher.py`, que vem depois na
+    ordem alfabética — falhavam com `RuntimeError: Não achei placa NVIDIA`. O
+    mesmo arquivo passava verde sozinho, e no desktop, que tem placa, a suíte
+    inteira passava: o modo de falha era assimétrico entre os dois setups.
+
+    A foto aqui fecha a classe, e não o caso: vale para `CUDA_VISIBLE_DEVICES`,
+    para `PATH` (que `cuda_runtime.preparar()` prepende) e para o próximo que
+    alguém escrever sem lembrar de desfazer.
+    """
+    antes = dict(os.environ)
+    try:
+        yield
+    finally:
+        if os.environ != antes:
+            os.environ.clear()
+            os.environ.update(antes)
 
 
 @pytest.fixture(autouse=True)
