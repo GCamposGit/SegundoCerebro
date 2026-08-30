@@ -325,21 +325,28 @@ def test_indexar_misto_com_ocr_junta_as_paginas(tmp_path: Path, monkeypatch) -> 
         reconciliar_ao_fim=False,
         ocr=True,
     )
-    if not ocr_produziu_texto_ou_declarou_recurso(store, "oficio.pdf", progresso):
-        store.fechar()
-        return
-    # `ok` com chunks nativos e OCR zerado era o disfarce do `Q15`: o PDF misto
-    # escondia a pressão de memória atrás das páginas que o parser nativo já
-    # tinha lido. A regra que o `Q15` instalou não é "OCR sempre produz texto" —
-    # isso seria assertar sobre a RAM da máquina —, é **ou produz, ou o produto
-    # declara recurso**. Silêncio é que virou reprovação, em qualquer janela.
+    # No PDF misto a régua é OUTRA, e a primeira versão deste teste pedia a
+    # errada — pedia linha de quarentena, que o produto **de propósito** não
+    # emite aqui: o parse nativo valeu, o documento ficou `ok` com texto, e
+    # engolir a falha é o conserto que impede `remover_documento` de apagar
+    # chunks e vetores já gravados. As duas exigências se contradiziam, e a
+    # suíte reprovava 1 em 5 passadas por isso (achado por revisão, 30/08/2026).
+    #
+    # O que o produto promete aqui, e o que se cobra: o documento **continua na
+    # fila de OCR**. Não depende da RAM da máquina, e é a diferença entre "o OCR
+    # não rodou desta vez" e "o documento sumiu do acervo".
     if progresso.ocr < 1:
-        item = store.quarentena_de("oficio.pdf")
-        assert item is not None and any(
-            sinal in (item.motivo or "").lower() for sinal in SINAIS_DE_RECURSO
-        ), (
-            "a fase de OCR nao produziu nada e o produto nao declarou recurso — "
-            f"e a regressao do `Q15`. Regime: {regime_da_maquina()}"
+        estado = store.estado_documento("oficio.pdf")
+        assert estado is not None, "oficio.pdf saiu do registro"
+        texto_nativo = " ".join(c.texto for c in store.chunks_de("oficio.pdf"))
+        assert "4600009999" in texto_nativo, (
+            "o texto nativo do PDF misto se perdeu quando o OCR falhou — é o "
+            f"defeito que o conserto do `Q15` existe para impedir. Regime: {regime_da_maquina()}"
+        )
+        na_fila = [rel for rel, _ in store.documentos_para_ocr(VERSAO)]
+        assert "oficio.pdf" in na_fila, (
+            "o OCR não produziu nada e o documento saiu da fila — a próxima passada "
+            f"nunca mais tentaria. Estado: {estado.status!r}. Regime: {regime_da_maquina()}"
         )
         store.fechar()
         return
@@ -365,6 +372,14 @@ def test_teste_de_ocr_que_indexa_aceita_falha_de_recurso() -> None:
 
     F4-O.2 added a second test with the same assumption the first already had.
     The checklist is this helper, not a list of two names.
+
+    Desde 30/08/2026 há **duas** saídas aceitas, porque o produto passou a ter
+    duas garantias diferentes. Scan puro: `ocr_produziu_texto_ou_declarou_recurso`,
+    que pula com o motivo do produto. PDF misto: o OCR pode falhar sem quarentena
+    — engolir a falha é o conserto que preserva o texto nativo já indexado —, e a
+    régua ali é `documentos_para_ocr`, que prova que a próxima passada tenta de
+    novo. Exigir quarentena nos dois era uma contradição, e ela reprovava a suíte
+    1 em 5 passadas.
     """
     fonte = Path(__file__).read_text(encoding="utf-8")
     arvore = ast.parse(fonte)
@@ -375,11 +390,13 @@ def test_teste_de_ocr_que_indexa_aceita_falha_de_recurso() -> None:
         trecho = ast.get_source_segment(fonte, no) or ""
         if "indexar(" not in trecho or "ocr=True" not in trecho:
             continue
-        if "ocr_produziu_texto_ou_declarou_recurso" not in trecho:
+        aceita_recurso = "ocr_produziu_texto_ou_declarou_recurso" in trecho
+        aceita_fila = "documentos_para_ocr" in trecho
+        if not (aceita_recurso or aceita_fila):
             faltando.append(no.name)
     assert not faltando, (
-        "teste de OCR que indexa e afirma o caminho feliz sem aceitar "
-        "quarentena por recurso. Use ocr_produziu_texto_ou_declarou_recurso, "
-        "senão a suíte mede a janela de memória outra vez: "
-        + ", ".join(faltando)
+        "teste de OCR que indexa e afirma o caminho feliz sem aceitar falha de "
+        "recurso. Use `ocr_produziu_texto_ou_declarou_recurso` (scan puro) ou "
+        "confira `documentos_para_ocr` (PDF misto), senão a suíte mede a janela "
+        "de memória outra vez: " + ", ".join(faltando)
     )

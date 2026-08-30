@@ -60,7 +60,7 @@ from .reconciliar import reconciliar
 from .cli import LIMITE_CHUNKS_PADRAO as LIMITE_CHUNKS_PADRAO
 from .cli import LIMITE_TEXTO_MB_PADRAO as LIMITE_TEXTO_MB_PADRAO
 from .cli import _extensoes, _limites_efetivos, construir_parser
-from .repesca import STATUS_PARA_REPESCAR as STATUS_PARA_REPESCAR
+from .repesca import STATUS_PARA_REPESCAR as STATUS_PARA_REPESCAR, preservar_no_erro_de_ocr
 from .repesca import _AlvoDoMapa, _parser_gravado, _precisa_indexar, _venenoso
 from .resultado import PedidoDeParada as PedidoDeParada
 from .resultado import Progresso
@@ -1161,13 +1161,11 @@ def indexar(
                         ocr=True,
                     )
                     crono_ocr.marcar("parse")
-                    aplicar(
-                        root,
-                        arquivo,
-                        store.estado_documento(rel),
-                        resultado,
-                        crono_ocr,
-                    )
+                    estado_antes = store.estado_documento(rel)
+                    if preservar_no_erro_de_ocr(store, progresso, rel, estado_antes, resultado):
+                        log.warning("OCR falhou em %s; o texto já indexado fica", rel)
+                        continue
+                    aplicar(root, arquivo, estado_antes, resultado, crono_ocr)
 
         if dois_passes and not progresso.interrompido:
             for path_rel in store.pendentes_de_modelo(embedder.model_id):

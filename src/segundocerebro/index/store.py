@@ -32,6 +32,12 @@ import numpy as np
 
 from ..ingest.chunking import Chunk
 from ..logger import get_logger
+from .quarentena import (
+    BACKOFF_QUARENTENA_S as BACKOFF_QUARENTENA_S,
+    MAX_TENTATIVAS_QUARENTENA as MAX_TENTATIVAS_QUARENTENA,
+    ItemQuarentena as ItemQuarentena,
+    aposentado,
+)
 from .travas import NOME_DA_TRAVA as NOME_DA_TRAVA  # reexport: ver o comentário abaixo
 
 log = get_logger("index.store")
@@ -288,23 +294,6 @@ class Acerto:
     id: str
     score: float
     posicao: int
-
-
-MAX_TENTATIVAS_QUARENTENA = 2
-"""First failure plus one retry after backoff. A third try waits for the bytes to change."""
-
-BACKOFF_QUARENTENA_S = 3600.0
-"""One hour, then two. Tests shorten this; a wave of days must not spin on the same PDF."""
-
-
-@dataclass(frozen=True)
-class ItemQuarentena:
-    path: str
-    hash: str
-    motivo: str
-    tentativas: int
-    ultima_tentativa: str
-    proxima_tentativa: str
 
 
 class Store:
@@ -586,7 +575,11 @@ class Store:
 
         lista = ", ".join(colunas)
         marcas = ", ".join("?" * len(colunas))
-        atualiza = ", ".join(f"{c}=excluded.{c}" for c in colunas)
+        # Sem natureza, preserva a gravada: o filho que morre por recurso devolve
+        # `ParseResult` sem ela, o UPDATE zerava `digitalizado`, e o scan saía da
+        # fila de OCR em silêncio (30/08/2026).
+        origem = "excluded" if natureza is not None else "documentos"
+        atualiza = ", ".join(f"{c}={origem}.{c}" for c in colunas)
         self.con.execute(
             f"""
             INSERT INTO documentos
@@ -688,6 +681,11 @@ class Store:
 
         A different hash means the bytes changed — do not skip, and drop the row
         so the next failure starts the count again.
+
+        **Falha de recurso não aposenta** (30/08/2026): o teto é política de
+        *arquivo podre*, e falha de ambiente é transitória — aposentar por ela
+        tira o documento do acervo até alguém editá-lo. `MOTIVO_RECURSO` era
+        escrito e nunca lido; agora é, e recurso só respeita o backoff.
         """
         item = self.quarentena_de(path)
         if item is None:
@@ -699,12 +697,12 @@ class Store:
         try:
             proxima = datetime.fromisoformat(item.proxima_tentativa)
         except ValueError:
-            return item.tentativas >= MAX_TENTATIVAS_QUARENTENA
+            return aposentado(item)
         if proxima.tzinfo is None:
             proxima = proxima.replace(tzinfo=timezone.utc)
         if instante.tzinfo is None:
             instante = instante.replace(tzinfo=timezone.utc)
-        if item.tentativas >= MAX_TENTATIVAS_QUARENTENA:
+        if aposentado(item):
             return True
         return instante < proxima
 

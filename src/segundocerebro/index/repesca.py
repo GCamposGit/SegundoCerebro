@@ -102,3 +102,23 @@ def _venenoso(resultado: ParseResult) -> bool:
     if "timeout" in detalhe or "subprocesso morreu" in detalhe:
         return True
     return deve_isolar(resultado.path)
+
+
+def preservar_no_erro_de_ocr(store, progresso, rel: str, estado, resultado: ParseResult) -> bool:  # noqa: ANN001
+    """A fase de OCR falhou num documento que já tinha texto? Então nada se apaga.
+
+    `True` quando o chamador deve **pular** o `aplicar` — e é o ponto do
+    conserto (30/08/2026). A fase de OCR reparseia o que já está indexado, e
+    `aplicar` faz `remover_documento` antes de regravar: falhar ali apagava
+    chunks **e vetores** que as ondas de texto tinham produzido. O documento
+    saía do acervo por causa de uma segunda passada que era só um bônus.
+
+    A quarentena entra, para a próxima tentativa saber o que houve; o estado de
+    antes fica de pé. Documento sem chunk nenhum segue o caminho normal — ali
+    não há o que preservar.
+    """
+    if resultado.status is ParseStatus.OK or estado is None or estado.n_chunks <= 0:
+        return False
+    store.registrar_quarentena(rel, hash=estado.sha256 or "", motivo=resultado.detail)
+    progresso.quarentena += 1
+    return True

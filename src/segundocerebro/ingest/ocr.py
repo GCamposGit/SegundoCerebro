@@ -213,6 +213,26 @@ def _texto_de(imagem) -> str:  # noqa: ANN001
     return ""
 
 
+def _conferir_falhas_de_pagina(total: int, falharam: int, por_memoria: int) -> None:
+    """Todas as páginas sem memória é a janela; qualquer outra falha é a página.
+
+    Quem separa é o **tipo**, não o escopo. A primeira versão levantava sempre
+    que todas as páginas falhavam, e uma revisão mostrou que em N=1 isso confunde
+    "a janela apertou" com "esta única página é um scan corrompido" — e PDF
+    escaneado de uma página é comum. Com o tipo a ambiguidade some: página
+    corrompida levanta `ValueError` e vira página vazia, como sempre foi;
+    `MemoryError` é sintoma de recurso, e aí "tente com mais memória" é o
+    conselho certo mesmo com uma página só.
+
+    O escopo continua entrando, mas como **confiança**: uma página gorda no meio
+    de um scan que rodou não derruba o arquivo (30/08/2026).
+    """
+    if falharam:
+        log.warning("OCR falhou em %d de %d páginas deste PDF", falharam, total)
+    if total and falharam == total and por_memoria == falharam:
+        raise FalhaDeAmbiente(f"OCR ficou sem memória nas {falharam} páginas deste PDF")
+
+
 def ocr_pdf(dados: bytes, *, teto_mb: int | None = None) -> list[PaginaTexto] | None:
     """OCR pages that need it. `None` if no backend; empty if the engine saw nothing.
 
@@ -222,7 +242,7 @@ def ocr_pdf(dados: bytes, *, teto_mb: int | None = None) -> list[PaginaTexto] | 
     if backend_disponivel() is None:
         return None
     paginas: list[PaginaTexto] = []
-    falharam = 0
+    falharam = por_memoria = 0
     try:
         for i, imagem in _iter_rasters(dados, teto_mb=teto_mb):
             try:
@@ -233,6 +253,14 @@ def ocr_pdf(dados: bytes, *, teto_mb: int | None = None) -> list[PaginaTexto] | 
                 # pede 593 MB por si só, e isso é o documento, não a janela — era
                 # exatamente o que o `noqa` abaixo existe para tratar (30/08/2026).
                 raise
+            except MemoryError as exc:
+                # Falha de memória numa página é sintoma de recurso — e para uma
+                # página A0, que pede 593 MB a 72 dpi, "tente com mais memória"
+                # é o conselho **certo**. Contada à parte, ver abaixo.
+                log.warning("OCR sem memória na página %d: %s", i, exc)
+                texto = ""
+                falharam += 1
+                por_memoria += 1
             except Exception as exc:  # noqa: BLE001 — laço de onda: página de scan hostil não mata o OCR do arquivo
                 log.warning("OCR falhou na página %d: %s", i, exc)
                 texto = ""
@@ -250,10 +278,7 @@ def ocr_pdf(dados: bytes, *, teto_mb: int | None = None) -> list[PaginaTexto] | 
     except Exception as exc:  # noqa: BLE001 — a bad scan must not kill the wave
         log.warning("OCR não rasterizou o PDF: %s", exc)
         return None
-    if paginas and falharam == len(paginas):
-        # Todas as páginas falharam: aí sim é a janela, e não um scan hostil.
-        # Página a página o produto degrada como sempre degradou.
-        raise FalhaDeAmbiente(f"OCR falhou nas {falharam} páginas deste PDF")
+    _conferir_falhas_de_pagina(len(paginas), falharam, por_memoria)
     return paginas
 
 

@@ -513,6 +513,57 @@ def test_no_checkout_o_pythonpath_continua(monkeypatch, tmp_path):
     assert entrada["env"]["PYTHONPATH"] == str(registrar.RAIZ / "src")
 
 
+def _chaves_do_dicionario(arvore, nome: str) -> set[str]:  # noqa: ANN001
+    """As chaves de `nome = dict(a=..., b=...)`, para seguir um `**nome`."""
+    import ast as _ast
+
+    achadas: set[str] = set()
+    for no in _ast.walk(arvore):
+        if not isinstance(no, _ast.Assign) or len(no.targets) != 1:
+            continue
+        alvo = no.targets[0]
+        if not (isinstance(alvo, _ast.Name) and alvo.id == nome):
+            continue
+        if isinstance(no.value, _ast.Call) and getattr(no.value.func, "id", "") == "dict":
+            achadas |= {k.arg for k in no.value.keywords if k.arg}
+        elif isinstance(no.value, _ast.Dict):
+            achadas |= {c.value for c in no.value.keys if isinstance(c, _ast.Constant)}
+    return achadas
+
+
+ALVOS_DE_REGISTRO = ("entrada_de", "trecho", "gravar_em")
+
+
+def registros_sem_config(fonte: str) -> list[int]:
+    """As linhas que chamam um registro com `absoluto=` e sem `config=`.
+
+    Função pura, e é o ponto: o teste que varre `src/` e a prova em caso isolado
+    chamam **esta**, não duas cópias da mesma lógica.
+
+    Ela segue `**nome` até o dicionário que o define. Sem isso ficava cega nos
+    dois sítios da CLI — cegueira que o refactor `comum = dict(...)` do próprio
+    conserto introduziu, e que uma revisão de 30/08/2026 achou.
+    """
+    import ast as _ast
+
+    arvore = _ast.parse(fonte)
+    faltas: list[int] = []
+    for no in _ast.walk(arvore):
+        if not isinstance(no, _ast.Call) or not isinstance(no.func, _ast.Name):
+            continue
+        if no.func.id not in ALVOS_DE_REGISTRO:
+            continue
+        nomeados = {k.arg for k in no.keywords if k.arg}
+        for estrela in (k.value for k in no.keywords if k.arg is None):
+            if isinstance(estrela, _ast.Name):
+                nomeados |= _chaves_do_dicionario(arvore, estrela.id)
+            else:
+                faltas.append(no.lineno)  # espalhamento que não sei ler
+        if "absoluto" in nomeados and "config" not in nomeados:
+            faltas.append(no.lineno)
+    return faltas
+
+
 def test_todo_registro_absoluto_declara_o_config() -> None:
     """Quem pede `absoluto=True` tem de dizer **qual** config — varredura de AST.
 
@@ -524,24 +575,33 @@ def test_todo_registro_absoluto_declara_o_config() -> None:
     Sem `config=`, `entrada_de` cai em `RAIZ/config.toml` e `cwd=RAIZ` — que para
     quem instalou por `pip` apontam para dentro do `site-packages`.
     """
-    import ast
-
     RAIZ_REPO = Path(__file__).resolve().parent.parent
-    ALVOS = {"entrada_de", "trecho", "gravar_em"}
     faltas: list[str] = []
     for arquivo in sorted((RAIZ_REPO / "src").rglob("*.py")):
-        arvore = ast.parse(arquivo.read_text(encoding="utf-8"), filename=str(arquivo))
-        for no in ast.walk(arvore):
-            if not isinstance(no, ast.Call) or not isinstance(no.func, ast.Name):
-                continue
-            if no.func.id not in ALVOS:
-                continue
-            nomeados = {k.arg for k in no.keywords if k.arg}
-            if "absoluto" in nomeados and "config" not in nomeados:
-                rel = arquivo.relative_to(RAIZ_REPO).as_posix()
-                faltas.append(f"{rel}:{no.lineno} chama {no.func.id}(absoluto=…) sem config=")
+        for linha in registros_sem_config(arquivo.read_text(encoding="utf-8")):
+            rel = arquivo.relative_to(RAIZ_REPO).as_posix()
+            faltas.append(f"{rel}:{linha} chama registro com absoluto= e sem config=")
     assert not faltas, (
         "registro absoluto sem o config do usuário:\n  "
         + "\n  ".join(faltas)
         + "\n\nSem `config=` o caminho gravado é o do repositório (F6)."
     )
+
+
+def test_a_guarda_de_registro_reprova_contra_caso_isolado() -> None:
+    """Prova que chama a **guarda real**, e não uma cópia dela.
+
+    A revisão de 30/08/2026 apontou que as provas "contra caso isolado" desta
+    passada reimplementavam a lógica dentro do teste: duas cópias que concordam
+    hoje e podem divergir amanhã — a mesma classe de *lista e prova escritas
+    pela mesma cabeça*. Aqui a prova alimenta `registros_sem_config`, que é
+    exatamente o que o teste acima executa.
+    """
+    assert registros_sem_config("trecho(bases, absoluto=True)")
+    assert not registros_sem_config("trecho(bases, absoluto=True, config=c)")
+    assert not registros_sem_config("comum = dict(absoluto=True, config=c)\ntrecho(b, **comum)")
+    assert registros_sem_config("comum = dict(absoluto=True)\ntrecho(b, **comum)"), (
+        "o `**` sem `config` no dicionário passou — é a cegueira que o refactor "
+        "`comum = dict(...)` introduziu nos dois sítios da CLI"
+    )
+    assert not registros_sem_config("trecho(bases, nomear=True)")
