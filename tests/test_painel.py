@@ -1021,7 +1021,7 @@ def test_o_painel_nao_carrega_o_encoder_so_para_abrir() -> None:
         "'segundocerebro.index.watcher','segundocerebro.index.embeddings',"
         "'segundocerebro.retrieve.hybrid') if m in sys.modules))"
     )
-    proc = subprocess.run(
+    proc = subprocess.run(  # noqa: S603 — argv fixo, `codigo` é literal deste arquivo
         [sys.executable, "-c", codigo], capture_output=True, text=True, check=False
     )
     assert proc.returncode == 0, proc.stderr

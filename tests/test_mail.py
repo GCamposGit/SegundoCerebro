@@ -38,7 +38,7 @@ from segundocerebro.ingest.reader import parse_file
 
 # `tests/` não é pacote (não tem `__init__.py`), então o diretório do próprio
 # arquivo é o que entra no `sys.path` — o import é direto, sem `tests.`.
-from cfb import escrever_cfb, filetime, msg_de  # noqa: E402
+from cfb import escrever_cfb, filetime, msg_de
 
 # --- MIME / .eml -------------------------------------------------------------
 

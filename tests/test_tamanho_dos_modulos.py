@@ -38,9 +38,9 @@ ACIMA_DO_TETO: dict[str, int] = {
     "index/store.py": 1274,
     "config.py": 1093,
     "painel/app.py": 1025,
-    "census.py": 974,
+    "census.py": 978,
     "index/calibracao.py": 931,
-    "ingest/parsers/sheets.py": 868,
+    "ingest/parsers/sheets.py": 870,
     "index/estimativa.py": 692,
     "retrieve/hybrid.py": 618,
 }
@@ -48,7 +48,13 @@ ACIMA_DO_TETO: dict[str, int] = {
 
 `indexer.py` chegou aqui com 1.753 e saiu da passada com 1.368: `cli.py`,
 `trava.py`, `repesca.py`, `resultado.py` e `travas.py` saíram dele. O resto
-espera o `Q16`."""
+espera o `Q16`.
+
+`census.py` (974 → 978) e `sheets.py` (868 → 870) subiram no mesmo dia, e o
+teste os pegou: são as três linhas de `# noqa: DTZ00x` com o motivo da hora
+local escrito ao lado. Subir o degrau porque a linha nova é justificada é o uso
+certo da tabela; subi-lo porque o arquivo cresceu de novo não é, e é essa
+diferença que a mensagem de falha obriga alguém a escrever."""
 
 FUNCOES_ACIMA_DO_TETO: dict[str, int] = {
     "index/indexer.py::indexar": 1042,
@@ -71,7 +77,7 @@ FUNCOES_ACIMA_DO_TETO: dict[str, int] = {
     "census.py::iter_files": 73,
     "ingest/parsers/sheets.py::_emitir_linhas_de_aba": 73,
     "index/esforco.py::aplicar": 71,
-    "ingest/converters/libreoffice.py::converter": 69,
+    "ingest/converters/libreoffice.py::converter": 72,
     "index/isolamento.py::_limitar_ram_windows": 68,
     "index/smoke_cuda.py::_smoke_rerank": 67,
     "ingest/parsers/text.py::blocos_de_markdown": 64,

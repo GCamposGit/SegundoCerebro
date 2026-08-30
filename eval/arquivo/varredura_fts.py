@@ -1,6 +1,6 @@
 """Varredura dos pesos de coluna do bm25 — `C3.a`, a primeira coisa da onda 2.
 
-    py -m eval.varredura_fts --base padrao --out docs/metricas-c3a-pesos-fts.md
+    py -m eval.arquivo.varredura_fts --base padrao --out docs/metricas-c3a-pesos-fts.md
 
 **A pergunta.** Hoje o nome do arquivo pontua **duas vezes**: dentro do bm25,
 pela coluna `caminho` do FTS5 com peso 1,0, e de novo na fusão, pelo
@@ -39,9 +39,9 @@ from pathlib import Path
 from segundocerebro.logger import get_logger
 from segundocerebro.retrieve.hybrid import BuscaHibrida
 
-from .fonte import ESCRITORIO, REUNIAO
-from .idioma import CROSS_LINGUAL, MESMA_LINGUA
-from .harness import (
+from ..fonte import ESCRITORIO, REUNIAO
+from ..idioma import CROSS_LINGUAL, MESMA_LINGUA
+from ..harness import (
     GOLDEN,
     K_MRR,
     Resultado,
@@ -52,7 +52,7 @@ from .harness import (
     resolver_dourado,
     verificar_escopo,
 )
-from .memo import MemoDeBusca
+from ..memo import MemoDeBusca
 
 log = get_logger("eval.varredura_fts")
 

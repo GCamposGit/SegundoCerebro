@@ -294,7 +294,7 @@ def conferir_indexacao(diretorios: Sequence[Path]) -> None:
         "indexação viva em "
         + ", ".join(str(d) for d in vivos)
         + " — o smoke do C5.a não compete com o acervo real. "
-        "Rode `py -m eval.custo_miracl` (semente, sem GPU) ou espere a trava."
+        "Rode `py -m eval.arquivo.custo_miracl` (semente, sem GPU) ou espere a trava."
     )
 
 

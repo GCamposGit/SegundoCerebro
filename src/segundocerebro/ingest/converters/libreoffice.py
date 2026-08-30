@@ -76,7 +76,7 @@ def _matar(proc: subprocess.Popen) -> None:
     if proc.poll() is not None:
         return
     if os.name == "nt":
-        subprocess.run(
+        subprocess.run(  # noqa: S603 — argv fixo, o único argumento é um PID nosso
             ["taskkill", "/F", "/T", "/PID", str(proc.pid)],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
@@ -134,7 +134,10 @@ def converter(
             str(saida_dir),
             str(entrada),
         ]
-        proc = subprocess.Popen(
+        # noqa S603: lista de argumentos, nunca shell. O caminho do documento entra
+        # como argv e não é interpretado — é o que impede que um nome de arquivo
+        # hostil vire comando.
+        proc = subprocess.Popen(  # noqa: S603
             cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,

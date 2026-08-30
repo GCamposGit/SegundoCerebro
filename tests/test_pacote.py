@@ -98,7 +98,7 @@ def test_script_mcp_help_sem_pythonpath() -> None:
         "É o degrau que o leigo precisa; a suíte do CI instala o pacote."
     )
     cwd = SYSTEM32 if SYSTEM32.is_dir() else Path(sys.executable).anchor
-    proc = subprocess.run(
+    proc = subprocess.run(  # noqa: S603 — console script instalado, argv fixo
         [str(alvo), "--help"],
         cwd=str(cwd),
         env=_env_sem_pythonpath(),

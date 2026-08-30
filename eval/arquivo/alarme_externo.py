@@ -13,7 +13,7 @@ import argparse
 from dataclasses import dataclass
 from pathlib import Path
 
-from eval.custo_miracl import (
+from eval.arquivo.custo_miracl import (
     ADOTAR,
     DESCARTAR,
     MOTIVO_CABE,
