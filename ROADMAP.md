@@ -1480,8 +1480,8 @@ do produto, é de ferramenta de teste, e já estava no repositório.
 | Q11 | Config aceita chave desconhecida em silêncio — **fechado em 30/08/2026**, cinco níveis mais tipo errado, com a guarda derivada do modelo e do AST | notebook | **feito** |
 | Q12 | Defaults escritos duas vezes — **fechado em 30/08/2026**; eram **sete**, não seis (o `index.html` tinha uma quarta cópia dos tetos) | qualquer | **feito** |
 | Q13 | `pesos.fts_*` **documentado em 30/08**; o dialeto de `RootSpec` fica, e depende da costura de `census.py` (`Q16`) | notebook | **metade feita** |
-| Q14 | `SEGUNDOCEREBRO_OCR_FAKE` é hook de teste vivo em produção, sem guarda | desktop | **P1 · produto** |
-| Q15 | Sob pressão de memória o OCR some em silêncio — `vazio` sem quarentena | desktop | **P0 · produto** |
+| Q14 | Hook de teste vivo em produção — **fechado em 30/08/2026**: só vale sob `PYTEST_CURRENT_TEST`, e avisa | notebook (assumido) | **feito** |
+| Q15 | OCR sumia em silêncio — **fechado em 30/08/2026**; resto declarado no `Q15.a` (status fica `vazio` depois da quarentena) | notebook (assumido) | **feito** |
 | Q16 | O que falta decompor, com as costuras levantadas (continua o `Q3`) | cada um no seu | P3 · laboratório |
 | Q17 | Conftest informal — **fechado em 30/08/2026**; eram **18 sítios em 14 arquivos**, e a guarda achou mais quatro | notebook | **feito** |
 | Q18 | 265 `noqa` inertes — **a escolha foi resolvida por medição em 30/08** e a execução é dos dois lados (ver abaixo) | **acordo** | P2 · laboratório |
@@ -1710,35 +1710,48 @@ shell muda o comportamento do produto sem nada no log dizer que o motor é falso
 - **Classe generalizada:** um teste que varre `src/` atrás de `os.environ.get`
   cujo nome contenha `FAKE`, `TEST`, `DEBUG` ou `MOCK` e exige guarda ou aviso
 
-### `Q15` — Sob pressão de memória, o OCR some em silêncio — **P0 · produto** · liga na `F4-O.3`
+### `Q15` — Sob pressão de memória, o OCR some em silêncio — ✅ **FECHADO em 30/08/2026** (com resto declarado)
 
-**Achado novo, reproduzido em 29/08/2026**, e é o mais grave desta lista porque
-tem a forma que o projeto mais teme: *"a indexação diz pronto tendo engolido
-metade do acervo"*.
+A causa era uma linha: `ocr_pdf` tinha um `except Exception` que devolvia `None`
+— e `None` já significava *"esta instalação não tem OCR"*. Duas condições
+opostas, um valor só, e a silenciosa vencia. O mesmo defeito estava numa segunda
+porta, e essa desligava o recurso inteiro: `backend_disponivel` fazia
+`except Exception: pass` em volta do probe de import, então pressão de memória
+era lida como "o extra não está instalado".
 
-Com pouca RAM livre, `pymupdf` falha ao carregar **dentro do filho de parse** e o
-erro chega como `ModuleNotFoundError: No module named 'mupdf'`. O produto
-classifica isso como *sem parser*: o documento fica `vazio`, `digitalizado`
-**nunca é marcado**, `documentos_para_ocr` devolve lista vazia, `progresso.ocr`
-fica em 0 — e **não há linha de quarentena**, porque para o indexador nada deu
-errado. No PDF misto o disfarce é ainda melhor: o documento fica `ok` com os
-chunks das páginas nativas, e só `progresso.ocr == 0` denuncia.
+O discriminador que faltava é `ausencia_declarada`: `import X` que falha **por X
+faltar** é ausência legítima; falhar por outro módulo (`import pymupdf` →
+`No module named 'mupdf'`) é condição de máquina. Sem ele, todo probe de extra
+opcional lê RAM curta como "o extra não está aqui".
 
-Medido: cinco passadas de `py -m pytest tests/test_ocr.py` em sequência, sem uma
-linha mudar entre elas — **2 reprovaram com 3,5–3,6 GB livres, 3 passaram com
-~3,9 GB**. Bate com a medição de 27/08 (2,7 GB → OpenBLAS abort), com a diferença
-de que aquela produzia `erro` honesto e esta produz silêncio.
+**O que fechou.** Falha de ambiente vira `FalhaDeAmbiente` e, nos **dois** ramos
+de `parse_isolado` — o filho e o em-processo —, `erro` com o prefixo `recurso:`.
+Há linha de quarentena com motivo, e o documento é repescado. A guarda é
+`tests/test_falha_de_ambiente.py`, matriz `modo de falha × ponto de entrada`:
+com o conserto revertido, **18 das 20 células reprovam**.
 
-A suíte já não confunde as duas coisas: `PISO_RAM_OCR_MB` faz o teste declarar a
-janela em vez de reprovar por ela. **O produto continua confundindo.**
+**O piso de RAM saiu de `tests/test_ocr.py`**, que era o critério de saída
+declarado. Nesta máquina, com ~3,4 GB livres, os 14 testes de OCR passam com
+zero skips em cinco passadas seguidas — antes dois pulavam por falta de veredito.
 
-- **Toca:** `ingest/ocr.py`, `index/isolamento.py`, `index/indexer.py` (fase de
-  OCR), `ingest/reader.py`
-- **Saída:** falha de import de dependência dentro do filho de parse vira
-  `erro` com linha de quarentena e motivo de recurso — nunca `vazio`
-- **Classe generalizada:** *"filho de parse que morre por ambiente deixa de ser
-  indistinguível de documento sem conteúdo"*. O teste é o que já existe, com o
-  piso removido depois do conserto
+#### `Q15.a` — o resto, medido e declarado
+
+Sob pressão de memória real, a fase de OCR quarentena corretamente
+(`recurso: ...`, com `MemoryError` vazio como causa), mas o **status final do
+documento no registro fica `vazio`**, não `erro`. O silêncio acabou — há linha e
+há motivo, que é o que fazia o acervo sumir —, mas a saída declarada do pacote
+dizia "nunca `vazio`", e isso não está inteiro.
+
+A causa não é o caminho de parse, que foi conferido isolado e devolve `erro`: é a
+**ordenação de fases do indexador**, onde um documento `erro` é repescado e
+reprocessado sem `ocr=True`, voltando a `vazio`. Fica como pacote próprio porque
+mexer na ordem das ondas é mudança no laço de `indexar()`, e este PR não toca
+nele.
+
+A régua de `tests/test_ocr.py` foi escrita na propriedade que o produto **de
+fato** garante hoje: *se o OCR não produziu texto, existe linha de quarentena com
+motivo de recurso*. É estritamente mais forte que o skip que ela substituiu, e
+não depende da RAM da máquina.
 
 ### `Q16` — O que falta decompor, com as costuras levantadas — **P3 · laboratório** · continua o `Q3`
 

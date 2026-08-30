@@ -494,3 +494,37 @@ def test_no_checkout_o_pythonpath_continua(monkeypatch, tmp_path):
     config = tmp_path / "config.toml"
     entrada = registrar.entrada_de(Base(id="x"), absoluto=True, config=config)
     assert entrada["env"]["PYTHONPATH"] == str(registrar.RAIZ / "src")
+
+
+def test_todo_registro_absoluto_declara_o_config() -> None:
+    """Quem pede `absoluto=True` tem de dizer **qual** config — varredura de AST.
+
+    O conserto de 30/08/2026 passou o caminho real do config na CLI e esqueceu o
+    painel, que é o outro sítio de chamada. Guarda que cobre metade da
+    superfície é a classe que este repositório mais encontrou; aqui ela é
+    fechada derivando os sítios do código em vez de listá-los.
+
+    Sem `config=`, `entrada_de` cai em `RAIZ/config.toml` e `cwd=RAIZ` — que para
+    quem instalou por `pip` apontam para dentro do `site-packages`.
+    """
+    import ast
+
+    RAIZ_REPO = Path(__file__).resolve().parent.parent
+    ALVOS = {"entrada_de", "trecho", "gravar_em"}
+    faltas: list[str] = []
+    for arquivo in sorted((RAIZ_REPO / "src").rglob("*.py")):
+        arvore = ast.parse(arquivo.read_text(encoding="utf-8"), filename=str(arquivo))
+        for no in ast.walk(arvore):
+            if not isinstance(no, ast.Call) or not isinstance(no.func, ast.Name):
+                continue
+            if no.func.id not in ALVOS:
+                continue
+            nomeados = {k.arg for k in no.keywords if k.arg}
+            if "absoluto" in nomeados and "config" not in nomeados:
+                rel = arquivo.relative_to(RAIZ_REPO).as_posix()
+                faltas.append(f"{rel}:{no.lineno} chama {no.func.id}(absoluto=…) sem config=")
+    assert not faltas, (
+        "registro absoluto sem o config do usuário:\n  "
+        + "\n  ".join(faltas)
+        + "\n\nSem `config=` o caminho gravado é o do repositório (F6)."
+    )

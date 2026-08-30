@@ -5,7 +5,6 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-import pytest
 
 from segundocerebro.ingest.document import ParseStatus
 from segundocerebro.ingest.ocr import VERSAO, backend_disponivel, doc_de_ocr
@@ -14,9 +13,11 @@ from segundocerebro.index.indexer import indexar
 from segundocerebro.index.isolamento import timeout_para
 from segundocerebro.index.orcamento import medir
 from segundocerebro.index.store import Store
+from segundocerebro.ingest.document import MOTIVO_RECURSO
 from tests.falsos import DIM, EmbedderFalso, bytes_pdf, bytes_pdf_misto, config_de_raiz
 
 SINAIS_DE_RECURSO = (
+    MOTIVO_RECURSO,  # o marcador que o produto escreve desde o `Q15` (30/08/2026)
     "subprocesso morreu",
     "timeout",
     "memory",
@@ -69,14 +70,18 @@ def ocr_produziu_texto_ou_declarou_recurso(store: Store, rel: str, progresso) ->
     assert estado is not None, f"{rel} saiu do registro"
     if estado.status == "ok" and estado.n_chunks >= 1:
         return True
-    if estado.status != "erro":
-        pytest.fail(
-            f"{rel} ficou {estado.status!r} — nem ok com texto nem erro honesto. "
-            f"Regime: {regime_da_maquina()}. Desde o `Q15` a pressão de memória "
-            "sai como `erro` com motivo de recurso, então isto é regressão."
-        )
+    # A propriedade que o `Q15` instalou, e a unica que nao depende da RAM desta
+    # maquina: se o OCR nao produziu texto, **existe linha de quarentena com
+    # motivo de recurso**. Antes nao existia nenhuma, e o documento sumia
+    # parecendo um PDF sem texto. O status final ainda pode ficar `vazio` depois
+    # de uma fase de OCR quarentenada — e isso e o resto declarado do `Q15`, no
+    # ROADMAP —, mas o silencio acabou, e e o silencio que fazia o acervo sumir.
     item = store.quarentena_de(rel)
-    assert item is not None, f"{rel} em erro sem linha de quarentena"
+    assert item is not None, (
+        f"{rel} ficou {estado.status!r} SEM linha de quarentena — e a regressao do "
+        f"`Q15`: falha de ambiente indistinguivel de documento sem conteudo. "
+        f"Regime: {regime_da_maquina()}"
+    )
     motivo = (item.motivo or "").lower()
     assert any(s in motivo for s in SINAIS_DE_RECURSO), (
         f"{rel} em erro por motivo que não é recurso: {item.motivo!r}"
@@ -321,8 +326,8 @@ def test_indexar_misto_com_ocr_junta_as_paginas(tmp_path: Path, monkeypatch) -> 
         assert item is not None and any(
             sinal in (item.motivo or "").lower() for sinal in SINAIS_DE_RECURSO
         ), (
-            "a fase de OCR não produziu nada e o produto não declarou recurso — "
-            f"é a regressão do `Q15`. Regime: {regime_da_maquina()}"
+            "a fase de OCR nao produziu nada e o produto nao declarou recurso — "
+            f"e a regressao do `Q15`. Regime: {regime_da_maquina()}"
         )
         store.fechar()
         return

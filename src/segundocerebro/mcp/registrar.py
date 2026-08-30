@@ -275,6 +275,7 @@ def ativar(base: Any, *, conf: Any, destino: Path | None = None) -> Path:
         absoluto=False,
         python=python_do_projeto(relativo=True),
         extra_env=extra_env_hardware(conf, existente),
+        config=getattr(conf, "caminho", None),
     )
     log.info(
         "MCP da base '%s' em %s: %s",
