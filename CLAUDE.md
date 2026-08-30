@@ -237,6 +237,24 @@ a evidência datada em [`docs/historico-decisoes.md`](docs/historico-decisoes.md
   reporta um **par** — 3,3% de piso e 38,5% de teto — e a leitura honesta fica
   entre os dois. Não é o mesmo defeito de "número sem corpus": é número **com**
   corpus e **sem** denominador.
+- **Conserto de silêncio pode ser pior que o silêncio.** Ao fazer a falha de
+  OCR subir, o PDF misto passou de `ok` com texto nativo para `erro` sem nada —
+  e `remover_documento` apaga chunks **e vetores já gravados**, com a quarentena
+  aposentando o documento na segunda tentativa. Perder texto indexado é pior que
+  não ganhar o do scan. A regra: **passada tardia que falha nunca apaga o
+  resultado da anterior**, e o documento volta para a fila em vez de sair dela.
+- **A mesma exceção é do documento numa camada e da máquina noutra.**
+  `MemoryError` numa página A0 é o documento (593 MB a 72 dpi, por si só);
+  `MemoryError` em todas as páginas é a janela. `ImportError` é sempre a
+  máquina. Classificar pela exceção sozinha erra; o que classifica é **em que
+  escopo ela se repete**.
+- **Prova de guarda contra o arquivo real passa por acidente — sempre.** Três
+  guardas escritas num dia passaram contra `src/` e falharam contra um caso
+  isolado de duas linhas: a de hook aceitava qualquer `log.warning` no arquivo,
+  a de `PYTHONPATH` não via texto gerado, e a de raiz do repositório comparava
+  contra `json.dumps`, que **dobra as contrabarras do Windows** e nunca casava.
+  Toda guarda nova entra com um teste sintético ao lado, onde o caso é a única
+  coisa no arquivo.
 - **Um valor de retorno com dois significados é um silêncio esperando
   acontecer.** `ocr_pdf` devolvia `None` para *"esta instalação não tem OCR"* e
   para *"o `pymupdf` não carregou agora"*. Condições opostas — uma é um no-op

@@ -820,13 +820,24 @@ privada do desktop **não** trava nenhum destes:
 | F4-S | SharePoint = pasta sincronizada, só política e tela | notebook | 6 | **sim** |
 | R6.2+C4.2 · R7.1 · R7.2+C6.a · R6.3 | Rerank v2 · tools · descriptions · tempo/pasta | notebook | 7 | — |
 | F6-B / R8.2 | Primeira base sem terminal, MCPB, com a UX de C1 | quem não estiver no painel | 8 | depois de F6-A |
+| **J.b1** | `doc_id` público por conteúdo, índice em `documentos.sha256`, URI `sc://`, regra de preferência entre os **223 caminhos duplicados** | notebook | **1** | **sim** — a coluna já existe, não espera o store |
+| **J.c-mapa** | `outline` + `list_folder`, servidos do registro (`chunks.trilha`/`locator`/`ordinal` + `documentos` + `quarentena`) | notebook | **1** | **sim** — nasce em `mcp/leitura.py`, não em `server.py` |
+| **J.a · J.f** | Parse Store canônico + indexador lendo dele (rebuild ≥80% mais barato) | desktop, **ou notebook se o crédito não voltar** | **1** | **sim, e antes da onda 5** — é ela que paga o store |
+| **J.b2 · J.c-conteúdo** | Sidecar com offsets + `get_document` paginado por cursor | notebook | 2 | depois do `J.a` — **não** sai dos chunks (+11,1% de sobreposição) |
+| **J.d** | `pack_folder` manifest-first, corte em fronteira de documento | notebook | 3 | depois do `J.c`; depende de `familias.py`, **não** de `R1.3` |
+| **J.e** | Exportador de vault Markdown (Obsidian) como *view* one-way | qualquer | 4 | depois do `J.b2`; menções e glossário já existem |
 | F4-D | Cobertura do dourado real | notebook | — | **reescopado**: piso de regressão e limitação declarada, não fila de perguntas |
 | R1.3 | Dedup e near-dup | — | — | **absorvido por C6** |
 | F5 | Segundo usuário, ACL | ninguém | — | gatilho: segundo usuário real |
 
 Os pacotes `R*` são de [`docs/dossie-melhorias.md`](docs/dossie-melhorias.md); a
 especificação de cada um mora lá, e as premissas conferidas estão na seção
-seguinte.
+seguinte. Os pacotes `J*` entraram em 30/08/2026 e são de
+[`docs/pacote-j-camada-acesso-corpus.md`](docs/pacote-j-camada-acesso-corpus.md),
+com a conferência contra o código em
+[`docs/plano-pacote-j.md`](docs/plano-pacote-j.md) — **ler a conferência antes da
+especificação**: cinco premissas dela não batem com esta base, e o `J.b`
+original virou dois subpacotes com dependências diferentes.
 
 **`R8.1.b` — o teste de pacote falha onde devia pular, e procura no lugar errado.**
 Levantado na revisão do [PR #14](https://github.com/GCamposGit/SegundoCerebro/pull/14)
@@ -1259,13 +1270,20 @@ interseção medida: 3 das 11 perguntas de reunião são cross-lingual.
 | **2** | ~~`C3.a`~~ (peso da coluna `caminho` — **fechado, refutado**) · `F4-P` (peso por tipo de fonte, teto medido de +0,020) · `C6` (família de versões ≠ grupo de formatos) · `R6.1` (autotune) | O ranking deixa de ter número global — e `C6` vem antes de `R1.3` |
 | **3** | `C7.a`+`C7.d` (fórmula sem cache, rota do CSV) · `R1.4` (quarentena) · `R5.2` (orçamento) · `R3.2` (dois passes) | Perda silenciosa de conteúdo e sobrevivência em máquina desconhecida |
 | **4** | `R4.1` (ANN) · `R3.3` (quantização) | Escala, contra a porta da onda 1 |
+| **4½** | `J.a`+`J.f` (Parse Store e o indexador lendo dele) | **Acrescentado em 30/08.** Tem de vir **antes** da onda 5: é ela que paga rebuild, e sem o store paga o parse duas vezes |
 | **5** | `R3.1`+`C4.1` (modelo, com fatia cross-lingual) · `R2.1` (contexto no chunk) · `C7.b`/`C7.c` (cartão de modelo) | Um rebuild coordenado paga os três primeiros |
 | **6** | `C2`+`C3.b–d` (glossário automático e reescrita lexical, mesmo ponto de código) · `F4-L`/`R1.1` · `F4-O`/`R1.2` · `F4-W`/`R5.1` · `F4-S` | Vocabulário do corpus e as décadas de acervo |
-| **7** | `R6.2`+`C4.2` (rerank v2, cross-lingual) · `R7.1`/`R7.2`+`C6.a` (tools, descriptions, `anteriores`) · `R6.3` | Precisão e agência |
+| **7** | `R6.2`+`C4.2` (rerank v2, cross-lingual) · `R7.1`/`R7.2`+`C6.a` (tools, descriptions, `anteriores`) · `R6.3` · `J.d` (`pack_folder`) · `J.e` (export vault) | Precisão e agência |
 | **8** | `R8.2`/`F6-B` (MCPB + wizard, com a UX de `C1`) | O produto |
 
 `R4.3`, `R6.4`, `R1.3` (absorvido por `C6`) e as anti-recomendações consolidadas
 da §11 do dossiê e do fim do complemento ficam **registrados e não feitos**.
+
+**Onda 1 ganhou dois itens em 30/08/2026**, e é a única alteração que o pacote J
+faz nesta tabela sem esperar nada: `J.b1` (o `doc_id` público) e `J.c-mapa`
+(`outline` e `list_folder`). Os dois saem do registro que já existe — a
+conferência que mostra isso é a seção *"O pacote J — camada de acesso ao corpus,
+conferido no código"*, mais abaixo.
 
 ### O que fica fora, e por quê
 
@@ -1737,21 +1755,34 @@ zero skips em cinco passadas seguidas — antes dois pulavam por falta de veredi
 #### `Q15.a` — o resto, medido e declarado
 
 Sob pressão de memória real, a fase de OCR quarentena corretamente
-(`recurso: ...`, com `MemoryError` vazio como causa), mas o **status final do
-documento no registro fica `vazio`**, não `erro`. O silêncio acabou — há linha e
-há motivo, que é o que fazia o acervo sumir —, mas a saída declarada do pacote
-dizia "nunca `vazio`", e isso não está inteiro.
+(`recurso: ...`), mas o **status final do documento no registro fica `vazio`**,
+não `erro`. O silêncio acabou — há linha e há motivo, que é o que fazia o acervo
+sumir —, mas a saída declarada dizia "nunca `vazio`", e isso não está inteiro.
 
-A causa não é o caminho de parse, que foi conferido isolado e devolve `erro`: é a
-**ordenação de fases do indexador**, onde um documento `erro` é repescado e
-reprocessado sem `ocr=True`, voltando a `vazio`. Fica como pacote próprio porque
-mexer na ordem das ondas é mudança no laço de `indexar()`, e este PR não toca
-nele.
+A causa não é o caminho de parse, conferido isolado: é a **ordenação de fases do
+indexador**, que repesca `erro` e reprocessa sem `ocr=True`. Fica como pacote
+próprio porque mexer na ordem das ondas é mudança no laço de `indexar()`.
 
-A régua de `tests/test_ocr.py` foi escrita na propriedade que o produto **de
-fato** garante hoje: *se o OCR não produziu texto, existe linha de quarentena com
-motivo de recurso*. É estritamente mais forte que o skip que ela substituiu, e
-não depende da RAM da máquina.
+#### O conserto do `Q15` estava pior que o defeito, e uma revisão pegou
+
+Registrado porque a lição é maior que o caso. A primeira versão re-levantava
+`MemoryError` de dentro do laço de páginas e deixava a falha subir mesmo quando
+havia texto nativo. Consequência medida:
+
+| | `main` | primeira versão do conserto |
+|---|---|---|
+| scan com uma página gorda no meio | 3 páginas, uma vazia | **arquivo inteiro perdido** |
+| PDF misto, OCR caindo por recurso | `ok`, com o texto nativo | **`erro`, zero blocos** |
+
+E `indexer.aplicar` chama `remover_documento`, que apaga chunks **e vetores já
+gravados**; com `MAX_TENTATIVAS_QUARENTENA = 2`, duas passadas com a máquina
+apertada aposentavam o documento até os bytes mudarem — sendo que falha de
+ambiente é, por definição, a transitória.
+
+**A regra que ficou:** o OCR é *segunda* passada, e a falha dela nunca pode
+apagar a primeira. Página que estoura volta a ser pulada; só quando **todas**
+falham é que o arquivo levanta. `MemoryError` numa página é o documento;
+`ImportError` é a máquina.
 
 ### `Q16` — O que falta decompor, com as costuras levantadas — **P3 · laboratório** · continua o `Q3`
 
@@ -1895,6 +1926,135 @@ causado mal-entendido.
 - **Classe generalizada:** um teste que resolve todo link markdown de arquivo
   **versionado** e reprova o que aponta para arquivo que o Git não tem. Link para
   arquivo local vira menção em texto, não link
+
+---
+
+## O pacote J — camada de acesso ao corpus, conferido no código
+
+> **Acrescentado em 30/08/2026 pelo notebook.** Documento recebido:
+> [`docs/pacote-j-camada-acesso-corpus.md`](docs/pacote-j-camada-acesso-corpus.md),
+> marcado *FINAL* e datado do mesmo dia. Ele pede, no próprio texto, o tratamento
+> que os dossiês `R1–R10` e `C1–C7` receberam: **mapear cada contrato para o
+> layout real vigente antes de criar arquivo**. A conferência inteira está em
+> [`docs/plano-pacote-j.md`](docs/plano-pacote-j.md); esta seção é o resumo e a
+> mudança de ordem. **Nenhuma linha de código foi escrita nesta passada.**
+
+### O requisito é novo, e nenhuma tool de hoje o serve
+
+O produto tem um modo de consumo: pergunta curta → top-k trechos → o cliente
+responde. O modo que o pacote J acrescenta é **ingestão integral dirigida por
+agente** — *"escreva um paper sobre o projeto X"* apontando para uma pasta com
+dezenas de arquivos, com citação confiável e sob orçamento de contexto.
+
+`search` devolve top-k por relevância; `read_note` devolve um trecho e sua
+janela. Nenhuma das duas **enumera, mapeia ou empacota**, e o agente que tenta
+hoje lê o que a busca escolher sem saber o que não viu. É a truncagem silenciosa
+outra vez, numa camada acima. Serve base desconhecida: **sim** — quem aponta o
+produto para uma pasta que nunca vimos quer, no primeiro dia, tanto perguntar
+quanto ler tudo.
+
+A peça que habilita os dois modos com um parse só é o **Parse Store**: a
+representação canônica persistida de cada documento, promovida de cache interno a
+camada de produto. Seis subpacotes, `J.a` a `J.f`.
+
+### O que já existe, e não se duplica
+
+Metade dos contratos sugeridos **já tem dono no código**, e a tabela inteira está
+na §2 do plano. Os que mais importam:
+
+- **`ParseCanonico.blocos[]` é `ingest/document.py::Block`** — `heading_path`,
+  `text`, `locator`, `kind`, já com trilha de headings e página/slide/aba. Existe
+  em memória e nunca foi persistido: o pacote J é a persistência, não o contrato.
+- **A política de canônicos é `retrieve/familias.py`**, que já existe, é por nome
+  de arquivo e é do notebook.
+- **A fonte dos wikilinks do `J.e`** é `retrieve/identificadores.py` + a tabela
+  `mencoes` + `glossario.py`. Falta a renderização, não o dado.
+- **`parser_version` existe** em `parsers/__init__.py::register(version=)` e na
+  coluna `documentos.parser`.
+
+Não existe em forma nenhuma: o store físico, o Markdown canônico, os offsets,
+`doc_id` público, a URI `sc://`, as quatro tools, o exportador e a dependência
+`zstd`.
+
+### Cinco coisas que a especificação assume e que foram medidas aqui
+
+| O pacote J assume | Medido em 30/08/2026 |
+|---|---|
+| `doc_id` derivado do hash cobre o acervo | **29 de 2.156 documentos (1,3%) não têm `sha256`** — 27 `sem_parser`, 2 `travado`. O portão de leitura recusa placeholder de nuvem **antes** de abrir, e `list_folder` promete `doc_id` justamente para o item `so_censo`. Ou o manifesto admite id nulo, ou o censo baixa o acervo |
+| "um conteúdo, N caminhos, um preferido" é refinamento | **223 de 2.127 paths (10,5%) são byte-idênticos a outro.** É 1 em 10, e hoje o "preferido" é a ordem de indexação — `path_ok_por_sha256` devolve o primeiro `ok` que o SQLite entregar. Para workflow repetível, isso é aleatoriedade com cara de determinismo |
+| `get_document` pode sair dos chunks já indexados | **Não pode.** Um bloco de 14.399 caracteres vira 9 chunks que somam 15.999 — **+11,1% de texto duplicado** pela sobreposição de 200 caracteres. O aceite do `J.c` (*"concatenação == .md canônico"*) falha por construção |
+| as quatro tools entram em `mcp/server.py` | **Não entram.** `construir` tem 148 linhas e já está em `FUNCOES_ACIMA_DO_TETO`, cuja tabela **só desce**. O `J.c` nasce em módulo próprio, ou o PR fica vermelho |
+| `J.d` depende de `R1.3` | `R1.3` está **absorvido por `C6`** desde 24/08 e a instrução vigente é *não implementar* — MinHash a 0,85 refaz a `g045`. A dependência real é `familias.py`, que já existe |
+
+E uma que não é medição, é leitura de invariante: **determinismo byte-a-byte não
+vale para três rotas de parse do produto** — LibreOffice, OCR e o recálculo de
+planilha passam por binário externo ou motor de ML. A chave da entrada tem de
+carregar a **versão do motor externo**, senão um upgrade de sistema deixa o cache
+servindo parse velho para sempre — e a mitigação que a especificação propõe
+(regra de PR no bump de `parser_version`) não dispara, porque ninguém commitou
+nada.
+
+### A mudança de ordem, e por que ela existe
+
+A especificação sugere **a → f → b → c → d → e**, tudo serializado atrás do
+store. A medição do `get_document` mostrou o contrário do que parecia: as tools
+de **conteúdo** precisam do store, mas as de **mapa** não.
+
+`outline` sai de `chunks.trilha` + `chunks.locator` + `ordinal`; `list_folder`
+sai de `documentos` + `census.py` + `quarentena` + `familias_de`. Tudo já existe
+e já está indexado. E `doc_id` sai de `documentos.sha256`, que é coluna de hoje —
+só falta o índice, que a tabela não tem.
+
+Por isso o `J.b` **divide**: `J.b1` (ids e URI, sem store) e `J.b2` (sidecar com
+offsets, com store). Duas frentes em paralelo em vez de uma fila:
+
+| Onda | Subpacote | Dono proposto |
+|---|---|---|
+| **1** | `J.b1` (ids, índice em `sha256`, URI) · `J.c-mapa` (`outline`, `list_folder`) | notebook — não espera ninguém |
+| **1** | `J.a` (store) · `J.f` (indexador lê do store) | desktop se houver crédito, senão notebook |
+| **2** | `J.b2` (sidecar) · `J.c-conteúdo` (`get_document`) | notebook |
+| **3** | `J.d` (`pack_folder`) | notebook |
+| **4** | `J.e` (export vault Markdown) | qualquer |
+
+**`J.a`+`J.f` entram antes da onda 5** (`R3.1`+`C4.1`+`R2.1`), que é o rebuild
+coordenado — é ela que paga o investimento do store, e fazer na ordem inversa é
+pagar o parse duas vezes.
+
+**A tabela de donos da especificação chega desatualizada:** `J.a`, `J.b` e `J.f`
+são dados ao desktop, e o desktop está sem créditos do Grok desde 30/08 — o
+notebook assumiu os pacotes dele por autorização explícita
+([`docs/colaboracao.md`](docs/colaboracao.md) §6). Ou os três também são do
+notebook, ou o P0 não anda.
+
+**Calendário, dito na cara:** seis subpacotes e uma dependência nova não cabem em
+dois dias. O que cabe e entrega valor sozinho é `J.b1` + `J.c-mapa` — enumerar e
+mapear é o que transforma "ler 50 arquivos" em plano viável para o agente, mesmo
+sem `pack_folder`.
+
+### O que o pacote J traz de novo para as regras daqui
+
+Duas coisas que valem além dele:
+
+- **Cursor explícito sempre** (§2.6 da especificação) é a lição da truncagem
+  silenciosa aplicada a uma superfície **antes** de o defeito acontecer. É a
+  primeira vez neste projeto que uma classe conhecida é fechada preventivamente.
+- **O Obsidian volta pela porta certa.** O `CLAUDE.md` registra que ele foi
+  deliberadamente não adotado, e isso continua valendo para a *entrada*: não há
+  vault, não há wikilink no acervo, o grafo é derivado. O `J.e` é **saída** — uma
+  view descartável, one-way, por comando explícito.
+
+### O que fica registrado e não feito
+
+- **MCP resources** como segunda superfície (a própria especificação marca
+  "opcional"): duas superfícies para o mesmo conteúdo é a anti-recomendação 5
+  aplicada ao transporte, e o ganho depende de cliente que não usamos.
+- **Sync bidirecional** com vault e **escrita de derivado dentro do acervo**:
+  anti-recomendações 1 e 2 do pacote, e invariante daqui antes disso.
+- **Síntese server-side** no `pack_folder`: invariante 2, sem discussão.
+
+**Ablação nula, obrigatória em todo PR do pacote J:** ele não toca ranking, e
+provar isso é o dourado antes/depois com **Δ exatamente zero** — não "dentro do
+IC". Δ diferente de zero significa que alguém mexeu no caminho de consulta.
 
 ---
 
