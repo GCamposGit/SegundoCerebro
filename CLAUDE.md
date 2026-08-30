@@ -112,6 +112,16 @@ o container OLE que mente sobre o próprio conteúdo.
 > ([`docs/ablacao-f4p1-nome-por-fonte.md`](docs/ablacao-f4p1-nome-por-fonte.md)).
 > **Não reabre com outra grade.**
 
+0. **`J.b1` e `J.c-mapa` — a camada de acesso ao corpus**, entrada de 30/08/2026
+   e o primeiro requisito **de produto** desta lista. O pacote J acrescenta um
+   segundo modo de consumo — *ingestão integral dirigida por agente*, o
+   "escreva um paper sobre esta pasta" — que nenhuma das três tools de hoje
+   serve. A especificação recebida é
+   [`docs/pacote-j-camada-acesso-corpus.md`](docs/pacote-j-camada-acesso-corpus.md);
+   **ler antes dela** a conferência contra o código,
+   [`docs/plano-pacote-j.md`](docs/plano-pacote-j.md), porque cinco premissas
+   medidas não batem com esta base. Os dois subpacotes acima não esperam nada:
+   saem do registro que já existe.
 1. **`F4-R.1` — o regime de máquina observável**, e é pré-requisito da passada de
    calibragem no acervo real: sem ele a `Calibracao` aprende coeficiente de dois
    regimes misturados (22× de diferença) com milhares de observações a favor.
@@ -310,7 +320,11 @@ Isso já foi motivo de mal-entendido; não reintroduzir a premissa errada.
 - **Não há Obsidian instalado e não há wikilinks.** O Obsidian é gratuito e
   dispensa conta, mas foi deliberadamente **não** adotado — não acrescenta nada
   sobre uma pilha de arquivos Office. Se entrar depois, wikilink é sinal
-  *adicional*, nunca o principal
+  *adicional*, nunca o principal. **Isto vale para a entrada, e continua
+  valendo.** O `J.e` do pacote J (30/08/2026) traz o Obsidian de volta como
+  **saída**: um vault Markdown exportado por comando explícito, *view* one-way e
+  descartável, com wikilinks derivados da tabela `mencoes` que já existe. Nada
+  do vault volta para o acervo nem para o índice
 - Por isso o grafo que alimenta `neighbors` e o multi-hop é **derivado**:
   identificadores (contrato, projeto, processo, siglas), entidades, taxonomia de
   pastas, datas
