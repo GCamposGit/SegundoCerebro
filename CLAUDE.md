@@ -247,6 +247,27 @@ a evidência datada em [`docs/historico-decisoes.md`](docs/historico-decisoes.md
   reporta um **par** — 3,3% de piso e 38,5% de teto — e a leitura honesta fica
   entre os dois. Não é o mesmo defeito de "número sem corpus": é número **com**
   corpus e **sem** denominador.
+- **Marcador escrito e nunca lido é comentário caro.** `MOTIVO_RECURSO` existia
+  para separar *"tente com mais memória"* de *"este arquivo está corrompido"*,
+  era gravado por três sítios e **consultado por nenhum** — a quarentena
+  aposentava falha de ambiente com a política de arquivo podre, e duas passadas
+  apertadas tiravam o documento do acervo até alguém editá-lo. Marcador novo
+  entra com o leitor junto, ou não entra.
+- **Resultado sem informação não pode apagar a informação anterior.** O filho
+  que morria por recurso devolvia `ParseResult` sem `natureza`, e o `UPDATE`
+  gravava zero em todas as colunas dela: o `digitalizado` sumia e o documento
+  saía da fila de OCR. Não descobrir nada nesta passada não desfaz o que a
+  anterior soube.
+- **O escopo não desambigua nada quando o escopo é um.** "Todas as páginas
+  falharam ⇒ é a máquina" é falso em N=1, e PDF escaneado de uma página é comum.
+  Quem separa é o **tipo** da exceção — `ImportError` é a máquina, `MemoryError`
+  é recurso, o resto é o documento; o escopo entra depois, como confiança.
+- **Prova que copia a guarda prova a cópia.** As três provas "contra caso
+  isolado" desta passada reimplementavam a lógica dentro do teste, e as duas
+  cópias tinham **a mesma cegueira** sem ninguém notar: `ast.walk` de um `if`
+  protegia o ramo `else`, e um predicado exigia `=` dentro do literal, o que
+  tornava `ambiente["PYTHONPATH"] = …` invisível. O que fecha é um **núcleo
+  puro** que o teste real e a prova chamam — não dois blocos que concordam hoje.
 - **Conserto de silêncio pode ser pior que o silêncio.** Ao fazer a falha de
   OCR subir, o PDF misto passou de `ok` com texto nativo para `erro` sem nada —
   e `remover_documento` apaga chunks **e vetores já gravados**, com a quarentena

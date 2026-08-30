@@ -1754,14 +1754,12 @@ zero skips em cinco passadas seguidas — antes dois pulavam por falta de veredi
 
 #### `Q15.a` — o resto, medido e declarado
 
-Sob pressão de memória real, a fase de OCR quarentena corretamente
-(`recurso: ...`), mas o **status final do documento no registro fica `vazio`**,
-não `erro`. O silêncio acabou — há linha e há motivo, que é o que fazia o acervo
-sumir —, mas a saída declarada dizia "nunca `vazio`", e isso não está inteiro.
-
-A causa não é o caminho de parse, conferido isolado: é a **ordenação de fases do
-indexador**, que repesca `erro` e reprocessa sem `ocr=True`. Fica como pacote
-próprio porque mexer na ordem das ondas é mudança no laço de `indexar()`.
+Sob pressão de memória a fase de OCR quarentena corretamente, mas o **status
+final do documento fica `vazio`**, não `erro`. O silêncio acabou — há linha e há
+motivo, e desde 30/08 o documento também **continua na fila de OCR** e **não é
+aposentado** —, mas a saída declarada dizia "nunca `vazio`", e isso não está
+inteiro. A causa é a ordenação de fases do indexador, que repesca `erro` e
+reprocessa sem `ocr=True`; mexer nela é mudança no laço de `indexar()`.
 
 #### O conserto do `Q15` estava pior que o defeito, e uma revisão pegou
 
@@ -1780,9 +1778,23 @@ apertada aposentavam o documento até os bytes mudarem — sendo que falha de
 ambiente é, por definição, a transitória.
 
 **A regra que ficou:** o OCR é *segunda* passada, e a falha dela nunca pode
-apagar a primeira. Página que estoura volta a ser pulada; só quando **todas**
-falham é que o arquivo levanta. `MemoryError` numa página é o documento;
-`ImportError` é a máquina.
+apagar a primeira. Página que estoura é pulada; `ImportError` é a máquina,
+`MemoryError` é recurso, o resto é o documento.
+
+**Uma segunda revisão achou que o conserto ainda perdia dado, por dois caminhos
+que a primeira não viu:**
+
+- O `ParseResult` de recurso não carregava `natureza`, e o `UPDATE` zerava
+  `digitalizado` — o scan **saía da fila de OCR** em silêncio.
+- `MAX_TENTATIVAS_QUARENTENA = 2` não lia `MOTIVO_RECURSO`, então duas passadas
+  apertadas **aposentavam o documento por 100 anos**. O marcador era escrito por
+  três sítios e lido por nenhum.
+- E qualquer falha na fase de OCR — não só a que o `Q15` tratou — levava
+  `aplicar` a `remover_documento` antes de regravar, apagando o que as ondas de
+  texto tinham produzido.
+
+Fechados por `index/quarentena.py` (costura do `Q16` para o `store.py`, que caiu
+de 1.285 para 1.273) e `repesca.preservar_no_erro_de_ocr`.
 
 ### `Q16` — O que falta decompor, com as costuras levantadas — **P3 · laboratório** · continua o `Q3`
 
