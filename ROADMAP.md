@@ -1181,7 +1181,7 @@ o próprio dossiê pede.
 ## O complemento C1–C7, conferido no código
 
 > **Acrescentado em 24/08/2026 pelo notebook.**
-> [`docs/dossie-complemento-update-devs.md`](dossie-complemento-update-devs.md)
+> [`docs/dossie-complemento-update-devs.md`](docs/dossie-complemento-update-devs.md)
 > traz sete pacotes `C<n>` e, ao contrário do dossiê original, **lê o código**.
 > Mesma regra de antes: a especificação mora lá, o `ROADMAP.md` assume ordem,
 > dono e porta.
@@ -1199,7 +1199,7 @@ incomum e muda o peso do documento:
 **Duas correções de dimensionamento**, nenhuma fatal:
 
 - **`C7.d` cita "o censo real tem 85 CSVs somando 492 MB".** Esse número vem de
-  [`docs/estatisticas-arquivos-por-extensao.md`](estatisticas-arquivos-por-extensao.md),
+  [`docs/estatisticas-arquivos-por-extensao.md`](docs/estatisticas-arquivos-por-extensao.md),
   que é a varredura de **um disco inteiro** (224.850 arquivos, 642 GB) e não de
   uma base — o próprio `prioridade-de-indexacao.md` avisa isso. Lá são 85 CSVs e
   **216,90 MB**, não 492. No acervo corporativo, medido agora: **2 arquivos
@@ -1213,7 +1213,7 @@ incomum e muda o peso do documento:
 
 `C3.a` descreve um mecanismo: o nome do arquivo pontua **duas vezes** — dentro do
 bm25, pela coluna `caminho`, e de novo na fusão, pelo `RanqueadorDeNome` com peso
-0,5. Em [`docs/dourado-cobertura.md`](dourado-cobertura.md) o notebook mediu o
+0,5. Em [`docs/dourado-cobertura.md`](docs/dourado-cobertura.md) o notebook mediu o
 **efeito**: desligar o ranqueador de nome sobe o MRR das perguntas de reunião em
 60% e piora o resto.
 
@@ -1752,9 +1752,6 @@ documentação — quem clona não vê o que nós vemos.
 O `docs/README.md` entrou nesta passada (o `Q8`) e **só linka o que o clone tem**.
 O que falta:
 
-- **Três links quebrados no `ROADMAP.md`** (linhas 1184, 1202, 1216): o texto diz
-  `docs/X.md`, o href omite o `docs/`, e como o `ROADMAP.md` está na raiz o link
-  resolve para a raiz.
 - **A cobertura de 25% ainda circula como se fosse atual** em cinco lugares
   (`docs/colaboracao.md:239`, `docs/dossie-melhorias.md:10`,
   `docs/fatia-cross-lingual.md:103`, `ROADMAP.md:887` e `ROADMAP.md:1116`),
@@ -1763,7 +1760,10 @@ O que falta:
 - **`docs/censo-conhecimento.md`** é duplicado de `docs/censo.md` com zero
   backlinks — poda, não fusão.
 
-Feitos nesta passada, do mesmo pacote: o `README.md` deixou de anunciar 480 testes
+Feitos nesta passada, do mesmo pacote: os **três links quebrados do próprio
+`ROADMAP.md`** — o texto dizia `docs/X.md` e o href omitia o `docs/`, e como
+este arquivo está na raiz o link resolvia para a raiz. O `README.md` deixou de
+anunciar 480 testes
 (são 1.288) e de exibir a tabela da era F2 com **reranking ligado** como
 "condição de medição mais recente"; o `ARCHITECTURE.md` deixou de descrever o alvo
 como "vault Obsidian", que é a premissa que o `CLAUDE.md` marca como já tendo
