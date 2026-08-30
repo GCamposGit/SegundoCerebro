@@ -233,3 +233,28 @@ def test_a_raiz_do_repositorio_tem_um_nome_so() -> None:
         and "parent.parent.parent" in arquivo.read_text(encoding="utf-8")
     )
     assert not copias, f"raiz do repositório deduzida à mão em {copias} — usar `repositorio.raiz()`"
+
+
+def test_nenhum_script_grava_pythonpath() -> None:
+    """`scripts/` não escreve `PYTHONPATH` — `F6`, 30/08/2026.
+
+    Terceira aparição da mesma classe: *código que só roda de dentro do
+    repositório*. A primeira foi `retrieve/hybrid.py` importando `eval.harness`;
+    a segunda, o registrador do MCP gravando `PYTHONPATH=src` no arquivo de
+    configuração do cliente. Esta é a mais fácil de esquecer, porque ninguém
+    varre `scripts/` — e é a que o leigo executa clicando duas vezes.
+
+    Com o pacote instalado o módulo é importável de qualquer diretório. Um
+    script que fixa `PYTHONPATH` esconde uma instalação quebrada em vez de
+    reportá-la, e o sintoma reaparece na primeira vez que o usuário rodar o
+    comando por fora do atalho.
+    """
+    culpados = [
+        arquivo.name
+        for arquivo in sorted((REPO / "scripts").glob("*"))
+        if arquivo.is_file() and "PYTHONPATH" in arquivo.read_text(encoding="utf-8", errors="ignore")
+    ]
+    assert not culpados, (
+        f"{culpados} grava PYTHONPATH. O pacote se instala com `pip install -e .`; "
+        "script que remenda o caminho esconde instalação quebrada (F6)."
+    )

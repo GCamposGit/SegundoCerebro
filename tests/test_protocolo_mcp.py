@@ -55,7 +55,7 @@ from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
 from segundocerebro.config import Base
-from segundocerebro.mcp.registrar import AMBIENTE, entrada_de
+from segundocerebro.mcp.registrar import ambiente_do_cliente, entrada_de
 
 REPO = Path(__file__).resolve().parents[1]
 DRIVER = REPO / "tests" / "servidor_falso.py"
@@ -94,11 +94,11 @@ def _cwd_neutro(tmp: Path) -> str:
 def _ambiente() -> dict[str, str]:
     """O ambiente que o registro declara, com `PYTHONPATH` absoluto.
 
-    `AMBIENTE` vem de `mcp/registrar.py` em vez de ser reescrito aqui: se alguém
+    `ambiente_do_cliente()` vem de `mcp/registrar.py` em vez de ser reescrito aqui: se alguém
     tirar o `PYTHONIOENCODING` de lá, é este teste que cai.
     """
     env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
-    env.update(AMBIENTE)
+    env.update(ambiente_do_cliente())
     env["PYTHONPATH"] = os.pathsep.join([str(REPO), str(REPO / "src")])
     return env
 
@@ -443,3 +443,54 @@ def test_a_armadilha_do_caminho_esta_armada(tmp_path: Path) -> None:
             busca.search("qualquer", 3)
     finally:
         store.fechar()
+
+
+# --------------------------------------------------------------------------- #
+# F6 — o registro não pode levar o repositório para dentro da máquina do usuário
+
+
+def test_o_registro_nao_grava_caminho_do_repositorio_para_quem_instalou(monkeypatch, tmp_path):
+    """Instalação por `pip`: nada no registro pode apontar para o checkout.
+
+    Achado em 30/08/2026. `mcp/registrar.py` gravava `PYTHONPATH=src`,
+    `--config <raiz>/config.toml` e `cwd=<raiz>` **sempre** — e para quem
+    instalou por `pip` a "raiz" deduzida cai dentro do `site-packages`. O
+    resultado é um cliente MCP configurado para uma pasta que não existe, e o
+    sintoma que o usuário vê é "servidor não conecta".
+
+    É a classe que este repositório já nomeou duas vezes — *código que só roda de
+    dentro do repositório* — na sua pior versão: mora no arquivo de configuração
+    do usuário e sobrevive a qualquer conserto no código.
+    """
+    from segundocerebro.config import Base
+    from segundocerebro.mcp import registrar
+
+    monkeypatch.setattr(registrar, "em_checkout", lambda: False)
+    config = tmp_path / "meu" / "config.toml"
+    config.parent.mkdir(parents=True)
+    entrada = registrar.entrada_de(Base(id="x"), absoluto=True, config=config)
+
+    assert "PYTHONPATH" not in entrada["env"], (
+        "instalação por pip não precisa de PYTHONPATH, e o que estava escrito ali "
+        "apontava para dentro do site-packages"
+    )
+    assert entrada["cwd"] == str(config.parent), (
+        "o `cwd` tem de ser a pasta do config do usuário — é a ela que o índice "
+        "e o dourado são relativos, não ao repositório"
+    )
+    assert str(config.resolve()) in entrada["args"]
+
+    raiz = str(registrar.RAIZ)
+    despejo = json.dumps(entrada)
+    assert raiz not in despejo, f"o registro leva a raiz do repositório: {despejo}"
+
+
+def test_no_checkout_o_pythonpath_continua(monkeypatch, tmp_path):
+    """A régua do teste acima: quem roda do checkout ainda precisa dele."""
+    from segundocerebro.config import Base
+    from segundocerebro.mcp import registrar
+
+    monkeypatch.setattr(registrar, "em_checkout", lambda: True)
+    config = tmp_path / "config.toml"
+    entrada = registrar.entrada_de(Base(id="x"), absoluto=True, config=config)
+    assert entrada["env"]["PYTHONPATH"] == str(registrar.RAIZ / "src")
