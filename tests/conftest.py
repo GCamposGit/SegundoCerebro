@@ -1,8 +1,13 @@
-"""O que é só de `tests/`: dublê de GPU e isolamento da calibragem.
+"""O que é só de `tests/`: dublê de GPU, isolamento da calibragem, e o `store`.
 
-As duas fixtures aqui existem para quem chama `indexar()`, e `eval/` não indexa.
-O que vale para as duas suítes — a recusa de índice em escrita e a devolução de
+As fixtures aqui existem para quem chama `indexar()`, e `eval/` não indexa. O
+que vale para as duas suítes — a recusa de índice em escrita e a devolução de
 `os.environ` — mora no `conftest.py` da raiz, que `pytest eval/` também carrega.
+
+`store` chegou em 30/08/2026 pelo `Q17`: ela estava escrita **duas vezes**, uma
+em `test_index.py` e outra em `test_grafo.py`, textualmente iguais a menos de
+uma linha em branco. Fixture compartilhada mora em conftest; os dublês que são
+classe e função moram em `tests/falsos.py`, porque conftest não se importa.
 """
 
 from __future__ import annotations
@@ -10,6 +15,10 @@ from __future__ import annotations
 from pathlib import Path
 
 import pytest
+
+from segundocerebro.index.store import Store
+
+from tests.falsos import DIM
 
 
 @pytest.fixture(autouse=True)
@@ -40,3 +49,10 @@ def calibracao_isolada(
     destino = tmp_path_factory.mktemp("calibracao")
     monkeypatch.setenv("SEGUNDOCEREBRO_CALIBRACAO", str(destino))
     return destino
+
+
+@pytest.fixture
+def store(tmp_path: Path) -> Store:
+    s = Store(tmp_path / "indice", DIM)
+    yield s
+    s.fechar()

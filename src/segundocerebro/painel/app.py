@@ -44,8 +44,8 @@ from ..config import (
     LimitesDeIndexacao,
     Pesos,
     carregar,
-    gravar,
 )
+from ..config_escrita import gravar
 from ..index.travas import NOME_DA_TRAVA, NOME_DO_OBSERVADOR
 from ..logger import get_logger
 from ..retrieve.glossario import ErroDeGlossario, Glossario

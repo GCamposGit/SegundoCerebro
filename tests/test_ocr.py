@@ -7,7 +7,6 @@ from pathlib import Path
 
 import pytest
 
-from segundocerebro.census import Config, RootSpec
 from segundocerebro.ingest.document import ParseStatus
 from segundocerebro.ingest.ocr import VERSAO, backend_disponivel, doc_de_ocr
 from segundocerebro.ingest.reader import parse_file
@@ -15,8 +14,7 @@ from segundocerebro.index.indexer import indexar
 from segundocerebro.index.isolamento import timeout_para
 from segundocerebro.index.orcamento import medir
 from segundocerebro.index.store import Store
-from tests.test_index import DIM, EmbedderFalso
-from tests.test_ingest import bytes_pdf, bytes_pdf_misto
+from tests.falsos import DIM, EmbedderFalso, bytes_pdf, bytes_pdf_misto, config_de_raiz
 
 SINAIS_DE_RECURSO = (
     "subprocesso morreu",
@@ -175,7 +173,7 @@ def test_indexar_ocr_depois_do_texto(tmp_path: Path, monkeypatch) -> None:  # no
 
     store = Store(tmp_path / "indice", DIM)
     progresso = indexar(
-        Config(roots=[RootSpec(name="teste", path=raiz)]),
+        config_de_raiz(raiz),
         store,
         EmbedderFalso(),
         publicar=False,
@@ -202,7 +200,7 @@ def test_indexar_sem_ocr_nao_mexe_no_digitalizado(tmp_path: Path) -> None:
     (raiz / "escaneado.pdf").write_bytes(bytes_pdf(texto=None, com_imagem=True))
     store = Store(tmp_path / "indice", DIM)
     indexar(
-        Config(roots=[RootSpec(name="teste", path=raiz)]),
+        config_de_raiz(raiz),
         store,
         EmbedderFalso(),
         publicar=False,
@@ -247,7 +245,7 @@ def test_indexar_misto_entra_na_fila_ocr(tmp_path: Path) -> None:
     (raiz / "oficio.pdf").write_bytes(bytes_pdf_misto())
     store = Store(tmp_path / "indice", DIM)
     indexar(
-        Config(roots=[RootSpec(name="teste", path=raiz)]),
+        config_de_raiz(raiz),
         store,
         EmbedderFalso(),
         publicar=False,
@@ -324,7 +322,7 @@ def test_indexar_misto_com_ocr_junta_as_paginas(tmp_path: Path, monkeypatch) -> 
     (raiz / "oficio.pdf").write_bytes(bytes_pdf_misto())
     store = Store(tmp_path / "indice", DIM)
     progresso = indexar(
-        Config(roots=[RootSpec(name="teste", path=raiz)]),
+        config_de_raiz(raiz),
         store,
         EmbedderFalso(),
         publicar=False,

@@ -170,7 +170,7 @@ def do_produto(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Any]:
     """
     from segundocerebro.index.store import Store
 
-    from tests.test_index import DIM
+    from tests.falsos import DIM
 
     raiz = tmp_path_factory.mktemp("instalacao")
     Store(raiz / "indice", DIM).fechar()
@@ -434,7 +434,7 @@ def test_a_armadilha_do_caminho_esta_armada(tmp_path: Path) -> None:
     from segundocerebro.index.store import Store
 
     from tests.servidor_falso import BuscaSoPeloCaminhoEntregue
-    from tests.test_index import DIM, EmbedderFalso
+    from tests.falsos import DIM, EmbedderFalso
 
     store = Store(tmp_path / "i", DIM)
     busca = BuscaSoPeloCaminhoEntregue(store, EmbedderFalso())

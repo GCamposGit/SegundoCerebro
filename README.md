@@ -92,8 +92,11 @@ caminho que o cliente MCP executa — os números vivos ficam na §6 de
 [`docs/colaboracao.md`](docs/colaboracao.md), num lugar só.
 
 As duas tabelas medem corpora diferentes e **não são comparáveis entre si**: um
-conjunto dourado de 62 perguntas alcança 38,5% das pastas do índice atual, então
-crescer o corpus baixa a métrica sem nada ter piorado. É por isso que a cobertura
+conjunto dourado de 62 perguntas alcança 38,5% dos documentos do índice atual —
+e isso é o **teto** generoso, que conta inteira a pasta de cada pergunta; o piso
+exato, contando só as fontes esperadas, é 3,3%. Documento novo entra como
+distrator e nunca como resposta, então crescer o corpus baixa a métrica sem nada
+ter piorado. É por isso que a cobertura
 passou a ser medida a cada relatório em vez de escrita à mão
 ([`docs/dourado-cobertura.md`](docs/dourado-cobertura.md)).
 

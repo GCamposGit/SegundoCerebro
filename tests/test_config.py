@@ -16,16 +16,19 @@ import pytest
 from segundocerebro.census import RootSpec
 from segundocerebro.config import (
     BASE_UNICA,
+    LIMITES_RECOMENDADOS,
+    MODELOS_CONHECIDOS,
     Base,
     Busca,
     Chunking,
     Config,
     ErroDeConfig,
+    LimitesDeIndexacao,
     Maquina,
     Pesos,
     carregar,
-    gravar,
 )
+from segundocerebro.config_escrita import gravar
 
 SEM_AMBIENTE: dict[str, str] = {}
 
@@ -67,6 +70,169 @@ def test_espelhos_batem_com_o_codigo():
 
     assert Maquina().lote == LOTE_EMBEDDING
     assert LIMITE_TEXTO_MB_PADRAO == LimitesDeIndexacao().txt
+
+    from segundocerebro.index.embeddings import MODELOS
+
+    assert set(MODELOS_CONHECIDOS) == set(MODELOS), (
+        "config.MODELOS_CONHECIDOS e index.embeddings.MODELOS são espelhos sem "
+        "amarra desde sempre — hoje batem, e é isso que este assert congela"
+    )
+
+
+# --------------------------------------------------------------------------- #
+# Q12 — o exemplo comentado documenta o padrão, e o padrão mora num lugar só
+#
+# Seis pares de "default escrito duas vezes" já tinham divergido quando a
+# auditoria de 29/08/2026 os contou, e o pior deles não era um engano de
+# digitação: `xlsx = 40` no exemplo contra `15.0` no código era um **terceiro**
+# valor, que não batia nem com o de fábrica (0). Quem copia o exemplo comentado
+# recebe um teto diferente do que o painel pré-preenche.
+#
+# A amarra abaixo não lista os pares: ela percorre o que o exemplo declara e
+# confere contra o padrão da dataclass correspondente. Chave nova no exemplo, ou
+# seção nova em `Base`, nasce conferida.
+
+
+def _padroes_por_secao() -> dict[str, object]:
+    """Seção do `config.example.toml` → o objeto cujo padrão ela documenta.
+
+    Derivado do modelo: as seções de `[padrao]` são os campos de `Base` cujo
+    padrão é uma dataclass, e as de topo são os de `Config`. Seção nova entra
+    aqui sozinha — que é a diferença entre esta amarra e a lista que o `Q12`
+    encontrou desatualizada em seis lugares.
+    """
+    import dataclasses
+
+    from segundocerebro.config import Config
+
+    padroes: dict[str, object] = {}
+    for nome, campo in Base.__dataclass_fields__.items():
+        if dataclasses.is_dataclass(campo.default) and not nome.startswith("exclude"):
+            padroes[f"padrao.{nome}"] = campo.default
+    for nome, campo in Config.__dataclass_fields__.items():
+        if dataclasses.is_dataclass(campo.default):
+            padroes[nome] = campo.default
+    return padroes
+
+
+def _secao_do_toml(dados: dict, caminho: str) -> dict | None:
+    for parte in caminho.split("."):
+        if not isinstance(dados, dict) or parte not in dados:
+            return None
+        dados = dados[parte]
+    return dados if isinstance(dados, dict) else None
+
+
+def test_exemplo_documenta_o_padrao_do_codigo():
+    """Todo valor vivo do `config.example.toml` é o padrão que ele diz ser."""
+    import tomllib
+
+    bruto = tomllib.loads(Path("config.example.toml").read_text(encoding="utf-8"))
+    conferidas = 0
+    for caminho, padrao in _padroes_por_secao().items():
+        secao = _secao_do_toml(bruto, caminho)
+        if secao is None:
+            continue
+        for chave, valor in secao.items():
+            if chave not in padrao.__dataclass_fields__:
+                continue  # `[maquina].limites` é subseção, não valor
+            esperado = getattr(padrao, chave)
+            assert valor == esperado, (
+                f"config.example.toml, [{caminho}] {chave} = {valor!r}, "
+                f"e o padrão do código é {esperado!r}"
+            )
+            conferidas += 1
+    assert conferidas >= 12, f"a varredura conferiu só {conferidas} valores — ela parou de ver"
+
+
+def test_exemplo_carrega_de_verdade():
+    """O exemplo é config válida, não prosa que parece uma."""
+    cfg = carregar(Path("config.example.toml"), ambiente=SEM_AMBIENTE, validar=False)
+    assert [b.id for b in cfg.bases] == ["trabalho", "pessoal"]
+    assert cfg.maquina == Maquina()
+
+
+def test_limites_comentados_do_exemplo_sao_os_recomendados():
+    """`[base.limites]` comentado é o que o painel pré-preenche, não outro terceiro valor."""
+    linhas = Path("config.example.toml").read_text(encoding="utf-8").splitlines()
+    dentro, achados = False, {}
+    for linha in linhas:
+        nu = linha.lstrip("#").strip()
+        if nu.startswith("["):
+            dentro = nu == "[base.limites]"
+            continue
+        if dentro and "=" in nu and linha.lstrip().startswith("#"):
+            chave, _, valor = nu.partition("=")
+            achados[chave.strip()] = float(valor.strip())
+
+    assert set(achados) == set(LimitesDeIndexacao().__dataclass_fields__), (
+        "o bloco comentado [base.limites] não cobre os mesmos tipos da dataclass: "
+        f"{sorted(achados)}"
+    )
+    assert achados == LIMITES_RECOMENDADOS.como_json()
+
+
+def test_o_rerank_sugerido_no_exemplo_bate_com_o_eval():
+    """O 0,25 do exemplo comentado é o mesmo que `--rerank` aplica.
+
+    Lido por AST, e não importado: `eval/` não vai no pacote (invariante do
+    `tests/test_pacote.py`), e importá-lo daqui arrastaria o harness inteiro
+    para dentro de um teste de configuração.
+    """
+    import ast
+
+    arvore = ast.parse(Path("eval/rodar.py").read_text(encoding="utf-8"))
+    do_eval = next(
+        no.value.value
+        for no in arvore.body
+        if isinstance(no, ast.Assign)
+        and any(getattr(a, "id", "") == "PESO_RERANK_DA_FLAG" for a in no.targets)
+        and isinstance(no.value, ast.Constant)
+    )
+    linhas = Path("config.example.toml").read_text(encoding="utf-8").splitlines()
+    do_exemplo = [
+        float(linha.split("=", 1)[1])
+        for linha in linhas
+        if linha.replace(" ", "").startswith("#rerank=")
+    ]
+    assert do_exemplo == [do_eval], (
+        f"config.example.toml sugere rerank {do_exemplo} e eval/rodar.py aplica "
+        f"{do_eval} — o mesmo peso medido em 16/08/2026, escrito em dois lugares (Q12)"
+    )
+
+
+def test_a_porta_do_painel_mora_num_lugar_so():
+    """`scripts/` não repete o número da porta — ele vem de `PORTA_PADRAO`."""
+    from segundocerebro.painel.app import PORTA_PADRAO
+
+    repetem = [
+        arquivo.name
+        for arquivo in Path("scripts").glob("*")
+        if arquivo.is_file() and str(PORTA_PADRAO) in arquivo.read_text(encoding="utf-8")
+    ]
+    assert not repetem, (
+        f"{repetem} escreve a porta {PORTA_PADRAO} à mão. Ela mora em "
+        "painel.app.PORTA_PADRAO — dois lugares divergem em silêncio (Q12)"
+    )
+
+
+def test_o_painel_nao_embute_tabela_de_tetos():
+    """O HTML não carrega uma quarta cópia dos tetos: `/api/estado` os manda."""
+    import re
+
+    html = (
+        Path("src/segundocerebro/painel/index.html").read_text(encoding="utf-8").replace(" ", "")
+    )
+    campos = [f"{c}:" for c in LimitesDeIndexacao().__dataclass_fields__]
+    embutidos = [
+        literal
+        for literal in re.findall(r"\{[^{}]{0,240}\}", html)
+        if sum(campo in literal for campo in campos) >= 4
+    ]
+    assert not embutidos, (
+        f"index.html embute os tetos num literal: {embutidos} — era a quarta cópia (Q12). "
+        "O servidor manda `limites_fabrica` em toda chamada de /api/estado."
+    )
 
 
 # --------------------------------------------------------------------------- #

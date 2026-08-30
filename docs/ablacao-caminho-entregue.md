@@ -34,7 +34,7 @@ E o painel herda a mesma cegueira: `painel/medir.py:79` também usa
 painel exige antes de salvar (invariante 4).
 
 O projeto já tinha declarado o princípio contrário, para famílias de versão, em
-[`ablacao-familias.md`](ablacao-familias.md): *"ligado em `search` **e** em
+`docs/ablacao-familias.md`: *"ligado em `search` **e** em
 `buscar_chunks`, para o que se mede ser o que se entrega — ligar só no primeiro
 seria medir uma coisa e entregar outra."* Para o ranqueador de nome isso não foi
 feito, e ninguém reparou **porque no agregado os dois caminhos medem parecido**.

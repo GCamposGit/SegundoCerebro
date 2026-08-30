@@ -9,9 +9,7 @@ Vocabulário fictício da VCE, nunca do acervo real.
 
 from __future__ import annotations
 
-from pathlib import Path
 
-import pytest
 
 from segundocerebro.index.store import Store
 from segundocerebro.retrieve.grafo import (
@@ -20,14 +18,9 @@ from segundocerebro.retrieve.grafo import (
     desatualizado,
     vizinhos,
 )
-from tests.test_index import DIM, EmbedderFalso, chunk
+from tests.falsos import EmbedderFalso, chunk
 
 
-@pytest.fixture
-def store(tmp_path: Path) -> Store:
-    s = Store(tmp_path / "indice", DIM)
-    yield s
-    s.fechar()
 
 
 def semear(store: Store, documentos: dict[str, str]) -> None:
@@ -277,7 +270,7 @@ def test_documento_sem_texto_ainda_entra_no_grafo(store: Store) -> None:
     Varrer apenas documentos com chunk deixaria de fora exatamente o documento
     que motivou a fase.
     """
-    from tests.test_index import EmbedderFalso, chunk
+    from tests.falsos import EmbedderFalso, chunk
 
     # Registrado, mas sem chunk nenhum: é o que o indexador grava para um PDF
     # digitalizado (`status: vazio`).
@@ -304,7 +297,7 @@ def test_menção_no_nome_nao_traz_chunk_para_ler(store: Store) -> None:
 
     A procedência, aqui, é o próprio nome do arquivo.
     """
-    from tests.test_index import EmbedderFalso, chunk
+    from tests.falsos import EmbedderFalso, chunk
 
     store.registrar_documento(
         path="Normas/ISO-42001.pdf", raiz="r", tamanho=1, mtime=0.0, status="vazio"

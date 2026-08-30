@@ -25,6 +25,8 @@ from segundocerebro.ingest.parsers.sheets import parse_csv, parse_xls, parse_xls
 from segundocerebro.ingest.parsers.slides import parse_ppt, parse_pptx
 from segundocerebro.ingest.parsers.text import blocos_de_markdown, decode, parse_markdown, parse_rtf, parse_texto
 from segundocerebro.ingest.parsers.word import _nivel, parse_docx
+
+from tests.falsos import bytes_pdf, bytes_pdf_misto
 from segundocerebro.ingest.reader import CloudOnlyFile, FileLocked, parse_file, read_bytes
 
 # --- construtores de arquivo sintético --------------------------------------
@@ -74,40 +76,6 @@ def bytes_xlsx(linhas: int = 70) -> bytes:
     buf = io.BytesIO()
     livro.save(buf)
     return buf.getvalue()
-
-
-def bytes_pdf(texto: str | None = "Contrato 4600009999 com a Nimbus Tecnologia.", com_imagem: bool = False) -> bytes:
-    import pymupdf
-
-    doc = pymupdf.open()
-    pagina = doc.new_page()
-    if com_imagem:
-        pix = pymupdf.Pixmap(pymupdf.csRGB, pymupdf.IRect(0, 0, 64, 64))
-        pix.set_rect(pix.irect, (200, 200, 200))
-        pagina.insert_image(pymupdf.Rect(0, 0, 500, 700), pixmap=pix)
-    if texto:
-        pagina.insert_text((72, 72), texto, fontsize=11)
-    dados = doc.tobytes()
-    doc.close()
-    return dados
-
-
-def bytes_pdf_misto(
-    nativo: str = "Contrato 4600009999 com a Nimbus Tecnologia.",
-) -> bytes:
-    """Page 1 native text, page 2 image and no text layer — the mixed-PDF trap."""
-    import pymupdf
-
-    doc = pymupdf.open()
-    capa = doc.new_page()
-    capa.insert_text((72, 72), nativo, fontsize=11)
-    corpo = doc.new_page()
-    pix = pymupdf.Pixmap(pymupdf.csRGB, pymupdf.IRect(0, 0, 64, 64))
-    pix.set_rect(pix.irect, (200, 200, 200))
-    corpo.insert_image(pymupdf.Rect(0, 0, 500, 700), pixmap=pix)
-    dados = doc.tobytes()
-    doc.close()
-    return dados
 
 
 # --- texto e markdown --------------------------------------------------------

@@ -330,7 +330,7 @@ def test_neighbors_liga_documentos_por_norma_citada(tmp_path: Path) -> None:
     from segundocerebro.index.store import Store
     from segundocerebro.retrieve.grafo import construir as construir_grafo
     from segundocerebro.retrieve.hybrid import BuscaHibrida
-    from tests.test_index import DIM, EmbedderFalso, chunk
+    from tests.falsos import DIM, EmbedderFalso, chunk
 
     store = Store(tmp_path / "indice", DIM)
     emb = EmbedderFalso()
@@ -367,7 +367,7 @@ def test_neighbors_devolve_id_que_serve_para_read_note(tmp_path: Path) -> None:
     from segundocerebro.index.store import Store
     from segundocerebro.retrieve.grafo import construir as construir_grafo
     from segundocerebro.retrieve.hybrid import BuscaHibrida
-    from tests.test_index import DIM, EmbedderFalso, chunk
+    from tests.falsos import DIM, EmbedderFalso, chunk
 
     store = Store(tmp_path / "indice", DIM)
     emb = EmbedderFalso()

@@ -27,6 +27,8 @@ import sysconfig
 import tomllib
 from pathlib import Path
 
+import pytest
+
 REPO = Path(__file__).resolve().parent.parent
 SYSTEM32 = Path(os.environ.get("SystemRoot", r"C:\Windows")) / "System32"
 PACOTE = REPO / "src" / "segundocerebro"
@@ -110,9 +112,31 @@ def test_script_mcp_help_sem_pythonpath() -> None:
     assert "segundocerebro" in proc.stdout.lower() or "--base" in proc.stdout
 
 
-def test_scripts_painel_e_indexar_existem() -> None:
-    assert _script("segundocerebro-painel").is_file()
-    assert _script("segundocerebro-indexar").is_file()
+def _pontos_de_entrada() -> dict[str, str]:
+    """Os console scripts que o `pyproject.toml` declara, lidos dele."""
+    pyproject = tomllib.loads((REPO / "pyproject.toml").read_text(encoding="utf-8"))
+    return pyproject["project"]["scripts"]
+
+
+@pytest.mark.parametrize("nome", sorted(_pontos_de_entrada()), ids=sorted(_pontos_de_entrada()))
+def test_todo_ponto_de_entrada_declarado_foi_instalado(nome: str) -> None:
+    """A lista sai do `pyproject.toml`, e não de três nomes escritos aqui.
+
+    Achado em 30/08/2026: o `pyproject.toml` declarava **cinco** console
+    scripts e esta suíte conferia **dois** — `painel` e `indexar`. O
+    `segundocerebro-observar` estava declarado e o `.exe` não existia neste
+    ambiente, e nada reprovava. É a classe que este repositório já nomeou depois
+    de um merge paralelo: *a guarda cobria metade da superfície*.
+
+    Derivar a lista fecha a classe inteira: ponto de entrada novo no
+    `pyproject.toml` nasce conferido, sem ninguém lembrar de acrescentá-lo.
+    """
+    alvo = _script(nome)
+    assert alvo.is_file(), (
+        f"{alvo} ausente. O `pyproject.toml` declara `{nome}` e o instalador não o "
+        "produziu neste ambiente — rode `pip install -e .` na raiz do repositório. "
+        "É o degrau que o leigo precisa, e é o que o CI instala."
+    )
 
 
 def _imports_de(arquivo: Path) -> set[str]:

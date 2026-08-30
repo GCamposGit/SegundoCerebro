@@ -100,7 +100,8 @@ três votos da fusão votam no idioma errado.
 - **São 12 perguntas.** Chegam para acusar direção, não para escolher peso. O
   intervalo é largo e uma pergunta a mais ou a menos move a terceira casa.
 - **É um acervo só**, com a limitação já declarada em
-  [`dourado-cobertura.md`](dourado-cobertura.md): o dourado cobre 25% do índice.
+  [`dourado-cobertura.md`](dourado-cobertura.md): o dourado alcança de 3,3% a
+  38,5% do índice — piso exato e teto por pasta, medidos pelo `F4-D`.
   A fatia herda essa limitação inteira.
 - **Não isola a causa.** "Dois de três ranqueadores são cegos a idioma" é a
   explicação que a arquitetura sugere e que o perfil recall@10-alto /
