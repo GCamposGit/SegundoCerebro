@@ -39,7 +39,6 @@ inferência mais lenta em CPU. A decisão fica para quando houver número.
 from __future__ import annotations
 
 import time
-from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Sequence, TypeVar
 
@@ -84,14 +83,6 @@ def texto_para_rerank(path: str, trilha: str, texto: str) -> str:
     if not cabecalho:
         return texto
     return " > ".join(cabecalho) + "\n---\n" + texto
-
-
-@dataclass(frozen=True)
-class Reordenado:
-    """Um item com a pontuação do cross-encoder ao lado da original."""
-
-    indice: int
-    score: float
 
 
 T = TypeVar("T")

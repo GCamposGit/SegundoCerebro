@@ -23,6 +23,7 @@ from collections.abc import Mapping
 
 from ..census import caminho_estendido, is_cloud_only
 from ..logger import get_logger
+from .converters.libreoffice import EXTENSOES_LEGADO as EXTENSOES_LEGADO
 from .document import ParsedDoc, ParseResult, ParseStatus
 from .natureza import EXTENSOES_DE_PLANILHA, detectar, mb_de_abas
 
@@ -34,7 +35,9 @@ ESPERA_PADRAO = 1.0
 # R1.1: OLE legado → OOXML via LibreOffice, then the modern parser.
 # The dispatcher is not this module's to edit (`parsers/__init__.py` is
 # "um de cada vez"). The convert lives here, next to C7.a recalc.
-EXTENSOES_LEGADO = {".doc": ".docx", ".ppt": ".pptx", ".xls": ".xlsx"}
+# A tabela mora com o conversor desde 29/08/2026 — era a mesma lista escrita em
+# três módulos, e o esquecimento de um deles não falhava, só deixava o formato
+# novo sem timeout ou sem conversão.
 _CONTEUDO_JA_ESTRUTURADO = frozenset({"html", "xml", "pptx", "spreadsheetml"})
 
 
@@ -352,5 +355,3 @@ def _recalcular_planilha(doc: ParsedDoc, dados: bytes, nome: str, parser) -> Par
     return ParsedDoc(name=novo.name, blocks=novo.blocks, meta=meta)
 
 
-def empty_doc(nome: str, **meta: str) -> ParsedDoc:
-    return ParsedDoc(name=nome, blocks=(), meta=meta)

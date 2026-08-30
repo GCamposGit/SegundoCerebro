@@ -328,19 +328,6 @@ def _extensoes(bruto: str | None) -> frozenset[str] | None:
     return frozenset(e if e.startswith(".") else f".{e}" for e in itens) or None
 
 
-def _parse_workers_padrao() -> int:
-    """CUDA: parse while the GPU embeds. CPU: keep the old sequential loop.
-
-    The encoder must not load in a parse worker — on this desktop that would
-    put CUDA into a thread that never uses it and can NaN MiniLM-Q. Workers
-    only call `parse_file`. Chunk + embed stay on the main thread.
-    """
-    if os.environ.get("SEGUNDOCEREBRO_PROVIDER", "").lower() == "cuda":
-        n = os.cpu_count() or 4
-        return max(2, min(8, n // 2))
-    return 1
-
-
 def _limites_efetivos(
     limites: LimitesDeIndexacao,
     pular_texto_acima_de: float | None,
