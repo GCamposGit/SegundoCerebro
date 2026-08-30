@@ -52,9 +52,30 @@ diferença já custou cinco fases de peso inerte.
 
 ## Configuração e painel
 
-`src/segundocerebro/config.py` é o esquema; `config.example.toml` é a referência
-publicável. O painel é `src/segundocerebro/painel/` e está **fora** do caminho de
-consulta (invariante 6) — nos dois sentidos.
+`src/segundocerebro/config.py` é o esquema **e a leitura**; `config_escrita.py` é
+o outro sentido (`como_toml`, `gravar`), separado em 30/08/2026 porque ler não
+precisa de escrever. `config.example.toml` é a referência publicável, e desde o
+`Q12` cada valor vivo dele é conferido contra o padrão do código. O painel é
+`src/segundocerebro/painel/` e está **fora** do caminho de consulta
+(invariante 6) — nos dois sentidos.
+
+**`config.py` (1.081) e `census.py` (978) estão no teto exato de
+`tests/test_tamanho_dos_modulos.py`.** Antes de acrescentar uma linha a qualquer
+um dos dois, a costura correspondente do `Q16` tem de sair — não é conselho, é o
+que a suíte exige.
+
+## A infraestrutura da suíte — não é arquivo de teste
+
+Desde o `Q17` (30/08/2026), e `tests/test_isolamento_da_suite.py` reprova quem
+esquecer:
+
+| O que | Onde |
+|---|---|
+| Dublês: `EmbedderFalso`, `DIM`, `chunk`, `corpus`, `bytes_pdf`, `config_de_raiz` | `tests/falsos.py` |
+| Dublê de recuperador | `eval/falsos.py` |
+| Fixtures compartilhadas (`store`, GPU, calibragem) | `tests/conftest.py` |
+| `os.environ` devolvido, recusa de índice em escrita | `conftest.py` da raiz |
+| A lista de nomes proibidos e como mascará-la | `tests/lista_proibida.py` |
 
 ## Documentação — o que ler para cada tipo de pergunta
 
