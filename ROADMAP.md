@@ -1625,6 +1625,31 @@ of 'str' and 'int'`, não como `ErroDeConfig`.
   lista derivada do modelo, não escrita à mão, no desenho de
   `tests/test_formatos.py` e `eval/test_ranking_sintetico.py`
 
+#### `Q11.a` — o que ficou, e por que não entrou junto
+
+Entregue: os cinco níveis, o tipo errado nas quatro seções de base **e** em
+`[maquina]`, `exclude` recusando texto onde espera lista, e `[[bases]]` no plural
+saindo como o typo que é. `tests/test_config_chaves.py` é a guarda derivada.
+
+**Fica um caso da mesma classe, e é o pior dos que sobraram:** valor booleano
+escrito por extenso é engolido em silêncio. Medido em 30/08/2026:
+
+| No `config.toml` | O produto entende |
+|---|---|
+| `[indexacao] dois_passes = "verdadeiro"` | **`False`** |
+| `[indexacao] ocr = "talvez"` | **`False`** |
+| `[indexacao] ocr = 3` | `True` |
+
+É **mais grave** que a chave desconhecida, não menos: a chave é conhecida, o
+usuário escreveu o valor de propósito, e o silêncio resulta no recurso
+**desligado** — o estado que parece normal. Quem escreve `ocr = "sim, por favor"`
+não recebe OCR e não recebe erro.
+
+O conserto é um `_booleano(valor, chave)` que recusa o que não reconhece, e custa
+**+7 linhas líquidas** em `config.py`. O arquivo está em **1.081 linhas, o teto
+exato da escada**, então isto entra junto com a costura `leitura.py` do `Q16` — é
+o primeiro item concreto a cobrar daquele pacote.
+
 ### `Q12` — Defaults escritos duas vezes — ✅ **FECHADO em 30/08/2026** (eram sete)
 
 **Serve base desconhecida:** sim. Quem copia o exemplo comentado do
