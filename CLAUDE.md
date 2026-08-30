@@ -228,6 +228,26 @@ a evidência datada em [`docs/historico-decisoes.md`](docs/historico-decisoes.md
   reporta um **par** — 3,3% de piso e 38,5% de teto — e a leitura honesta fica
   entre os dois. Não é o mesmo defeito de "número sem corpus": é número **com**
   corpus e **sem** denominador.
+- **Um valor de retorno com dois significados é um silêncio esperando
+  acontecer.** `ocr_pdf` devolvia `None` para *"esta instalação não tem OCR"* e
+  para *"o `pymupdf` não carregou agora"*. Condições opostas — uma é um no-op
+  legítimo, a outra é o acervo sumindo — e a benigna vencia, porque um
+  `except Exception` largo as fundia. O discriminador certo era o **nome do
+  módulo que faltou**: pedir `X` e receber "falta X" é ausência; pedir `X` e
+  receber "falta Y" é a máquina.
+- **Duas guardas para a mesma coisa em dois ramos é uma guarda pela metade.**
+  `parse_isolado` converte falha em status no filho **e** em processo, com dois
+  `except` diferentes. Consertar um só é o modo de falha mais comum deste
+  repositório, e aconteceu de novo com o registrador do MCP: consertei a CLI e
+  deixei o painel, no mesmo dia em que escrevi a lição. O que fecha é a
+  varredura que **deriva os sítios de chamada** — ela achou um terceiro que eu
+  não sabia que existia.
+- **Teste que pula por causa da máquina é teste que não tem veredito.** O piso
+  de RAM do OCR existia porque o produto tinha duas reações à pressão de memória
+  e só uma era honesta. Quando a outra ficou honesta, o piso saiu — e a régua
+  que ficou não é "o OCR sempre produz texto", que seria assertar sobre a RAM: é
+  *ou produz, ou o produto declara recurso*. Asserção sobre o comportamento
+  garantido não depende da janela; asserção sobre o resultado depende.
 - **Numa passada com cinco listas, a única escrita de cabeça foi a que
   quebrou.** Quatro eram derivadas — do modelo, do AST, do `pyproject.toml`. A
   quinta, o dialeto de topo do `census.toml`, saiu com uma chave quando o leitor

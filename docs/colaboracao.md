@@ -930,6 +930,41 @@ porque ninguém varreu `scripts/`. Não removi porque decidir como um clone sem
 **Nada disso toca ranking.** Nenhum dos cinco commits entra em `retrieve/*`, em
 peso, em chunking ou no caminho de consulta.
 
+### O notebook assumiu os pacotes do desktop (30/08/2026)
+
+**Autorização explícita do usuário**, e o motivo é de calendário: os créditos do
+Grok da semana acabaram e o sistema precisa fechar em dois dias. A regra 8
+continua valendo — *achado no acervo do outro se reporta, não se corrige* —, e o
+que a suspende aqui é a decisão de quem é dono dos dois lados, não a minha
+conveniência. Fica registrado para que a próxima sessão não trate isto como
+precedente.
+
+O que foi assumido e fechado, tudo em `ingest/ocr.py`, `index/isolamento.py`,
+`mcp/registrar.py` e `scripts/`:
+
+- **`Q15` (P0)** — sob pressão de memória o OCR sumia em silêncio. Causa: um
+  `except Exception` devolvendo `None`, e `None` já significava "esta instalação
+  não tem OCR". Fechado, **com resto declarado no `Q15.a`**: o status final do
+  documento ainda fica `vazio` depois de uma fase de OCR quarentenada, e a causa
+  é a ordenação de fases do indexador — que é o laço, e é de vocês. Não toquei.
+- **`Q14`** — `SEGUNDOCEREBRO_OCR_FAKE` só vale sob `PYTEST_CURRENT_TEST` e
+  avisa em toda passada com o texto que injeta.
+- **`F6` no registrador do MCP** — ele gravava `PYTHONPATH=src`,
+  `--config <raiz>/config.toml` e `cwd=<raiz>` **sempre**. Para quem instalou por
+  `pip`, os três apontam para dentro do `site-packages`. Agora `PYTHONPATH` só
+  num checkout, e `--config`/`cwd` vêm do config que o usuário de fato carregou.
+- **`F6-B`** — o estágio 0 do painel ganhou a prova de ponta a ponta que faltava.
+
+**O piso de RAM de `tests/test_ocr.py` saiu.** Se a suíte de vocês reprovar ali,
+leiam a mensagem: ela carrega o regime da máquina, e a regra agora é *"ou o OCR
+produziu texto, ou existe linha de quarentena com motivo de recurso"* — nunca
+mais um skip por janela de memória.
+
+**Uma coisa que continua sendo de vocês, e ficou mais fácil:** o `Q15.a` acima, e
+o `F6-C` (hardware). E o `Q18`, que segue precisando de acordo — ligar as dez
+regras baratas do `ruff` obriga a anotar oito arquivos de vocês, e a medição
+(75 dos 92 `noqa` passam a valer por 40 correções) está no `ROADMAP.md`.
+
 ### Agora — desktop
 
 **Neste PR (`f4-ocr-memoria`):** a suíte de OCR deixa de medir a janela de
