@@ -37,7 +37,7 @@ from __future__ import annotations
 import os
 import re
 import tomllib
-from collections.abc import Mapping
+from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import Any
@@ -59,9 +59,44 @@ ID_VALIDO = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
 BASE_UNICA = "padrao"
 """Id da base sintetizada quando não há `config.toml`."""
 
+CHAVES_DE_TOPO = ("versao", "padrao", "base", "maquina", "indexacao")
+"""As seções que o arquivo aceita na raiz."""
+
+CHAVES_DE_TOPO_LEGADO = ("roots",)
+"""Lida por `carregar`, e de propósito **fora** de `CHAVES_DE_TOPO`: é o dialeto
+do `census.toml`, que `carregar` desvia para `_do_censo` antes da conferência.
+Declarada aqui em vez de embutida no teste porque exceção que só existe dentro
+de um teste é exceção que ninguém revisa."""
+
 
 class ErroDeConfig(ValueError):
     """Configuração inválida. A mensagem é para o usuário final, em português."""
+
+
+def _conferir_tipos(
+    alvo: Any, onde: str, rotulo: str, *, opcionais: tuple[str, ...] = (), sufixo: str = ""
+) -> None:
+    """Tipo errado vira `ErroDeConfig`, não `TypeError` cru (`Q11`, 29/08/2026).
+
+    `LimitesDeIndexacao.validar` conferia o tipo antes de comparar; `Pesos`,
+    `Busca` e `Chunking` não. `candidatos = "muitos"` saía como
+    `TypeError: '<' not supported between instances of 'str' and 'int'` — um
+    traceback de Python na cara de quem errou o TOML, no lugar da mensagem em
+    português que o resto do módulo produz. Quem instala amanhã lê o traceback
+    como "o programa quebrou", não como "eu escrevi a linha errada".
+
+    `bool` é recusado de propósito: `True` passa por `isinstance(x, int)` e
+    viraria peso 1,0 em silêncio, que é a mesma classe de defeito noutra roupa.
+    """
+    for campo in alvo.__dataclass_fields__:
+        valor = getattr(alvo, campo)
+        if valor is None and campo in opcionais:
+            continue
+        if isinstance(valor, bool) or not isinstance(valor, (int, float)):
+            raise ErroDeConfig(
+                f"{onde}: {rotulo} '{campo}' precisa ser um número{sufixo}, e veio "
+                f"{type(valor).__name__} ({valor!r})"
+            )
 
 
 @dataclass(frozen=True)
@@ -91,6 +126,7 @@ class Pesos:
     São pesos de consulta: mudá-los **não** reindexa nada."""
 
     def validar(self, onde: str) -> None:
+        _conferir_tipos(self, onde, "peso")
         for campo, valor in (
             ("denso", self.denso),
             ("lexical", self.lexical),
@@ -158,6 +194,7 @@ class Busca:
     é linear neles e independe do tamanho do acervo."""
 
     def validar(self, onde: str) -> None:
+        _conferir_tipos(self, onde, "valor", opcionais=("rerank",))
         if self.candidatos < 1:
             raise ErroDeConfig(f"{onde}: 'candidatos' precisa ser ao menos 1")
         if self.k_rrf < 1:
@@ -212,10 +249,9 @@ class LimitesDeIndexacao:
     md: float = 0.0
 
     def validar(self, onde: str) -> None:
+        _conferir_tipos(self, onde, "limite", sufixo=" em MB")
         for campo in self.__dataclass_fields__:
             valor = getattr(self, campo)
-            if isinstance(valor, bool) or not isinstance(valor, (int, float)):
-                raise ErroDeConfig(f"{onde}: limite '{campo}' precisa ser um número em MB")
             if valor < 0:
                 raise ErroDeConfig(f"{onde}: limite '{campo}' não pode ser negativo ({valor})")
 
@@ -264,6 +300,7 @@ class Chunking:
     overlap_chars: int = 200
 
     def validar(self, onde: str) -> None:
+        _conferir_tipos(self, onde, "valor")
         if self.min_chars >= self.max_chars:
             raise ErroDeConfig(f"{onde}: 'min_chars' ({self.min_chars}) >= 'max_chars' ({self.max_chars})")
         if not (0 <= self.overlap_chars < self.max_chars):
@@ -606,6 +643,10 @@ def _avisar_raizes_sobrepostas(bases: tuple[Base, ...]) -> None:
 # Leitura
 
 
+CHAVES_DE_RAIZ = ("caminho", "nome")
+"""O dialeto de `[[base.raizes]]`. O censo legado fala `path`/`nome` — ver `_raizes`."""
+
+
 def _raizes(dados: Any, onde: str) -> tuple[RootSpec, ...]:
     if dados is None:
         return ()
@@ -615,10 +656,37 @@ def _raizes(dados: Any, onde: str) -> tuple[RootSpec, ...]:
     for i, entrada in enumerate(dados, start=1):
         if not isinstance(entrada, dict) or "caminho" not in entrada:
             raise ErroDeConfig(f"{onde}: raiz #{i} precisa de 'caminho'")
+        _recusar_desconhecidas(entrada, CHAVES_DE_RAIZ, f"{onde}, raiz #{i}")
         saida.append(
             RootSpec(name=entrada.get("nome") or f"raiz{i}", path=Path(entrada["caminho"]))
         )
     return tuple(saida)
+
+
+def _recusar_desconhecidas(bruto: Mapping[str, Any], conhecidas: Iterable[str], onde: str) -> None:
+    """Chave que nenhum leitor lê é erro, não silêncio (`Q11`, 29/08/2026).
+
+    `_secao` já recusava dentro de `pesos`, `busca`, `chunking`, `limites`,
+    `[maquina]` e `exclude`. **Fora dessas seis o silêncio era total**: chave
+    direto num `[[base]]`, seção de topo inventada, chave em `[indexacao]`,
+    chave em `[padrao]` e chave extra numa entrada de `raizes` eram lidas e
+    descartadas, e o produto rodava com o padrão sem dizer nada.
+
+    É a classe que este repositório já nomeou duas vezes — *regra que não casa
+    com nada falha em silêncio, e o silêncio parece sucesso*
+    (`docs/duas-falhas-silenciosas.md`) — agora na porta de entrada de quem
+    escreve o TOML à mão, que é exatamente quem a régua de ouro protege.
+
+    A mensagem repete a de `_secao` de propósito: quem aprendeu a lê-la numa
+    seção a lê igual nos outros cinco níveis.
+    """
+    conhecidas = tuple(conhecidas)
+    desconhecidas = set(bruto) - set(conhecidas)
+    if desconhecidas:
+        raise ErroDeConfig(
+            f"em {onde}, chave desconhecida: {', '.join(sorted(desconhecidas))} "
+            f"(conhecidas: {', '.join(sorted(conhecidas))})"
+        )
 
 
 def _secao(fonte: Mapping[str, Any], chave: str, herdado, tipo):  # noqa: ANN001, ANN202
@@ -628,13 +696,7 @@ def _secao(fonte: Mapping[str, Any], chave: str, herdado, tipo):  # noqa: ANN001
         return herdado
     if not isinstance(bruto, dict):
         raise ErroDeConfig(f"'{chave}' precisa ser uma seção, não {type(bruto).__name__}")
-    conhecidos = {f for f in tipo.__dataclass_fields__}
-    desconhecidos = set(bruto) - conhecidos
-    if desconhecidos:
-        raise ErroDeConfig(
-            f"em '{chave}', chave desconhecida: {', '.join(sorted(desconhecidos))} "
-            f"(conhecidas: {', '.join(sorted(conhecidos))})"
-        )
+    _recusar_desconhecidas(bruto, tipo.__dataclass_fields__, f"'{chave}'")
     return replace(herdado, **bruto)
 
 
@@ -709,10 +771,34 @@ def _excludes(  # noqa: ANN202
     )
 
 
+CHAVES_DE_BASE = (
+    "id",
+    "nome",
+    "descricao",
+    "indice",
+    "modelo",
+    "dourado",
+    "glossario",
+    "raizes",
+    "exclude",
+    "pesos",
+    "busca",
+    "chunking",
+    "limites",
+)
+"""Tudo que `_base_de` lê de um `[[base]]`. `tests/test_config.py` deriva esta
+lista do corpo da própria função e reprova se as duas discordarem — chave nova
+no leitor sem entrar aqui viraria "desconhecida" para o usuário."""
+
+CHAVES_DE_PADRAO = ("modelo", "exclude", "pesos", "busca", "chunking", "limites")
+"""O que `[padrao]` aceita: o subconjunto de `[[base]]` que não é por-base."""
+
+
 def _base_de(dados: Mapping[str, Any], padrao: Base, indice: int) -> Base:
     id_ = dados.get("id")
     if not id_:
         raise ErroDeConfig(f"a base #{indice} não tem 'id'")
+    _recusar_desconhecidas(dados, CHAVES_DE_BASE, f"base '{id_}'")
 
     dirs, globs, papeis, declarado = _excludes(
         dados,
@@ -737,6 +823,32 @@ def _base_de(dados: Mapping[str, Any], padrao: Base, indice: int) -> Base:
         busca=_secao(dados, "busca", padrao.busca, Busca),
         chunking=_secao(dados, "chunking", padrao.chunking, Chunking),
         limites=_secao(dados, "limites", padrao.limites, LimitesDeIndexacao),
+    )
+
+
+def _padrao_de(bruto: Mapping[str, Any]) -> Base:
+    """`[padrao]` como a Base da qual toda `[[base]]` herda.
+
+    Saiu do corpo de `carregar` em 29/08/2026 — a mesma montagem de `_base_de`,
+    com id sintético e sem os campos que são por-base (`raizes`, `indice`,
+    `dourado`, `glossario`). Estar ao lado de `_base_de` é o ponto: as duas
+    listas de campo divergirem em silêncio é o defeito que `CHAVES_DE_PADRAO`
+    e `CHAVES_DE_BASE` passaram a impedir.
+    """
+    dirs, globs, papeis, declarado = _excludes(
+        bruto, (DEFAULT_EXCLUDE_DIRS, DEFAULT_EXCLUDE_GLOBS, ()), "[padrao]"
+    )
+    return Base(
+        id=BASE_UNICA,
+        modelo=str(bruto.get("modelo", Base.modelo)),
+        exclude_dirs=dirs,
+        exclude_globs=globs,
+        exclude_roles=papeis,
+        exclude_declarado=declarado,
+        pesos=_secao(bruto, "pesos", Pesos(), Pesos),
+        busca=_secao(bruto, "busca", Busca(), Busca),
+        chunking=_secao(bruto, "chunking", Chunking(), Chunking),
+        limites=_secao(bruto, "limites", LimitesDeIndexacao(), LimitesDeIndexacao),
     )
 
 
@@ -778,6 +890,7 @@ def _aplicar_ambiente(base: Base, ambiente: Mapping[str, str]) -> Base:
 def _indexacao(dados: Mapping[str, Any]) -> Indexacao:
     if not dados:
         return Indexacao()
+    _recusar_desconhecidas(dados, Indexacao.__dataclass_fields__, "'[indexacao]'")
     rascunho = str(dados.get("modelo_rascunho", "") or "").strip()
     dois = dados.get("dois_passes", False)
     if isinstance(dois, str):
@@ -846,123 +959,6 @@ def _do_censo(caminho: Path) -> Config:
     )
     log.info("sem config.toml — base única sintetizada de %s", caminho)
     return Config(bases=(base,), caminho=None)
-
-
-def como_toml(cfg: Config, raiz: Path | None = None) -> dict[str, Any]:
-    """Configuração como dados prontos para serialização.
-
-    `raiz` reescreve como relativo tudo que estiver abaixo dela — simetria de
-    `_resolver`, que ancora na leitura. Sem isso, salvar pelo painel converteria
-    `indice = "index"` em caminho absoluto desta máquina e o par
-    `config.toml` + `index/` deixaria de poder ser copiado para outro
-    computador, que é justamente o fluxo da F3.6.
-
-    Só o que difere do padrão é escrito. Um arquivo que repete todos os valores
-    embutidos vira uma cópia congelada: no dia em que um padrão do código mudar,
-    a configuração antiga silenciosamente continua no valor velho, e ninguém
-    descobre porque o arquivo "não foi alterado". Omitir é o que deixa o padrão
-    ser padrão.
-    """
-
-    def diferenca(objeto, referencia) -> dict[str, Any]:  # noqa: ANN001
-        return {
-            campo: getattr(objeto, campo)
-            for campo in objeto.__dataclass_fields__
-            if getattr(objeto, campo) != getattr(referencia, campo)
-        }
-
-    def caminho(p: Path) -> str:
-        if raiz is not None:
-            try:
-                return str(p.relative_to(raiz))
-            except ValueError:
-                pass  # fora da árvore do config: absoluto é a resposta certa
-        return str(p)
-
-    dados: dict[str, Any] = {"versao": VERSAO}
-
-    maquina = diferenca(cfg.maquina, Maquina())
-    if "limites" in maquina:
-        lim = diferenca(cfg.maquina.limites, Maquina().limites)
-        if lim:
-            maquina["limites"] = lim
-        else:
-            del maquina["limites"]
-    if maquina:
-        dados["maquina"] = {k: v for k, v in maquina.items() if v is not None}
-
-    indexacao = diferenca(cfg.indexacao, Indexacao())
-    if indexacao:
-        dados["indexacao"] = {k: v for k, v in indexacao.items() if v not in (None, "", False)}
-
-    bases: list[dict[str, Any]] = []
-    for b in cfg.bases:
-        entrada: dict[str, Any] = {"id": b.id}
-        for campo in ("nome", "descricao", "modelo"):
-            if getattr(b, campo):
-                entrada[campo] = getattr(b, campo)
-        entrada["indice"] = caminho(b.indice)
-        if b.dourado is not None:
-            entrada["dourado"] = caminho(b.dourado)
-        if b.glossario is not None:
-            entrada["glossario"] = caminho(b.glossario)
-        if b.raizes:
-            entrada["raizes"] = [{"nome": r.name, "caminho": caminho(Path(r.path))} for r in b.raizes]
-
-        extras_dirs = tuple(d for d in b.exclude_dirs if d not in DEFAULT_EXCLUDE_DIRS)
-        extras_globs = tuple(g for g in b.exclude_globs if g not in DEFAULT_EXCLUDE_GLOBS)
-        if extras_dirs or extras_globs or b.exclude_roles:
-            entrada["exclude"] = {}
-            if extras_dirs:
-                entrada["exclude"]["dirs"] = list(extras_dirs)
-            if extras_globs:
-                entrada["exclude"]["globs"] = list(extras_globs)
-            if b.exclude_roles:
-                entrada["exclude"]["papel"] = [
-                    {"dirs": list(r.dirs), "globs": list(r.globs)} if r.dirs else {"globs": list(r.globs)}
-                    for r in b.exclude_roles
-                ]
-
-        for chave, valor, referencia in (
-            ("pesos", b.pesos, Pesos()),
-            ("busca", b.busca, Busca()),
-            ("chunking", b.chunking, Chunking()),
-            ("limites", b.limites, LimitesDeIndexacao()),
-        ):
-            secao = diferenca(valor, referencia)
-            if secao:
-                entrada[chave] = secao
-        bases.append(entrada)
-
-    dados["base"] = bases
-    return dados
-
-
-def gravar(cfg: Config, caminho: Path) -> None:
-    """Grava a configuração, de forma que reler devolva o mesmo objeto.
-
-    É a metade que falta para o painel: a invariante 4 exige medir antes de
-    salvar, e salvar exige escrever. O `tomli_w` entra aqui e só aqui — escapar
-    caminho do Windows à mão é onde escritor de TOML caseiro erra, e um erro
-    desses corrompe a configuração do usuário em silêncio.
-
-    Escrita atômica: um `.tmp` ao lado e um `replace`. Configuração meio escrita
-    por queda de energia é pior que configuração velha.
-    """
-    try:
-        import tomli_w
-    except ModuleNotFoundError as erro:  # pragma: no cover - depende do ambiente
-        raise ErroDeConfig(
-            "gravar configuração exige o pacote `tomli-w` (pip install tomli-w) — "
-            "ele não é necessário para consultar, só para o painel"
-        ) from erro
-
-    cfg.validar()
-    caminho.parent.mkdir(parents=True, exist_ok=True)
-    temporario = caminho.with_suffix(caminho.suffix + ".tmp")
-    with temporario.open("wb") as fh:
-        tomli_w.dump(como_toml(cfg, caminho.parent), fh)
-    temporario.replace(caminho)
 
 
 def _resolver(base: Base, raiz: Path) -> Base:
@@ -1055,27 +1051,18 @@ def carregar(
         )
 
     padrao_bruto = dados.get("padrao", {})
-    dirs, globs, papeis, declarado = _excludes(
-        padrao_bruto, (DEFAULT_EXCLUDE_DIRS, DEFAULT_EXCLUDE_GLOBS, ()), "[padrao]"
-    )
-    padrao = Base(
-        id=BASE_UNICA,
-        modelo=str(padrao_bruto.get("modelo", Base.modelo)),
-        exclude_dirs=dirs,
-        exclude_globs=globs,
-        exclude_roles=papeis,
-        exclude_declarado=declarado,
-        pesos=_secao(padrao_bruto, "pesos", Pesos(), Pesos),
-        busca=_secao(padrao_bruto, "busca", Busca(), Busca),
-        chunking=_secao(padrao_bruto, "chunking", Chunking(), Chunking),
-        limites=_secao(padrao_bruto, "limites", LimitesDeIndexacao(), LimitesDeIndexacao),
-    )
+    padrao = _padrao_de(padrao_bruto)
 
     brutas = dados.get("base", [])
     if not brutas:
         if "roots" in dados:  # census.toml legado, apontado à mão
             return _finalizar(_do_censo(caminho), ambiente, validar)
         raise ErroDeConfig(f"{caminho} não declara nenhuma [[base]]")
+
+    # Depois do desvio do censo legado, de propósito: `roots` é o dialeto de um
+    # arquivo que ainda roda, e recusá-lo aqui quebraria `--config census.toml`.
+    _recusar_desconhecidas(dados, CHAVES_DE_TOPO, f"{caminho}")
+    _recusar_desconhecidas(padrao_bruto, CHAVES_DE_PADRAO, "'[padrao]'")
 
     raiz_do_arquivo = caminho.parent
     bases = tuple(

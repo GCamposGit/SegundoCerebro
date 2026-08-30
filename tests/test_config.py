@@ -24,8 +24,8 @@ from segundocerebro.config import (
     Maquina,
     Pesos,
     carregar,
-    gravar,
 )
+from segundocerebro.config_escrita import gravar
 
 SEM_AMBIENTE: dict[str, str] = {}
 
