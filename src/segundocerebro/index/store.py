@@ -977,6 +977,59 @@ class Store:
         ).fetchone()
         return ChunkArmazenado(**dict(linha)) if linha else None
 
+    def chunks_por_id(self, ids: Sequence[str]) -> dict[str, ChunkArmazenado]:
+        """Vários chunks numa ida ao banco. Id ausente simplesmente não aparece.
+
+        `chunk()` faz uma consulta por trecho, e o caminho de consulta pede
+        centenas: medido em 29/08/2026 no índice corporativo (2.156 documentos),
+        `buscar_chunks(q, k=8, contexto=1)` gastava **350 `execute()` por
+        consulta**, dos quais ~269 eram este mesmo `SELECT ... WHERE id = ?`
+        repetido. A fusão precisa dos metadados de todo o poço de candidatos, e o
+        poço tem `candidatos` (200) itens por ranqueador.
+
+        Devolver dicionário e não lista preserva a semântica de `chunk()`: quem
+        chama já tratava `None` para "está no vetorial e não no registro", e agora
+        trata a ausência da chave — o mesmo caso, sem uma consulta por item.
+
+        O lote existe porque `WHERE id IN (...)` tem teto de parâmetros no SQLite.
+        900 fica bem abaixo do limite de qualquer build.
+        """
+        achados: dict[str, ChunkArmazenado] = {}
+        unicos = list(dict.fromkeys(ids))
+        for inicio in range(0, len(unicos), 900):
+            lote = unicos[inicio : inicio + 900]
+            marcas = ",".join("?" * len(lote))
+            linhas = self.con.execute(
+                "SELECT id, path, ordinal, trilha, locator, kind, texto FROM chunks "
+                f"WHERE id IN ({marcas})",
+                lote,
+            ).fetchall()
+            for linha in linhas:
+                armazenado = ChunkArmazenado(**dict(linha))
+                achados[armazenado.id] = armazenado
+        return achados
+
+    def ids_de_chunks_por_path(self, paths: Sequence[str]) -> dict[str, list[str]]:
+        """`ids_de_chunks` para vários documentos de uma vez, em ordem de leitura.
+
+        Mesmo motivo do método acima: o ranqueador de nome pergunta isto para
+        `candidatos` documentos por consulta, e eram ~79 idas ao banco por
+        consulta no acervo corporativo. Documento sem chunk não aparece no
+        resultado — igual à lista vazia que `ids_de_chunks` devolvia.
+        """
+        por_path: dict[str, list[str]] = {}
+        unicos = list(dict.fromkeys(paths))
+        for inicio in range(0, len(unicos), 900):
+            lote = unicos[inicio : inicio + 900]
+            marcas = ",".join("?" * len(lote))
+            linhas = self.con.execute(
+                f"SELECT path, id FROM chunks WHERE path IN ({marcas}) ORDER BY path, ordinal",
+                lote,
+            ).fetchall()
+            for linha in linhas:
+                por_path.setdefault(linha["path"], []).append(linha["id"])
+        return por_path
+
     def ids_de_chunks(self, path: str) -> list[str]:
         """Só os ids de um documento, em ordem de leitura — sem carregar texto.
 
@@ -1008,6 +1061,55 @@ class Store:
             (atual.path, atual.ordinal - janela, atual.ordinal + janela),
         ).fetchall()
         return [ChunkArmazenado(**dict(l)) for l in linhas]
+
+    def vizinhos_de(self, chunk_ids: Sequence[str], janela: int = 1) -> dict[str, list[ChunkArmazenado]]:
+        """`vizinhos` para vários trechos numa ida ao banco — expansão de contexto.
+
+        `vizinhos()` custa duas consultas por trecho (a do próprio, a da faixa), e
+        `expandir_contexto` a chama uma vez por acerto: com `k = 8` eram 16 idas
+        ao banco só para anexar o parágrafo seguinte. Aqui são duas, quantos
+        forem os acertos.
+
+        A faixa de cada acerto vira uma cláusula do mesmo `WHERE`, e não um
+        `path IN (...)` seguido de filtro em Python: o documento pode ter milhares
+        de trechos, e trazer o texto de todos para descartar quase todos seria
+        trocar uma ida ao banco por muitos megabytes.
+
+        Chave ausente no resultado é o mesmo que a lista vazia de `vizinhos()`:
+        o trecho não está no registro.
+        """
+        alvos = self.chunks_por_id(chunk_ids)
+        if not alvos:
+            return {}
+
+        condicoes: list[str] = []
+        parametros: list[object] = []
+        for alvo in alvos.values():
+            condicoes.append("(path = ? AND ordinal BETWEEN ? AND ?)")
+            parametros += [alvo.path, alvo.ordinal - janela, alvo.ordinal + janela]
+
+        linhas = self.con.execute(
+            "SELECT id, path, ordinal, trilha, locator, kind, texto FROM chunks WHERE "
+            + " OR ".join(condicoes)
+            + " ORDER BY path, ordinal",
+            parametros,
+        ).fetchall()
+
+        por_path: dict[str, list[ChunkArmazenado]] = {}
+        for linha in linhas:
+            armazenado = ChunkArmazenado(**dict(linha))
+            por_path.setdefault(armazenado.path, []).append(armazenado)
+
+        # Uma faixa por acerto, recortada da lista do documento: dois acertos no
+        # mesmo arquivo têm janelas diferentes, e podem se sobrepor.
+        return {
+            chunk_id: [
+                c
+                for c in por_path.get(alvo.path, ())
+                if alvo.ordinal - janela <= c.ordinal <= alvo.ordinal + janela
+            ]
+            for chunk_id, alvo in alvos.items()
+        }
 
     # --- grafo derivado (F4) ----------------------------------------------
 
