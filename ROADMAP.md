@@ -2376,13 +2376,29 @@ botão “ligar no Claude Desktop / Grok”.
 - **Não toca:** ranking, `indexer.py`
 - **Saída:** um teste HTTP do estágio 0 que não exige GPU
 
-### F6-C — Hardware: CPU padrão, CUDA opcional — **desktop**
+### F6-C — Hardware: CPU padrão, CUDA opcional — ✅ **FECHADA em 30/08/2026**
 
-- **Toca:** `index/smoke_cuda.py`, `index/esforco.py`, docs de F3.6, extra
-  `[gpu]`. **Não** põe `cuda` em `model_id`
-- **Não toca:** `retrieve/*`, chunking
-- **Saída:** numa máquina sem NVIDIA a indexação é CPU e a suíte padrão passa;
-  com GPU incompatível (CUDA 13, MiniLM-Q) o smoke recusa em português
+Estava **implementada e não declarada**, e é um estado que este repositório
+produz com frequência: `cuda_runtime.diagnosticar` já recusava em português nos
+seis motivos, com `gpus`/`versao_ort`/`providers` injetáveis para teste. O que
+faltava era a prova de que a fase continua fechada.
+
+- **"Numa máquina sem NVIDIA a indexação é CPU e a suíte padrão passa"** — este
+  notebook tem 0 GPUs e a suíte roda verde; `test_sem_placa_a_suite_padrao_passa_e_o_produto_diz_cpu`
+  é a linha que torna isso uma asserção em vez de uma coincidência.
+- **"Com GPU incompatível o smoke recusa em português"** — os seis motivos
+  (`sem_gpu`, `cuda13`, `minilm_q`, `ep_ausente`, `driver_maxwell`, `sem_ort`)
+  têm mensagem e teste.
+
+**A guarda derivada achou uma lacuna que a leitura não tinha achado:** `SEM_ORT`
+— placa presente e extra `[gpu]` ausente, que é o caso mais comum de quem
+instala — tinha mensagem e **não tinha teste**. Escrito junto.
+
+- **Classe generalizada:** `test_toda_recusa_alcancavel_tem_teste_proprio` varre
+  o AST de `diagnosticar`, colhe os `DiagnosticoCuda(...)` que ela constrói e
+  exige teste para cada motivo; `test_todo_motivo_de_recusa_tem_mensagem_em_portugues`
+  deriva os motivos do módulo e exige mensagem. Ramo de recusa novo nasce
+  conferido — que é a diferença entre "a fase fechou" e "a fase continua fechada".
 
 ### F6-D — Uma página em português — ✅ **FECHADA em 25/08/2026**
 

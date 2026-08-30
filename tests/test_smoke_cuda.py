@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import os
+from pathlib import Path
 
 import pytest
 
@@ -12,6 +13,7 @@ from segundocerebro.index.cuda_runtime import (
     EP_AUSENTE,
     MINILM,
     SEM_GPU,
+    SEM_ORT,
     aplicar_provider,
     diagnosticar,
     resolver_provider,
@@ -76,6 +78,23 @@ def test_minilm_no_cuda_recusa_em_portugues() -> None:
     assert diag.codigo == MINILM
     assert "NaN" in diag.mensagem
     assert "CPU" in diag.mensagem
+
+
+def test_sem_onnxruntime_recusa_em_portugues(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Placa presente e o extra `[gpu]` ausente — o caso mais comum do leigo.
+
+    Tinha mensagem e não tinha teste até 30/08/2026, e quem achou foi a guarda
+    derivada abaixo, não uma leitura. É a diferença entre "a fase fechou" e "a
+    fase fechou e alguém consegue provar".
+    """
+    # `_versao_ort` tem de ser dublado: nesta máquina o onnxruntime **está**
+    # instalado (roda de CPU), então sem o dublê o diagnóstico cai no ramo
+    # seguinte e o teste mediria outro caminho.
+    monkeypatch.setattr("segundocerebro.index.cuda_runtime._versao_ort", lambda: None)
+    diag = diagnosticar(gpus=MAXWELL, versao_ort=None, providers=None)
+    assert not diag.ok
+    assert diag.codigo == SEM_ORT
+    assert "[gpu]" in diag.mensagem and "CPU" in diag.mensagem, diag.mensagem
 
 
 def test_ort_118_no_maxwell_e_aceitavel() -> None:
@@ -146,3 +165,89 @@ def test_driver_590_no_maxwell_recusa_em_portugues() -> None:
     assert "590" in diag.mensagem
     assert "CPU" in diag.mensagem
     assert "sm_52" not in diag.mensagem
+
+
+# --------------------------------------------------------------------------- #
+# F6-C — toda recusa de GPU tem mensagem em português, e toda uma tem teste
+
+
+def _motivos_declarados() -> dict[str, str]:
+    """Motivo → mensagem, derivado do módulo. Motivo novo entra sozinho."""
+    from segundocerebro.index import cuda_runtime as cr
+
+    por_valor = {
+        v: nome
+        for nome, v in vars(cr).items()
+        if nome.isupper() and not nome.startswith("MSG_") and isinstance(v, str) and v.islower()
+    }
+    return {v: nome for v, nome in por_valor.items() if f"MSG_{nome}" in vars(cr) or nome in {"OK"}}
+
+
+def test_todo_motivo_de_recusa_tem_mensagem_em_portugues() -> None:
+    """`F6-C`: numa máquina onde a GPU não serve, o produto **diz por quê**.
+
+    A saída da fase é "com GPU incompatível o smoke recusa em português". A
+    forma de errar isso não é não ter mensagem: é acrescentar um motivo novo e
+    esquecer a mensagem, e aí a recusa sai como um código seco que não ajuda
+    ninguém. A lista sai do módulo, então motivo novo nasce conferido.
+    """
+    from segundocerebro.index import cuda_runtime as cr
+
+    faltando = []
+    for valor, nome in _motivos_declarados().items():
+        msg = getattr(cr, f"MSG_{nome}", None) or (cr.MSG_OK if nome == "OK" else None)
+        if not msg or len(str(msg)) < 10:
+            faltando.append(f"{nome}={valor!r}")
+    assert not faltando, f"motivo de recusa sem mensagem: {faltando}"
+
+
+def test_toda_recusa_alcancavel_tem_teste_proprio() -> None:
+    """Cada motivo que `diagnosticar` pode devolver é exercitado neste arquivo.
+
+    Derivado de `diagnosticar`, por AST: os `DiagnosticoCuda(...)` que ela
+    constrói dizem quais motivos são alcançáveis. Se alguém acrescentar um ramo
+    de recusa e não escrever o teste, isto reprova — que é a diferença entre
+    "a fase fechou" e "a fase fechou e continua fechada".
+    """
+    import ast
+    import inspect
+
+    from segundocerebro.index import cuda_runtime as cr
+
+    fonte = Path(inspect.getsourcefile(cr)).read_text(encoding="utf-8")
+    arvore = ast.parse(fonte)
+    alvo = next(
+        no for no in ast.walk(arvore)
+        if isinstance(no, ast.FunctionDef) and no.name == "diagnosticar"
+    )
+    # Só o **segundo** posicional: `DiagnosticoCuda(ok, codigo, mensagem)`, e o
+    # que identifica a recusa é o código. Pegar os três também colhia a
+    # mensagem e a lista saía com o dobro do tamanho, cheia de falso-positivo.
+    alcancaveis = {
+        no.args[1].id
+        for no in ast.walk(alvo)
+        if isinstance(no, ast.Call)
+        and getattr(no.func, "id", "") == "DiagnosticoCuda"
+        and len(no.args) >= 2
+        and isinstance(no.args[1], ast.Name)
+    }
+    assert len(alcancaveis) >= 6, f"a varredura achou só {alcancaveis} — parou de ver"
+
+    meu = Path(__file__).read_text(encoding="utf-8")
+    sem_teste = [nome for nome in sorted(alcancaveis) if nome != "OK" and nome not in meu]
+    assert not sem_teste, (
+        f"motivo de recusa sem teste neste arquivo: {sem_teste}. A saída da `F6-C` é "
+        "que a recusa saia em português — motivo novo precisa da prova junto."
+    )
+
+
+def test_sem_placa_a_suite_padrao_passa_e_o_produto_diz_cpu() -> None:
+    """A outra metade da `F6-C`, e ela vale exatamente onde importa.
+
+    "Numa máquina sem NVIDIA a indexação é CPU e a suíte padrão passa" — esta
+    suíte é a prova, e este teste é a linha que a torna explícita: sem placa,
+    `diagnosticar` recusa com a mensagem que manda usar CPU, e não levanta.
+    """
+    diag = diagnosticar(gpus=[], versao_ort=None, providers=None)
+    assert diag.ok is False
+    assert "cpu" in diag.mensagem.lower(), diag.mensagem
