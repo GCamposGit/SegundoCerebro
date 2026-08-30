@@ -104,29 +104,52 @@ def test_doc_de_ocr_levanta_em_vez_de_devolver_none(monkeypatch, modo, quebrar, 
 
 
 @pytest.mark.parametrize("modo,quebrar", MODOS, ids=[m for m, _ in MODOS])
-@pytest.mark.parametrize("forma,fabrica", PDFS, ids=[f for f, _ in PDFS])
-def test_parse_isolado_devolve_erro_e_nunca_vazio(monkeypatch, tmp_path, modo, quebrar, forma, fabrica):
+def test_scan_sem_texto_nativo_vira_erro_e_nunca_vazio(monkeypatch, tmp_path, modo, quebrar):
     """O funil que o indexador executa. `erro` manda quarentenar; `vazio` não.
 
-    É a asserção que importa do pacote inteiro: a fase de OCR pode falhar, mas
-    não pode falhar **parecendo** um documento que não tinha texto.
+    É a asserção que importa do pacote: a fase de OCR pode falhar, mas não pode
+    falhar **parecendo** um documento que não tinha texto. Vale para o PDF que
+    não tem nada além do scan — aí não há o que preservar.
 
     Ramo **em processo** de `parse_isolado`: `deve_isolar` é forçado a `False`
     porque a injeção de falha vive neste processo e o `spawn` não a levaria. O
-    outro ramo, o que roda no filho, é conferido em
-    `test_o_filho_isolado_converte_do_mesmo_jeito` — os dois têm de dar o mesmo
-    status, e é justamente ter dois ramos que fez o defeito passar.
+    ramo do filho é conferido em `test_o_filho_isolado_converte_do_mesmo_jeito`.
     """
-    alvo = tmp_path / f"{forma}.pdf"
-    alvo.write_bytes(fabrica())
+    alvo = tmp_path / "escaneado.pdf"
+    alvo.write_bytes(bytes_pdf(texto=None, com_imagem=True))
     monkeypatch.setattr("segundocerebro.index.isolamento.deve_isolar", lambda _p: False)
     quebrar(monkeypatch)
     r = parse_isolado(str(alvo), worker="parse", ocr=True)
-    assert r.status is ParseStatus.ERROR, f"{modo}/{forma}: saiu {r.status.value}, não `erro`"
+    assert r.status is ParseStatus.ERROR, f"{modo}: saiu {r.status.value}, não `erro`"
     assert MOTIVO_RECURSO in r.detail, (
         f"o detalhe não diz que a causa foi recurso: {r.detail!r} — a linha de "
         "quarentena precisa distinguir 'tente com mais memória' de 'está corrompido'"
     )
+
+
+@pytest.mark.parametrize("modo,quebrar", MODOS, ids=[m for m, _ in MODOS])
+def test_pdf_misto_preserva_o_texto_nativo_quando_o_ocr_cai(monkeypatch, tmp_path, modo, quebrar):
+    """A outra metade, e ela é a que uma revisão adversarial teve de me ensinar.
+
+    O OCR é **segunda** passada. Se ele cai por recurso num PDF que já teve
+    páginas nativas lidas, deixar a falha subir troca um documento `ok` com
+    texto por um `erro` sem nada — e `indexer.aplicar` chama
+    `remover_documento`, que apaga chunks e vetores **já gravados**. Some a
+    quarentena, que aposenta o documento na segunda tentativa, e o conserto do
+    `Q15` ficava pior que o defeito: perder texto indexado é pior que não ganhar
+    o do scan.
+
+    O documento fica `ok` sem a versão de OCR carimbada, então volta para
+    `documentos_para_ocr` na passada seguinte — que é o comportamento de antes.
+    """
+    alvo = tmp_path / "misto.pdf"
+    alvo.write_bytes(bytes_pdf_misto())
+    monkeypatch.setattr("segundocerebro.index.isolamento.deve_isolar", lambda _p: False)
+    quebrar(monkeypatch)
+    r = parse_isolado(str(alvo), worker="parse", ocr=True)
+    assert r.status is ParseStatus.OK, f"{modo}: saiu {r.status.value} — o texto nativo se perdeu"
+    assert r.doc is not None and r.doc.blocks, "documento `ok` sem bloco nenhum"
+    assert "Nimbus" in " ".join(b.text for b in r.doc.blocks)
 
 
 def test_o_filho_isolado_converte_do_mesmo_jeito(monkeypatch):
@@ -258,9 +281,44 @@ def test_nenhum_hook_de_teste_sem_guarda_em_src():
         }
         if not nomes:
             continue
-        guardado = "PYTEST_CURRENT_TEST" in fonte or "log.warning" in fonte
-        if not guardado:
+        # `PYTEST_CURRENT_TEST` e nada mais. A primeira versao aceitava
+        # `"log.warning" in fonte`, e isso passa para QUALQUER modulo que tenha
+        # um aviso em qualquer linha — guarda que nunca reprova. Achado por
+        # revisao em 30/08/2026; e a forma que o `CLAUDE.md` ja nomeia.
+        if "PYTEST_CURRENT_TEST" not in fonte:
             faltas.append(f"{arquivo.relative_to(PACOTE).as_posix()}: {sorted(nomes)}")
     assert not faltas, (
-        "hook de teste alcançável em produção sem guarda nem aviso:\n  " + "\n  ".join(faltas)
+        "hook de teste alcançável em produção sem guarda de `PYTEST_CURRENT_TEST`:\n  "
+        + "\n  ".join(faltas)
     )
+
+
+def test_a_guarda_de_hook_reprova_contra_caso_isolado():
+    """Prova da guarda acima, num módulo sintético onde o hook é a única coisa.
+
+    Contra o arquivo real ela nunca foi provada: casa com um módulo só, e o
+    critério antigo (`"log.warning" in fonte`) passava por acidente — qualquer
+    aviso em qualquer linha satisfazia. Prova de guarda roda contra caso
+    isolado, e a lição vale quando a guarda é minha.
+    """
+    import ast
+
+    suspeitas = ("FAKE", "TEST", "DEBUG", "MOCK")
+    desguardado = 'import os\nx = os.environ.get("SEGUNDOCEREBRO_ALGO_FAKE")\n'
+    com_aviso = desguardado + 'log.warning("qualquer coisa")\n'
+    guardado = desguardado + 'if "PYTEST_CURRENT_TEST" in os.environ:\n    pass\n'
+
+    def acusa(fonte: str) -> bool:
+        nomes = {
+            no.value
+            for no in ast.walk(ast.parse(fonte))
+            if isinstance(no, ast.Constant)
+            and isinstance(no.value, str)
+            and no.value.startswith("SEGUNDOCEREBRO_")
+            and any(s in no.value.upper() for s in suspeitas)
+        }
+        return bool(nomes) and "PYTEST_CURRENT_TEST" not in fonte
+
+    assert acusa(desguardado), "a guarda não vê um hook desguardado isolado"
+    assert acusa(com_aviso), "um `log.warning` solto não pode contar como guarda"
+    assert not acusa(guardado), "a guarda acusa um hook que TEM guarda"

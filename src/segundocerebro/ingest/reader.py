@@ -284,9 +284,22 @@ def _ocr_pdf(dados: bytes, nome: str, nativo: ParsedDoc | None = None) -> Parsed
     `nativo` is the cheap parse: mixed PDFs keep those blocks and only the
     photo pages go through the engine.
     """
+    from .document import FalhaDeAmbiente
     from .ocr import doc_de_ocr
 
-    return doc_de_ocr(dados, nome, nativo=nativo)
+    try:
+        return doc_de_ocr(dados, nome, nativo=nativo)
+    except FalhaDeAmbiente:
+        if nativo is not None and nativo.blocks:
+            # PDF misto: o parse barato já leu as páginas nativas, e **elas
+            # continuam valendo**. Deixar a falha subir trocaria um documento
+            # `ok` com texto por um `erro` sem nada — e `aplicar` chama
+            # `remover_documento`, que apaga chunks e vetores já gravados.
+            # Sem a versão de OCR carimbada, ele volta para
+            # `documentos_para_ocr` na passada seguinte (30/08/2026).
+            log.warning("OCR falhou por recurso em %s; fica o parse nativo", nome)
+            return None
+        raise
 
 
 def _converter_legado(

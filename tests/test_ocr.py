@@ -5,6 +5,8 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
+import pytest
+
 
 from segundocerebro.ingest.document import ParseStatus
 from segundocerebro.ingest.ocr import VERSAO, backend_disponivel, doc_de_ocr
@@ -87,7 +89,17 @@ def ocr_produziu_texto_ou_declarou_recurso(store: Store, rel: str, progresso) ->
         f"{rel} em erro por motivo que não é recurso: {item.motivo!r}"
     )
     assert progresso.quarentena >= 1
-    return False
+    # O produto se comportou certo, e mesmo assim esta passada **não tem
+    # veredito sobre OCR**: nenhuma página foi reconhecida. Devolver `False` e
+    # deixar o chamador sair calado trocava um não-veredito VISÍVEL (o skip, que
+    # aparece no sumário) por um invisível (verde). Achado por revisão em
+    # 30/08/2026, e é a mesma armadilha que o piso de RAM tinha — só que pior,
+    # porque some do relatório. O motivo agora vem do produto, não de um número
+    # escrito à mão.
+    pytest.skip(
+        f"sem veredito de OCR nesta passada: o produto declarou recurso em {rel} "
+        f"({item.motivo!r}). Regime: {regime_da_maquina()}"
+    )
 
 
 TEXTO_VCE = "Contrato NN-VCE-001 da Varzea Clara Energia."

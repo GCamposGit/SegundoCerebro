@@ -28,6 +28,7 @@ from pathlib import Path
 
 from ..config import ErroDeConfig, carregar, normalizar_perfil
 from ..logger import get_logger
+from ..repositorio import em_checkout
 from ..repositorio import raiz as raiz_do_repositorio
 from .indexer import TravaDeIndice
 from .progresso import ler
@@ -99,8 +100,12 @@ def linha_da_tarefa(raiz: Path) -> str:
         "rem Criado pelo Segundo Cerebro. Apagar este arquivo desliga a retomada\r\n",
         "rem automatica da indexacao. Nada e reindexado do zero.\r\n",
         f'cd /d "{raiz}"\r\n',
-        "set PYTHONPATH=src\r\n",
     ]
+    # `PYTHONPATH` so num checkout (`F6`, 30/08/2026). Este `.cmd` e gravado na
+    # pasta de Inicializacao do usuario: e a pior versao de 'codigo que so roda
+    # de dentro do repositorio', porque sobrevive ate a desinstalacao do pacote.
+    if em_checkout():
+        linhas.append("set PYTHONPATH=src\r\n")
     provider = os.environ.get("SEGUNDOCEREBRO_PROVIDER", "").strip()
     if provider:
         linhas.append(f"set SEGUNDOCEREBRO_PROVIDER={provider}\r\n")

@@ -1112,9 +1112,9 @@ def indexar(
                 publicador.publicar()
 
         if ocr and not progresso.interrompido:
-            from ..ingest.ocr import backend_disponivel
+            from ..ingest.ocr import motor_de_ocr  # `Q15`: probe que levanta não mata a passada
 
-            if backend_disponivel() is None:
+            if motor_de_ocr() is None:
                 log.info(
                     "OCR pedido mas nenhum motor disponível — pip install segundocerebro[ocr]"
                 )

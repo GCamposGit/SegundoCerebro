@@ -90,6 +90,23 @@ def test_estagio_zero_do_leigo(cliente, pasta_do_usuario, tmp_path, monkeypatch)
     assert [Path(r.path).resolve() for r in base.raizes] == [pasta_do_usuario.resolve()]
 
 
+def valores_de(entrada: dict) -> list[str]:
+    """Todo valor de texto do registro, achatado — args, env, cwd e command.
+
+    Existe porque a asserção que dava nome a esta guarda não podia reprovar:
+    ela comparava `str(RAIZ)` contra `json.dumps(entrada)`, e o `json` **dobra
+    as contrabarras** do Windows, então o caminho serializado nunca casava com
+    o caminho real. O teste passava com a raiz do repositório dentro dos três
+    campos. Achado por revisão em 30/08/2026 — comparar texto serializado é
+    comparar outra coisa."""
+    valores = [str(v) for v in entrada.get("args", [])]
+    valores += [str(v) for v in (entrada.get("env") or {}).values()]
+    if entrada.get("cwd"):
+        valores.append(str(entrada["cwd"]))
+    valores.append(str(entrada.get("command", "")))
+    return valores
+
+
 def test_o_botao_de_ligar_grava_config_do_usuario_e_nao_do_repositorio(
     cliente, pasta_do_usuario, tmp_path, monkeypatch
 ):
@@ -125,9 +142,8 @@ def test_o_botao_de_ligar_grava_config_do_usuario_e_nao_do_repositorio(
     )
     assert str(tmp_path / "config.toml") in entrada["args"]
     assert "PYTHONPATH" not in entrada["env"], "instalação por pip não leva PYTHONPATH"
-    assert str(registrar.RAIZ) not in json.dumps(entrada), (
-        f"o registro leva a raiz do repositório para a máquina do usuário: {entrada}"
-    )
+    levam = [v for v in valores_de(entrada) if str(registrar.RAIZ) in v]
+    assert not levam, f"o registro leva a raiz do repositório para o usuário: {levam}"
 
 
 def test_o_botao_nao_apaga_a_configuracao_dos_outros(cliente, pasta_do_usuario, tmp_path, monkeypatch):

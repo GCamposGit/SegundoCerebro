@@ -141,11 +141,15 @@ def entrada_de(
     if absoluto:
         if em_checkout():
             ambiente["PYTHONPATH"] = str(RAIZ / "src")
-        alvo = Path(config).resolve() if config else RAIZ / "config.toml"
-        args += ["--config", str(alvo)]
-        # `cwd` porque o índice e o conjunto dourado da base podem ser relativos
-        # ao config — e é ao **config**, não ao repositório, que eles são relativos.
-        entrada["cwd"] = str(alvo.parent)
+        # Sem config declarado e fora de um checkout, `RAIZ` e o site-packages:
+        # apontar para la faz o servidor levantar "configuracao nao encontrada".
+        # Melhor nao escrever nada e deixar o cliente descobrir (30/08/2026).
+        alvo = Path(config).resolve() if config else (RAIZ / "config.toml" if em_checkout() else None)
+        if alvo is not None:
+            args += ["--config", str(alvo)]
+            # `cwd` porque o índice e o dourado podem ser relativos ao config —
+            # e é ao **config**, não ao repositório, que eles são relativos.
+            entrada["cwd"] = str(alvo.parent)
     return entrada
 
 

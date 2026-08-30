@@ -894,7 +894,7 @@ def criar_app(
                 [base],
                 nomear=True,
                 absoluto=cliente not in RELATIVO,
-                python=python_do_projeto(relativo=cliente in RELATIVO), config=conf.caminho,
+                python=python_do_projeto(relativo=cliente in RELATIVO), config=conf.caminho or caminho_config,
                 extra_env=extra_env_hardware(conf, existente),
             )
         except ErroDeConfig as erro:

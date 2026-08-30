@@ -235,6 +235,59 @@ def test_a_raiz_do_repositorio_tem_um_nome_so() -> None:
     assert not copias, f"raiz do repositório deduzida à mão em {copias} — usar `repositorio.raiz()`"
 
 
+def test_nenhum_texto_gerado_pelo_produto_grava_pythonpath() -> None:
+    """`src/` não **escreve** `PYTHONPATH` em arquivo nenhum do usuário.
+
+    A guarda irmã varre `scripts/`, que são os atalhos versionados. Ela deixou
+    de fora o pior sítio, e uma revisão adversarial o achou:
+    `index/retomada.py` gera um `.cmd` e o grava na **pasta de Inicialização do
+    usuário**. Um atalho versionado quebrado o usuário apaga; esse fica lá
+    sozinho, e sobrevive até à desinstalação do pacote.
+
+    A regra é sobre **produzir** o texto, não sobre tê-lo: mencionar
+    `PYTHONPATH` num comentário ou dentro de um `if em_checkout()` é legítimo,
+    escrever a linha incondicionalmente não é. Por isso a varredura é de AST e
+    olha o contexto, não um `grep`.
+    """
+    import ast
+
+    culpados: list[str] = []
+    for arquivo in sorted(PACOTE.rglob("*.py")):
+        arvore = ast.parse(arquivo.read_text(encoding="utf-8"), filename=str(arquivo))
+        guardas = [
+            no
+            for no in ast.walk(arvore)
+            if isinstance(no, ast.If)
+            and any(
+                isinstance(c, ast.Call) and getattr(c.func, "id", "") == "em_checkout"
+                for c in ast.walk(no.test)
+            )
+        ]
+        protegidos = {id(n) for guarda in guardas for n in ast.walk(guarda)}
+        # Docstring é documentação, não texto gerado: uma string que é
+        # *enunciado* nunca chega ao disco do usuário. Sem esta exclusão a
+        # guarda acusa a própria prosa que explica por que ela existe.
+        protegidos |= {
+            id(no.value)
+            for no in ast.walk(arvore)
+            if isinstance(no, ast.Expr) and isinstance(no.value, ast.Constant)
+        }
+        for no in ast.walk(arvore):
+            if (
+                isinstance(no, ast.Constant)
+                and isinstance(no.value, str)
+                and "PYTHONPATH" in no.value
+                and "=" in no.value
+                and id(no) not in protegidos
+            ):
+                rel = arquivo.relative_to(PACOTE).as_posix()
+                culpados.append(f"{rel}:{no.lineno} escreve {no.value.strip()!r}")
+    assert not culpados, (
+        "o produto escreve PYTHONPATH num arquivo do usuário, sem perguntar "
+        "`em_checkout()`:\n  " + "\n  ".join(culpados)
+    )
+
+
 def test_nenhum_script_grava_pythonpath() -> None:
     """`scripts/` não escreve `PYTHONPATH` — `F6`, 30/08/2026.
 
@@ -258,3 +311,48 @@ def test_nenhum_script_grava_pythonpath() -> None:
         f"{culpados} grava PYTHONPATH. O pacote se instala com `pip install -e .`; "
         "script que remenda o caminho esconde instalação quebrada (F6)."
     )
+
+
+def test_a_guarda_de_pythonpath_gerado_reprova_contra_caso_isolado() -> None:
+    """Prova da guarda acima, em fontes sintéticas onde a linha é a única coisa.
+
+    Contra o `src/` real ela passa hoje, e passar não prova nada: o que prova é
+    ela acusar o caso desguardado e absolver o guardado. É a lição que o
+    `CLAUDE.md` registra depois do `ast.NotIn` — prova de guarda contra o
+    arquivo real passa por acidente, porque a redundância mascara a cegueira.
+    """
+    import ast
+
+    def acusa(fonte: str) -> bool:
+        arvore = ast.parse(fonte)
+        guardas = [
+            no
+            for no in ast.walk(arvore)
+            if isinstance(no, ast.If)
+            and any(
+                isinstance(c, ast.Call) and getattr(c.func, "id", "") == "em_checkout"
+                for c in ast.walk(no.test)
+            )
+        ]
+        protegidos = {id(n) for guarda in guardas for n in ast.walk(guarda)}
+        protegidos |= {
+            id(no.value)
+            for no in ast.walk(arvore)
+            if isinstance(no, ast.Expr) and isinstance(no.value, ast.Constant)
+        }
+        return any(
+            isinstance(no, ast.Constant)
+            and isinstance(no.value, str)
+            and "PYTHONPATH" in no.value
+            and "=" in no.value
+            and id(no) not in protegidos
+            for no in ast.walk(arvore)
+        )
+
+    solto = 'linhas.append("set PYTHONPATH=src")'
+    guardado = 'if em_checkout():\n    linhas.append("set PYTHONPATH=src")'
+    docstring = '"""A prosa pode citar `set PYTHONPATH=src` sem ser acusada."""\n'
+
+    assert acusa(solto), "a guarda não vê a linha solta — era o caso do retomada.py"
+    assert not acusa(guardado), "a guarda acusa a linha que TEM `em_checkout()`"
+    assert not acusa(docstring), "a guarda acusa documentação, que nunca chega ao disco"

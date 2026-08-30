@@ -47,7 +47,7 @@ def _probe(modulo: str) -> bool:
     """
     try:
         __import__(modulo)
-    except BaseException as exc:
+    except Exception as exc:  # noqa: BLE001 — probe: qualquer falha que não seja ausência
         if ausencia_declarada(exc, modulo):
             return False
         raise FalhaDeAmbiente(f"{modulo} está instalado e não carregou: {exc}") from exc
@@ -65,6 +65,23 @@ def backend_disponivel() -> str | None:
     if shutil.which("tesseract"):
         return "tesseract" if _probe("pytesseract") else None
     return None
+
+
+def motor_de_ocr() -> str | None:
+    """`backend_disponivel()` que não derruba quem o chama — `Q15`, 30/08/2026.
+
+    O probe passou a **levantar** quando o extra está instalado e não carrega,
+    que é o conserto do `Q15`. Só que o indexador o chama depois das quatro
+    ondas de texto: sem envelope, a passada inteira morreria com traceback
+    tendo já feito o trabalho caro — pior que o defeito consertado. Quem
+    precisa do veredito cru usa `backend_disponivel`; quem está no meio de uma
+    passada usa este.
+    """
+    try:
+        return backend_disponivel()
+    except FalhaDeAmbiente as erro:
+        log.error("OCR indisponível nesta passada: %s", erro)
+        return None
 
 
 DPI_OCR = 144
@@ -205,15 +222,21 @@ def ocr_pdf(dados: bytes, *, teto_mb: int | None = None) -> list[PaginaTexto] | 
     if backend_disponivel() is None:
         return None
     paginas: list[PaginaTexto] = []
+    falharam = 0
     try:
         for i, imagem in _iter_rasters(dados, teto_mb=teto_mb):
             try:
                 texto = _texto_de(imagem)
-            except (FalhaDeAmbiente, ImportError, MemoryError):
+            except (FalhaDeAmbiente, ImportError):
+                # Dependência que não carrega é da máquina, e vale para o arquivo
+                # inteiro. `MemoryError` **não** entra aqui: uma página A0 a 72 dpi
+                # pede 593 MB por si só, e isso é o documento, não a janela — era
+                # exatamente o que o `noqa` abaixo existe para tratar (30/08/2026).
                 raise
             except Exception as exc:  # noqa: BLE001 — laço de onda: página de scan hostil não mata o OCR do arquivo
                 log.warning("OCR falhou na página %d: %s", i, exc)
                 texto = ""
+                falharam += 1
             del imagem
             paginas.append(PaginaTexto(numero=i, texto=texto))
     except FalhaDeAmbiente:
@@ -227,6 +250,10 @@ def ocr_pdf(dados: bytes, *, teto_mb: int | None = None) -> list[PaginaTexto] | 
     except Exception as exc:  # noqa: BLE001 — a bad scan must not kill the wave
         log.warning("OCR não rasterizou o PDF: %s", exc)
         return None
+    if paginas and falharam == len(paginas):
+        # Todas as páginas falharam: aí sim é a janela, e não um scan hostil.
+        # Página a página o produto degrada como sempre degradou.
+        raise FalhaDeAmbiente(f"OCR falhou nas {falharam} páginas deste PDF")
     return paginas
 
 

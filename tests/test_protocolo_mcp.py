@@ -449,6 +449,23 @@ def test_a_armadilha_do_caminho_esta_armada(tmp_path: Path) -> None:
 # F6 — o registro não pode levar o repositório para dentro da máquina do usuário
 
 
+def valores_de(entrada: dict) -> list[str]:
+    """Todo valor de texto do registro, achatado — args, env, cwd e command.
+
+    Existe porque a asserção que dava nome a esta guarda não podia reprovar:
+    ela comparava `str(RAIZ)` contra `json.dumps(entrada)`, e o `json` **dobra
+    as contrabarras** do Windows, então o caminho serializado nunca casava com
+    o caminho real. O teste passava com a raiz do repositório dentro dos três
+    campos. Achado por revisão em 30/08/2026 — comparar texto serializado é
+    comparar outra coisa."""
+    valores = [str(v) for v in entrada.get("args", [])]
+    valores += [str(v) for v in (entrada.get("env") or {}).values()]
+    if entrada.get("cwd"):
+        valores.append(str(entrada["cwd"]))
+    valores.append(str(entrada.get("command", "")))
+    return valores
+
+
 def test_o_registro_nao_grava_caminho_do_repositorio_para_quem_instalou(monkeypatch, tmp_path):
     """Instalação por `pip`: nada no registro pode apontar para o checkout.
 
@@ -481,8 +498,8 @@ def test_o_registro_nao_grava_caminho_do_repositorio_para_quem_instalou(monkeypa
     assert str(config.resolve()) in entrada["args"]
 
     raiz = str(registrar.RAIZ)
-    despejo = json.dumps(entrada)
-    assert raiz not in despejo, f"o registro leva a raiz do repositório: {despejo}"
+    levam = [v for v in valores_de(entrada) if raiz in v]
+    assert not levam, f"o registro leva a raiz do repositório em {levam}"
 
 
 def test_no_checkout_o_pythonpath_continua(monkeypatch, tmp_path):
