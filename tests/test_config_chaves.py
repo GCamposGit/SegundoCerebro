@@ -489,6 +489,26 @@ def test_o_censo_minimo_tambem(tmp_path):
     assert carregar(censo, ambiente=SEM_AMBIENTE, validar=False).bases[0].raizes
 
 
+@pytest.mark.parametrize("legada", CHAVES_DE_TOPO_LEGADO)
+def test_o_dialeto_do_censo_nao_vale_num_config(tmp_path, legada):
+    """Chave do censo na raiz de um `config.toml` é erro, não permissão.
+
+    Somar os dois dialetos na mesma conferência fazia `[exclude]` na raiz de um
+    `config.toml` **carregar e ser ignorado** — e é o engano provável de quem
+    copiou do `census.toml`, onde `exclude` é de topo mesmo. Menos arquivo
+    excluído parece o que se pediu, que é a frase de
+    `docs/duas-falhas-silenciosas.md`: a classe do `Q11` reintroduzida dentro do
+    conserto dela, achada por revisão em 30/08/2026.
+
+    A lista é derivada de `CHAVES_DE_TOPO_LEGADO` — chave nova no dialeto do
+    censo nasce conferida contra o dialeto principal.
+    """
+    valor = "20" if legada == "top" else '["Backups"]' if legada == "roots" else "{ dirs = [] }"
+    texto = f'versao = 1\n{legada} = {valor}\n\n[[base]]\nid = "padrao"\nindice = "index"\n'
+    with pytest.raises(ErroDeConfig, match=legada):
+        carregar(escrever(tmp_path, texto), ambiente=SEM_AMBIENTE, validar=False)
+
+
 def test_rerank_nulo_continua_valido(tmp_path):
     """`rerank` é o único opcional: `None` é o padrão, não tipo errado."""
     cfg = carregar(escrever(tmp_path, BASE_MINIMA), ambiente=SEM_AMBIENTE)

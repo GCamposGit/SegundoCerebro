@@ -1051,18 +1051,18 @@ def carregar(
             f"{caminho} declara versão {versao}, e esta instalação entende até {VERSAO}"
         )
 
-    # Antes do desvio do censo, para que `[[bases]]` no plural saia como o typo
-    # que é, e não como "não declara nenhuma [[base]]". `roots` entra na lista
-    # porque `--config census.toml` ainda roda (30/08/2026).
-    _recusar_desconhecidas(dados, CHAVES_DE_TOPO + CHAVES_DE_TOPO_LEGADO, f"{caminho}")
+    # Dialeto por CONTEÚDO, e cada um confere só o seu: somadas, as duas listas
+    # faziam `[exclude]` na raiz carregar e ser ignorado — o `Q11` de volta.
+    if "roots" in dados and "base" not in dados:  # census.toml legado
+        _recusar_desconhecidas(dados, CHAVES_DE_TOPO_LEGADO, f"{caminho}")
+        return _finalizar(_do_censo(caminho), ambiente, validar)
+    _recusar_desconhecidas(dados, CHAVES_DE_TOPO, f"{caminho}")
     padrao_bruto = dados.get("padrao", {})
     _recusar_desconhecidas(padrao_bruto, CHAVES_DE_PADRAO, "'[padrao]'")
     padrao = _padrao_de(padrao_bruto)
 
     brutas = dados.get("base", [])
     if not brutas:
-        if "roots" in dados:  # census.toml legado, apontado à mão
-            return _finalizar(_do_censo(caminho), ambiente, validar)
         raise ErroDeConfig(f"{caminho} não declara nenhuma [[base]]")
 
     raiz_do_arquivo = caminho.parent
