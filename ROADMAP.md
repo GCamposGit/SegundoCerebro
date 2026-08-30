@@ -1573,6 +1573,21 @@ com o marcador `arquivo`, e o `select` do `ruff` com `BLE`, `S603` e `DTZ`.
 | `Q19`: **64 links** para arquivo que o clone não tem | **6 links**. Os outros ~70 são menção em prosa, que é a forma que o próprio pacote prescreve. O número misturava as duas coisas |
 | `Q19`: a cobertura é 25%, e o valor medido é 38,5% | **nem um nem outro sozinho.** O `F4-D` reporta um **par**: 3,3% de piso (só as fontes esperadas) e 38,5% de teto (a pasta inteira de cada pergunta). O `README.md` ainda chamava 38,5% de "% das **pastas**", que é a unidade errada |
 
+**E a revisão adversarial do conjunto achou uma regressão que a suíte não pegou.**
+A conferência de topo subiu para antes do desvio do censo legado com uma lista de
+**uma** chave (`roots`), quando `census.load_config` lê **três** (`roots`, `top`,
+`exclude`): `census.example.toml`, que é versionado e é o que o clone copia,
+parou de carregar por caminho explícito — a forma documentada em `index/cli.py`.
+Assimétrico e por isso enganoso: `carregar()` sem caminho desviava antes da
+conferência e funcionava.
+
+Das cinco listas de chaves deste pacote, quatro eram derivadas (do modelo, do
+AST, do `pyproject.toml`) e **a única escrita de cabeça foi a que quebrou** — e
+o teste que devia prová-la foi escrito pela mesma cabeça, montando um
+`census.toml` mínimo com exatamente a chave que a lista tinha. Fechado: a quinta
+lista passou a ser derivada do AST de `census.load_config`, e o teste roda contra
+os arquivos **reais**.
+
 **Duas coisas que a execução achou e que não estavam em pacote nenhum:**
 
 - **`scripts/abrir-painel.cmd` ainda faz `set PYTHONPATH=src`.** É a mesma classe

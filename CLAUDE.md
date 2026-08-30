@@ -228,6 +228,24 @@ a evidência datada em [`docs/historico-decisoes.md`](docs/historico-decisoes.md
   reporta um **par** — 3,3% de piso e 38,5% de teto — e a leitura honesta fica
   entre os dois. Não é o mesmo defeito de "número sem corpus": é número **com**
   corpus e **sem** denominador.
+- **Numa passada com cinco listas, a única escrita de cabeça foi a que
+  quebrou.** Quatro eram derivadas — do modelo, do AST, do `pyproject.toml`. A
+  quinta, o dialeto de topo do `census.toml`, saiu com uma chave quando o leitor
+  lê três, e `census.example.toml` — versionado, e o que o clone copia — parou
+  de carregar. O erro sobreviveu ao teste porque o teste também foi escrito de
+  cabeça: montava um `census.toml` mínimo com a única chave que a lista tinha.
+  **Lista e prova escritas pela mesma cabeça concordam sempre**; a prova tem de
+  vir do artefato real ou de derivação independente.
+- **`⊆` sobre conjunto pequeno é asserção que não assere.** Um teste comparava
+  `{"limites"} ⊆ Maquina.__dataclass_fields__` e passava sobre 1/5 da
+  superfície, enquanto o docstring afirmava cobrir a função inteira. Em guarda,
+  igualdade exata; e quando o mecanismo real não é visível ao instrumento — ali
+  a validação era delegada a uma dataclass, não a uma chave literal —, o que
+  fecha é um segundo teste **de comportamento**, não um `⊆` mais largo.
+- **Guarda que consulta o disco não prova nada sobre o clone.** O teste de links
+  aceitava link para pasta usando `is_dir()`: pasta que existe nesta máquina com
+  zero arquivos versionados passava verde e daria 404 em quem clonasse — a
+  classe que aquele teste existe para pegar, dentro dele.
 - **Auditoria que não executa erra a contagem, e erra para os dois lados.**
   Dos cinco números da passada de 29/08, quatro estavam errados quando medidos
   ao executar: 6 links quebrados e não 64, sete defaults duplicados e não seis,
