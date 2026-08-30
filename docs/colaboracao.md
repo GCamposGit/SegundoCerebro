@@ -235,8 +235,10 @@ são "um de cada vez" e estão devolvidos no merge.
 
 ### Agora — notebook
 
-**F4-M fechado** (PR #10) e **F4-D reescopado** (PR #15): o dourado real cobre
-25% do índice, e a resposta adotada **não** é escrever mais perguntas para este
+**F4-M fechado** (PR #10) e **F4-D reescopado** (PR #15): o dourado real cobria
+18,2% do índice pelo teto por pasta (51 perguntas, 24/08/2026 — hoje são 62, e o
+instrumento do `F4-D` mede 38,5% de teto contra 3,3% de piso), e a resposta
+adotada **não** é escrever mais perguntas para este
 acervo — é parar de escolher peso global a partir de qualquer acervo único. Ver
 [`docs/dourado-cobertura.md`](dourado-cobertura.md) e o `ROADMAP.md`.
 

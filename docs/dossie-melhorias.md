@@ -7,7 +7,8 @@
 > do corpus dev está 8× desatualizada, `.pytest_cache/` **não** está versionado,
 > e os dois subconjuntos que o dossiê aponta como fracos (perguntas do usuário e
 > temporais) são na verdade os **mais fortes**. A tabela com os números, a
-> dependência que faltava (`F4-D`: o dourado cobre 25% do índice e destrava cinco
+> dependência que faltava (`F4-D`: o dourado alcança de 3,3% a 38,5% do índice,
+> piso exato e teto por pasta, e destrava cinco
 > destes pacotes) e a ordem revisada estão em `ROADMAP.md`, seção "O dossiê de
 > melhorias, conferido contra o índice real". **Ler as duas coisas juntas.**
 >

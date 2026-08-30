@@ -51,6 +51,21 @@ denso = 1.0            # sinal mais forte desde a correção de 13/08/2026
 lexical = 0.25         # bm25: casamento exato de sigla e código de contrato
 nome = 0.5             # nome do arquivo como terceiro ranqueador
 
+# Distribuição de voz entre as três colunas do FTS5, DENTRO do ranqueador
+# lexical — não são um quarto, quinto e sexto ranqueador. 1/1/1 é o padrão do
+# SQLite e preserva o SQL exato que mediu F1 a F4.
+#
+# `fts_caminho` é o motivo de existirem (C3.a): valendo 1,0, o nome do arquivo
+# pontua dentro do bm25 E de novo na fusão pelo peso `nome` acima — o mesmo
+# sinal vota duas vezes, e num acervo de nomes ruins (IMG_2034.pdf) isso é
+# ruído dobrado. `fts_caminho = 0.3` está registrado como candidato medido, não
+# aplicado: ver docs/ablacao-c3a-pesos-fts.md.
+#
+# São pesos de consulta: mudá-los NÃO reindexa nada.
+fts_texto = 1.0
+fts_trilha = 1.0
+fts_caminho = 1.0
+
 [padrao.busca]
 candidatos = 200       # por ranking, antes da fusão RRF
 k_rrf = 60

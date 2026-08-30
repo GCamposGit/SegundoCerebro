@@ -222,7 +222,7 @@ tempo de consulta.
 
 Índice completo (1.601 documentos, 92.125 chunks), baseline e busca remedidos
 juntos no mesmo universo e nas mesmas 45 perguntas. Análise caso a caso em
-[`docs/portas-f1-condicao-c.md`](docs/portas-f1-condicao-c.md).
+`docs/portas-f1-condicao-c.md`.
 
 | Métrica | baseline | híbrido | Δ |
 |---|---:|---:|---:|
@@ -267,7 +267,7 @@ remedidas — `verificar_escopo()` avisa quando a anotação ficar velha.
 ## F2 — Precisão (o núcleo de R3)
 
 - ✅ **Reranking — entregue em 16/08/2026, com peso 0,25.**
-  [`docs/ablacao-rerank.md`](docs/ablacao-rerank.md). recall@1 0,644 → **0,678**,
+  `docs/ablacao-rerank.md`. recall@1 0,644 → **0,678**,
   MRR 0,762 → **0,785**, sem mexer em recall@10 nem nas armadilhas.
 
   **O cross-encoder entra como quarto ranqueador, não como juiz.** A grade é
@@ -309,7 +309,7 @@ remedidas — `verificar_escopo()` avisa quando a anotação ficar velha.
   estrutura, e estrutura não coincide com raciocínio
 - Expansão de contexto: devolve seção completa + vizinhos
 - ✅ **Expansão de consulta via glossário de siglas — entregue em 18/08/2026.**
-  [`docs/ablacao-glossario.md`](docs/ablacao-glossario.md). Expande nos dois
+  `docs/ablacao-glossario.md`. Expande nos dois
   sentidos — sigla → extenso e extenso → sigla — no bm25 e no ranqueador de nome.
   O **denso não recebe a expansão**: acrescentar sinônimo move o vetor para a
   média dos termos, e o embedding assimétrico do `e5` já resolve sinônimo.
@@ -333,7 +333,7 @@ remedidas — `verificar_escopo()` avisa quando a anotação ficar velha.
   sigla → extenso estava morto para `CT-VCE-2024-0142` e `PO-VCE-007`. **Achar o
   descasamento não é achar o gargalo**, e as duas pagam na próxima entrada
 - ✅ **Famílias de versão — entregue em 16/08/2026.**
-  [`docs/ablacao-familias.md`](docs/ablacao-familias.md). Agrupa por pasta +
+  `docs/ablacao-familias.md`. Agrupa por pasta +
   extensão + nome sem marcadores, devolve a vigente e cita as anteriores; ligado
   em `search` **e** em `buscar_chunks`, para o que se mede ser o que se entrega.
 
@@ -883,8 +883,12 @@ três não**, e duas delas mudam prioridade.
 
 Cinco pacotes do dossiê pedem "número no dourado real": `R2.1` (contexto no
 chunk), `R3.1` (ablação de modelo), `R6.1` (autotune), `R6.2` (rerank v2) e
-`R6.3` (tempo/pasta). **O dourado cobre 25% do índice** — 63 das 74 fontes numa
-única pasta de topo, de 30 (ver [`docs/dourado-cobertura.md`](docs/dourado-cobertura.md)).
+`R6.3` (tempo/pasta). **O dourado alcança de 3,3% a 38,5% do índice** — piso
+exato (só as fontes esperadas, 63 de 1.900) e teto generoso (a pasta inteira de
+cada pergunta, 732 de 1.900), medidos pelo instrumento do `F4-D` em 30/08/2026
+com 62 perguntas. A leitura honesta fica entre os dois. As 51 perguntas de
+24/08 mediam 18,2% pelo teto (ver [`docs/dourado-cobertura.md`](docs/dourado-cobertura.md));
+o "25%" que circulava aqui não era nenhum dos dois.
 
 Medir qualquer um deles hoje é medir um quarto do acervo e chamar de decisão. Por
 isso **`F4-D` entra na onda 1**, à frente de tudo que ela destrava. É a correção
@@ -1112,7 +1116,8 @@ Duas lições que valem além do pacote:
 ### A decisão que reordena tudo: não escolher peso global de acervo nenhum
 
 **24/08/2026, decisão do usuário.** O problema que a medição encontrou — o dourado
-real cobre 25% do índice — tem duas respostas possíveis, e a errada é a óbvia.
+real alcança um quinto do índice pelo teto por pasta, e 3,3% pelo piso exato —
+tem duas respostas possíveis, e a errada é a óbvia.
 
 A óbvia é **escrever mais perguntas para este acervo**. Ela conserta a cobertura e
 não conserta o viés: o resultado continua sendo um número desta máquina, deste
