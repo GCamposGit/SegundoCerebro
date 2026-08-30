@@ -58,8 +58,9 @@ decisões e [ROADMAP.md](ROADMAP.md) para as fases.
 
 ## Estado atual
 
-**F0–F3.6 fechadas. F4 em curso. A F6 — primeiro uso em máquina desconhecida —
-passou a ser porta de fase, não trilha paralela.** Os números vivos ficam na §6 de
+**F0–F3.6 fechadas. F4 em curso. A `F6` — primeiro uso em máquina desconhecida —
+fechou em 30/08/2026**, com a `F6-B` (estágio 0 do painel, provado ponta a ponta)
+e a `F6-C` (hardware; estava implementada e não declarada). Os números vivos ficam na §6 de
 [`docs/colaboracao.md`](docs/colaboracao.md); os pacotes, no
 [`ROADMAP.md`](ROADMAP.md).
 
@@ -92,8 +93,11 @@ Onde o sistema está, em cinco linhas:
   (invariante 6).
 
 **Onde o produto não está pronto**, e é o que a régua de ouro manda olhar
-primeiro: OCR de PDF digitalizado, watcher, e o teste da F6 — instalar frio numa
-máquina que não é nossa, que segue sendo a porta de fase. O Office legado
+primeiro: o watcher, e o **`Q15.a`** — sob pressão de memória a fase de OCR
+quarentena certo, mas o status do documento fica `vazio` em vez de `erro`, e a
+causa é a ordenação de ondas do indexador. O silêncio acabou; a saída inteira do
+`Q15` não. Instalar frio numa máquina que não é nossa deixou de ser hipótese: o
+percurso do leigo tem teste. O Office legado
 (`.doc` `.xls` `.ppt` `.rtf`) **é lido** desde a F4; o que falta ali é o `F4-L`,
 o container OLE que mente sobre o próprio conteúdo.
 
@@ -116,11 +120,16 @@ o container OLE que mente sobre o próprio conteúdo.
    nem CPU híbrida e não reproduz o defeito.
 2. **`F4-O.3` — o dourado de OCR** (`g015`/`g025`/`g048`), que é do notebook e
    destravou quando o `F4-O.2` entrou na `main` no PR #42.
-3. **`F6`** — restam `F6-C` (desktop) e `F6-B` (estágio 0 do painel); a `F6-A`
-   fechou no PR #14. A
-   `F6-D` (`docs/comecar.md`) e a `F6-E` (pasta hostil) fecharam em 25/08/2026, e
-   o `Q5` P0 — e2e do protocolo MCP — também. Do `Q2` sobram lockfile e extras,
-   que são do desktop.
+3. **`Q15.a`** — o resto do `Q15`: documento quarentenado pela fase de OCR fica
+   `vazio` no registro em vez de `erro`, e por isso a repesca o reprocessa sem
+   OCR. É mudança na ordem das ondas de `indexar()`, com a evidência no
+   `ROADMAP.md`.
+4. **`Q18`** — medido e resolvido, esperando execução: ligar as dez regras
+   baratas do `ruff` faz 75 dos 92 `noqa` inertes de `src` valerem, por 40
+   correções. Do `Q2` sobram lockfile e extras.
+
+A **`F6` inteira fechou** em 30/08/2026 — `F6-A` (PR #14), `F6-D` e `F6-E`
+(25/08), `F6-B` e `F6-C` (30/08). O `Q5` P0 fechou junto com ela.
 
 ## Lições que valem para qualquer acervo
 
