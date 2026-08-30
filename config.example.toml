@@ -153,11 +153,14 @@ dirs = ["Backups"]
 # Teto em MB por tipo, ao indexar. 0 = sem teto. Arquivo maior fica `adiado`
 # (não some) e não trava a GPU. Não é o tamanho do trecho — aquele está em
 # [padrao.chunking] e reindexa tudo. Padrão: 2 MB em .txt; CSV sem teto (digesto).
+# Estes sao os tetos RECOMENDADOS — os mesmos que o painel pre-preenche numa
+# base nova. Nao sao os de fabrica: sem esta secao, so `.txt` tem teto (2 MB).
+# tests/test_config.py confere linha a linha contra LIMITES_RECOMENDADOS.
 # [base.limites]
-# pdf = 0
-# docx = 0
-# pptx = 0
-# xlsx = 40
+# pdf = 50
+# docx = 30
+# pptx = 50
+# xlsx = 15
 # txt = 2
 # csv = 0
-# md = 0
+# md = 5
