@@ -809,7 +809,9 @@ def _formatar_xls(aba, linha: int, coluna: int) -> str:  # noqa: ANN001 — tipo
     if tipo == xlrd.XL_CELL_DATE:
         try:
             partes = xlrd.xldate_as_tuple(valor, aba.book.datemode)
-            dt = datetime(*partes[:6])
+            # noqa DTZ001: data serial do Excel não carrega fuso — inventar UTC aqui
+            # deslocaria toda data de planilha em algumas horas.
+            dt = datetime(*partes[:6])  # noqa: DTZ001
             return _formatar(dt)
         except Exception:  # noqa: BLE001 — date out of range stays as number
             return _formatar(valor)

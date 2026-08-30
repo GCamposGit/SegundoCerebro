@@ -28,6 +28,7 @@ from pathlib import Path
 
 from ..config import ErroDeConfig, carregar, normalizar_perfil
 from ..logger import get_logger
+from ..repositorio import raiz as raiz_do_repositorio
 from .indexer import TravaDeIndice
 from .progresso import ler
 
@@ -168,7 +169,7 @@ def agendar(*, instalar: bool) -> int:
     estado e o estado é esse. Devolver falha aqui faria o painel mostrar erro
     vermelho para quem clicou em "Desligar" duas vezes.
     """
-    raiz = Path(__file__).resolve().parent.parent.parent.parent
+    raiz = raiz_do_repositorio()
     alvo = caminho_do_gatilho()
     try:
         if instalar:

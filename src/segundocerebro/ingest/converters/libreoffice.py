@@ -40,6 +40,24 @@ _ALVO: dict[str, tuple[str, str]] = {
     ".xlsx": ("xlsx:Calc MS Excel 2007 XML", ".xlsx"),
 }
 
+EXTENSOES_LEGADO: dict[str, str] = {
+    origem: destino for origem, (_filtro, destino) in _ALVO.items() if destino != origem
+}
+"""OLE legado → OOXML: quais extensões passam pelo LibreOffice antes do parser.
+
+Derivada de `_ALVO`, e não escrita de novo, porque estava declarada em **três**
+módulos que não se importam entre si: aqui, `ingest/reader.py` (`EXTENSOES_LEGADO`)
+e `index/isolamento.py` (`EXTENSOES_CONVERT`, que só precisa do conjunto de
+chaves, para dar o timeout maior ao filho de parse). Acrescentar um quarto formato
+legado exigia lembrar dos três, e o esquecimento não falha: o formato novo
+simplesmente não ganha o timeout, ou não é convertido, sem uma linha de erro.
+
+É a forma do defeito de `docs/fatia-reuniao-invisivel.md` — régua declarada num
+lugar e consumida em outro, divergindo em silêncio.
+
+`.xlsx` fica de fora porque não é conversão de legado: é o recálculo de fórmula
+do `C7.a`, mesma extensão na entrada e na saída."""
+
 
 def encontrar_soffice() -> str | None:
     """`soffice.com` on Windows waits; `.exe` may return before the convert finishes."""
@@ -58,7 +76,7 @@ def _matar(proc: subprocess.Popen) -> None:
     if proc.poll() is not None:
         return
     if os.name == "nt":
-        subprocess.run(
+        subprocess.run(  # noqa: S603 — argv fixo, o único argumento é um PID nosso
             ["taskkill", "/F", "/T", "/PID", str(proc.pid)],
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
@@ -116,7 +134,10 @@ def converter(
             str(saida_dir),
             str(entrada),
         ]
-        proc = subprocess.Popen(
+        # noqa S603: lista de argumentos, nunca shell. O caminho do documento entra
+        # como argv e não é interpretado — é o que impede que um nome de arquivo
+        # hostil vire comando.
+        proc = subprocess.Popen(  # noqa: S603
             cmd,
             stdout=subprocess.PIPE,
             stderr=subprocess.PIPE,

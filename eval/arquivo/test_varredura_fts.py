@@ -12,7 +12,7 @@ import pytest
 
 from eval.fonte import ESCRITORIO, REUNIAO
 from eval.harness import KS_PADRAO, Pergunta, Resultado, ResultadoPergunta
-from eval.varredura_fts import (
+from eval.arquivo.varredura_fts import (
     MINIMO_ARMADILHAS,
     PESOS_CAMINHO,
     PESOS_NOME,
@@ -24,6 +24,9 @@ from eval.varredura_fts import (
     margem,
     render,
 )
+
+pytestmark = pytest.mark.arquivo
+"""Pacote encerrado: fora da suíte padrão. `py -m pytest -m arquivo` roda."""
 
 
 def _item(

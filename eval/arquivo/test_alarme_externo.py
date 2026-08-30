@@ -2,10 +2,12 @@
 
 from __future__ import annotations
 
+import pytest
+
 import ast
 from pathlib import Path
 
-from eval.alarme_externo import (
+from eval.arquivo.alarme_externo import (
     ARTEFATOS,
     CAMADA_3,
     CANARIO_CROSSLINGUAL,
@@ -19,10 +21,13 @@ from eval.alarme_externo import (
     main,
     render,
 )
-from eval.custo_miracl import ADOTAR, DESCARTAR, PORTA_HORAS
+from eval.arquivo.custo_miracl import ADOTAR, DESCARTAR, PORTA_HORAS
+
+pytestmark = pytest.mark.arquivo
+"""Pacote encerrado: fora da suíte padrão. `py -m pytest -m arquivo` roda."""
 
 FONTE = Path(__file__).resolve().parent / "alarme_externo.py"
-DOC = Path(__file__).resolve().parents[1] / "docs" / "alarme-externo.md"
+DOC = Path(__file__).resolve().parents[2] / "docs" / "alarme-externo.md"
 
 
 def test_camada_3_e_quati_50k_e_cabe_na_porta() -> None:

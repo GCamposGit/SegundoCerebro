@@ -192,6 +192,24 @@ a evidência datada em [`docs/historico-decisoes.md`](docs/historico-decisoes.md
   a bit, e o de 32 é 3,2× mais lento nesta CPU.
 - **Número sem corpus, sem máquina e sem data é mentira** (`colaboracao.md` §4,
   regra 7).
+- **Código de produto que só roda de dentro do repositório é defeito, não
+  detalhe de empacotamento.** `retrieve/hybrid.py::search` importava `Hit` de
+  `eval.harness`, e `eval/` não vai no pacote: o método onde a série histórica
+  inteira foi medida levantava `ModuleNotFoundError` para quem instalou com
+  `pip`. A mesma forma aparece em raiz de repositório deduzida de `__file__` e em
+  `PYTHONPATH=src` gravado no config do cliente MCP.
+- **`monkeypatch` só desfaz o que `monkeypatch` fez.** Escrita em `os.environ`
+  vinda do produto dentro de um teste sobrevive à sessão inteira, e
+  `delenv(raising=False)` sobre variável ausente não registra nem valor a
+  restaurar. Um teste envenenou os seis seguintes, e o modo de falha era
+  assimétrico entre os dois setups: verde onde havia placa, vermelho onde não.
+- **N+1 é invisível no índice de teste.** O caminho de consulta gastava 350 idas
+  ao SQLite por consulta no acervo real e 6 no índice de quatro trechos da suíte:
+  a **forma** do acesso é a mesma, só o N muda. O que pega isso é contar
+  consultas, não cronometrar.
+- **Regra escrita sem quem a confira é conselho.** O teto de 500 linhas por
+  módulo existia desde 25/08/2026 em prosa; `indexer.py` cresceu 610 linhas nos
+  quatro dias seguintes.
 
 ## O corpus real — não é um vault Obsidian
 
@@ -251,6 +269,42 @@ Restrições que isso impõe e que **não** têm contorno:
    diretórios não vazam um no outro. O campo `raiz` do registro é procedência,
    **não** fronteira de isolamento.
 
+## Onde as coisas moram — e o que já tem guarda
+
+Atualizado em 29/08/2026, depois da passada de refatoração estrutural. A skill
+`/navegar` traz o mesmo mapa com as perguntas ao lado; `docs/README.md` é o
+índice da documentação.
+
+**Caminho de consulta** — o que o cliente MCP executa:
+`mcp/server.py` → `retrieve/hybrid.py::buscar_chunks` → `index/store.py`.
+`retrieve/contrato.py` guarda `Hit` e o protocolo `Retriever`, que o `eval/`
+importa — **nunca o contrário**: `eval/` é o único diretório fora do pacote.
+
+**Indexação**: `index/indexer.py` é o laço. Ao redor dele, e com uma razão de
+mudar cada: `index/cli.py` (as flags), `index/trava.py` (a trava exclusiva),
+`index/travas.py` (só os nomes dos arquivos de trava, para quem precisa lê-los
+sem carregar o encoder), `index/repesca.py` (este documento precisa reprocessar?)
+e `index/resultado.py` (o que a passada relata).
+
+**As fronteiras que têm teste**, e o que cada uma custou antes de tê-lo:
+
+| Fronteira | Guarda |
+|---|---|
+| `src/` não importa `eval/` — o pacote não leva o harness | `tests/test_pacote.py` |
+| a raiz do repositório tem um nome só (`repositorio.raiz()`) | `tests/test_pacote.py` |
+| nenhum teste entrega `os.environ` sujo ao seguinte | `conftest.py` da raiz + `tests/test_isolamento_da_suite.py` |
+| o painel abre sem carregar o encoder | `tests/test_painel.py` |
+| uma consulta não volta a custar uma ida ao banco por candidato | `tests/test_hybrid.py` |
+| módulo e função não crescem sem que alguém escreva por quê | `tests/test_tamanho_dos_modulos.py` |
+| todo formato que o LibreOffice converte ganha o timeout de convert | `tests/test_quarentena.py` |
+| OCR não dá veredito abaixo do piso de RAM declarado | `tests/test_ocr.py` |
+| `except Exception` sem motivo escrito não entra | `tests/test_politica_excecoes.py` |
+| nome real do acervo em arquivo versionado | `tests/test_saneamento.py` |
+
+**Skills**: `/pacote` antes de abrir a branch · `/medir` antes de rodar eval ·
+`/depurar` quando algo quebra · `/revisar` antes do PR · `/entregar` no commit ·
+`/navegar` para achar as coisas.
+
 ## Stack
 
 Python 3.12 · `mcp` · BGE-M3 (`fastembed`) · `bge-reranker-v2-m3` · `lancedb` ·
@@ -259,13 +313,30 @@ Python 3.12 · `mcp` · BGE-M3 (`fastembed`) · `bge-reranker-v2-m3` · `lancedb
 ## Como rodar
 
 ```bash
-pip install -r requirements.txt
-py -m pytest tests/ -v        # testes
-py -m pytest eval/ -v         # métricas de recuperação
+pip install -e .
+py -m pytest tests/ eval/ -q   # a suíte inteira — ~2 min, sem GPU e sem modelo
+py -m ruff check src tests eval && py -m pyright src
+```
+
+Fora da suíte padrão, por declaração (`pyproject.toml`, `markers`):
+
+```bash
+py -m pytest -m modelo     # carrega o encoder real — ~2 GB na primeira vez
+py -m pytest -m ocr        # exige o extra [ocr]
+py -m pytest -m cuda       # exige GPU
+py -m pytest -m arquivo    # instrumento de pacote encerrado (eval/arquivo/)
 ```
 
 ## Convenções
 
+- **Teto de tamanho: ~500 linhas por módulo, ~60 por função.** Não é estética: é
+  o pior caso para edição por agente, e a regra existia desde 25/08 sem ninguém
+  conferindo — `indexer.py` cresceu 610 linhas em quatro dias. Hoje quem confere é
+  `tests/test_tamanho_dos_modulos.py`, e a tabela dos que já eram grandes **só
+  desce**
+- **Docstring de decisão se move verbatim.** Elas têm número e data, e são ADR
+  embutida que não descola do código. Refactor que apaga histórico de decisão é
+  reprovação, mesmo com a suíte verde
 - Código e comentários: **inglês**
 - Documentação interna e strings de usuário: **português**
 - Logging via `logger.get_logger("modulo")` — nunca `print()`

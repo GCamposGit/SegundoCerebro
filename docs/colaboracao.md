@@ -810,6 +810,72 @@ diferença de **índice** e a ferramenta só aceitava um para os dois braços. A
 perguntas continuam `fora_de_escopo: ocr` — tirar a anotação sem a fonte indexada
 criaria a fatia vazia que a `F4-P.1` acabou de ensinar a não criar.
 
+### Passada de refatoração de base, e três coisas que são de vocês (29/08/2026)
+
+Uma passada estrutural sobre as 45.731 linhas de Python, **sem mudar
+funcionalidade**. Sete commits, cada um com a classe generalizada que o fecha; o
+que não entrou virou os pacotes `Q11`–`Q19` do `ROADMAP.md`. O detalhe está lá; o
+que muda para vocês está aqui.
+
+**A suíte de `main` estava vermelha, e agora não está.** 7 falhas → 1. As seis do
+`tests/test_watcher.py` eram o `aplicar_provider` que eu tinha reportado em 28/08
+e que ficou sem conserto pela regra 8 — como ele é de `index/*`, eu não devia
+mexer. **Mexi, e o motivo é que o mandato desta passada era a base inteira.** O
+conserto preserva o comportamento: `resolver_provider()` responde "qual provider
+vence" sem escrever, `aplicar_provider()` mantém nome, assinatura e a condição
+exata de escrita, e o docstring passa a dizer que só o `main()` de um processo
+pode chamá-la. Se vocês preferirem outra forma, o teste que fecha a classe é meu
+e continua valendo: `conftest.py` da raiz tira foto de `os.environ` antes de cada
+teste e devolve depois. A falha que sobra é `eval/test_golden.py` — duas fontes do
+dourado saíram do disco na troca de notebook.
+
+**O que passou a reprovar, e vale para os dois lados:**
+
+| Guarda nova | Reprova quando |
+|---|---|
+| `tests/test_pacote.py` | qualquer módulo de `src/` importa `eval/` — varredura de AST, enxerga import dentro de função |
+| `tests/test_tamanho_dos_modulos.py` | módulo novo acima de 500 linhas, função nova acima de 60, ou um dos grandes cresce |
+| `tests/test_hybrid.py` | uma consulta gasta mais de 12 idas ao SQLite |
+| `tests/test_painel.py` | abrir o painel carrega `fastembed`, `onnxruntime` ou o indexador |
+| `conftest.py` (raiz) | — não reprova, restaura: `os.environ` volta ao que era depois de cada teste, em `tests/` **e** em `eval/` |
+
+O `select` do `ruff` cresceu para `["E","F","BLE","S603","DTZ"]`. `BLE` custou
+zero erro e deu sentido a 77 `noqa` que não suprimiam nada; `S603` custou cinco
+`noqa` com motivo escrito. Os 264 que sobram, e a escada medida para ligá-los,
+estão no `Q18`.
+
+**`eval/arquivo/`** recebeu `varredura.py`, `varredura_fts.py`, `custo_miracl.py`
+e `alarme_externo.py` — instrumento de pacote encerrado, fora da suíte padrão pelo
+marcador `arquivo`, no mesmo desenho de `modelo`, `cuda` e `ocr`. Continuam
+reproduzíveis: `py -m pytest -m arquivo`. `varredura.py` não tinha **nenhum**
+importador nem teste, e o `ruff` e o `pyright` a liam a cada PR.
+
+**As três que são de vocês, reportadas e não corrigidas (regra 8):**
+
+1. **`Q15`, e é P0 de produto.** Sob pressão de memória o `pymupdf` falha ao
+   carregar **dentro do filho de parse**, e o erro chega como
+   `ModuleNotFoundError: No module named 'mupdf'`. O produto classifica como *sem
+   parser*: o documento fica `vazio`, `digitalizado` nunca é marcado, a fila de
+   OCR sai vazia, `progresso.ocr` é 0 — e **não há linha de quarentena**. No PDF
+   misto o disfarce é melhor ainda: fica `ok` com os chunks das páginas nativas.
+   Medido aqui em cinco passadas seguidas de `tests/test_ocr.py`: **2 reprovaram
+   com 3,5–3,6 GB livres e 3 passaram com ~3,9 GB**, sem uma linha mudar. Liga na
+   `F4-O.3`, que está bloqueada por vocês. A suíte já não confunde as duas coisas
+   (`PISO_RAM_OCR_MB` faz o teste **pular** com o número, em vez de reprovar pela
+   janela); o produto continua confundindo.
+2. **`Q14`.** `SEGUNDOCEREBRO_OCR_FAKE` (`ingest/ocr.py:43,149`) desvia o motor de
+   OCR sem nenhuma guarda de "só em teste". Variável herdada de sessão de shell
+   muda o comportamento de produção sem uma linha no log.
+3. **`mcp/registrar.py` ainda grava `PYTHONPATH=src` e `cwd` do repositório** no
+   `.mcp.json` e no config do Claude Desktop. Desde o `pip install -e .` isso
+   deixou de ser necessário, e para quem instalou por `pip` está **errado**:
+   aponta o cliente para uma pasta que não existe. É item de `F6`, não de higiene,
+   e eu não mexi porque muda o que o produto escreve no disco do usuário.
+
+**Nada disso toca ranking.** `buscar_chunks` e `search` foram despejados para JSON
+em 5 consultas contra o índice corporativo, antes e depois do lote de consultas, e
+o `diff` saiu limpo — id, path, score com 9 casas, origem, antes e depois.
+
 ### Agora — desktop
 
 **Neste PR (`f4-ocr-memoria`):** a suíte de OCR deixa de medir a janela de

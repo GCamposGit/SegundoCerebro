@@ -6,9 +6,20 @@
 
 ## 1. Objetivo e restrições
 
-Sistema de recuperação sobre uma base de conhecimento pessoal/corporativa
-(vault Obsidian + PDFs + documentos), consumível por qualquer modelo, com
-**custo marginal zero** e sem dependência de um fornecedor de LLM.
+Sistema de recuperação sobre uma base de conhecimento pessoal/corporativa —
+**pastas soltas em disco no Windows, com PDF, DOCX, XLSX e PPTX dominando** —
+consumível por qualquer modelo, com **custo marginal zero** e sem dependência de
+um fornecedor de LLM.
+
+> Este parágrafo dizia "vault Obsidian + PDFs + documentos" até 29/08/2026, e a
+> premissa está errada: **não há Obsidian instalado e não há wikilinks.** O
+> `CLAUDE.md` já marcava o mal-entendido — ele custou uma discussão — e a linha
+> que o causava continuava aqui, no primeiro parágrafo do documento de decisões.
+> É o padrão *"premissa corrigida num lugar segue circulando no outro"*, o mesmo
+> das três grafias da cobertura do dourado. O Obsidian foi **deliberadamente não
+> adotado**: ele não acrescenta nada sobre uma pilha de arquivos Office. Se
+> entrar depois, wikilink é sinal *adicional*, nunca o principal — que é o que a
+> restrição `R5` abaixo já dizia.
 
 Restrições declaradas:
 

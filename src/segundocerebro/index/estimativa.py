@@ -37,7 +37,6 @@ import os
 import random
 import time
 from dataclasses import dataclass, field
-from pathlib import Path
 
 from .calibracao import Calibracao, tipo_de
 from .mapa import Mapa
@@ -691,12 +690,3 @@ def decompor(estimador: Estimador, faixa: Faixa) -> str:
     )
 
 
-def tamanho_de(caminho: Path) -> int:
-    """Bytes, sem abrir o arquivo — metadado, nunca conteúdo.
-
-    Abrir um placeholder do SharePoint dispararia download; `stat` não.
-    """
-    try:
-        return caminho.stat().st_size
-    except OSError:
-        return 0

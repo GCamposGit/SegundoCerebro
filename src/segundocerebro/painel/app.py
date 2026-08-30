@@ -46,10 +46,10 @@ from ..config import (
     carregar,
     gravar,
 )
-from ..index.indexer import NOME_DA_TRAVA
-from ..index.watcher import NOME_DA_TRAVA as NOME_DO_OBSERVADOR
+from ..index.travas import NOME_DA_TRAVA, NOME_DO_OBSERVADOR
 from ..logger import get_logger
 from ..retrieve.glossario import ErroDeGlossario, Glossario
+from .erros import MedicaoIndisponivel
 
 log = get_logger("painel")
 
@@ -237,7 +237,12 @@ def criar_app(
                 status_code=409,
             )
 
-        resultado = medidor(base, pesos, busca)
+        try:
+            resultado = medidor(base, pesos, busca)
+        except MedicaoIndisponivel as erro:
+            # Instalação sem `eval/`: falta a régua, não o produto. 503 e o
+            # motivo em português, no lugar do ModuleNotFoundError cru.
+            return JSONResponse({"erro": str(erro)}, status_code=503)
         medicoes.registrar(base.id, pesos, busca, resultado)
         return JSONResponse({"base": base.id, "medicao": resultado})
 

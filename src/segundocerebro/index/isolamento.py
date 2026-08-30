@@ -19,6 +19,7 @@ import time
 from collections.abc import Mapping
 from pathlib import Path
 
+from ..ingest.converters.libreoffice import EXTENSOES_LEGADO
 from ..ingest.document import ParseResult, ParseStatus
 from ..ingest.natureza import FAMILIA_POR_EXTENSAO, FAMILIAS_BINARIAS
 from ..ingest.reader import parse_file
@@ -31,7 +32,9 @@ TIMEOUT_POR_MB_S = 10.0
 TIMEOUT_CONVERT_S = 90.0
 """R1.1: .doc/.ppt/.xls may spawn LibreOffice inside the parse child."""
 
-EXTENSOES_CONVERT = frozenset({".doc", ".ppt", ".xls"})
+EXTENSOES_CONVERT = frozenset(EXTENSOES_LEGADO)
+"""Derivado da tabela do conversor: o timeout maior vale para o que de fato
+passa pelo LibreOffice, e não para uma lista paralela que envelhece sozinha."""
 TIMEOUT_OCR_S = 120.0
 """R1.2: a scan may rasterise and OCR every page inside the parse child."""
 LOG_QUARENTENA = "quarentena.log"

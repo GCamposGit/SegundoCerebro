@@ -1,6 +1,6 @@
 """Weight sweep over the RRF fusion, with the decision rule fixed in advance.
 
-    py -m eval.varredura --indice index --out docs/varredura-pesos-f1.md
+    py -m eval.arquivo.varredura --indice index --out docs/varredura-pesos-f1.md
 
 Com 45 perguntas e 16 configurações, a melhor por acaso ganha alguns pontos. E
 os 6 casos-armadilha estão **dentro** dos 39 rascunhos, então não existe divisão
@@ -32,7 +32,7 @@ from pathlib import Path
 from segundocerebro.logger import get_logger
 from segundocerebro.retrieve.hybrid import BuscaHibrida
 
-from .harness import (
+from ..harness import (
     GOLDEN,
     K_MRR,
     Resultado,
@@ -225,7 +225,7 @@ def render(pontos: list[Ponto], escolhido: Ponto | None, contexto: str) -> str:
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="eval.varredura", description="Varre os pesos da fusão RRF")
+    parser = argparse.ArgumentParser(prog="eval.arquivo.varredura", description="Varre os pesos da fusão RRF")
     parser.add_argument("--base", help="qual base varrer (ver config.toml)")
     parser.add_argument("--config", type=Path, help="arquivo de configuração")
     parser.add_argument("--golden", type=Path, help="sobrepõe o conjunto dourado da base")

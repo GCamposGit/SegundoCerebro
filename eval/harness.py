@@ -13,7 +13,9 @@ import sys
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Protocol
+
+from segundocerebro.retrieve.contrato import Hit as Hit  # reexport: ver o comentário abaixo
+from segundocerebro.retrieve.contrato import Retriever
 
 from .fonte import GRUPOS, grupo_de_pergunta
 from .estatistica import N_MINIMO, ic_da_media
@@ -64,19 +66,13 @@ def resolver_dourado(caminho: Path, *, implicito: bool) -> tuple[Path, str | Non
     )
 
 
-@dataclass(frozen=True)
-class Hit:
-    """One retrieved document. `path` is relative to the root, with '/'."""
-
-    path: str
-    score: float = 0.0
-    trecho: str = ""
-
-
-class Retriever(Protocol):
-    nome: str
-
-    def search(self, consulta: str, k: int) -> list[Hit]: ...
+# `Hit` e `Retriever` são importados no topo, de
+# `segundocerebro.retrieve.contrato`, e ficam alcançáveis por `eval.harness`
+# porque é assim que os call sites deste diretório os chamam. Eles moravam aqui
+# até 29/08/2026, e era o lugar errado: `retrieve/hybrid.py` importava de volta,
+# e `eval` não vai no pacote — quem instalou com `pip` recebia
+# `ModuleNotFoundError` no caminho que mede a série histórica inteira. O motivo
+# completo está no docstring de `contrato.py`.
 
 
 MOTIVOS_FORA_DE_ESCOPO = {

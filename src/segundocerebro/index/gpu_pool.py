@@ -27,7 +27,7 @@ WorkerFn = Callable[[str, str, str, Any, Any], None]
 
 def _linhas_smi(query: str) -> list[str]:
     try:
-        bruto = subprocess.run(
+        bruto = subprocess.run(  # noqa: S603 — argv fixo, `query` é literal do módulo
             ["nvidia-smi", f"--query-gpu={query}", "--format=csv,noheader"],
             check=False,
             capture_output=True,
