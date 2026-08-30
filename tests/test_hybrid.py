@@ -8,7 +8,7 @@ import pytest
 
 from segundocerebro.index.store import Store
 from segundocerebro.retrieve.hybrid import BuscaHibrida, rrf
-from tests.test_index import DIM, EmbedderFalso, chunk
+from tests.falsos import DIM, EmbedderFalso, chunk
 
 
 def test_rrf_soma_por_posicao() -> None:

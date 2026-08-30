@@ -40,3 +40,43 @@ def test_o_teste_seguinte_nao_recebe_o_que_o_anterior_escreveu() -> None:
         "`os.environ` — sem ela, escrita de produção dentro de um teste envenena "
         "todos os que rodarem depois, e o sintoma aparece em outro arquivo"
     )
+
+
+# --------------------------------------------------------------------------- #
+# Q17 — arquivo de teste não é módulo de apoio
+
+
+def test_nenhum_arquivo_de_teste_exporta_infraestrutura() -> None:
+    """Nenhum arquivo importa de outro cujo nome comece com `test_`.
+
+    Pacote `Q17`, 30/08/2026. `tests/test_index.py` era um conftest informal:
+    exportava `DIM`, `EmbedderFalso`, `chunk` e `corpus` para 18 sítios em 14
+    arquivos, três deles em `eval/`. Qualquer refator ali quebrava os quatorze,
+    e ninguém abre um arquivo chamado `test_index.py` esperando encontrar a
+    infraestrutura da suíte.
+
+    O que resolve não é ter movido os quatro símbolos: é esta varredura, que
+    reprova o próximo. Dublê que é classe ou função vai para `tests/falsos.py`;
+    fixture vai para um `conftest.py`.
+    """
+    import ast
+    from pathlib import Path
+
+    RAIZ = Path(__file__).resolve().parent.parent
+    faltas: list[str] = []
+    for pasta in ("tests", "eval"):
+        for arquivo in sorted((RAIZ / pasta).rglob("*.py")):
+            arvore = ast.parse(arquivo.read_text(encoding="utf-8"), filename=str(arquivo))
+            for no in ast.walk(arvore):
+                if not isinstance(no, ast.ImportFrom) or not no.module:
+                    continue
+                alvo = no.module.split(".")[-1]
+                if alvo.startswith("test_") and alvo != arquivo.stem:
+                    rel = arquivo.relative_to(RAIZ).as_posix()
+                    faltas.append(f"{rel}:{no.lineno} importa de `{no.module}`")
+    assert not faltas, (
+        "arquivo de teste sendo usado como módulo de apoio:\n  "
+        + "\n  ".join(faltas)
+        + "\n\nDublê que é classe ou função vai para `tests/falsos.py`; "
+        "fixture vai para um `conftest.py` (Q17)."
+    )

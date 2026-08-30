@@ -14,13 +14,13 @@ import numpy as np
 
 from segundocerebro.index.indexer import TravaDeIndice, indexar
 from segundocerebro.index.store import Store
-from tests.test_index import DIM, EmbedderFalso, corpus
+from tests.falsos import DIM, EmbedderFalso, corpus
 
 
 def test_fts_funciona_sem_vetor(tmp_path: Path) -> None:
     """The class: after pass 1 the document is already findable by name and body."""
     store = Store(tmp_path / "indice", DIM)
-    from tests.test_index import chunk
+    from tests.falsos import chunk
 
     c = chunk("c1", "Política/PO-ACME-007.md", 0, "O PO-ACME-007 define o uso aceitável de IA.")
     store.gravar_textos([c])

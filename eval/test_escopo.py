@@ -15,25 +15,13 @@ import pytest
 
 from eval.harness import (
     MOTIVOS_FORA_DE_ESCOPO,
-    Hit,
     Pergunta,
     avaliar,
     carregar_perguntas,
     render_markdown,
     verificar_escopo,
 )
-
-
-class RecuperadorFixo:
-    """Devolve sempre a mesma lista — o que varia nos testes é o conjunto dourado."""
-
-    nome = "fixo"
-
-    def __init__(self, caminhos: list[str]) -> None:
-        self.caminhos = caminhos
-
-    def search(self, consulta: str, k: int) -> list[Hit]:  # noqa: ARG002
-        return [Hit(path=p, score=1.0 / (i + 1)) for i, p in enumerate(self.caminhos[:k])]
+from eval.falsos import RecuperadorFixo
 
 
 def pergunta(id_: str, fontes: list[str], *, tipo: str = "exato", fora: str = "") -> Pergunta:

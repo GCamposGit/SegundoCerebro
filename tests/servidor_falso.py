@@ -36,7 +36,7 @@ from segundocerebro.index.store import Store  # noqa: E402
 from segundocerebro.mcp.server import Recursos, construir  # noqa: E402
 from segundocerebro.retrieve.grafo import construir as construir_grafo  # noqa: E402
 from segundocerebro.retrieve.hybrid import BuscaHibrida  # noqa: E402
-from tests.test_index import DIM, EmbedderFalso, chunk  # noqa: E402
+from tests.falsos import DIM, EmbedderFalso, chunk  # noqa: E402
 
 POLITICA = "Política de IA/PO-ACME-007 — política 📄.docx"
 """Acento, travessão e um caractere fora do cp1252, no **caminho**.

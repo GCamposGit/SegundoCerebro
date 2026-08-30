@@ -37,24 +37,12 @@ from pathlib import Path
 
 import pytest
 
-REPO = Path(__file__).resolve().parents[1]
-LISTA = REPO / "nomes-proibidos.txt"
-EXEMPLO = REPO / "nomes-proibidos.example.txt"
+from tests.lista_proibida import EXEMPLO, LISTA, REPO, mascarar, termos
 
 SUFIXOS_DE_TEXTO = {
     ".md", ".py", ".toml", ".txt", ".json", ".yml", ".yaml",
     ".cmd", ".ps1", ".sh", ".html", ".css", ".js", ".cfg", ".ini", ".jsonl",
 }
-
-
-def termos() -> list[str]:
-    linhas = LISTA.read_text(encoding="utf-8").splitlines()
-    return [t.strip() for t in linhas if t.strip() and not t.lstrip().startswith("#")]
-
-
-def mascarar(termo: str) -> str:
-    """`Fulano` -> `F*****`. A mensagem de falha não pode repetir o vazamento."""
-    return termo[0] + "*" * (len(termo) - 1) if termo else "?"
 
 
 def versionados() -> list[Path]:

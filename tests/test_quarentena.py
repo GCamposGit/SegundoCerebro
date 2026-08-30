@@ -7,11 +7,10 @@ import zipfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from segundocerebro.census import Config, RootSpec
 from segundocerebro.index.isolamento import parse_isolado, timeout_para
 from segundocerebro.index.indexer import indexar
 from segundocerebro.index.store import BACKOFF_QUARENTENA_S, MAX_TENTATIVAS_QUARENTENA, Store
-from tests.test_index import DIM, EmbedderFalso
+from tests.falsos import DIM, EmbedderFalso, config_de_raiz
 
 
 def _zip_que_nao_e_docx() -> bytes:
@@ -135,7 +134,7 @@ def test_onda_com_tres_venenosos_termina_e_quarentena(tmp_path: Path) -> None:
     (raiz / "vazio.pdf").write_bytes(b"")
     store = Store(tmp_path / "indice", DIM)
     progresso = indexar(
-        Config(roots=[RootSpec(name="teste", path=raiz)]),
+        config_de_raiz(raiz),
         store,
         EmbedderFalso(),
         publicar=False,

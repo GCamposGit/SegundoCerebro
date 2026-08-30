@@ -31,7 +31,7 @@ from eval.idioma import (
     fatia,
     idioma_do_conjunto,
 )
-from eval.test_escopo import RecuperadorFixo
+from eval.falsos import RecuperadorFixo
 
 PARAGRAFO_PT = (
     "Este documento estabelece as diretrizes para a contratação de serviços de "

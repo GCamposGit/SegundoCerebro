@@ -18,7 +18,7 @@ from eval.harness import Pergunta, avaliar
 from eval.memo import MemoDeBusca
 from segundocerebro.index.store import Store
 from segundocerebro.retrieve.hybrid import BuscaHibrida
-from tests.test_index import DIM, EmbedderFalso, chunk
+from tests.falsos import DIM, EmbedderFalso, chunk
 
 BRACOS = [
     (None, 0.5),

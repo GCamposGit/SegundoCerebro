@@ -18,7 +18,7 @@ import pytest
 from segundocerebro.index.estimativa import Observacao
 from segundocerebro.index.store import Store
 
-DIM = 8
+from tests.falsos import DIM
 
 
 def _obs(rel: str, tipo: str = "txt", **kw) -> Observacao:
