@@ -878,6 +878,58 @@ importador nem teste, e o `ruff` e o `pyright` a liam a cada PR.
 em 5 consultas contra o índice corporativo, antes e depois do lote de consultas, e
 o `diff` saiu limpo — id, path, score com 9 casas, origem, antes e depois.
 
+### Os pacotes `Q` da auditoria, executados — e quatro números dela que estavam errados (30/08/2026)
+
+Cinco commits fecharam `Q11`, `Q12`, metade do `Q13`, `Q17` e `Q19`, mais a
+superfície de pontos de entrada. Suíte: **1 falha / 1.232 passes → 1 falha /
+1.361 passes**, mesma falha de dado, e o tempo de **143,5 s para 113,6 s**.
+
+**O que muda para vocês, em ordem de quanto pode atrapalhar:**
+
+| Guarda nova | Reprova quando |
+|---|---|
+| `tests/test_config_chaves.py` | chave desconhecida em qualquer nível do `config.toml` deixa de levantar, ou a lista declarada discorda do que a função leitora lê (AST) |
+| `tests/test_isolamento_da_suite.py` | um arquivo de teste é importado por outro — dublê vai para `tests/falsos.py`, fixture vai para um `conftest.py` |
+| `tests/test_pacote.py` | um `[project.scripts]` do `pyproject.toml` não virou executável instalado. A lista é **derivada** do TOML |
+| `tests/test_documentacao.py` | link markdown em arquivo versionado aponta para arquivo que o Git não tem |
+| `tests/test_config.py` | um valor do `config.example.toml` diverge do padrão do código; a porta do painel aparece em `scripts/`; o `index.html` embute tabela de tetos |
+
+**Duas coisas que podem te pegar de surpresa no próximo rebase:**
+
+- **`from tests.test_index import ...` não existe mais.** `DIM`, `EmbedderFalso`,
+  `chunk`, `corpus`, `bytes_pdf` e `bytes_pdf_misto` moram em `tests/falsos.py`;
+  `RecuperadorFixo` em `eval/falsos.py`; a fixture `store` em
+  `tests/conftest.py`. Eram 18 sítios em 14 arquivos.
+- **`config.py` (1.081 linhas) e `census.py` (978) estão no teto exato da
+  escada.** Qualquer linha que vocês acrescentem a esses dois reprova até que a
+  costura do `Q16` correspondente saia. Não é rigidez: foi o que forçou
+  `config_escrita.py`, e é o que hoje bloqueia a outra metade do `Q13`.
+
+**O que continua sendo de vocês** — o `Q15` (P0, o OCR que some em silêncio sob
+pressão de memória), o `Q14` (`SEGUNDOCEREBRO_OCR_FAKE` sem guarda) e o
+`mcp/registrar.py` gravando `PYTHONPATH=src`. Nada disso mudou; o relato de
+29/08 acima continua valendo inteiro.
+
+**Uma decisão que precisa dos dois, com o número que faltava.** O `Q18`
+perguntava "apagar os `noqa` inertes ou ligar as regras?", e dizia que a escolha
+não era óbvia. Medi o que faltava: em `src`, ligar
+`ANN001,ANN201,ANN202,ANN401,ARG001,ARG002,T201,B007,N801,RET` faz **75 dos 92**
+`noqa` inertes passarem a suprimir algo de verdade, ao custo de **40 correções**.
+Apagar destruiria esse valor. Só que 8 desses 40 arquivos são de vocês —
+`indexer.py`, `gpu_pool.py`, `smoke_cuda.py`, `estimativa.py`, `ocr.py`,
+`ole_texto.py`, mais `registrar.py` e `painel/app.py`, que são "um de cada vez".
+Ligar a regra obriga vocês a anotar os arquivos de vocês, então **não liguei**.
+Recomendo ligar; em `tests/` e `eval/` a rota continua sendo apagar, porque lá
+`per-file-ignores` mantém as regras desligadas.
+
+**Um achado novo, fora de pacote:** `scripts/abrir-painel.cmd` ainda faz
+`set PYTHONPATH=src`. É a mesma classe do item 3 acima, e sobreviveu ao `F6-A`
+porque ninguém varreu `scripts/`. Não removi porque decidir como um clone sem
+`pip install -e .` abre o painel encosta na `F6-B`, que é de vocês.
+
+**Nada disso toca ranking.** Nenhum dos cinco commits entra em `retrieve/*`, em
+peso, em chunking ou no caminho de consulta.
+
 ### Agora — desktop
 
 **Neste PR (`f4-ocr-memoria`):** a suíte de OCR deixa de medir a janela de

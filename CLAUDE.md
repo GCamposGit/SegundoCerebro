@@ -210,6 +210,29 @@ a evidência datada em [`docs/historico-decisoes.md`](docs/historico-decisoes.md
 - **Regra escrita sem quem a confira é conselho.** O teto de 500 linhas por
   módulo existia desde 25/08/2026 em prosa; `indexer.py` cresceu 610 linhas nos
   quatro dias seguintes.
+- **A porta de entrada do usuário é onde o silêncio custa mais.** `_secao`
+  recusava chave desconhecida em seis seções e o silêncio era total nas outras
+  cinco portas do TOML — `[[base]]`, seção de topo, `[indexacao]`, `[padrao]` e
+  entrada de `raizes`. Quem instala amanhã escreve o arquivo à mão, erra um
+  nome, e roda com o padrão sem aviso. A guarda tem de ser **derivada do
+  modelo**, não uma lista à mão: a lista à mão é o defeito na roupa seguinte.
+- **Varredura de AST erra por parentesco de nó, e o erro passa por acidente.**
+  `ast.NotIn` não é subclasse de `ast.In`; uma guarda que testava só `In` era
+  cega para `"x" not in dados` — forma que **já estava** no arquivo que ela
+  guardava, e o teste passava porque a mesma chave era lida por subscrito duas
+  linhas abaixo. Prova de guarda tem de rodar contra caso **isolado**, nunca
+  contra o arquivo real, onde a redundância mascara a cegueira.
+- **Número que circula sem unidade vira três números.** "Cobertura do dourado"
+  aparecia como 25%, 18,2% e 38,5% em cinco documentos, e o `README.md` dava a
+  unidade errada ("das pastas" para uma fração de documentos). O instrumento
+  reporta um **par** — 3,3% de piso e 38,5% de teto — e a leitura honesta fica
+  entre os dois. Não é o mesmo defeito de "número sem corpus": é número **com**
+  corpus e **sem** denominador.
+- **Auditoria que não executa erra a contagem, e erra para os dois lados.**
+  Dos cinco números da passada de 29/08, quatro estavam errados quando medidos
+  ao executar: 6 links quebrados e não 64, sete defaults duplicados e não seis,
+  18 sítios de import e não dez, 16 construções repetidas e não 12. Diagnóstico
+  é hipótese; a contagem só existe depois de rodar.
 
 ## O corpus real — não é um vault Obsidian
 
@@ -300,6 +323,11 @@ e `index/resultado.py` (o que a passada relata).
 | OCR não dá veredito abaixo do piso de RAM declarado | `tests/test_ocr.py` |
 | `except Exception` sem motivo escrito não entra | `tests/test_politica_excecoes.py` |
 | nome real do acervo em arquivo versionado | `tests/test_saneamento.py` |
+| chave desconhecida no `config.toml`, em qualquer nível | `tests/test_config_chaves.py` |
+| um valor do `config.example.toml` divergir do padrão do código | `tests/test_config.py` |
+| todo `[project.scripts]` virou executável instalado | `tests/test_pacote.py` |
+| link em arquivo versionado apontar para arquivo que o clone não tem | `tests/test_documentacao.py` |
+| arquivo de teste virar módulo de apoio de outro | `tests/test_isolamento_da_suite.py` |
 
 **Skills**: `/pacote` antes de abrir a branch · `/medir` antes de rodar eval ·
 `/depurar` quando algo quebra · `/revisar` antes do PR · `/entregar` no commit ·
