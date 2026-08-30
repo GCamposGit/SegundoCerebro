@@ -605,3 +605,33 @@ def test_a_guarda_de_registro_reprova_contra_caso_isolado() -> None:
         "`comum = dict(...)` introduziu nos dois sítios da CLI"
     )
     assert not registros_sem_config("trecho(bases, nomear=True)")
+
+
+def test_registro_sem_config_algum_recusa_em_vez_de_registrar_o_vazio() -> None:
+    """Sem config, o servidor sobe com base vazia — registrar isso é mentir.
+
+    Achado por revisão em 30/08/2026, e é o caso do usuário com `census.toml` e
+    sem `config.toml`: `_do_censo` devolve `caminho=None`, o registro saía sem
+    `--config` nem `cwd`, e o Claude Desktop nasce em `C:\Windows\system32`.
+    Dali `carregar()` **não levanta** — sintetiza a base `padrao` sem raiz
+    nenhuma. O cliente conecta, responde, e não recupera nada.
+
+    É a porta de entrada calada, que é o defeito que esta passada inteira ataca.
+    """
+    from types import SimpleNamespace
+
+    from segundocerebro.config import ErroDeConfig
+    from segundocerebro.mcp.registrar import argumentos_do_registro
+
+    conf = SimpleNamespace(caminho=None, bases=(SimpleNamespace(id="padrao"),))
+    absoluto = SimpleNamespace(cliente="claude-desktop", config=None, python="py")
+    with pytest.raises(ErroDeConfig, match="config.toml"):
+        argumentos_do_registro(conf, absoluto)
+
+    # O censo legado entra pelo `--config`, que o `Config` não carrega.
+    pelo_censo = SimpleNamespace(cliente="claude-desktop", config=Path("census.toml"), python="py")
+    assert argumentos_do_registro(conf, pelo_censo)["config"] == Path("census.toml")
+
+    # Cliente que abre na pasta do projeto não precisa de caminho absoluto.
+    relativo = SimpleNamespace(cliente="claude-code", config=None, python="py")
+    assert argumentos_do_registro(conf, relativo)["absoluto"] is False

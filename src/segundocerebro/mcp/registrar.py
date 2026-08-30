@@ -96,6 +96,38 @@ Num checkout o `PYTHONPATH` absoluto resolve; numa instalacao por `pip` ele nao
 e escrito, porque o pacote ja esta no `site-packages` (30/08/2026)."""
 
 
+SEM_CONFIG = (
+    "não há config.toml aqui, e sem ele o servidor sobe com uma base vazia. "
+    "Crie um (copie o config.example.toml) ou aponte um com --config."
+)
+
+
+def argumentos_do_registro(conf, args) -> dict[str, Any]:  # noqa: ANN001
+    """Os argumentos comuns de `trecho` e `gravar_em` — montados **uma vez**.
+
+    Duas listas iguais divergindo em silêncio é o defeito que o `Q12` mediu sete
+    vezes neste repositório, e havia duas aqui.
+
+    Recusa registrar sem config quando o cliente precisa de caminho absoluto
+    (`F6`, 30/08/2026). Sem arquivo nenhum, `carregar()` sintetiza uma base
+    `padrao` **sem raiz**: o registro escreveria um servidor que sobe, responde e
+    não recupera nada. É a porta de entrada calada — o defeito que esta passada
+    inteira ataca —, e recusar é o único jeito honesto. `--config census.toml`
+    entra aqui pelo `args.config`, que é o caminho que o censo legado não carrega
+    no `Config`.
+    """
+    absoluto = args.cliente not in RELATIVO
+    alvo = conf.caminho or args.config
+    if absoluto and alvo is None:
+        raise ErroDeConfig(SEM_CONFIG)
+    return dict(
+        nomear=conf.caminho is not None or len(conf.bases) > 1,
+        absoluto=absoluto,
+        python=args.python,
+        config=alvo,
+    )
+
+
 def destino_de(cliente: str) -> Path | None:
     """Onde grava a configuração daquele cliente, ou `None` se não se sabe."""
     modelo = DESTINOS.get(cliente)
@@ -352,13 +384,11 @@ def main(argv: list[str] | None = None) -> int:
         log.error("%s", erro)
         return 2
 
-    # Configuração sintetizada tem uma base só e um id que ninguém escolheu.
-    comum = dict(  # uma lista só: as duas chamadas divergirem é o defeito do `Q12`
-        nomear=conf.caminho is not None or len(conf.bases) > 1,
-        absoluto=args.cliente not in RELATIVO,
-        python=args.python,
-        config=conf.caminho,
-    )
+    try:
+        comum = argumentos_do_registro(conf, args)
+    except ErroDeConfig as erro:
+        log.error("%s", erro)
+        return 2
     novo = trecho(bases, **comum)
     if args.cliente not in RELATIVO:
         log.info("cole em: %s", CLIENTES[args.cliente])

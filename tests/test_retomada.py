@@ -233,3 +233,44 @@ def test_sem_pasta_de_inicializacao_responde_nao_sei(tmp_path: Path, monkeypatch
     """
     monkeypatch.setenv("APPDATA", str(tmp_path / "nao-existe"))
     assert retomada.instalada() is None
+
+
+def test_a_tarefa_de_logon_numa_instalacao_por_pip(monkeypatch, tmp_path):
+    """O ramo que ninguém testava, e que o `F6` existe para cobrir.
+
+    `test_linha_da_tarefa_entra_na_pasta_do_projeto` afirma
+    `"PYTHONPATH=src" in linha` **incondicionalmente**, e passa só porque a suíte
+    roda de um checkout. É a lição do `⊆` do `CLAUDE.md`: quando o mecanismo real
+    não é visível ao instrumento, o que fecha é um segundo teste de
+    comportamento — este.
+
+    Fora de um checkout o `.cmd` não pode levar `PYTHONPATH`, não pode entrar na
+    raiz deduzida (que é o `site-packages`), e precisa do `--config`. Sem isso a
+    retomada de logon sobe, sintetiza a base `padrao` sem raiz e reindexa o nada,
+    toda vez que o usuário liga o computador.
+    """
+    from segundocerebro.index import retomada
+
+    monkeypatch.setattr(retomada, "em_checkout", lambda: False)
+    config = tmp_path / "meu" / "config.toml"
+    config.parent.mkdir(parents=True)
+    linha = retomada.linha_da_tarefa(retomada.raiz_do_repositorio(), config)
+
+    assert "PYTHONPATH" not in linha, "instalação por pip não leva PYTHONPATH"
+    assert f'cd /d "{config.parent}"' in linha, (
+        f"o `cd /d` tem de ir para a pasta do config do usuário: {linha!r}"
+    )
+    assert f'--config "{config}"' in linha, "sem --config a retomada reindexa o nada"
+    assert str(retomada.raiz_do_repositorio()) not in linha, (
+        "a tarefa de logon leva a raiz do repositório para a máquina do usuário"
+    )
+
+
+def test_no_checkout_a_tarefa_de_logon_continua_como_era(monkeypatch):
+    """A régua do teste acima: quem roda do checkout não perde nada."""
+    from segundocerebro.index import retomada
+
+    monkeypatch.setattr(retomada, "em_checkout", lambda: True)
+    linha = retomada.linha_da_tarefa(retomada.raiz_do_repositorio())
+    assert "set PYTHONPATH=src" in linha
+    assert f'cd /d "{retomada.raiz_do_repositorio()}"' in linha
