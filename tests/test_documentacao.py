@@ -78,8 +78,11 @@ def test_todo_link_de_arquivo_versionado_existe_no_clone(arquivo):
         destino = _resolver(arquivo, alvo)
         if destino in versionados:
             continue
-        if (RAIZ / destino).is_dir():
-            continue  # link para pasta: o clone tem a pasta se tem algum arquivo dela
+        if any(v == destino or v.startswith(destino + "/") for v in versionados):
+            continue  # pasta que o clone tem, porque tem ao menos um arquivo dela
+        # `is_dir()` consultava o disco local, não o Git: uma pasta que existe
+        # aqui e tem zero arquivos versionados passava verde e dava 404 no clone
+        # — a classe do próprio `Q19`, dentro da guarda dele (30/08/2026).
         local = "existe nesta máquina e não no Git" if (RAIZ / destino).exists() else "não existe"
         quebrados.append(f"{alvo} → {destino} ({local})")
     assert not quebrados, (

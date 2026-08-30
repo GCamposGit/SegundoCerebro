@@ -1,8 +1,9 @@
 """Os dublês que a suíte inteira usa. Um lugar, e não um arquivo de teste.
 
 Pacote `Q17`, 30/08/2026. `tests/test_index.py` exportava `DIM`,
-`EmbedderFalso`, `chunk` e `corpus` para **18 sítios de import em 14 arquivos**
-— dez em `tests/`, três em `eval/` e o `servidor_falso.py`, que nem teste é.
+`EmbedderFalso`, `chunk` e `corpus` para **19 sítios de import em 14 arquivos**
+— dezesseis em `tests/` (um deles o `servidor_falso.py`, que nem teste é) e
+três em `eval/`.
 Qualquer refator naquele arquivo quebrava os quatorze, e era um conftest
 informal com nome de teste: ninguém abre `test_index.py` esperando encontrar a
 infraestrutura da suíte.

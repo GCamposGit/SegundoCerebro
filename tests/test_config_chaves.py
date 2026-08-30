@@ -298,9 +298,19 @@ def test_padrao_declara_o_que_le():
 
 
 def test_topo_declara_o_que_le():
-    """`CHAVES_DE_TOPO` mais a exceção do censo legado, e nada além."""
+    """`carregar` lê todas as seções declaradas, e nada fora do dialeto legado.
+
+    Duas asserções, e nenhuma delas passa sozinha: a primeira impede que uma
+    seção declarada deixe de ser lida, a segunda impede que uma chave lida fique
+    sem declaração. `carregar` só toca `roots` do dialeto legado — `top` e
+    `exclude` são de `census.load_config`, que ela alcança por **caminho** e não
+    por mapa, e por isso a varredura não os vê aqui.
+    """
     lidas = _chaves_lidas(_arvore(), "carregar", "dados")
-    assert lidas == set(CHAVES_DE_TOPO) | set(CHAVES_DE_TOPO_LEGADO)
+    faltando = set(CHAVES_DE_TOPO) - lidas
+    assert not faltando, f"declaradas em CHAVES_DE_TOPO e não lidas por `carregar`: {faltando}"
+    sobrando = lidas - set(CHAVES_DE_TOPO) - set(CHAVES_DE_TOPO_LEGADO)
+    assert not sobrando, f"`carregar` lê chave de topo não declarada: {sobrando}"
 
 
 def test_raiz_declara_o_que_le():
@@ -313,18 +323,36 @@ def test_indexacao_declara_o_que_le():
     assert _chaves_lidas(_arvore(), "_indexacao", "dados") == set(Indexacao.__dataclass_fields__)
 
 
-def test_maquina_declara_o_que_le():
-    """`[maquina]` recusa contra `Maquina`, e não lê nada de fora dela.
+def test_maquina_le_limites_e_delega_o_resto():
+    """`[maquina]` lê `limites` por `.pop` e delega os outros quatro a `_secao`.
 
-    Esta função é onde moram as duas formas que a primeira versão da varredura
-    não via — `dict(dados)` e `.pop("limites")`. Sem este teste, a cegueira
-    ficava não-medida.
+    Igualdade **exata**, e não `⊆`: a primeira versão deste teste comparava com
+    `⊆` sobre um conjunto de um elemento e passava por vacuidade, sobre 1/5 da
+    superfície — achado por revisão em 30/08/2026, na guarda escrita justamente
+    para provar que a cegueira da varredura estava fechada.
+
+    A delegação não é visível para a varredura por construção: `_maquina` chama
+    `_secao({"maquina": bruto}, "maquina", Maquina(), Maquina)`, e ali quem
+    define o conjunto conhecido é a **dataclass**, não uma chave literal. Por
+    isso ela é conferida no teste seguinte, pelo comportamento.
     """
-    lidas = _chaves_lidas(_arvore(), "_maquina", "dados")
-    assert "limites" in lidas, "a varredura parou de enxergar o `.pop` por apelido"
-    assert lidas <= set(Maquina.__dataclass_fields__), (
-        f"`_maquina` lê chave que `Maquina` não tem: {sorted(lidas - set(Maquina.__dataclass_fields__))}"
-    )
+    assert _chaves_lidas(_arvore(), "_maquina", "dados") == {"limites"}
+
+
+def test_maquina_aceita_todo_campo_seu_e_recusa_o_inventado(tmp_path):
+    """A delegação a `_secao`, medida pelo comportamento e derivada do modelo.
+
+    Um valor plausível por campo de `Maquina`, e cada um tem de carregar. É o
+    que impede a varredura acima de virar a prova inteira: ela vê uma chave, e
+    são cinco.
+    """
+    plausivel = {"perfil": '"leve"', "threads": "4", "lote": "16", "provider": '"cpu"'}
+    campos = [c for c in Maquina.__dataclass_fields__ if c != "limites"]
+    assert set(plausivel) == set(campos), f"campo novo em Maquina sem valor de teste: {campos}"
+    corpo = "\n".join(f"{c} = {v}" for c, v in plausivel.items())
+    texto = f'versao = 1\n\n[maquina]\n{corpo}\n\n[[base]]\nid = "padrao"\nindice = "index"\n'
+    cfg = carregar(escrever(tmp_path, texto), ambiente=SEM_AMBIENTE)
+    assert (cfg.maquina.perfil, cfg.maquina.threads, cfg.maquina.lote) == ("leve", 4, 16)
 
 
 def test_a_varredura_de_ast_enxerga_algo():
@@ -429,14 +457,36 @@ def test_base_no_plural_e_nomeada_como_typo(tmp_path):
         carregar(escrever(tmp_path, texto), ambiente=SEM_AMBIENTE)
 
 
-def test_o_censo_legado_continua_carregando(tmp_path):
-    """A conferência de topo subiu, e `--config census.toml` não pode quebrar."""
+def test_o_dialeto_legado_declarado_e_o_que_o_censo_le():
+    """`CHAVES_DE_TOPO_LEGADO` sai do AST de `census.load_config`, não de memória.
+
+    Regressão real, em 30/08/2026: a tupla saiu com `("roots",)` porque foi
+    escrita de cabeça, e `census.load_config` lê **três** chaves de topo. O
+    `census.example.toml`, que é versionado e é o que o clone copia, parou de
+    carregar. A guarda que devia provar o contrário escrevia um `census.toml`
+    com `[[roots]]` e nada mais — metade da superfície outra vez.
+    """
+    from segundocerebro import census
+
+    arvore = ast.parse(Path(inspect.getsourcefile(census)).read_text(encoding="utf-8"))
+    assert _chaves_lidas(arvore, "load_config", "data") == set(CHAVES_DE_TOPO_LEGADO)
+
+
+@pytest.mark.parametrize("arquivo", ["census.example.toml", "census.toml"])
+def test_o_censo_legado_continua_carregando_de_verdade(arquivo):
+    """Os arquivos reais, não um mínimo inventado. `--config census.toml` é documentado."""
+    caminho = Path(inspect.getsourcefile(mod)).resolve().parents[2] / arquivo
+    if not caminho.exists():
+        pytest.skip(f"{arquivo} não existe nesta máquina")
+    cfg = carregar(caminho, ambiente=SEM_AMBIENTE, validar=False)
+    assert cfg.bases and cfg.bases[0].raizes
+
+
+def test_o_censo_minimo_tambem(tmp_path):
+    """E a forma mínima, que é o que um clone escreve à mão."""
     censo = tmp_path / "census.toml"
-    censo.write_text(
-        f'[[roots]]\nname = "x"\npath = {str(tmp_path)!r}\n', encoding="utf-8"
-    )
-    cfg = carregar(censo, ambiente=SEM_AMBIENTE, validar=False)
-    assert cfg.bases[0].raizes
+    censo.write_text(f'[[roots]]\nname = "x"\npath = {str(tmp_path)!r}\n', encoding="utf-8")
+    assert carregar(censo, ambiente=SEM_AMBIENTE, validar=False).bases[0].raizes
 
 
 def test_rerank_nulo_continua_valido(tmp_path):

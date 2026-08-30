@@ -62,10 +62,10 @@ BASE_UNICA = "padrao"
 CHAVES_DE_TOPO = ("versao", "padrao", "base", "maquina", "indexacao")
 """As seções que o arquivo aceita na raiz."""
 
-CHAVES_DE_TOPO_LEGADO = ("roots",)
-"""Aceita por `carregar` e de propósito **fora** de `CHAVES_DE_TOPO`: é o dialeto
-do `census.toml`, que `--config census.toml` ainda roda. Declarada aqui, e não
-embutida no teste, porque exceção que só existe num teste ninguém revisa."""
+CHAVES_DE_TOPO_LEGADO = ("roots", "top", "exclude")
+"""O dialeto de topo do `census.toml` — as **três** que `census.load_config` lê.
+Saiu com uma só em 30/08/2026, e `census.example.toml`, que é versionado, parou
+de carregar; `tests/test_config_chaves.py` deriva a lista do AST daquela função."""
 
 
 class ErroDeConfig(ValueError):

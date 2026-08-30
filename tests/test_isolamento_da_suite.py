@@ -68,12 +68,20 @@ def test_nenhum_arquivo_de_teste_exporta_infraestrutura() -> None:
         for arquivo in sorted((RAIZ / pasta).rglob("*.py")):
             arvore = ast.parse(arquivo.read_text(encoding="utf-8"), filename=str(arquivo))
             for no in ast.walk(arvore):
-                if not isinstance(no, ast.ImportFrom) or not no.module:
+                # `ast.Import` junto de `ast.ImportFrom`: a primeira versão via só
+                # a segunda, e `import tests.test_index as ti` era invisível para
+                # ela. Achado por revisão em 30/08/2026 — a mesma classe de novo.
+                if isinstance(no, ast.ImportFrom):
+                    modulos = [no.module] if no.module else []
+                elif isinstance(no, ast.Import):
+                    modulos = [a.name for a in no.names]
+                else:
                     continue
-                alvo = no.module.split(".")[-1]
-                if alvo.startswith("test_") and alvo != arquivo.stem:
-                    rel = arquivo.relative_to(RAIZ).as_posix()
-                    faltas.append(f"{rel}:{no.lineno} importa de `{no.module}`")
+                for modulo in modulos:
+                    alvo = modulo.split(".")[-1]
+                    if alvo.startswith("test_") and alvo != arquivo.stem:
+                        rel = arquivo.relative_to(RAIZ).as_posix()
+                        faltas.append(f"{rel}:{no.lineno} importa `{modulo}`")
     assert not faltas, (
         "arquivo de teste sendo usado como módulo de apoio:\n  "
         + "\n  ".join(faltas)
