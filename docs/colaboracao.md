@@ -930,6 +930,39 @@ porque ninguém varreu `scripts/`. Não removi porque decidir como um clone sem
 **Nada disso toca ranking.** Nenhum dos cinco commits entra em `retrieve/*`, em
 peso, em chunking ou no caminho de consulta.
 
+### `F4-D` fechada como instrumento, e um defeito de suíte que é de vocês (29/08/2026)
+
+**O que muda nos relatórios dos dois lados.** `eval.rodar`, `eval.comparar` e
+`eval.ablacao_f2` passam a trazer um bloco **Cobertura do conjunto dourado**, com
+dois números: alcance por pasta (teto — pasta com ≥1 pergunta conta inteira) e
+fontes esperadas (piso — só o documento-alvo). Medidos aqui em 29/08: **38,5%** e
+**3,3%** sobre 1.900 documentos em 30 pastas. `eval/cobertura.py` também roda
+sozinho — `py -m eval.cobertura --base <id>`, segundos, sem abrir o modelo.
+
+**Por que isto era pacote e não enfeite:** o número da cobertura vivia escrito à
+mão em dois documentos e estava errado nos dois (18,2% e 25%). Enquanto isso o
+`recall@1` era citado como se valesse para o acervo inteiro, e crescer o corpus
+**baixava** a métrica sem nada ter piorado. `render_markdown` sem cobertura agora
+imprime "não medida" em vez de omitir — a classe fechada é "ressalva que envelhece
+calada enquanto o número que ela qualifica segue circulando".
+
+**Nada disso toca ranking.** Piso reproduzido na mesma passada: recall@1 0,551 e
+MRR 0,680, iguais à série.
+
+**O defeito que é de vocês, reportado e não corrigido (regra 8).**
+`index/cuda_runtime.py::aplicar_provider` escreve `os.environ["SEGUNDOCEREBRO_PROVIDER"]`
+no processo e nunca desfaz. Consequência medida aqui: rodando `py -m pytest tests/`
+inteiro, **6 a 8 testes de `tests/test_watcher.py` falham** com
+`RuntimeError: Não achei placa NVIDIA` — o mesmo arquivo passa verde sozinho. Um
+teste que exercita `aplicar_provider("cuda")` envenena todos os que rodam
+`indexar()` depois dele.
+
+**E o modo de falha é assimétrico entre os dois setups:** no desktop
+`diagnosticar()` diz `ok` e a suíte fica verde; aqui, sem placa, ela fica vermelha.
+Quem só roda no desktop nunca vê. O conserto pertence a vocês porque `index/*` é de
+vocês; a forma que eu sugeriria é a função **não** escrever no ambiente do processo
+e devolver o provider para quem a chamou aplicar no escopo dele.
+
 ### O notebook assumiu os pacotes do desktop (30/08/2026)
 
 **Autorização explícita do usuário**, e o motivo é de calendário: os créditos do
@@ -1015,6 +1048,7 @@ vocês também:
 - **Chunk não reconstrói documento:** 14.399 caracteres viram 9 chunks somando
   15.999, **+11,1%** pela sobreposição de 200. `get_document` precisa do store;
   não há atalho pelos chunks.
+
 
 ### Agora — desktop
 

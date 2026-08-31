@@ -826,7 +826,8 @@ privada do desktop **não** trava nenhum destes:
 | **J.b2 · J.c-conteúdo** | Sidecar com offsets + `get_document` paginado por cursor | notebook | 2 | depois do `J.a` — **não** sai dos chunks (+11,1% de sobreposição) |
 | **J.d** | `pack_folder` manifest-first, corte em fronteira de documento | notebook | 3 | depois do `J.c`; depende de `familias.py`, **não** de `R1.3` |
 | **J.e** | Exportador de vault Markdown (Obsidian) como *view* one-way | qualquer | 4 | depois do `J.b2`; menções e glossário já existem |
-| F4-D | Cobertura do dourado real | notebook | — | **reescopado**: piso de regressão e limitação declarada, não fila de perguntas |
+| F4-D | Cobertura do dourado real | notebook | — | **reescopado**: piso de regressão e limitação declarada, não fila de perguntas. **Instrumento fechado em 29/08/2026** — `eval/cobertura.py`; a cobertura entra em todo relatório e a omissão virou impossível. Medido: alcance **38,5%**, fontes **3,3%**. [`docs/dourado-cobertura.md`](docs/dourado-cobertura.md) |
+| F4-D.2 | **`dourado-v1` é frase, não mecanismo** — nada congela quais ids compõem a série histórica, e o conjunto é gitignorado: pergunta editada move a linha de base sem deixar diff | notebook | — | **aberto em 29/08/2026**, achado ao fechar a `F4-D` |
 | R1.3 | Dedup e near-dup | — | — | **absorvido por C6** |
 | F5 | Segundo usuário, ACL | ninguém | — | gatilho: segundo usuário real |
 
@@ -1161,7 +1162,14 @@ global e passa a ser duas coisas mais honestas:
 
 **`F4-D` não morre; muda de forma.** Deixa de ser "escrever perguntas até cobrir o
 acervo" e passa a ser: declarar a cobertura como limitação conhecida em todo
-relatório que a use, e manter as 62 como piso. As 11 de reunião continuam valendo
+relatório que a use, e manter as 62 como piso.
+
+> **Cumprido em 29/08/2026 na metade da declaração.** `eval/cobertura.py` põe a
+> limitação em todo relatório, medida a cada passada. A outra metade — "manter as
+> 62 como piso" — segue sendo **frase, não mecanismo**: `dourado-v1` não existe
+> como arquivo, nada congela quais ids compõem a série, e o conjunto é
+> gitignorado, então uma pergunta editada muda a linha de base histórica sem
+> deixar diff. Ver `F4-D.2`. As 11 de reunião continuam valendo
 pelo que mediram — recall@1 0,091 e `exato` 0,000 são o sinal que originou o peso
 por tipo de fonte, e esse sinal não depende de haver mais perguntas.
 
@@ -2204,6 +2212,15 @@ Não continuar a passada pausada: o que estava em voo é andaime (`_context.txt`
   este PR não mergear, o desktop **não** edita `config.py` nem `painel/*`
 
 #### F4-D — Dourado que cubra o acervo — **notebook**
+
+> **Fechado em 29/08/2026 como instrumento, não como fila de perguntas.** Os dois
+> números abaixo (18,2% aqui, 25% no doc) estavam velhos: o de 29/08 é **38,5%**
+> de alcance por pasta e **3,3%** de fontes esperadas. Cobertura escrita à mão
+> envelhece calada enquanto a métrica que ela qualifica segue sendo citada — e
+> essa é a classe que o pacote fecha. `eval/cobertura.py` recalcula a cada
+> passada, o bloco entra em `eval.rodar`, `eval.comparar` e `eval.ablacao_f2`, e
+> `render_markdown` sem cobertura imprime **"não medida"** em vez de omitir.
+> O que segue abaixo é o registro de 24/08, mantido como história.
 
 > **Aberto em 24/08/2026, por medição, não por plano.** Depois de `Meetings/`
 > fechar, o índice tem 1.900 documentos alcançáveis em **30 pastas de topo**, e as

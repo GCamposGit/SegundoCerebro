@@ -136,3 +136,26 @@ arquivos de quem o escreveu.
    arquivo não se publica — já está no `.gitignore`.
 5. Meça: `py -m eval.rodar --base SUA_BASE --retriever baseline`, depois
    `--retriever hibrido`. Sem os dois números, a mudança não entra.
+
+## Antes de acreditar no número: quanto ele alcança
+
+```bash
+py -m eval.cobertura --base SUA_BASE
+```
+
+Segundos, sem abrir o modelo e sem rodar busca. Ele responde a pergunta que o
+`recall@1` **não** responde: que fração do seu acervo essas perguntas conseguem
+tocar. O resto do índice entra na medição como distrator e nunca como resposta.
+
+Duas consequências, e as duas são silenciosas até você medir:
+
+- Dez perguntas escritas sobre uma pasta medem **aquela pasta**, não o seu
+  acervo. O número é real e o rótulo é que está errado.
+- Enquanto o conjunto não crescer junto, **indexar mais pastas baixa a métrica**
+  sem que nada tenha piorado. Foi o que aconteceu aqui em 24/08/2026, e é o que
+  originou este comando ([`docs/dourado-cobertura.md`](../../docs/dourado-cobertura.md)).
+
+Cobertura baixa **não é erro** — no começo ela é baixa por construção. O erro é
+não saber qual é. O bloco entra sozinho em todo relatório de `eval.rodar`,
+`eval.comparar` e `eval.ablacao_f2`; quando ele diz "não medida", é porque o
+relatório foi montado sem índice para medir contra.

@@ -166,4 +166,76 @@ aqui ele é redundante.
   material: a reunião cita o documento que a decisão registra.
 - **A regra de família por renderização**, com o mecanismo corrigido — colapsar
   no ranking, não escolher por nome.
-- **Peso do ranqueador de nome por tipo de fonte**, na `F4-P`.
+- ~~**Peso do ranqueador de nome por tipo de fonte**~~ — a `F4-P.1` fechou como
+  **hipótese mal especificada** em 27/08/2026, e não reabre com outra grade. Ver
+  [`ablacao-f4p1-nome-por-fonte.md`](ablacao-f4p1-nome-por-fonte.md).
+
+---
+
+# O número acima estava velho quando você o leu — `F4-D`, 29/08/2026
+
+Este documento dizia 25%. O `ROADMAP.md` dizia 18,2%. Nenhum dos dois era o
+número do dia: em 29/08/2026 o alcance é **38,5%**, e ele mudou porque o dourado
+ganhou 11 perguntas de reunião numa segunda pasta — não porque alguém melhorou
+alguma coisa.
+
+**Essa é a forma final do defeito, e ela não é sobre cobertura.** Um número que
+qualifica a métrica, escrito à mão num documento, envelhece calado enquanto a
+métrica que ele qualifica continua sendo citada. É a mesma classe de
+[`duas-falhas-silenciosas.md`](duas-falhas-silenciosas.md): o silêncio parece
+sucesso, porque o documento continua lá, plausível, com um número dentro.
+
+Por isso a `F4-D` deixou de ser "escrever perguntas até cobrir o acervo"
+(reescopo do PR #15) e passou a ser **instrumento**: `eval/cobertura.py` recalcula
+a cobertura a cada passada e o bloco entra em todo relatório, ao lado da tabela
+que ele qualifica.
+
+## Dois números, porque nenhum sozinho é honesto
+
+| | 29/08/2026 |
+|---|---:|
+| Perguntas / fontes distintas | 62 / 65 |
+| Universo (documentos com trecho indexado) | 1.900, em 30 pastas de topo |
+| **Alcance por pasta** — pasta com ≥1 pergunta conta inteira | **38,5%** (732) |
+| **Fontes esperadas** — o documento que é resposta | **3,3%** (63) |
+| Pastas de topo com ao menos uma pergunta | 3 de 30 |
+| Documentos que só podem competir como distrator | 1.168 |
+| Fontes citadas que **não estão** no índice | 2 |
+
+O teto é generoso por construção: a maior pasta coberta entra inteira por causa
+de uma pergunta. O piso é o oposto: conta só o documento-alvo, quando é a
+vizinhança dele que torna a pergunta difícil. A leitura honesta fica entre os
+dois, e o relatório passa a mostrar os dois em vez de escolher o mais bonito.
+
+As duas fontes fora do índice são o achado de brinde: perguntas que medem zero
+**por falta de dado**, não por falha de ranqueamento, e que somem dentro da
+média. O `verificar_escopo` já as gritava no log desde a F1 — mas log rola, e
+relatório fica.
+
+## A classe que fecha, e o que passa a pegá-la
+
+**Classe:** relatório de recuperação que não declara a fração do acervo que as
+perguntas alcançam é lido como se elas alcançassem tudo — e a métrica **piora**
+quando o acervo cresce, sem que nada tenha ficado pior.
+
+**O que a pega sozinha:** `eval.harness.render_markdown` recebe `cobertura` como
+argumento nomeado, e quando ele não vem a seção sai dizendo **"Não medida"**.
+Omitir virou impossível; o que sobrou é confessar. `eval/test_cobertura.py`
+prende as duas pontas — a seção sempre presente, e a cobertura caindo quando o
+acervo cresce com o dourado parado.
+
+**Não é porta e não reprova nada.** Cobertura baixa é limitação declarada: no
+primeiro dia de qualquer base ela é baixa por construção, e um instrumento que
+reprovasse a primeira medição de todo mundo seria desligado no primeiro dia.
+
+## O que isto muda para uma base que não conhecemos
+
+O `eval/golden/README.md` manda o leigo escrever dez perguntas e medir. O
+relatório que ele recebia dizia `recall@1` e o tamanho do índice, e **não** dizia
+que as dez perguntas tocam uma pasta de trinta. Duas coisas aconteciam a partir
+daí, as duas silenciosas: ele lia precisão do canto do acervo como precisão do
+sistema, e cada pasta nova que indexasse **baixava** o número.
+
+`py -m eval.cobertura --base <id>` responde isso em segundos, sem abrir o modelo
+e sem rodar busca nenhuma — é para rodar logo depois de escrever as primeiras
+perguntas, não no fim.

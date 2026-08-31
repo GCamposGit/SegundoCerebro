@@ -138,6 +138,10 @@ o container OLE que mente sobre o próprio conteúdo.
    baratas do `ruff` faz 75 dos 92 `noqa` inertes de `src` valerem, por 40
    correções. Do `Q2` sobram lockfile e extras.
 
+5. **`F4-D.2` — `dourado-v1` é frase, não mecanismo.** Achado ao fechar a `F4-D`
+   em 29/08/2026: nada congela quais ids compõem a série histórica, e o conjunto
+   é gitignorado — pergunta editada move a linha de base sem deixar diff.
+
 A **`F6` inteira fechou** em 30/08/2026 — `F6-A` (PR #14), `F6-D` e `F6-E`
 (25/08), `F6-B` e `F6-C` (30/08). O `Q5` P0 fechou junto com ela.
 
@@ -204,6 +208,13 @@ a evidência datada em [`docs/historico-decisoes.md`](docs/historico-decisoes.md
   quatro `metricas-f2-*` commitados (20/08) e 3 h 22 min de máquina com medição
   contaminada (26/08). O que resolve é contagem **por regra** conferida contra
   zero antes de pagar o custo — `docs/duas-falhas-silenciosas.md`.
+- **Número que qualifica a métrica não mora em documento.** A cobertura do
+  dourado foi medida à mão em 24/08 e envelheceu duas vezes em quatro dias — o
+  `ROADMAP.md` guardava 18,2%, o doc guardava 25%, e o número era 38,5%. Enquanto
+  isso o `recall@1` seguia sendo citado como se valesse para o acervo inteiro. O
+  que resolve é o relatório **recalcular** a ressalva a cada passada e não
+  conseguir sair sem ela: `render_markdown` sem cobertura imprime "não medida"
+  (`eval/cobertura.py`, `docs/dourado-cobertura.md`).
 - **Quem publica progresso não pode ser quem trabalha.** A thread principal
   dentro de uma chamada só do ONNX não volta para atualizar a barra, e o arquivo
   congela dizendo "indexando" com ETA. Vigia em thread separada, e `lote` de embed
@@ -494,6 +505,11 @@ Três regras, e as duas últimas são de 25/08/2026
 ([`docs/regra-de-ouro.md`](docs/regra-de-ouro.md)):
 
 - **Nenhuma otimização de precisão sem número antes e depois** (invariante 4).
+- **Nenhum relatório sem a cobertura que ele alcança** — quantas pastas do índice
+  as perguntas conseguem tocar entra ao lado da tabela, medida na hora
+  (`py -m eval.cobertura --base <id>`). Cobertura baixa é limitação declarada, não
+  reprovação; omiti-la é que faz a métrica de um canto do acervo ser lida como a
+  do acervo.
 - **Nenhuma varredura sem efeito mínimo e fatia declarados antes**; empate
   encerra o pacote.
 - **Nenhum defeito consertado sem a classe generalizada** — qual teste ou método
