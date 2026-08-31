@@ -86,8 +86,11 @@ Onde o sistema está, em cinco linhas:
   O caminho entregue está em **0,551 / 0,696** desde a `F4-P`. Com intervalo:
   [`docs/rigor-estatistico.md`](docs/rigor-estatistico.md). É **piso de
   regressão**, não autoridade de arquitetura.
-- **Superfície MCP**: `search`, `read_note`, `neighbors` — dois clientes
-  instalados por comando (Claude Code e Claude Desktop).
+- **Superfície MCP**: cinco ferramentas em dois modos. `search`, `read_note` e
+  `neighbors` respondem **pergunta**; `list_folder` e `outline` — do `J.c-mapa`,
+  30/08/2026 — servem **leitura**: enumerar uma pasta e mapear um documento para
+  o agente que vai ler tudo. Toda tool de leitura devolve cursor explícito. Dois
+  clientes instalados por comando (Claude Code e Claude Desktop).
 - **Painel** em `127.0.0.1`: criar base, indexar com barra, pesos, glossário,
   diagnóstico de consulta, ensinar quando erra. Fora do caminho de consulta
   (invariante 6).
@@ -112,16 +115,24 @@ o container OLE que mente sobre o próprio conteúdo.
 > ([`docs/ablacao-f4p1-nome-por-fonte.md`](docs/ablacao-f4p1-nome-por-fonte.md)).
 > **Não reabre com outra grade.**
 
-0. **`J.b1` e `J.c-mapa` — a camada de acesso ao corpus**, entrada de 30/08/2026
-   e o primeiro requisito **de produto** desta lista. O pacote J acrescenta um
-   segundo modo de consumo — *ingestão integral dirigida por agente*, o
-   "escreva um paper sobre esta pasta" — que nenhuma das três tools de hoje
-   serve. A especificação recebida é
-   [`docs/pacote-j-camada-acesso-corpus.md`](docs/pacote-j-camada-acesso-corpus.md);
-   **ler antes dela** a conferência contra o código,
-   [`docs/plano-pacote-j.md`](docs/plano-pacote-j.md), porque cinco premissas
-   medidas não batem com esta base. Os dois subpacotes acima não esperam nada:
-   saem do registro que já existe.
+> **`J.b1` e `J.c-mapa` fecharam em 30/08/2026** e saíram desta lista. O acervo
+> ganhou identidade pública (`doc_id` de conteúdo, URI `sc://`, preferência
+> declarada entre os 10,5% de caminhos duplicados) e as duas tools de mapa
+> (`list_folder`, `outline`), servidas do registro e sem esperar o parse store.
+> A especificação recebida é
+> [`docs/pacote-j-camada-acesso-corpus.md`](docs/pacote-j-camada-acesso-corpus.md);
+> a conferência contra o código, com as cinco premissas que não batem com esta
+> base, é [`docs/plano-pacote-j.md`](docs/plano-pacote-j.md). **Ler as duas antes
+> de tocar no resto do pacote J.**
+
+0. **`J.a` + `J.f` — o parse store e o indexador lendo dele**, que é o que
+   destrava `J.b2`, `J.c-conteúdo` e `J.d`, e o que paga o rebuild das ablações
+   `R2.1`/`R3.1` antes de elas rodarem. Era do desktop; o desktop está sem
+   créditos desde 30/08. Três avisos medidos, todos em
+   [`docs/plano-pacote-j.md`](docs/plano-pacote-j.md): `get_document` **não** sai
+   dos chunks (a sobreposição infla o texto em 11,1%), a chave da entrada precisa
+   da **versão do motor externo** para LibreOffice/OCR/recálculo de planilha, e o
+   store nasce dentro do diretório do índice por causa do invariante 1.
 1. **`F4-R.1` — o regime de máquina observável**, e é pré-requisito da passada de
    calibragem no acervo real: sem ele a `Calibracao` aprende coeficiente de dois
    regimes misturados (22× de diferença) com milhares de observações a favor.
@@ -414,11 +425,18 @@ Atualizado em 29/08/2026, depois da passada de refatoração estrutural. A skill
 `retrieve/contrato.py` guarda `Hit` e o protocolo `Retriever`, que o `eval/`
 importa — **nunca o contrário**: `eval/` é o único diretório fora do pacote.
 
+**Caminho de leitura** — o segundo modo, que não ranqueia nada:
+`mcp/leitura.py` (as tools `list_folder` e `outline`) → `acesso/manifesto.py` (o
+que vira retorno, com cursor) → `acesso/registro.py` (as consultas) e
+`acesso/identidade.py` (`doc_id`, URI `sc://`, qual caminho é o preferido). Ele
+lê o mesmo registro que a busca e **não** passa por `retrieve/hybrid.py`.
+
 **Indexação**: `index/indexer.py` é o laço. Ao redor dele, e com uma razão de
 mudar cada: `index/cli.py` (as flags), `index/trava.py` (a trava exclusiva),
 `index/travas.py` (só os nomes dos arquivos de trava, para quem precisa lê-los
-sem carregar o encoder), `index/repesca.py` (este documento precisa reprocessar?)
-e `index/resultado.py` (o que a passada relata).
+sem carregar o encoder), `index/repesca.py` (este documento precisa reprocessar?),
+`index/resultado.py` (o que a passada relata) e `index/esquema.py` (as tabelas e
+os índices do registro, com o motivo de cada um).
 
 **As fronteiras que têm teste**, e o que cada uma custou antes de tê-lo:
 
@@ -439,6 +457,9 @@ e `index/resultado.py` (o que a passada relata).
 | todo `[project.scripts]` virou executável instalado | `tests/test_pacote.py` |
 | link em arquivo versionado apontar para arquivo que o clone não tem | `tests/test_documentacao.py` |
 | arquivo de teste virar módulo de apoio de outro | `tests/test_isolamento_da_suite.py` |
+| id de documento mudar porque alguém moveu o arquivo | `tests/test_identidade.py` |
+| qual dos N caminhos do mesmo conteúdo é o principal depender da ordem de indexação | `tests/test_identidade.py` |
+| tool de leitura cortar a resposta sem devolver cursor | `tests/test_leitura.py` |
 
 **Skills**: `/pacote` antes de abrir a branch · `/medir` antes de rodar eval ·
 `/depurar` quando algo quebra · `/revisar` antes do PR · `/entregar` no commit ·

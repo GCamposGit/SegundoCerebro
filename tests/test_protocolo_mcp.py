@@ -60,7 +60,7 @@ from segundocerebro.mcp.registrar import ambiente_do_cliente, entrada_de
 REPO = Path(__file__).resolve().parents[1]
 DRIVER = REPO / "tests" / "servidor_falso.py"
 
-FERRAMENTAS = {"search", "read_note", "neighbors"}
+FERRAMENTAS = {"search", "read_note", "neighbors", "list_folder", "outline"}
 """A superfície inteira, declarada aqui de novo e de propósito.
 
 `test_mcp.py` já afirma isto sobre o objeto servidor; aqui a afirmação é sobre o
@@ -219,7 +219,7 @@ def test_as_instrucoes_da_base_chegam_ao_cliente(do_produto: dict[str, Any]) -> 
     assert "não gera texto" in instrucoes
 
 
-def test_o_cliente_ve_exatamente_as_tres_ferramentas(do_produto: dict[str, Any]) -> None:
+def test_o_cliente_ve_exatamente_as_ferramentas_declaradas(do_produto: dict[str, Any]) -> None:
     """Invariante 2 conferido onde ele importa: no que o cliente enxerga.
 
     Uma ferramenta que gerasse texto reintroduziria custo por consulta e amarraria
@@ -390,7 +390,13 @@ def test_a_ferramenta_search_nao_passa_pelo_ranqueador_de_documento(
 # --- 4. o que o usuário lê contra o que o servidor serve ---------------------
 
 DOC = REPO / "docs" / "usar-o-mcp.md"
-NUMERAIS = {1: "ferramenta", 2: "duas ferramentas", 3: "três ferramentas"}
+NUMERAIS = {
+    1: "ferramenta",
+    2: "duas ferramentas",
+    3: "três ferramentas",
+    4: "quatro ferramentas",
+    5: "cinco ferramentas",
+}
 """Como o título da seção conta as ferramentas. Só os casos que podem existir."""
 
 

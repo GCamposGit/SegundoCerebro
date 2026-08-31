@@ -102,14 +102,26 @@ def chamar(servidor, nome: str, **kwargs) -> dict:  # noqa: ANN001
 # --- o contrato da superfície -----------------------------------------------
 
 
-def test_expoe_exatamente_as_ferramentas_previstas(servidor) -> None:  # noqa: ANN001
-    """A superfície é fechada de propósito.
+SUPERFICIE = {"search", "read_note", "neighbors", "list_folder", "outline"}
+"""As cinco ferramentas, e por que cada grupo está aqui.
 
-    `list_recent` e `glossary` continuam de fora: são hipóteses que o uso real não
-    confirmou. `neighbors` entrou na F4 porque o traço mostrou o limite concreto
-    que ela rompe — não porque estava na lista.
-    """
-    assert set(ferramentas(servidor)) == {"search", "read_note", "neighbors"}
+`search` e `read_note` fecham o laço de **retrieval** — "onde está X" e "me
+mostra o que tem em volta". `neighbors` entrou na F4 porque o traço de uso real
+mostrou o limite concreto que ela rompe.
+
+`list_folder` e `outline` entraram em 30/08/2026 pelo `J.c-mapa`, e não são mais
+recuperação: são o **segundo modo de consumo** — enumerar e mapear, para o agente
+que vai ler uma pasta inteira e precisa saber o que existe antes de gastar
+contexto. Elas não ranqueiam e não leem conteúdo do acervo.
+
+`list_recent` e `glossary` continuam de fora: são hipóteses que o uso real não
+confirmou.
+"""
+
+
+def test_expoe_exatamente_as_ferramentas_previstas(servidor) -> None:  # noqa: ANN001
+    """A superfície é fechada de propósito."""
+    assert set(ferramentas(servidor)) == SUPERFICIE
 
 
 def test_nenhuma_ferramenta_gera_texto(servidor) -> None:  # noqa: ANN001
@@ -253,7 +265,7 @@ def test_sem_base_a_superficie_nao_muda(tmp_path: Path) -> None:
     servidor = construir(Recursos(indice=tmp_path / "i", modelo="falso", threads=1))
 
     assert servidor.name == "segundocerebro"
-    assert set(ferramentas(servidor)) == {"search", "read_note", "neighbors"}
+    assert set(ferramentas(servidor)) == SUPERFICIE
 
 
 def test_search_anexa_vizinhos_sem_misturar_com_o_trecho(servidor) -> None:  # noqa: ANN001

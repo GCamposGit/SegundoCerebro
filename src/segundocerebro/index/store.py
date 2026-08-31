@@ -32,6 +32,7 @@ import numpy as np
 
 from ..ingest.chunking import Chunk
 from ..logger import get_logger
+from .esquema import ESQUEMA
 from .quarentena import (
     BACKOFF_QUARENTENA_S as BACKOFF_QUARENTENA_S,
     MAX_TENTATIVAS_QUARENTENA as MAX_TENTATIVAS_QUARENTENA,
@@ -97,143 +98,7 @@ def recusar_se_indexando(diretorio: Path) -> None:
         "sem isso o SQLite espera a trava de escrita sem mensagem."
     )
 
-ESQUEMA = """
-CREATE TABLE IF NOT EXISTS documentos (
-    path        TEXT PRIMARY KEY,
-    raiz        TEXT NOT NULL,
-    tamanho     INTEGER NOT NULL,
-    mtime       REAL NOT NULL,
-    sha256      TEXT DEFAULT '',
-    status      TEXT NOT NULL,
-    detalhe     TEXT DEFAULT '',
-    n_chunks    INTEGER DEFAULT 0,
-    model_id    TEXT DEFAULT '',
-    chunker     TEXT DEFAULT '',
-    -- Versão do parser que produziu o texto (ver ingest/parsers/__init__.py).
-    -- Sem ela um parser corrigido não alcança o que já está no índice: tamanho,
-    -- mtime, modelo e chunker todos passam.
-    parser      TEXT DEFAULT '',
-    indexado_em TEXT NOT NULL,
-    -- Natureza do arquivo (ver ingest/natureza.py). Persistida porque estava
-    -- sendo calculada e descartada: um PDF digitalizado e um PDF vazio de
-    -- verdade recebiam o mesmo status, e separar os dois exigia script avulso.
-    familia_real       TEXT DEFAULT '',
-    extensao_mente     INTEGER DEFAULT 0,
-    digitalizado       INTEGER DEFAULT 0,
-    tem_sumario_nativo INTEGER DEFAULT 0,
-    tem_tabela         INTEGER DEFAULT 0,
-    figuras_por_pagina REAL DEFAULT 0,
-    paginas            INTEGER DEFAULT 0
-);
-
-CREATE TABLE IF NOT EXISTS chunks (
-    id       TEXT PRIMARY KEY,
-    path     TEXT NOT NULL,
-    caminho  TEXT NOT NULL DEFAULT '',
-    ordinal  INTEGER NOT NULL,
-    trilha   TEXT NOT NULL DEFAULT '',
-    locator  TEXT NOT NULL DEFAULT '',
-    kind     TEXT NOT NULL DEFAULT '',
-    chars    INTEGER NOT NULL DEFAULT 0,
-    texto    TEXT NOT NULL
-);
-CREATE INDEX IF NOT EXISTS idx_chunks_path ON chunks(path);
-
--- `caminho` é o path com separadores virados em espaço, para o tokenizador
--- quebrar em palavras. Sem ele o índice lexical ignora o nome do arquivo, que é
--- o sinal mais forte deste acervo: o baseline por nome tira recall@1 = 0,55.
-CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
-    texto, trilha, caminho,
-    content='chunks', content_rowid='rowid',
-    tokenize='unicode61 remove_diacritics 2'
-);
-
-CREATE TRIGGER IF NOT EXISTS chunks_ai AFTER INSERT ON chunks BEGIN
-    INSERT INTO chunks_fts(rowid, texto, trilha, caminho)
-    VALUES (new.rowid, new.texto, new.trilha, new.caminho);
-END;
-CREATE TRIGGER IF NOT EXISTS chunks_ad AFTER DELETE ON chunks BEGIN
-    INSERT INTO chunks_fts(chunks_fts, rowid, texto, trilha, caminho)
-    VALUES ('delete', old.rowid, old.texto, old.trilha, old.caminho);
-END;
-
--- Grafo derivado (F4). Guarda **menção**, não aresta: duas arestas entre N
--- documentos que citam o mesmo identificador seriam N² linhas, e envelheceriam
--- na primeira reindexação. A aresta é derivada por junção em tempo de consulta,
--- que é a mesma escolha de `retrieve/familias.py` e pelo mesmo motivo.
---
--- `chunk_id` existe para a resposta carregar procedência: dizer que dois
--- documentos se ligam pela ISO 42001 vale pouco se o cliente não pode ler o
--- trecho onde cada um a cita.
-CREATE TABLE IF NOT EXISTS mencoes (
-    path     TEXT NOT NULL,
-    tipo     TEXT NOT NULL,
-    valor    TEXT NOT NULL,
-    chunk_id TEXT NOT NULL DEFAULT '',
-    PRIMARY KEY (path, tipo, valor)
-);
--- A junção do `neighbors` parte de (tipo, valor) para achar quem mais cita o
--- mesmo identificador; sem este índice ela varre a tabela inteira por consulta.
-CREATE INDEX IF NOT EXISTS idx_mencoes_valor ON mencoes(tipo, valor);
-
-CREATE TABLE IF NOT EXISTS execucoes (
-    id           INTEGER PRIMARY KEY AUTOINCREMENT,
-    iniciada_em  TEXT NOT NULL,
-    terminada_em TEXT,
-    model_id     TEXT NOT NULL,
-    chunker      TEXT NOT NULL,
-    config       TEXT NOT NULL DEFAULT '{}',
-    documentos   INTEGER DEFAULT 0,
-    chunks       INTEGER DEFAULT 0,
-    status       TEXT NOT NULL DEFAULT 'em_andamento'
-);
-
--- R1.4: a poisonous file is skipped on later waves, not retried every pass.
--- `CREATE TABLE IF NOT EXISTS` is enough here — this is a new table, not a
--- column on an old one. Hash change (the user replaced the file) clears the row.
-CREATE TABLE IF NOT EXISTS quarentena (
-    path               TEXT PRIMARY KEY,
-    hash               TEXT DEFAULT '',
-    motivo             TEXT NOT NULL,
-    tentativas         INTEGER NOT NULL DEFAULT 1,
-    ultima_tentativa   TEXT NOT NULL,
-    proxima_tentativa  TEXT NOT NULL
-);
-
--- Quanto cada documento custou, por etapa e em tempo **ativo**.
---
--- Antes desta tabela o custo de indexar não era guardado em lugar nenhum:
--- `documentos` tem tamanho, n_chunks, paginas, digitalizado — e nenhuma coluna
--- de tempo. Sem isto não há como recalibrar sobre histórico, que é a lacuna
--- estrutural que a v2 da estimativa fecha (`docs/spec-estimativa-v2.md` §10).
---
--- `suspeito` marca documento cujo relógio não pode ser usado: houve suspensão
--- ou pausa enquanto ele estava em voo. Guardar a linha e marcá-la é melhor que
--- descartar na origem — ela ainda serve para auditar por que a calibragem
--- ignorou aquela passada.
-CREATE TABLE IF NOT EXISTS medicoes (
-    id            INTEGER PRIMARY KEY AUTOINCREMENT,
-    execucao      INTEGER NOT NULL DEFAULT 0,
-    path          TEXT NOT NULL,
-    tipo          TEXT NOT NULL DEFAULT '',
-    mb            REAL NOT NULL DEFAULT 0,
-    n_chunks      INTEGER NOT NULL DEFAULT 0,
-    tokens        INTEGER NOT NULL DEFAULT 0,
-    s_parse       REAL,
-    s_chunk       REAL,
-    s_embed       REAL,
-    s_grava       REAL,
-    s_total_ativo REAL NOT NULL DEFAULT 0,
-    suspeito      INTEGER NOT NULL DEFAULT 0,
-    perfil        TEXT NOT NULL DEFAULT '',
-    fingerprint   TEXT NOT NULL DEFAULT '',
-    model_id      TEXT NOT NULL DEFAULT '',
-    situacao      TEXT NOT NULL DEFAULT '',
-    status        TEXT NOT NULL DEFAULT '',
-    quando        TEXT NOT NULL DEFAULT ''
-);
-CREATE INDEX IF NOT EXISTS idx_medicoes_tipo ON medicoes(tipo);
-"""
+# `ESQUEMA` morava aqui até 30/08/2026; ver `index/esquema.py`.
 
 TERMO = re.compile(r"[0-9A-Za-zÀ-ÿ][0-9A-Za-zÀ-ÿ\-\./_]*")
 TABELA_VETORES = "vetores"

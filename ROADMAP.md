@@ -2034,11 +2034,54 @@ offsets, com store). Duas frentes em paralelo em vez de uma fila:
 
 | Onda | Subpacote | Dono proposto |
 |---|---|---|
-| **1** | `J.b1` (ids, índice em `sha256`, URI) · `J.c-mapa` (`outline`, `list_folder`) | notebook — não espera ninguém |
+| **1** | `J.b1` (ids, índice em `sha256`, URI) · `J.c-mapa` (`outline`, `list_folder`) | notebook — ✅ **fechados em 30/08/2026** |
 | **1** | `J.a` (store) · `J.f` (indexador lê do store) | desktop se houver crédito, senão notebook |
 | **2** | `J.b2` (sidecar) · `J.c-conteúdo` (`get_document`) | notebook |
 | **3** | `J.d` (`pack_folder`) | notebook |
 | **4** | `J.e` (export vault Markdown) | qualquer |
+
+### `J.b1` + `J.c-mapa` — ✅ **FECHADOS em 30/08/2026**
+
+A onda 1 do lado que não esperava ninguém. O que entrou, e o que cada peça
+fecha como classe:
+
+| O que | Onde | A classe que passa a ser pega |
+|---|---|---|
+| `doc_id` = 12 hex do `sha256`, URI `sc://<base>/<doc_id>`, preferência entre caminhos duplicados | `acesso/identidade.py` | *Identidade por caminho num acervo que move arquivo* — `tests/test_identidade.py` renomeia e move a fixture e exige o mesmo id |
+| índice em `documentos.sha256` + resolução por **faixa** de prefixo | `index/esquema.py` | *Resolver id vira varredura de tabela* — a mesma forma do N+1, com teto de consultas medido |
+| consultas de leitura do registro | `acesso/registro.py` | *N+1 no manifesto* — listar 30 documentos custa ≤ 4 idas ao SQLite |
+| `list_folder` e `outline`, com cursor | `acesso/manifesto.py` + `mcp/leitura.py` | *A tool que faz o agente acreditar que viu tudo* — property test de orçamento aleatório, com a lista de tools **derivada do módulo** |
+
+Cinco coisas que a execução mostrou e que o plano não previa:
+
+1. **O esquema saiu do `store.py`.** O `J.b1` precisa de um `CREATE INDEX`, e
+   `index/store.py` está na escada de `tests/test_tamanho_dos_modulos.py`, que só
+   desce. `ESQUEMA` virou `index/esquema.py` (comentários verbatim) e o degrau
+   caiu de **1.274 para 1.137** linhas. Arquivo que só desce não recebe linha
+   nova; o que se faz é tirar dele a parte com razão de mudar própria.
+2. **`familias._por_vigencia` virou pública.** Era privada e é a regra de "o
+   principal" do produto inteiro. Duas noções de vigência — uma no ranking, outra
+   na identidade — é como um agente recebe uma resposta na segunda e outra na
+   terça sem nada mudar.
+3. **`construir` teve de encolher antes de crescer.** As tools novas custam duas
+   linhas nela, e ela está em `FUNCOES_ACIMA_DO_TETO` com 148. `_instrucoes` saiu
+   para função própria e o degrau desceu para **143**.
+4. **A superfície MCP virou cinco tools, e três guardas apontavam para três.**
+   `test_mcp.py`, `test_protocolo_mcp.py` e o teste que confere
+   `docs/usar-o-mcp.md` contra o código — o último é o que impede a doc de
+   descrever superfície menor que a real, e ele reprovou como devia.
+5. **`chars`, não tokens.** O critério de aceite fala em "tokens do parse
+   canônico"; o tokenizador real vive no encoder e carregá-lo numa tool de mapa
+   custaria 80 s na primeira chamada. O campo se chama `chars` e o doc diz
+   caractere — número que circula sem unidade vira três números.
+
+**O que ficou de fora, declarado:** o status `so_censo` — arquivo que está no
+disco e nunca foi indexado — não aparece no manifesto. Ele exige varrer o disco a
+partir das raízes da base, e o manifesto declara essa fronteira no próprio
+retorno (campo `fronteira`) em vez de deixar o agente supor. Entra como
+`J.c-mapa.2`, e é pequeno: `census.iter_files` já enumera sem abrir arquivo.
+
+**Ablação nula:** medida, não argumentada — ver a linha de execução abaixo.
 
 **`J.a`+`J.f` entram antes da onda 5** (`R3.1`+`C4.1`+`R2.1`), que é o rebuild
 coordenado — é ela que paga o investimento do store, e fazer na ordem inversa é

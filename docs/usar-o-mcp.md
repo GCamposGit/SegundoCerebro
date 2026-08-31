@@ -1,7 +1,7 @@
 # Usar o Segundo Cérebro pelo MCP
 
-Estado em 25/08/2026: **superfície mínima de pé**, três ferramentas, provada
-ponta a ponta por stdio — contra o índice real em 13/08, e desde 25/08 também na
+Estado em 30/08/2026: **superfície mínima de pé**, cinco ferramentas — três de
+pergunta e duas de leitura (`J.c-mapa`) —, provada ponta a ponta por stdio — contra o índice real em 13/08, e desde 25/08 também na
 suíte padrão, sem carregar modelo (`tests/test_protocolo_mcp.py`).
 
 ## Ligar no Claude Code
@@ -85,7 +85,7 @@ Sobre o `--instalar`: ele só existe para cliente cujo caminho **e** formato for
 conferidos. O VS Code fica fora de propósito — o `mcp.json` dele chama a seção
 `servers`, não `mcpServers`, e o trecho gerado aqui não serve para ele.
 
-## As três ferramentas
+## As cinco ferramentas
 
 **`search(consulta, k=8, contexto=1)`** — trechos por significado e por termo
 exato, fundidos por RRF. Devolve, para cada trecho: `id`, `arquivo`, `secao`,
@@ -101,13 +101,43 @@ identificador citado em comum: norma, lei, código de contrato, CNPJ, processo. 
 devolve **por que** cada um está ligado, com o identificador e o trecho, para a
 ligação ser conferível em vez de oracular.
 
-São três, e não as cinco do ROADMAP. `search` e `read_note` fecham o laço básico
-— "onde está X" e "me mostra o que tem em volta" — e foram as duas únicas até a
-F3. A `neighbors` entrou na F4 por um motivo diferente: o traço de uso real
-mostrou o limite que ela rompe. Um plano que termina em "certificação ISO 42001" e
-a norma, em outra pasta, não têm nome, pasta nem vocabulário em comum — nenhum
-peso de fusão os aproxima, porque o que faltava não era precisão, era uma
-**aresta**. A `list_recent` continua hipótese.
+As três acima servem o modo **pergunta**: você pergunta, o servidor devolve os
+trechos que respondem. As duas seguintes servem o modo **leitura** — quando a
+tarefa não é "onde está X" e sim "escreva um relatório sobre esta pasta".
+
+**`list_folder(pasta="", recursivo=False, cursor=0, max_itens=100)`** — o que
+existe numa pasta: por documento, um `id` estável, o tipo, a data, quantos
+caracteres de texto ele tem indexados, se é a versão vigente da família e o
+status (`indexado`, `quarentena`, `sem_texto`, `formato_nao_lido`). A ordem é por
+caminho e **nunca** por relevância, então a lista é a mesma toda vez — é o que
+permite repetir o mesmo trabalho semana após semana. Quando há mais itens que o
+orçamento, o retorno traz `cursor_proximo` e `restante`: a ferramenta nunca corta
+em silêncio.
+
+**`outline(documento, cursor=0, max_secoes=80)`** — o mapa de um documento sem
+gastar contexto lendo o documento: as seções na ordem do texto, onde cada uma
+está (página, slide ou aba) e quanto ocupa. É o que transforma "ler 50 arquivos"
+em plano viável — o agente vê a estrutura, escolhe o que vale ler, e só então
+gasta contexto. Aceita o caminho, o `id` de `list_folder` ou uma URI `sc://`.
+
+O padrão de uso, e as descriptions o ensinam ao cliente: **`list_folder` para
+saber o que existe → `outline` nos maiores para decidir o que ler → `search` para
+perguntas pontuais.**
+
+O `id` merece uma linha: ele vem do **conteúdo** do arquivo, não do caminho.
+Renomear ou mover não muda o id; editar muda. Quando o mesmo conteúdo está em
+mais de um caminho — 1 em 10 arquivos do acervo corporativo —, o id resolve
+sempre para o mesmo caminho preferido, pela mesma regra de versão vigente que a
+`search` usa. Documento que o servidor nunca conseguiu abrir (placeholder de
+nuvem, formato não lido) aparece **sem** id e com o motivo escrito ao lado, em
+vez de sumir da lista.
+
+Cinco, e não as cinco do ROADMAP — a lista é outra. `search` e `read_note` fecham
+o laço básico e foram as duas únicas até a F3. A `neighbors` entrou na F4 por um
+motivo diferente: o traço de uso real mostrou o limite que ela rompe. Um plano
+que termina em "certificação ISO 42001" e a norma, em outra pasta, não têm nome,
+pasta nem vocabulário em comum — nenhum peso de fusão os aproxima, porque o que
+faltava não era precisão, era uma **aresta**. A `list_recent` continua hipótese.
 
 A `glossary` que o ROADMAP previa **não virou ferramenta**, e por decisão: o
 glossário de siglas entrou como expansão de consulta dentro da `search`, invisível
@@ -123,7 +153,7 @@ no servidor reintroduziria custo por consulta e amarraria o projeto a um
 fornecedor, que é exatamente o que a arquitetura existe para evitar. Quem gera
 texto é o cliente; o servidor recupera e devolve procedência.
 
-Multi-hop também é do cliente. As três ferramentas são primitivas componíveis, e
+Multi-hop também é do cliente. As cinco ferramentas são primitivas componíveis, e
 o laço de agente é quem compõe.
 
 ## O que esperar, honestamente

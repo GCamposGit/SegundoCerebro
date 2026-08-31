@@ -130,7 +130,7 @@ def colapsar(
 
     resultado: dict[str, Familia] = {}
     for chave, membros in familias.items():
-        ordenados = _por_vigencia(membros, mtimes)
+        ordenados = por_vigencia(membros, mtimes)
         resultado[chave] = Familia(
             chave=chave,
             vigente=ordenados[0],
@@ -142,7 +142,7 @@ def colapsar(
     return [f.vigente for f in ordenadas], {f.vigente: f for f in ordenadas}
 
 
-def _por_vigencia(membros: Sequence[str], mtimes: Mapping[str, float]) -> list[str]:
+def por_vigencia(membros: Sequence[str], mtimes: Mapping[str, float]) -> list[str]:
     """Ordena da versão vigente para a mais antiga.
 
     **Número declarado vence; data desempata.** Os dois sinais existem no acervo e

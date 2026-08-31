@@ -1,4 +1,4 @@
-"""Superfície MCP do Segundo Cérebro — duas ferramentas, nenhuma que gere texto.
+"""Superfície MCP do Segundo Cérebro — cinco ferramentas, nenhuma que gere texto.
 
     py -m segundocerebro.mcp.server --indice index
 
@@ -12,10 +12,15 @@ localmente, sem nenhuma chamada a API paga. Ver as invariantes em
 - **Multi-hop é do cliente.** Estas ferramentas são primitivas componíveis; o
   laço de agente é quem compõe. Não há orquestrador de recuperação aqui.
 
-Três ferramentas, e não as cinco do ROADMAP. `search` e `read_note` fecham o laço
-básico — "onde está X" e "me mostra o que tem em volta" — e foram as duas únicas
-até a F3 fechar, porque `list_recent` e `glossary` continuam sendo hipóteses que
-o uso real não confirmou.
+Cinco ferramentas, em dois grupos. `search`, `read_note` e `neighbors` servem o
+modo **pergunta**, e são as que este arquivo registra. `list_folder` e `outline`
+servem o modo **leitura** — enumerar e mapear uma pasta inteira, para o agente
+que vai ler tudo —, entraram em 30/08/2026 pelo `J.c-mapa` e moram em
+`mcp/leitura.py`, porque `construir` está no teto de tamanho e superfície nova
+não empurra função que a tabela só deixa descer.
+
+`list_recent` e `glossary` continuam de fora: são hipóteses que o uso real não
+confirmou.
 
 `neighbors` entrou na F4 por um motivo diferente: o traço de uso real mostrou o
 limite que ela existe para romper. Dois documentos que só se ligam por um
@@ -39,6 +44,7 @@ from ..index.embeddings import Embedder
 from ..index.store import Store
 from ..logger import get_logger
 from ..retrieve.hybrid import BuscaHibrida
+from .leitura import registrar as registrar_leitura
 
 log = get_logger("mcp.server")
 
@@ -147,6 +153,23 @@ descrição vaga nas duas transforma o roteamento em sorteio.
 """
 
 
+def _instrucoes(base) -> str:  # noqa: ANN001
+    """A instrução do servidor, com a descrição da base quando ela declara uma.
+
+    Saiu de `construir` em 30/08/2026 para abrir espaço às tools do `J.c-mapa`:
+    aquela função está em `FUNCOES_ACIMA_DO_TETO` e a tabela só desce. É também
+    a única parte de `construir` com razão de mudar própria — o que o cliente lê
+    para escolher **entre bases**, e não o que cada tool faz.
+    """
+    instrucoes = INSTRUCOES_PADRAO
+    descricao = (getattr(base, "descricao", "") or "").strip()
+    if descricao:
+        if not descricao.endswith((".", "!", "?")):
+            descricao += "."
+        instrucoes += SOBRE_A_BASE.format(descricao=descricao)
+    return instrucoes
+
+
 def construir(recursos: Recursos) -> MCPServer:
     base = recursos.base
     limites = getattr(base, "busca", None)
@@ -156,17 +179,10 @@ def construir(recursos: Recursos) -> MCPServer:
     janela_max = limites.janela_max if limites else JANELA_MAX
     contexto_padrao = getattr(limites, "contexto", CONTEXTO_PADRAO) if limites else CONTEXTO_PADRAO
 
-    instrucoes = INSTRUCOES_PADRAO
-    descricao = (getattr(base, "descricao", "") or "").strip()
-    if descricao:
-        if not descricao.endswith((".", "!", "?")):
-            descricao += "."
-        instrucoes += SOBRE_A_BASE.format(descricao=descricao)
-
     servidor = MCPServer(
         name=base.servidor if base is not None else "segundocerebro",
         title=base.titulo if base is not None else "Segundo Cérebro",
-        instructions=instrucoes,
+        instructions=_instrucoes(base),
     )
 
     @servidor.tool(
@@ -294,6 +310,9 @@ def construir(recursos: Recursos) -> MCPServer:
             ],
         }
 
+    # As tools de acesso integral moram em `mcp/leitura.py`: `construir` está no
+    # teto de tamanho, e o `J.c-mapa` acrescenta superfície, não recuperação.
+    registrar_leitura(servidor, recursos, limites)
     return servidor
 
 
