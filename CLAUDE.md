@@ -96,11 +96,10 @@ Onde o sistema está, em cinco linhas:
   (invariante 6).
 
 **Onde o produto não está pronto**, e é o que a régua de ouro manda olhar
-primeiro: o watcher, e o **`Q15.a`** — sob pressão de memória a fase de OCR
-quarentena certo, mas o status do documento fica `vazio` em vez de `erro`, e a
-causa é a ordenação de ondas do indexador. O silêncio acabou; a saída inteira do
-`Q15` não. Instalar frio numa máquina que não é nossa deixou de ser hipótese: o
-percurso do leigo tem teste. O Office legado
+primeiro: o watcher, e o **parse store** (`J.a`/`J.f`), sem o qual metade do
+pacote J não anda e todo rebuild paga o parse de novo. O `Q15` fechou inteiro em
+31/08/2026, com o `Q15.a`. Instalar frio numa máquina que não é nossa deixou de
+ser hipótese: o percurso do leigo tem teste. O Office legado
 (`.doc` `.xls` `.ppt` `.rtf`) **é lido** desde a F4; o que falta ali é o `F4-L`,
 o container OLE que mente sobre o próprio conteúdo.
 
@@ -141,17 +140,18 @@ o container OLE que mente sobre o próprio conteúdo.
    nem CPU híbrida e não reproduz o defeito.
 2. **`F4-O.3` — o dourado de OCR** (`g015`/`g025`/`g048`), que é do notebook e
    destravou quando o `F4-O.2` entrou na `main` no PR #42.
-3. **`Q15.a`** — o resto do `Q15`: documento quarentenado pela fase de OCR fica
-   `vazio` no registro em vez de `erro`, e por isso a repesca o reprocessa sem
-   OCR. É mudança na ordem das ondas de `indexar()`, com a evidência no
-   `ROADMAP.md`.
-4. **`Q18`** — medido e resolvido, esperando execução: ligar as dez regras
-   baratas do `ruff` faz 75 dos 92 `noqa` inertes de `src` valerem, por 40
-   correções. Do `Q2` sobram lockfile e extras.
+3. **`Q18`** — medido e resolvido, **esperando acordo, não execução**: ligar as
+   dez regras baratas do `ruff` faz 75 dos 92 `noqa` inertes de `src` valerem,
+   por 40 correções. Delas, oito arquivos são do desktop e dois são "um de cada
+   vez" — é decisão de política de repositório com efeito cruzado, e a regra 8
+   manda declarar, não fazer. O notebook recomenda ligar. Do `Q2` sobram
+   lockfile e extras.
 
-5. **`F4-D.2` — `dourado-v1` é frase, não mecanismo.** Achado ao fechar a `F4-D`
-   em 29/08/2026: nada congela quais ids compõem a série histórica, e o conjunto
-   é gitignorado — pergunta editada move a linha de base sem deixar diff.
+> **`Q15.a` e `F4-D.2` fecharam em 31/08/2026** e saíram desta lista. O `Q15.a`
+> só ficou certo depois de **medir a sequência**: a primeira versão do conserto
+> arrumava um caso que já funcionava, e o teste dela passava com o conserto
+> desligado. O `F4-D.2` virou `eval/serie.py` + um manifesto versionado de
+> impressões digitais.
 
 A **`F6` inteira fechou** em 30/08/2026 — `F6-A` (PR #14), `F6-D` e `F6-E`
 (25/08), `F6-B` e `F6-C` (30/08). O `Q5` P0 fechou junto com ela.
@@ -346,6 +346,25 @@ a evidência datada em [`docs/historico-decisoes.md`](docs/historico-decisoes.md
   aceitava link para pasta usando `is_dir()`: pasta que existe nesta máquina com
   zero arquivos versionados passava verde e daria 404 em quem clonasse — a
   classe que aquele teste existe para pegar, dentro dele.
+- **O teste que confirma o conserto tem de reprovar com o conserto desligado.**
+  No `Q15.a` a primeira versão passava nos dois estados: ela media duas passadas
+  **com** `--ocr`, e com OCR o defeito não existe — a fase de OCR é a última e
+  regrava o `erro` por cima do `vazio`. O defeito vivia na passada de rotina,
+  **sem** a flag. Ligar e desligar o conserto custou uma execução e derrubou o
+  pacote inteiro; ler o código não teria derrubado.
+- **Garantia que depende de alguém lembrar da flag é coincidência.** O primeiro
+  conserto do `Q15.a` só valia quando a passada rodava com `--ocr`, o que é
+  justamente o que a passada de rotina não faz.
+- **`IN (...)` sem lote é o inverso do N+1: a forma está certa e só o N quebra.**
+  O teto de parâmetros do SQLite é da build da máquina do usuário, não nosso, e
+  uma pasta de 2.156 documentos o estoura. O que não prova nada é "listar 1.100 e
+  ver se explode" — numa build com teto de 32.766 isso passa por acidente. A
+  afirmação tem de ser sobre o produto: nenhuma consulta manda mais que o lote.
+- **Série histórica sem mecanismo é frase.** `dourado-v1` era citado como
+  congelado em três documentos e nada congelava nada — o conjunto é gitignorado,
+  e uma pergunta editada movia a linha de base sem deixar diff. O que fecha é o
+  manifesto **versionado** de impressões digitais: guarda o que move a métrica,
+  não o texto, e a mudança passa a ter diff para revisar.
 - **Auditoria que não executa erra a contagem, e erra para os dois lados.**
   Dos cinco números da passada de 29/08, quatro estavam errados quando medidos
   ao executar: 6 links quebrados e não 64, sete defaults duplicados e não seis,

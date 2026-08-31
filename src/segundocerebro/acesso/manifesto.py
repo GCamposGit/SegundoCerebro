@@ -71,10 +71,15 @@ class Pagina:
 
     def envelope(self) -> dict[str, Any]:
         """Os campos de continuação, iguais em toda tool que devolve lista."""
-        saida: dict[str, Any] = {
-            "total": self.total,
-            "mostrando": f"{self.inicio + 1}-{self.fim} de {self.total}" if self.total else "0 de 0",
-        }
+        if not self.total:
+            mostrando = "0 de 0"
+        elif not self.itens:
+            # Cursor além do fim. Dizer "101-100 de 4" seria ruído com cara de
+            # dado; o cliente precisa saber que pediu depois do fim, não decifrar.
+            mostrando = f"nenhum item a partir da posição {self.inicio + 1}, de {self.total}"
+        else:
+            mostrando = f"{self.inicio + 1}-{self.fim} de {self.total}"
+        saida: dict[str, Any] = {"total": self.total, "mostrando": mostrando}
         if self.cursor_proximo is not None:
             saida["cursor_proximo"] = self.cursor_proximo
             saida["restante"] = self.restante

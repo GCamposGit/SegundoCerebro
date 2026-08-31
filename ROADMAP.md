@@ -827,7 +827,7 @@ privada do desktop **não** trava nenhum destes:
 | **J.d** | `pack_folder` manifest-first, corte em fronteira de documento | notebook | 3 | depois do `J.c`; depende de `familias.py`, **não** de `R1.3` |
 | **J.e** | Exportador de vault Markdown (Obsidian) como *view* one-way | qualquer | 4 | depois do `J.b2`; menções e glossário já existem |
 | F4-D | Cobertura do dourado real | notebook | — | **reescopado**: piso de regressão e limitação declarada, não fila de perguntas. **Instrumento fechado em 29/08/2026** — `eval/cobertura.py`; a cobertura entra em todo relatório e a omissão virou impossível. Medido: alcance **38,5%**, fontes **3,3%**. [`docs/dourado-cobertura.md`](docs/dourado-cobertura.md) |
-| F4-D.2 | **`dourado-v1` é frase, não mecanismo** — nada congela quais ids compõem a série histórica, e o conjunto é gitignorado: pergunta editada move a linha de base sem deixar diff | notebook | — | **aberto em 29/08/2026**, achado ao fechar a `F4-D` |
+| F4-D.2 | `dourado-v1` era frase, não mecanismo | notebook | — | ✅ **FECHADO em 31/08/2026**. `eval/serie.py` + `eval/golden/dourado-v1.toml`, **versionado**: id e impressão digital de 16 hex do que move a métrica (texto, tipo, fontes). Não guarda texto nem nome de arquivo — o repositório é público. `py -m eval.serie --base <id>` confere e diz qual pergunta mudou; `--congelar` grava, e é ato deliberado com diff para revisar. `notas`, `autoria` e `validada` ficam fora: manifesto que reprova por nota reescrita é manifesto abandonado |
 | R1.3 | Dedup e near-dup | — | — | **absorvido por C6** |
 | F5 | Segundo usuário, ACL | ninguém | — | gatilho: segundo usuário real |
 
@@ -1760,14 +1760,42 @@ com o conserto revertido, **18 das 20 células reprovam**.
 declarado. Nesta máquina, com ~3,4 GB livres, os 14 testes de OCR passam com
 zero skips em cinco passadas seguidas — antes dois pulavam por falta de veredito.
 
-#### `Q15.a` — o resto, medido e declarado
+#### `Q15.a` — ✅ **FECHADO em 31/08/2026**, e o conserto só ficou certo depois de medir
 
-Sob pressão de memória a fase de OCR quarentena corretamente, mas o **status
-final do documento fica `vazio`**, não `erro`. O silêncio acabou — há linha e há
-motivo, e desde 30/08 o documento também **continua na fila de OCR** e **não é
-aposentado** —, mas a saída declarada dizia "nunca `vazio`", e isso não está
-inteiro. A causa é a ordenação de fases do indexador, que repesca `erro` e
-reprocessa sem `ocr=True`; mexer nela é mudança no laço de `indexar()`.
+Sob pressão de memória a fase de OCR quarentenava corretamente, mas o **status
+final do documento ficava `vazio`**, não `erro`. A causa declarada em 30/08 era a
+ordenação de fases: a triagem vê `erro ∈ STATUS_PARA_REPESCAR`, manda o documento
+para o laço barato, que reparseia **sem** `ocr=True`.
+
+**A primeira versão do conserto consertava um caso que já funcionava**, e o teste
+dela passava com o conserto desligado. O que faltava era medir a sequência. Com o
+OCR falhando por `MemoryError` em quatro passadas seguidas sobre o mesmo scan:
+
+| passada | `--ocr` | status ao fim |
+|---|---|---|
+| 1 e 2 | sim | `erro` (`recurso: ...`) |
+| 3 e 4 | **não** | **`vazio`** |
+
+Com OCR o defeito **não aparece**: a fase de OCR é a última e regrava o `erro`
+por cima do `vazio` que o laço barato acabou de escrever. Sem OCR o laço barato é
+a última palavra — e a passada de rotina é justamente a que ninguém roda com
+`--ocr`. Um conserto condicionado a `ocr=True`, que é o que a leitura do código
+sugeria, teria fechado o pacote sem tocar no defeito.
+
+**O que entrou:** `repesca.esperando_ocr(store)` — a fila da fase de OCR, saída
+da **mesma** consulta que a fase usa — e um gate em `_precisa_indexar`: documento
+em `erro` que espera OCR não volta ao laço barato, só bytes novos o trazem de
+volta. A regra já estava escrita neste arquivo para `parser ocr:*` e para o
+`vazio` ficar fora de `STATUS_PARA_REPESCAR`; faltava valer para o `erro`.
+
+- **Classe generalizada:** *passada que não pode melhorar o resultado não
+  reprocessa, e nunca sobrescreve o que a passada capaz apurou.* A guarda é
+  `tests/test_falha_de_ambiente.py`, agora com o laço inteiro e a passada **sem**
+  `--ocr` — e com o caso estreito ao lado, para o gate não virar "nada com `erro`
+  volta", que abandonaria em silêncio toda falha transitória.
+- **Lição, e é sobre método:** *o teste que confirma o conserto tem de reprovar
+  com o conserto desligado.* Rodar essa checagem custou uma execução e derrubou a
+  primeira versão inteira.
 
 #### O conserto do `Q15` estava pior que o defeito, e uma revisão pegou
 
