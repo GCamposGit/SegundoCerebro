@@ -28,6 +28,7 @@ from typing import Any
 
 from ..config import ErroDeConfig, carregar
 from ..logger import get_logger
+from ..repositorio import raiz as raiz_do_repositorio
 
 log = get_logger("mcp.registrar")
 
@@ -37,9 +38,15 @@ AMBIENTE = {"PYTHONPATH": "src", "PYTHONIOENCODING": "utf-8"}
 e um acento no caminho de um documento corrompe o fluxo do protocolo."""
 
 
-RAIZ = Path(__file__).resolve().parent.parent.parent.parent
+RAIZ = raiz_do_repositorio()
 """Diretório do projeto. Vira caminho absoluto no registro de clientes que não
-abrem na pasta dele."""
+abrem na pasta dele.
+
+Era `Path(__file__).resolve().parent` quatro vezes, escrito à mão aqui e em mais
+três módulos. A conta é a mesma; o que muda é que agora ela tem um nome e um
+teste — de dentro de um `site-packages` os quatro saltos caem na raiz do
+ambiente, e `segundocerebro.repositorio.em_checkout()` é a pergunta que separa os
+dois casos."""
 
 DESTINOS = {
     "claude-desktop": r"%APPDATA%\Claude\claude_desktop_config.json",

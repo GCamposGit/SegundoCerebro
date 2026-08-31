@@ -27,15 +27,14 @@ from segundocerebro.index.watcher import (
     ObservadorOcupado,
     TravaDeObservador,
 )
-from tests.test_index import DIM, EmbedderFalso
-from tests.test_usn import FonteFalsa
+from tests.falsos import DIM, EmbedderFalso, FonteFalsa, config_de_raiz
 
 
 def _base(tmp_path: Path) -> tuple[Path, Config, Store, Observador]:
     raiz = tmp_path / "raiz"
     raiz.mkdir()
     indice = tmp_path / "indice"
-    cfg = Config(roots=[RootSpec(name="teste", path=raiz)])
+    cfg = config_de_raiz(raiz)
     store = Store(indice, DIM)
     obs = Observador(cfg, store, EmbedderFalso(), debounce_s=0)
     return raiz, cfg, store, obs

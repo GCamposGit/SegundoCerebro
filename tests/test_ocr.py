@@ -5,15 +5,16 @@ from __future__ import annotations
 import ast
 from pathlib import Path
 
-from segundocerebro.census import Config, RootSpec
+import pytest
+
 from segundocerebro.ingest.document import ParseStatus
 from segundocerebro.ingest.ocr import VERSAO, backend_disponivel, doc_de_ocr
 from segundocerebro.ingest.reader import parse_file
 from segundocerebro.index.indexer import indexar
 from segundocerebro.index.isolamento import timeout_para
+from segundocerebro.index.orcamento import medir
 from segundocerebro.index.store import Store
-from tests.test_index import DIM, EmbedderFalso
-from tests.test_ingest import bytes_pdf, bytes_pdf_misto
+from tests.falsos import DIM, EmbedderFalso, bytes_pdf, bytes_pdf_misto, config_de_raiz
 
 SINAIS_DE_RECURSO = (
     "subprocesso morreu",
@@ -29,6 +30,54 @@ success, not a red suite. Measured 27/08/2026 on the notebook: 2.7 GB free →
 OpenBLAS abort → status `erro`; RAM freed → the same tests `ok`. The suite
 verdict was the machine window. Same class as F4-R (regime not recorded)."""
 
+PISO_RAM_OCR_MB = 4096
+"""Abaixo disto esta suíte **não tem veredito** sobre OCR, e diz isso.
+
+A lista acima cobria metade da superfície, e é a terceira vez que essa forma
+aparece neste repositório. Ela trata o caso em que o filho de parse morre
+**dizendo** que morreu de recurso — aí há linha de quarentena e status `erro`. O
+outro caso é silencioso: sob pressão de memória o `pymupdf` falha ao carregar
+dentro do filho e o erro chega como `ModuleNotFoundError: No module named
+'mupdf'`, que o produto classifica como *sem parser*. O documento fica `vazio`,
+`digitalizado` nunca é marcado, a fila de OCR sai vazia e `progresso.ocr` é 0 —
+sem uma linha dizendo que faltou memória.
+
+Medido em 29/08/2026 neste notebook (16 GB), cinco passadas de
+`py -m pytest tests/test_ocr.py` em sequência: **2 reprovaram com 3,5–3,6 GB
+livres e 3 passaram com ~3,9 GB**, sem uma linha de código mudar entre elas. O
+piso de 4 GB é essa medição mais a de 27/08 (2,7 GB → abort), com folga.
+
+Acima do piso, `vazio` continua reprovando: é regressão de verdade e o sinal não
+se perde. Abaixo, o teste **pula com o número na mensagem** — mesmo desenho de
+`tests/test_baseline.py` com o `census.toml`, e a lição do `F4-R` aplicada à
+suíte: braço sem regime de máquina gravado mede a janela, não o braço.
+
+O comportamento silencioso do produto sob pressão de memória é da `F4-O.3`, que
+está bloqueada. Este arquivo não o conserta — recusa-se a fingir que o mediu."""
+
+
+def regime_da_maquina() -> str:
+    """A janela em que esta passada rodou, para a mensagem de falha carregá-la."""
+    r = medir()
+    return (
+        f"RAM livre {r.ram_livre_mb} MB de {r.ram_total_mb} MB · "
+        f"{r.nucleos} núcleos · {r.gpus} GPU(s)"
+    )
+
+
+def sem_veredito_de_ocr(detalhe: str) -> None:
+    """Pula quando a janela da máquina está abaixo do piso; caso contrário, segue.
+
+    Chamado nos dois lugares onde a pressão de memória se disfarça de resultado:
+    o documento que fica `vazio` sem linha de quarentena, e a fase de OCR que não
+    produz nada num PDF misto — que tem chunks nativos e por isso parece `ok`.
+    """
+    if medir().ram_livre_mb < PISO_RAM_OCR_MB:
+        pytest.skip(
+            f"sem veredito de OCR nesta janela: {regime_da_maquina()}, abaixo do piso de "
+            f"{PISO_RAM_OCR_MB} MB. {detalhe} — ver PISO_RAM_OCR_MB."
+        )
+
 
 def ocr_produziu_texto_ou_declarou_recurso(store: Store, rel: str, progresso) -> bool:  # noqa: ANN001
     """True if OCR committed chunks. False if the child died of resource/timeout.
@@ -40,9 +89,13 @@ def ocr_produziu_texto_ou_declarou_recurso(store: Store, rel: str, progresso) ->
     assert estado is not None, f"{rel} saiu do registro"
     if estado.status == "ok" and estado.n_chunks >= 1:
         return True
-    assert estado.status == "erro", (
-        f"{rel} ficou {estado.status!r} — nem ok com texto nem erro honesto"
-    )
+    if estado.status != "erro":
+        sem_veredito_de_ocr(f"{rel} ficou {estado.status!r}")
+        pytest.fail(
+            f"{rel} ficou {estado.status!r} — nem ok com texto nem erro honesto. "
+            f"Regime: {regime_da_maquina()} (acima do piso de {PISO_RAM_OCR_MB} MB, "
+            "então isto é regressão e não a janela da máquina)."
+        )
     item = store.quarentena_de(rel)
     assert item is not None, f"{rel} em erro sem linha de quarentena"
     motivo = (item.motivo or "").lower()
@@ -120,7 +173,7 @@ def test_indexar_ocr_depois_do_texto(tmp_path: Path, monkeypatch) -> None:  # no
 
     store = Store(tmp_path / "indice", DIM)
     progresso = indexar(
-        Config(roots=[RootSpec(name="teste", path=raiz)]),
+        config_de_raiz(raiz),
         store,
         EmbedderFalso(),
         publicar=False,
@@ -147,7 +200,7 @@ def test_indexar_sem_ocr_nao_mexe_no_digitalizado(tmp_path: Path) -> None:
     (raiz / "escaneado.pdf").write_bytes(bytes_pdf(texto=None, com_imagem=True))
     store = Store(tmp_path / "indice", DIM)
     indexar(
-        Config(roots=[RootSpec(name="teste", path=raiz)]),
+        config_de_raiz(raiz),
         store,
         EmbedderFalso(),
         publicar=False,
@@ -192,7 +245,7 @@ def test_indexar_misto_entra_na_fila_ocr(tmp_path: Path) -> None:
     (raiz / "oficio.pdf").write_bytes(bytes_pdf_misto())
     store = Store(tmp_path / "indice", DIM)
     indexar(
-        Config(roots=[RootSpec(name="teste", path=raiz)]),
+        config_de_raiz(raiz),
         store,
         EmbedderFalso(),
         publicar=False,
@@ -269,7 +322,7 @@ def test_indexar_misto_com_ocr_junta_as_paginas(tmp_path: Path, monkeypatch) -> 
     (raiz / "oficio.pdf").write_bytes(bytes_pdf_misto())
     store = Store(tmp_path / "indice", DIM)
     progresso = indexar(
-        Config(roots=[RootSpec(name="teste", path=raiz)]),
+        config_de_raiz(raiz),
         store,
         EmbedderFalso(),
         publicar=False,
@@ -279,6 +332,10 @@ def test_indexar_misto_com_ocr_junta_as_paginas(tmp_path: Path, monkeypatch) -> 
     if not ocr_produziu_texto_ou_declarou_recurso(store, "oficio.pdf", progresso):
         store.fechar()
         return
+    if progresso.ocr < 1:
+        # `ok` com chunks nativos e OCR zerado: o PDF misto esconde a pressão de
+        # memória atrás das páginas que o parser nativo já tinha lido.
+        sem_veredito_de_ocr("a fase de OCR não produziu nada num PDF misto")
     assert progresso.ocr >= 1
     texto = " ".join(c.texto for c in store.chunks_de("oficio.pdf"))
     assert "4600009999" in texto

@@ -1,34 +1,13 @@
-"""Eval recusa índice em escrita — o mesmo contrato de tests/conftest.py.
+"""Só o que é de `eval/`. O que vale para as duas suítes está no `conftest.py` da raiz.
 
-`pytest eval/` não carrega `tests/conftest.py`. Sem isto, `eval.rodar` e os
-testes que abrem o índice real esperam a trava do SQLite em silêncio.
+Este arquivo guardava uma cópia linha a linha do `pytest_sessionstart` de
+`tests/conftest.py`, porque `pytest eval/` não carrega o conftest de `tests/`. A
+premissa estava certa e a solução era a errada: um `conftest.py` na raiz é
+carregado pelas duas invocações, e não precisa ser copiado para continuar valendo.
+
+Hoje não há nada específico de `eval/`. O arquivo fica porque a próxima fixture
+que for só daqui tem onde nascer — e porque apagar o arquivo tornaria invisível a
+razão de ele já não ter o `pytest_sessionstart`.
 """
 
 from __future__ import annotations
-
-from pathlib import Path
-
-import pytest
-
-
-def pytest_sessionstart(session: pytest.Session) -> None:  # noqa: ARG001
-    config = Path("config.toml")
-    if not config.exists():
-        return
-    try:
-        from segundocerebro.config import carregar
-        from segundocerebro.index.store import IndiceEmEscrita, recusar_se_indexando
-    except Exception:  # noqa: BLE001 — suíte de eval sem o pacote completo
-        return
-    try:
-        conf = carregar(config, validar=False)
-    except Exception:  # noqa: BLE001 — config.toml local ilegível não aborta a suíte
-        return
-    ocupados = []
-    for base in conf.bases:
-        try:
-            recusar_se_indexando(Path(base.indice))
-        except IndiceEmEscrita as erro:
-            ocupados.append(str(erro))
-    if ocupados:
-        pytest.exit("indexação viva — pause com comando.txt:\n" + "\n".join(ocupados), returncode=4)

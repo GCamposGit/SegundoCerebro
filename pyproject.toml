@@ -55,7 +55,7 @@ segundocerebro = ["painel/index.html"]
 [tool.pytest.ini_options]
 pythonpath = ["src", "."]
 testpaths = ["tests", "eval"]
-addopts = "-ra -m 'not modelo and not cuda and not ocr'"
+addopts = "-ra -m 'not modelo and not cuda and not ocr and not arquivo'"
 markers = [
   # Carregam o encoder de verdade: ~2 GB de download na primeira vez e dezenas de
   # segundos por rodada. Ficam fora do padrão, mas são obrigatórios antes de
@@ -66,6 +66,11 @@ markers = [
   # Extra [ocr] (RapidOCR). The default suite stays identical without it.
   #     py -m pytest -m ocr
   "ocr: exige extra [ocr] (RapidOCR) — fora da suíte padrão e do CI",
+  # Instrumento de pacote **encerrado** (`eval/arquivo/`). Continua reproduzível,
+  # mas não guarda nenhuma decisão aberta — e o que não guarda decisão aberta não
+  # precisa custar leitura, lint e CI a cada passada.
+  #     py -m pytest -m arquivo
+  "arquivo: instrumento de pacote encerrado — fora da suíte padrão",
 ]
 
 # Q1 — lint. Select is the subset that passes today without growing noqa
@@ -80,7 +85,18 @@ src = ["src", "tests", "eval"]
 line-length = 100
 
 [tool.ruff.lint]
-select = ["E", "F"]
+# `BLE`, `S603` e `DTZ` entraram em 29/08/2026, e o motivo não é gosto: com
+# `select = ["E","F"]` os 352 `# noqa` do repositório não suprimiam **nada** —
+# `ruff --select RUF100` os lista um a um. Era o culto à carga que o próprio
+# `Q1` avisou que aconteceria. `BLE` custou zero erro e deu sentido a 77 deles;
+# `S603` custou cinco `noqa` com motivo escrito, que é o que o `Q4` pede.
+#
+# A escada, medida no mesmo dia sobre `src tests eval`, para quem for subir mais:
+#   RET 3 · DTZ 3 (feito) · B 17 · SIM 25 · I 49 · C901 29 · ARG001 42 ·
+#   ANN202 45 · ANN201 193 · ANN001 359
+# `I` e `ruff format` são PR próprio: reescrevem import de 49 arquivos e o corpo
+# de 136, e um diff desse tamanho apaga `git blame` das docstrings de decisão.
+select = ["E", "F", "BLE", "S603", "DTZ"]
 ignore = ["E501", "E741", "E702", "E401"]
 
 [tool.ruff.lint.per-file-ignores]

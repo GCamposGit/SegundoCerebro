@@ -156,7 +156,7 @@ def test_sem_nomes_reais(tmp_path: Path) -> None:
     Reusar `termos()` também é o que mantém o CI e um clone novo verdes: sem a
     lista local, o teste pula em vez de reprovar.
     """
-    from test_saneamento import LISTA, mascarar, termos
+    from tests.lista_proibida import LISTA, mascarar, termos
 
     if not LISTA.exists():
         pytest.skip("nomes-proibidos.txt ausente (lista local não configurada)")

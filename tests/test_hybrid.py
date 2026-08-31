@@ -8,7 +8,7 @@ import pytest
 
 from segundocerebro.index.store import Store
 from segundocerebro.retrieve.hybrid import BuscaHibrida, rrf
-from tests.test_index import DIM, EmbedderFalso, chunk
+from tests.falsos import DIM, EmbedderFalso, chunk
 
 
 def test_rrf_soma_por_posicao() -> None:
@@ -330,3 +330,82 @@ def test_a_bandeira_tira_a_transcricao_do_topo_e_deixa_o_documento(indice) -> No
     com_bandeira = alcancados(True)
     assert transcricao not in com_bandeira
     assert escritorio in com_bandeira
+
+
+# --- custo do caminho de consulta ---------------------------------------------
+
+
+class _ConContada:
+    """Envelope que conta `execute()` sem mudar o comportamento do SQLite."""
+
+    def __init__(self, con) -> None:  # noqa: ANN001
+        self._con = con
+        self.total = 0
+
+    def execute(self, sql, *args, **kwargs):  # noqa: ANN001, ANN201
+        self.total += 1
+        return self._con.execute(sql, *args, **kwargs)
+
+    def __getattr__(self, nome: str):  # noqa: ANN204
+        return getattr(self._con, nome)
+
+
+TETO_DE_CONSULTAS = 12
+"""Quantas idas ao SQLite uma consulta pode custar. Medido, não estimado.
+
+Medido em 29/08/2026 contra o índice corporativo real (2.156 documentos,
+`buscar_chunks(q, k=8, contexto=1)`): eram **350 `execute()` por consulta**, e
+passaram a ser **6**. Três padrões de N+1, todos invisíveis num índice de teste
+com quatro trechos:
+
+- `store.chunk()` uma vez por candidato do poço — `candidatos` é 200 **por
+  ranqueador**, e a fusão precisa dos metadados de todos (~269 consultas);
+- `store.ids_de_chunks()` uma vez por documento que o ranqueador de nome
+  devolve (~79);
+- `store.vizinhos()` uma vez por acerto, e ela mesma custa duas (16).
+
+O teto é 12 e não 6 porque o número exato depende de quantos ranqueadores estão
+ligados e de haver ou não família a colapsar; o que ele impede é a volta da
+ordem de grandeza. Este teste não veria os 350 no índice de quatro trechos — o
+que ele guarda é a **forma** do acesso, e a forma não depende do tamanho.
+"""
+
+
+def test_uma_consulta_nao_volta_a_custar_uma_ida_ao_banco_por_candidato(indice) -> None:  # noqa: ANN001
+    store, emb = indice
+    busca = BuscaHibrida(store, emb)
+    busca.mtimes  # aquece o cache de mtime, que é por instância e não por consulta
+
+    store.con = _ConContada(store.con)
+    try:
+        acertos = busca.buscar_chunks("uso aceitável de inteligência artificial", 8, 1)
+        gastas = store.con.total
+    finally:
+        store.con = store.con._con
+
+    assert acertos, "a consulta não devolveu nada — o teto seria trivialmente cumprido"
+    assert gastas <= TETO_DE_CONSULTAS, (
+        f"{gastas} idas ao SQLite numa consulta (teto {TETO_DE_CONSULTAS}). "
+        "Alguma leitura voltou a ser uma por item: procure `store.chunk(`, "
+        "`ids_de_chunks(` ou `vizinhos(` dentro de laço em `retrieve/hybrid.py` — "
+        "use `chunks_por_id`, `ids_de_chunks_por_path` e `vizinhos_de`."
+    )
+
+
+def test_o_lote_devolve_o_mesmo_que_a_consulta_por_item(indice) -> None:  # noqa: ANN001
+    """`chunks_por_id` e `vizinhos_de` são atalhos, não outra semântica."""
+    store, _ = indice
+    ids = ["c1", "c2", "c3", "c4", "inexistente"]
+
+    em_lote = store.chunks_por_id(ids)
+    um_a_um = {i: store.chunk(i) for i in ids}
+    assert em_lote == {i: c for i, c in um_a_um.items() if c is not None}
+
+    vizinhos_em_lote = store.vizinhos_de(ids, 1)
+    assert vizinhos_em_lote == {i: store.vizinhos(i, 1) for i in ids if um_a_um[i] is not None}
+
+    por_path = store.ids_de_chunks_por_path(["politica.md", "contrato.md", "sumiu.md"])
+    assert por_path == {
+        "politica.md": store.ids_de_chunks("politica.md"),
+        "contrato.md": store.ids_de_chunks("contrato.md"),
+    }

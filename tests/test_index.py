@@ -13,7 +13,6 @@ The properties that matter here are not about search quality:
 from __future__ import annotations
 
 import argparse
-import hashlib
 import json
 from pathlib import Path
 
@@ -22,80 +21,11 @@ import pytest
 
 from segundocerebro.census import Config, DeclaredExclusions, RoleExclusion, RootSpec
 from segundocerebro.config import ErroDeConfig
-from segundocerebro.ingest.chunking import CHUNKER_VERSION, Chunk, ChunkConfig
-from segundocerebro.ingest.document import BlockKind
+from segundocerebro.ingest.chunking import CHUNKER_VERSION, ChunkConfig
 from segundocerebro.index.indexer import _deve_ativar_mcp, indexar
 from segundocerebro.index.store import Store, consulta_fts
 
-DIM = 8
-
-
-class EmbedderFalso:
-    """Deterministic fake — the real model takes seconds to load per test."""
-
-    def __init__(self, model_id: str = "falso:8", dim: int = DIM) -> None:
-        self._model_id = model_id
-        self.spec = type("Spec", (), {"id": "falso", "dim": dim})()
-        self.dim = dim
-        self.chamadas = 0
-        self._cache_dir = Path("models")
-
-    @property
-    def model_id(self) -> str:
-        return self._model_id
-
-    @property
-    def orcamento_tokens(self) -> int:
-        return 10_000  # folgado: estes testes não exercitam o orçamento
-
-    def contar_tokens(self, texto: str) -> int:
-        return len(texto) // 4
-
-    def embed_passagens(self, textos, batch_size: int = 32, ao_progresso=None) -> list[np.ndarray]:  # noqa: ANN001, ARG002
-        self.chamadas += len(textos)
-        saida = []
-        for t in textos:
-            semente = int(hashlib.sha1(t.encode()).hexdigest()[:8], 16)
-            rng = np.random.default_rng(semente)
-            v = rng.standard_normal(self.dim).astype(np.float32)
-            saida.append(v / np.linalg.norm(v))
-        if ao_progresso is not None:
-            ao_progresso(len(saida), len(saida))
-        return saida
-
-    def embed_consulta(self, texto: str) -> np.ndarray:
-        return self.embed_passagens([texto])[0]
-
-
-def chunk(id_: str, path: str, ordinal: int, texto: str, trilha: tuple[str, ...] = ()) -> Chunk:
-    return Chunk(
-        id=id_,
-        doc_path=path,
-        ordinal=ordinal,
-        heading_path=trilha,
-        text=texto,
-        locator=f"p. {ordinal + 1}",
-        kind=BlockKind.TEXT,
-    )
-
-
-@pytest.fixture
-def store(tmp_path: Path) -> Store:
-    s = Store(tmp_path / "indice", DIM)
-    yield s
-    s.fechar()
-
-
-def corpus(raiz: Path) -> Config:
-    (raiz / "Política de IA").mkdir(parents=True)
-    (raiz / "Política de IA" / "PO-ACME-007_Política_IA_v8.md").write_text(
-        "# Política\nO PO-ACME-007 define o uso aceitável de inteligência artificial.\n", encoding="utf-8"
-    )
-    (raiz / "contrato.md").write_text(
-        "# Contrato\nContrato 4600009999 com a Nimbus Tecnologia, vigência de 12 meses.\n", encoding="utf-8"
-    )
-    (raiz / "vazio.md").write_text("   \n", encoding="utf-8")
-    return Config(roots=[RootSpec(name="teste", path=raiz)])
+from tests.falsos import DIM, EmbedderFalso, chunk, config_de_raiz, corpus
 
 
 # --- FTS5 -------------------------------------------------------------------
@@ -842,7 +772,7 @@ def test_txt_com_muitos_trechos_e_adiado_sem_embeddar(tmp_path: Path) -> None:
     raiz = tmp_path / "raiz"
     raiz.mkdir()
     (raiz / "dump.txt").write_text(("palavra " * 40 + "\n") * 80, encoding="utf-8")
-    cfg = Config(roots=(RootSpec(name="r", path=raiz),))
+    cfg = config_de_raiz(raiz, "r")
     store = Store(tmp_path / "indice", DIM)
     emb = EmbedderFalso()
 
@@ -867,7 +797,7 @@ def test_txt_curto_passa_pelo_teto_de_trechos(tmp_path: Path) -> None:
     raiz = tmp_path / "raiz"
     raiz.mkdir()
     (raiz / "nota.txt").write_text("nota curta o bastante para um trecho só.\n", encoding="utf-8")
-    cfg = Config(roots=(RootSpec(name="r", path=raiz),))
+    cfg = config_de_raiz(raiz, "r")
     store = Store(tmp_path / "indice", DIM)
 
     progresso = indexar(cfg, store, EmbedderFalso(), limite_chunks=5, publicar=False)
@@ -882,7 +812,7 @@ def test_teto_de_trechos_nao_adia_markdown(tmp_path: Path) -> None:
     raiz = tmp_path / "raiz"
     raiz.mkdir()
     (raiz / "relatorio.md").write_text("# T\n\n" + ("parágrafo. " * 40 + "\n") * 80, encoding="utf-8")
-    cfg = Config(roots=(RootSpec(name="r", path=raiz),))
+    cfg = config_de_raiz(raiz, "r")
     store = Store(tmp_path / "indice", DIM)
     emb = EmbedderFalso()
 

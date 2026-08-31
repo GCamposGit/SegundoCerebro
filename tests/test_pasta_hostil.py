@@ -18,9 +18,11 @@ from pathlib import Path
 
 import pytest
 
-from segundocerebro.census import Census, Config, RootSpec, caminho_estendido, iter_files
+from segundocerebro.census import Census, caminho_estendido, iter_files
 from segundocerebro.ingest.document import ParseStatus
 from segundocerebro.ingest.reader import parse_file
+
+from tests.falsos import config_de_raiz
 
 from eval.gerador.__main__ import gerar
 from eval.gerador.hostil import CORTE_CSV_MB, PASTA
@@ -64,7 +66,7 @@ def _status_da_pasta(raiz: Path) -> Counter:
 
 def _enumerar(corpus: Path) -> list[str]:
     """Enumera como o **produto** enumera, e não como `pathlib` enumeraria."""
-    cfg = Config(roots=(RootSpec(name="hostil", path=corpus),))
+    cfg = config_de_raiz(corpus, "hostil")
     return [a.path for a in iter_files(cfg.roots[0], cfg, Census())]
 
 

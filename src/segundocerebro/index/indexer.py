@@ -30,12 +30,11 @@ import os
 import signal
 import time
 from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
-from dataclasses import dataclass, field, replace
+from dataclasses import replace
 from pathlib import Path
-from typing import NamedTuple
 
 from ..census import Census, Config, FileEntry, iter_files, relatar_exclusoes
-from ..config import ErroDeConfig, LimitesDeIndexacao, carregar
+from ..config import ErroDeConfig, carregar
 from ..ingest.chunking import CHUNKER_VERSION, Chunk, ChunkConfig, chunk_document
 from ..ingest.ocr import VERSAO as OCR_VERSAO
 from ..ingest.parsers import parser_version_for
@@ -44,185 +43,41 @@ from ..ingest.natureza import EXTENSOES_DE_TEXTO_BRUTO
 from .prioridade import ONDAS, indexaveis, onda_de, ordenar as ordenar_fila
 from .prioridade import pasta_de, vigentes as vigentes_de
 from ..logger import get_logger
-from .embeddings import MODELOS, Embedder
+from .embeddings import Embedder
 from .gpu_pool import EmbedFila, dispositivos_embed
 from .comando import aguardar as aguardar_comando
 from .comando import limpar as limpar_comando
-from .esforco import PERFIS_DE_ESFORCO, ControleEsforco
+from .esforco import ControleEsforco
 from .esforco import aplicar as aplicar_esforco
 from .esforco import limpar_pedido, na_bateria
 from .calibracao import Calibracao, impressao_da_maquina, tipo_de
 from .estimativa import CEGO, Cronometro, Estimador, Relogio, decompor, faixa_humana
-from .isolamento import deve_isolar, parse_isolado
-from .orcamento import PRESETS_LEIGO, Recursos, ajustar_ao_vivo, derivar, medir
+from .isolamento import parse_isolado
+from .orcamento import Recursos, ajustar_ao_vivo, derivar, medir
 from .progresso import Publicador
 from .progresso import ler as ler_progresso
-from .reconciliar import Reconciliacao, reconciliar
+from .reconciliar import reconciliar
+from .cli import LIMITE_CHUNKS_PADRAO as LIMITE_CHUNKS_PADRAO
+from .cli import LIMITE_TEXTO_MB_PADRAO as LIMITE_TEXTO_MB_PADRAO
+from .cli import _extensoes, _limites_efetivos, construir_parser
+from .repesca import STATUS_PARA_REPESCAR as STATUS_PARA_REPESCAR
+from .repesca import _AlvoDoMapa, _parser_gravado, _precisa_indexar, _venenoso
+from .resultado import PedidoDeParada as PedidoDeParada
+from .resultado import Progresso
 from .store import ChunkArmazenado, Store
+from .trava import TravaDeIndice as TravaDeIndice
+from .trava import TravaOcupada as TravaOcupada
+from .travas import NOME_DA_TRAVA as NOME_DA_TRAVA  # reexport histórico: painel e testes o pedem daqui
 
 log = get_logger("index.indexer")
 
-NOME_DA_TRAVA = "indexacao.lock"
-"""Nome do arquivo de trava, exportado porque o painel também precisa vê-lo —
-medir enquanto o índice está sendo reescrito mede um alvo em movimento."""
-
 LOTE_EMBEDDING = 32
 INTERVALO_LOG = 25
-LIMITE_TEXTO_MB_PADRAO = LimitesDeIndexacao().txt
-"""Espelho de `LimitesDeIndexacao.txt`. A fonte é a config; isto documenta o CLI."""
-
-LIMITE_CHUNKS_PADRAO = 800
-"""Safety net for `.txt` that sneak under the byte cap and still explode.
-
-~800 chunks × 1 800 chars is about 1,4 MB of text — a long report, not a dump.
-CSV left this cap in C7.d (digest, not hundreds of blobs). Does not apply to
-PDF/DOCX/PPTX: those are the knowledge formats, and a cap here would silently
-drop timetable-style PDFs on a rebuild."""
 
 
-class PedidoDeParada(RuntimeError):
-    """Cancel or Ctrl+C during embed — the document in flight is not committed."""
 
 
-@dataclass
-class Progresso:
-    documentos: int = 0
-    pulados: int = 0
-    inalterados: int = 0
-    indexados: int = 0
-    chunks: int = 0
-    quarentena: int = 0
-    ocr: int = 0
-    falhas: dict[str, int] = field(default_factory=dict)
-    segundos: float = 0.0
-    interrompido: bool = False
-    reconciliacao: Reconciliacao | None = None
-    cobertura: dict[str, int] = field(default_factory=dict)
 
-    def registrar_falha(self, status: str) -> None:
-        self.falhas[status] = self.falhas.get(status, 0) + 1
-
-    def resumo(self) -> str:
-        partes = [
-            f"{self.documentos} documentos vistos",
-            f"{self.pulados} já indexados",
-            f"{self.inalterados} com conteúdo inalterado",
-            f"{self.indexados} processados",
-            f"{self.chunks} chunks",
-        ]
-        if self.ocr:
-            partes.append(f"{self.ocr} via OCR")
-        if self.quarentena:
-            partes.append(f"{self.quarentena} em quarentena")
-        if self.falhas:
-            partes.append("falhas: " + ", ".join(f"{k}={v}" for k, v in sorted(self.falhas.items())))
-        if self.reconciliacao is not None and (self.reconciliacao.houve_mudanca or self.reconciliacao.recusada):
-            partes.append(self.reconciliacao.resumo())
-        partes.append(f"{self.segundos:.0f}s")
-        return " · ".join(partes)
-
-
-class TravaOcupada(RuntimeError):
-    """Outro indexador já está escrevendo neste índice."""
-
-
-class TravaDeIndice:
-    """Exclusive lock on an index directory for the duration of a run.
-
-    Two indexers against the same directory corrupt the vector table: SQLite in
-    WAL mode tolerates the concurrency, LanceDB does not, and `remover + add`
-    interleaved duplicates every vector — measured once as 13.458 vectors for
-    7.214 chunks, with nothing raising an error. The lock is cheap and removes
-    the whole class of failure.
-    """
-
-    def __init__(self, diretorio: Path) -> None:
-        self.caminho = Path(diretorio) / NOME_DA_TRAVA
-
-    @staticmethod
-    def _criacao(pid: int) -> float | None:
-        """Instante em que o processo nasceu, ou `None` se não dá para saber."""
-        try:
-            import psutil
-
-            return psutil.Process(pid).create_time()
-        except Exception:  # noqa: BLE001 — psutil ausente, processo morto, permissão
-            return None
-
-    def marca(self) -> str:
-        """`pid,criacao` — o par que sobrevive a um reinício.
-
-        **Só o PID não basta**, e o modo de falha é cruel: depois de reiniciar, o
-        sistema recicla números, e `os.kill(pid, 0)` num PID reaproveitado
-        responde "vivo". O usuário levaria "outro indexador está escrevendo" com
-        nenhum indexador rodando, e o conserto — apagar um arquivo de trava que
-        ele não sabe que existe — não se adivinha.
-
-        Encontrado por leitura em 16/08/2026, ao especificar a retomada
-        automática da F3.5 bloco D. Não tinha mordido ainda porque a máquina não
-        havia reiniciado no meio de um run.
-        """
-        pid = os.getpid()
-        criacao = self._criacao(pid)
-        return f"{pid},{criacao:.3f}" if criacao is not None else str(pid)
-
-    def _dono(self) -> tuple[int, float | None]:
-        bruto = self.caminho.read_text(encoding="utf-8").strip()
-        pid_texto, _, criacao_texto = bruto.partition(",")
-        pid = int(pid_texto) if pid_texto.isdigit() else 0
-        try:
-            return pid, float(criacao_texto) if criacao_texto else None
-        except ValueError:
-            return pid, None
-
-    def _vivo(self, pid: int, criacao: float | None) -> bool:
-        if not pid:
-            return False
-        try:
-            os.kill(pid, 0)
-        except OSError:
-            return False
-        except Exception:  # noqa: BLE001 — PID recusado sem OSError: supor vivo
-            return True
-        if criacao is None:
-            # Trava do formato antigo, sem instante de criação: não há como
-            # distinguir o dono de um PID reciclado, e supor "vivo" é o lado
-            # seguro — o preço é uma trava a apagar à mão, e o outro lado seria
-            # dois indexadores duplicando cada vetor.
-            return True
-        atual = self._criacao(pid)
-        return atual is None or abs(atual - criacao) < 1.0
-
-    def ocupada(self) -> bool:
-        """Há um indexador **vivo** neste índice agora?
-
-        Público porque a retomada precisa saber: base sendo indexada não é base
-        pendente, e disparar um segundo indexador é o único jeito conhecido de
-        corromper a tabela de vetores.
-        """
-        if not self.caminho.exists():
-            return False
-        return self._vivo(*self._dono())
-
-    def __enter__(self) -> "TravaDeIndice":
-        self.caminho.parent.mkdir(parents=True, exist_ok=True)
-        try:
-            fd = os.open(self.caminho, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-        except FileExistsError:
-            pid, criacao = self._dono()
-            if self._vivo(pid, criacao):
-                raise TravaOcupada(
-                    f"outro indexador (pid {pid}) está escrevendo em {self.caminho.parent}"
-                ) from None
-            log.warning("trava órfã do pid %s removida", pid or "?")
-            self.caminho.unlink(missing_ok=True)
-            fd = os.open(self.caminho, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
-        with os.fdopen(fd, "w") as fh:
-            fh.write(self.marca())
-        return self
-
-    def __exit__(self, *exc) -> None:  # noqa: ANN002
-        self.caminho.unlink(missing_ok=True)
 
 
 class _Interrupcao:
@@ -264,100 +119,6 @@ class _FecharFila:
             self.fila.fechar()
 
 
-STATUS_PARA_REPESCAR = frozenset(
-    {
-        ParseStatus.LOCKED.value,
-        ParseStatus.CLOUD_ONLY.value,
-        ParseStatus.ERROR.value,
-        ParseStatus.UNSUPPORTED.value,
-        ParseStatus.DEFERRED.value,
-    }
-)
-"""Status cuja causa está fora do arquivo, e por isso pode ter mudado sozinha.
-
-Sem isto o documento é pulado para sempre: `_precisa_indexar` compara tamanho,
-mtime, modelo e chunker, e um arquivo que estava aberto no Word passa nos quatro.
-O ROADMAP promete o oposto — "registrar status `travado` e reindexar na próxima
-passada, nunca descartar em silêncio" — e a promessa não estava implementada.
-Encontrado em 13/08/2026, com um `.docx` travado durante a reconstrução.
-
-- `travado`: o Word fechou desde então
-- `placeholder`: o arquivo pode ter sido hidratado
-- `erro`: leitura rasgada é transitória; corrupção de verdade custa uma tentativa
-  por passada, e é preço baixo para não abandonar documento em silêncio
-- `sem_parser`: quase sempre custo zero, porque o despachante recusa pela
-  extensão antes de ler byte — e é o que faz um parser novo alcançar o que ficou
-  para trás, já que `CHUNKER_VERSION` não cobre versão de parser
-
-`vazio` fica de fora de propósito: é determinístico dados os mesmos bytes e o
-mesmo parser. PDFs digitalizados são a fila da fase OCR (R1.2), não desta
-repesca — reparseá-los como PDF barato apagaria o texto do OCR."""
-
-
-def _precisa_indexar(estado, arquivo, model_id: str, parser: str) -> bool:  # noqa: ANN001
-    if estado is None:
-        return True
-    if estado.status in STATUS_PARA_REPESCAR:
-        return True
-    bytes_mudaram = estado.tamanho != arquivo.size or abs(estado.mtime - arquivo.mtime) > 1e-6
-    if (estado.parser or "").startswith("ocr:"):
-        # Cheap PDF parse would wipe OCR text back to vazio. The OCR phase
-        # owns these rows unless the file itself changed.
-        return bytes_mudaram
-    if estado.model_id != model_id or estado.chunker != CHUNKER_VERSION:
-        return True
-    # Parser corrigido alcança o que já está indexado. Sem esta linha, o único
-    # caminho era apagar linha do registro à mão — foi o que um `.msg` de 343
-    # chunks exigiu em 21/08/2026, e é o que o comentário acima admitia faltar.
-    if estado.parser != parser:
-        return True
-    if bytes_mudaram:
-        return True
-    return False
-
-
-def _parser_gravado(resultado: ParseResult, rel: str) -> str:
-    if resultado.doc is not None and resultado.doc.meta.get("fonte") == "ocr":
-        return resultado.doc.meta.get("parser") or OCR_VERSAO
-    return parser_version_for(os.path.splitext(rel)[1])
-
-
-def _extensoes(bruto: str | None) -> frozenset[str] | None:
-    """`.txt,pdf` -> `{'.txt', '.pdf'}`. O ponto é opcional, porque digitar sem ele
-    é o erro que a pessoa comete e recusar seria pedantismo."""
-    if not bruto:
-        return None
-    itens = {p.strip().lower() for p in bruto.split(",") if p.strip()}
-    return frozenset(e if e.startswith(".") else f".{e}" for e in itens) or None
-
-
-def _parse_workers_padrao() -> int:
-    """CUDA: parse while the GPU embeds. CPU: keep the old sequential loop.
-
-    The encoder must not load in a parse worker — on this desktop that would
-    put CUDA into a thread that never uses it and can NaN MiniLM-Q. Workers
-    only call `parse_file`. Chunk + embed stay on the main thread.
-    """
-    if os.environ.get("SEGUNDOCEREBRO_PROVIDER", "").lower() == "cuda":
-        n = os.cpu_count() or 4
-        return max(2, min(8, n // 2))
-    return 1
-
-
-def _limites_efetivos(
-    limites: LimitesDeIndexacao,
-    pular_texto_acima_de: float | None,
-) -> dict[str, float]:
-    """Mapa extensão → MB. A flag de CLI, se vier, só cobre .txt (C7.d)."""
-    mapa = dict(limites.como_mapa())
-    if pular_texto_acima_de is None:
-        return mapa
-    if pular_texto_acima_de <= 0:
-        mapa.pop(".txt", None)
-        return mapa
-    mapa[".txt"] = pular_texto_acima_de
-    return mapa
-
 
 def _parsear_um(
     path: str,
@@ -389,18 +150,6 @@ def _parsear_um(
     return resultado, time.perf_counter() - t0
 
 
-class _AlvoDoMapa(NamedTuple):
-    """O mínimo que `_precisa_indexar` lê de um arquivo enumerado.
-
-    Nomeado e no topo do módulo porque a alternativa — declarar uma classe
-    dentro do laço — criava um tipo novo por arquivo por ciclo, milhares por
-    passada, para carregar três campos.
-    """
-
-    rel: str
-    size: int
-    mtime: float
-
 
 def _restante_legivel(estimador: Estimador) -> str:
     """A linha de log do restante: faixa, rótulo de estado e decomposição.
@@ -428,17 +177,6 @@ def _tokens_de(embedder: Embedder, chunks) -> int:  # noqa: ANN001
     except Exception:  # noqa: BLE001 — contagem é para calibrar, não para indexar
         return sum(c.chars for c in chunks) // 4
 
-
-def _venenoso(resultado: ParseResult) -> bool:
-    """The class R1.4 isolates: crash, timeout, empty binary, parser abort."""
-    if resultado.status is not ParseStatus.ERROR:
-        return False
-    detalhe = (resultado.detail or "").lower()
-    if detalhe.startswith("arquivo de 0 bytes"):
-        return True
-    if "timeout" in detalhe or "subprocesso morreu" in detalhe:
-        return True
-    return deve_isolar(resultado.path)
 
 
 def _chunk_de(arm: ChunkArmazenado) -> Chunk:
@@ -1514,130 +1252,7 @@ def indexar(
 
 
 def main(argv: list[str] | None = None) -> int:
-    parser = argparse.ArgumentParser(prog="segundocerebro.index.indexer")
-    parser.add_argument("--base", help="qual base indexar (ver config.toml)")
-    parser.add_argument(
-        "--config",
-        type=Path,
-        help="arquivo de configuração; aceita config.toml e o census.toml legado. "
-        "Ausente: procura config.toml, depois census.toml",
-    )
-    # As sobreposições abaixo têm default None de propósito: `None` é "a base
-    # decide", e um default concreto aqui venceria silenciosamente o arquivo.
-    parser.add_argument("--indice", type=Path, help="sobrepõe o índice da base")
-    parser.add_argument("--modelo", choices=sorted(MODELOS), help="sobrepõe o modelo da base")
-    parser.add_argument("--limite", type=int, help="para depois de N documentos processados")
-    parser.add_argument("--max-chars", type=int, help="sobrepõe o chunking da base")
-    parser.add_argument("--threads", type=int, help="sobrepõe as threads da máquina")
-    parser.add_argument(
-        "--perfil",
-        choices=(*PERFIS_DE_ESFORCO, *PRESETS_LEIGO),
-        help="nível de esforço; sobrepõe o [maquina] perfil. Presets do leigo: "
-        "automatico (cede ao usuário), noturno (tudo), discreto (mínimo). "
-        "'leve' recusa rodar na bateria",
-    )
-    parser.add_argument(
-        "--ocr",
-        action="store_true",
-        help="R1.2: depois das ondas de texto, OCR nos PDF digitalizados. "
-        "Exige o extra [ocr] (RapidOCR) ou Tesseract. Sem motor a passada "
-        "é idêntica à de hoje",
-    )
-    parser.add_argument(
-        "--dois-passes",
-        action="store_true",
-        dest="dois_passes",
-        help="R3.2: parse+FTS primeiro (busca útil no mesmo dia) e embed depois. "
-        "O índice final é o mesmo de uma passada só",
-    )
-    parser.add_argument(
-        "--modelo-rascunho",
-        choices=sorted(MODELOS),
-        dest="modelo_rascunho",
-        help="liga dois passes. MiniLM não cabe na tabela do e5-large (384d vs 1024d); "
-        "o rascunho nesses casos é lexical",
-    )
-    parser.add_argument(
-        "--parse-workers",
-        type=int,
-        dest="parse_workers",
-        help="threads de parse. Padrão: 1 na CPU, metade dos núcleos (2–8) com "
-        "SEGUNDOCEREBRO_PROVIDER=cuda. Com 2+ GPUs o embed sai da principal "
-        "(um processo por placa); senão fica na thread principal",
-    )
-    parser.add_argument("--prefixo", help="indexa só caminhos que começam com este prefixo")
-    parser.add_argument(
-        "--so-extensao",
-        dest="so_extensao",
-        metavar=".txt,.pdf",
-        help="indexa só estas extensões, separadas por vírgula. Recorta na **enumeração**: "
-        "o que fica fora não é aberto nem registrado — é diferente de "
-        "--pular-texto-acima-de e --pular-acima-de-n-chunks, que abrem, medem e adiam. "
-        "Existe para partir uma passada por custo: em Meetings/ os 188 .pdf custam de 5 a "
-        "11 h e trazem renderizado o que os .txt já trazem em texto, e medir entre as duas "
-        "metades vale mais que descobrir depois. "
-        "Desliga a reconciliação — o recorte não é evidência de que o resto sumiu",
-    )
-    parser.add_argument(
-        "--pular-planilha-acima-de",
-        type=float,
-        metavar="MB",
-        help="adia planilhas cujo XML de abas passe deste tamanho, em MB. O preditor é o XML "
-        "descompactado, não o tamanho em disco: 17,9 MB comprimidos podem esconder 124 MB em 69 "
-        "abas e custar duas horas. Fica registrado como `adiado` e é repescado numa passada sem o limite",
-    )
-    parser.add_argument(
-        "--pular-texto-acima-de",
-        type=float,
-        metavar="MB",
-        default=None,
-        help=(
-            "adia .txt maiores que isto, em MB, sem abrir o arquivo. "
-            "Ausente: vale o [base.limites] (padrão 2 MB em .txt; CSV não entra "
-            "nesta flag — C7.d). 0 desliga. Fica como `adiado` e é repescado "
-            "numa passada sem o limite"
-        ),
-    )
-    parser.add_argument(
-        "--pular-acima-de-n-chunks",
-        type=int,
-        metavar="N",
-        default=LIMITE_CHUNKS_PADRAO,
-        help=(
-            f"adia .txt que gerem mais de N trechos (padrão: {LIMITE_CHUNKS_PADRAO}). "
-            "0 desliga. O teto de megabytes pega o caso comum; este é a rede de segurança. "
-            "CSV vira digesto (C7.d). Não se aplica a PDF/DOCX/PPTX"
-        ),
-    )
-    parser.add_argument(
-        "--apenas-onda",
-        type=int,
-        choices=(1, 2, 3, 4),
-        help="indexa só esta onda de prioridade (1=pequenos vigentes, 4=cauda). "
-        "Ausente: as quatro, nesta ordem, numa passada só",
-    )
-    parser.add_argument(
-        "--exigir-exclusoes",
-        action="store_true",
-        dest="exigir_exclusoes",
-        help="recusa a passada se alguma exclusão declarada não casar com nada. "
-        "Sem isto o defeito só sai como aviso: regra inerte não devolve erro, a "
-        "passada corre inteira e menos arquivos é justamente o que se pediu — em "
-        "26/08/2026 custou 3 h 22 min e uma medição contaminada. Padrão avisa em "
-        "vez de recusar porque escopo legitimamente vazio existe (pasta que este "
-        "acervo ainda não tem)",
-    )
-    parser.add_argument(
-        "--sem-reconciliar",
-        action="store_true",
-        help="não remove do índice os documentos que sumiram do disco; deixa fantasma para trás",
-    )
-    parser.add_argument(
-        "--forcar-reconciliacao",
-        action="store_true",
-        help="reconcilia mesmo quando a proporção a remover passa da trava de segurança — "
-        "use só depois de conferir que a raiz e o prefixo estão certos",
-    )
+    parser = construir_parser()
     args = parser.parse_args(argv)
 
     try:

@@ -192,6 +192,65 @@ a evidência datada em [`docs/historico-decisoes.md`](docs/historico-decisoes.md
   a bit, e o de 32 é 3,2× mais lento nesta CPU.
 - **Número sem corpus, sem máquina e sem data é mentira** (`colaboracao.md` §4,
   regra 7).
+- **Código de produto que só roda de dentro do repositório é defeito, não
+  detalhe de empacotamento.** `retrieve/hybrid.py::search` importava `Hit` de
+  `eval.harness`, e `eval/` não vai no pacote: o método onde a série histórica
+  inteira foi medida levantava `ModuleNotFoundError` para quem instalou com
+  `pip`. A mesma forma aparece em raiz de repositório deduzida de `__file__` e em
+  `PYTHONPATH=src` gravado no config do cliente MCP.
+- **`monkeypatch` só desfaz o que `monkeypatch` fez.** Escrita em `os.environ`
+  vinda do produto dentro de um teste sobrevive à sessão inteira, e
+  `delenv(raising=False)` sobre variável ausente não registra nem valor a
+  restaurar. Um teste envenenou os seis seguintes, e o modo de falha era
+  assimétrico entre os dois setups: verde onde havia placa, vermelho onde não.
+- **N+1 é invisível no índice de teste.** O caminho de consulta gastava 350 idas
+  ao SQLite por consulta no acervo real e 6 no índice de quatro trechos da suíte:
+  a **forma** do acesso é a mesma, só o N muda. O que pega isso é contar
+  consultas, não cronometrar.
+- **Regra escrita sem quem a confira é conselho.** O teto de 500 linhas por
+  módulo existia desde 25/08/2026 em prosa; `indexer.py` cresceu 610 linhas nos
+  quatro dias seguintes.
+- **A porta de entrada do usuário é onde o silêncio custa mais.** `_secao`
+  recusava chave desconhecida em seis seções e o silêncio era total nas outras
+  cinco portas do TOML — `[[base]]`, seção de topo, `[indexacao]`, `[padrao]` e
+  entrada de `raizes`. Quem instala amanhã escreve o arquivo à mão, erra um
+  nome, e roda com o padrão sem aviso. A guarda tem de ser **derivada do
+  modelo**, não uma lista à mão: a lista à mão é o defeito na roupa seguinte.
+- **Varredura de AST erra por parentesco de nó, e o erro passa por acidente.**
+  `ast.NotIn` não é subclasse de `ast.In`; uma guarda que testava só `In` era
+  cega para `"x" not in dados` — forma que **já estava** no arquivo que ela
+  guardava, e o teste passava porque a mesma chave era lida por subscrito duas
+  linhas abaixo. Prova de guarda tem de rodar contra caso **isolado**, nunca
+  contra o arquivo real, onde a redundância mascara a cegueira.
+- **Número que circula sem unidade vira três números.** "Cobertura do dourado"
+  aparecia como 25%, 18,2% e 38,5% em cinco documentos, e o `README.md` dava a
+  unidade errada ("das pastas" para uma fração de documentos). O instrumento
+  reporta um **par** — 3,3% de piso e 38,5% de teto — e a leitura honesta fica
+  entre os dois. Não é o mesmo defeito de "número sem corpus": é número **com**
+  corpus e **sem** denominador.
+- **Numa passada com cinco listas, a única escrita de cabeça foi a que
+  quebrou.** Quatro eram derivadas — do modelo, do AST, do `pyproject.toml`. A
+  quinta, o dialeto de topo do `census.toml`, saiu com uma chave quando o leitor
+  lê três, e `census.example.toml` — versionado, e o que o clone copia — parou
+  de carregar. O erro sobreviveu ao teste porque o teste também foi escrito de
+  cabeça: montava um `census.toml` mínimo com a única chave que a lista tinha.
+  **Lista e prova escritas pela mesma cabeça concordam sempre**; a prova tem de
+  vir do artefato real ou de derivação independente.
+- **`⊆` sobre conjunto pequeno é asserção que não assere.** Um teste comparava
+  `{"limites"} ⊆ Maquina.__dataclass_fields__` e passava sobre 1/5 da
+  superfície, enquanto o docstring afirmava cobrir a função inteira. Em guarda,
+  igualdade exata; e quando o mecanismo real não é visível ao instrumento — ali
+  a validação era delegada a uma dataclass, não a uma chave literal —, o que
+  fecha é um segundo teste **de comportamento**, não um `⊆` mais largo.
+- **Guarda que consulta o disco não prova nada sobre o clone.** O teste de links
+  aceitava link para pasta usando `is_dir()`: pasta que existe nesta máquina com
+  zero arquivos versionados passava verde e daria 404 em quem clonasse — a
+  classe que aquele teste existe para pegar, dentro dele.
+- **Auditoria que não executa erra a contagem, e erra para os dois lados.**
+  Dos cinco números da passada de 29/08, quatro estavam errados quando medidos
+  ao executar: 6 links quebrados e não 64, sete defaults duplicados e não seis,
+  18 sítios de import e não dez, 16 construções repetidas e não 12. Diagnóstico
+  é hipótese; a contagem só existe depois de rodar.
 
 ## O corpus real — não é um vault Obsidian
 
@@ -251,6 +310,47 @@ Restrições que isso impõe e que **não** têm contorno:
    diretórios não vazam um no outro. O campo `raiz` do registro é procedência,
    **não** fronteira de isolamento.
 
+## Onde as coisas moram — e o que já tem guarda
+
+Atualizado em 29/08/2026, depois da passada de refatoração estrutural. A skill
+`/navegar` traz o mesmo mapa com as perguntas ao lado; `docs/README.md` é o
+índice da documentação.
+
+**Caminho de consulta** — o que o cliente MCP executa:
+`mcp/server.py` → `retrieve/hybrid.py::buscar_chunks` → `index/store.py`.
+`retrieve/contrato.py` guarda `Hit` e o protocolo `Retriever`, que o `eval/`
+importa — **nunca o contrário**: `eval/` é o único diretório fora do pacote.
+
+**Indexação**: `index/indexer.py` é o laço. Ao redor dele, e com uma razão de
+mudar cada: `index/cli.py` (as flags), `index/trava.py` (a trava exclusiva),
+`index/travas.py` (só os nomes dos arquivos de trava, para quem precisa lê-los
+sem carregar o encoder), `index/repesca.py` (este documento precisa reprocessar?)
+e `index/resultado.py` (o que a passada relata).
+
+**As fronteiras que têm teste**, e o que cada uma custou antes de tê-lo:
+
+| Fronteira | Guarda |
+|---|---|
+| `src/` não importa `eval/` — o pacote não leva o harness | `tests/test_pacote.py` |
+| a raiz do repositório tem um nome só (`repositorio.raiz()`) | `tests/test_pacote.py` |
+| nenhum teste entrega `os.environ` sujo ao seguinte | `conftest.py` da raiz + `tests/test_isolamento_da_suite.py` |
+| o painel abre sem carregar o encoder | `tests/test_painel.py` |
+| uma consulta não volta a custar uma ida ao banco por candidato | `tests/test_hybrid.py` |
+| módulo e função não crescem sem que alguém escreva por quê | `tests/test_tamanho_dos_modulos.py` |
+| todo formato que o LibreOffice converte ganha o timeout de convert | `tests/test_quarentena.py` |
+| OCR não dá veredito abaixo do piso de RAM declarado | `tests/test_ocr.py` |
+| `except Exception` sem motivo escrito não entra | `tests/test_politica_excecoes.py` |
+| nome real do acervo em arquivo versionado | `tests/test_saneamento.py` |
+| chave desconhecida no `config.toml`, em qualquer nível | `tests/test_config_chaves.py` |
+| um valor do `config.example.toml` divergir do padrão do código | `tests/test_config.py` |
+| todo `[project.scripts]` virou executável instalado | `tests/test_pacote.py` |
+| link em arquivo versionado apontar para arquivo que o clone não tem | `tests/test_documentacao.py` |
+| arquivo de teste virar módulo de apoio de outro | `tests/test_isolamento_da_suite.py` |
+
+**Skills**: `/pacote` antes de abrir a branch · `/medir` antes de rodar eval ·
+`/depurar` quando algo quebra · `/revisar` antes do PR · `/entregar` no commit ·
+`/navegar` para achar as coisas.
+
 ## Stack
 
 Python 3.12 · `mcp` · BGE-M3 (`fastembed`) · `bge-reranker-v2-m3` · `lancedb` ·
@@ -259,13 +359,30 @@ Python 3.12 · `mcp` · BGE-M3 (`fastembed`) · `bge-reranker-v2-m3` · `lancedb
 ## Como rodar
 
 ```bash
-pip install -r requirements.txt
-py -m pytest tests/ -v        # testes
-py -m pytest eval/ -v         # métricas de recuperação
+pip install -e .
+py -m pytest tests/ eval/ -q   # a suíte inteira — ~2 min, sem GPU e sem modelo
+py -m ruff check src tests eval && py -m pyright src
+```
+
+Fora da suíte padrão, por declaração (`pyproject.toml`, `markers`):
+
+```bash
+py -m pytest -m modelo     # carrega o encoder real — ~2 GB na primeira vez
+py -m pytest -m ocr        # exige o extra [ocr]
+py -m pytest -m cuda       # exige GPU
+py -m pytest -m arquivo    # instrumento de pacote encerrado (eval/arquivo/)
 ```
 
 ## Convenções
 
+- **Teto de tamanho: ~500 linhas por módulo, ~60 por função.** Não é estética: é
+  o pior caso para edição por agente, e a regra existia desde 25/08 sem ninguém
+  conferindo — `indexer.py` cresceu 610 linhas em quatro dias. Hoje quem confere é
+  `tests/test_tamanho_dos_modulos.py`, e a tabela dos que já eram grandes **só
+  desce**
+- **Docstring de decisão se move verbatim.** Elas têm número e data, e são ADR
+  embutida que não descola do código. Refactor que apaga histórico de decisão é
+  reprovação, mesmo com a suíte verde
 - Código e comentários: **inglês**
 - Documentação interna e strings de usuário: **português**
 - Logging via `logger.get_logger("modulo")` — nunca `print()`

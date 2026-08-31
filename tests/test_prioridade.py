@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
-from segundocerebro.census import Config, FileEntry, RootSpec
+from segundocerebro.census import FileEntry, RootSpec
 from segundocerebro.index.indexer import indexar
 from segundocerebro.index.prioridade import (
     chave_de_versao,
@@ -16,7 +16,7 @@ from segundocerebro.index.prioridade import (
     vigentes,
 )
 from segundocerebro.index.store import Store
-from test_index import DIM, EmbedderFalso
+from tests.falsos import DIM, EmbedderFalso, config_de_raiz
 
 ROOT = RootSpec(name="t", path=Path("."))
 AGORA = 1_777_000_000.0  # ~2026-04, keeps recency deterministic
@@ -141,7 +141,7 @@ def test_indexador_ignora_png_e_declara_so_legiveis(tmp_path: Path) -> None:
     raiz.mkdir()
     (raiz / "nota.md").write_text("# Nota\nContrato CT-VCE-2024-0142.\n", encoding="utf-8")
     (raiz / "foto.png").write_bytes(b"\x89PNG\r\n\x1a\n" + b"x" * 20)
-    cfg = Config(roots=[RootSpec(name="t", path=raiz)])
+    cfg = config_de_raiz(raiz, "t")
     store = Store(tmp_path / "indice", DIM)
 
     from segundocerebro.index.progresso import ler
@@ -163,7 +163,7 @@ def test_sha_cruzado_nao_reembedda(tmp_path: Path) -> None:
     texto = "# Copia\nO mesmo contrato CT-VCE-2024-0142 em duas pastas.\n"
     (raiz / "a" / "um.md").write_text(texto, encoding="utf-8")
     (raiz / "b" / "dois.md").write_text(texto, encoding="utf-8")
-    cfg = Config(roots=[RootSpec(name="t", path=raiz)])
+    cfg = config_de_raiz(raiz, "t")
     store = Store(tmp_path / "indice", DIM)
     emb = EmbedderFalso()
 

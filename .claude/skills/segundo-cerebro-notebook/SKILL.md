@@ -26,38 +26,44 @@ O outro lado é Grok Build no desktop (duas 980 Ti, corpus privado dele,
 3. `git pull origin main`. Trabalhe numa branch `f4-*` (ou `e*-*`), nunca em
    `main`.
 4. Depois de `colaboracao.md`, leia a §6 e a seção **Pacotes** do `ROADMAP.md`.
-   Pacote da vez: **`E1` endurecido** (as sete condições do laudo). A `F4-P` corre
-   em paralelo **só** como conserto do caminho entregue. Não pegue F4-L, F4-W nem
-   F6-A.
+   O pacote da vez está na §Próximo passo do `CLAUDE.md` — não nesta skill, pelo
+   motivo da seção seguinte. Não pegue F4-L, F4-W nem F6-A: são do desktop.
 5. Declare na primeira resposta: setup=notebook, branch, fase, o que não vai
    tocar — e **o que isto muda para quem instala amanhã numa base que não
    conhecemos**. Se a resposta a essa última só existe em termos do nosso acervo,
    diga isso em voz alta: é pacote de laboratório, e ele fica atrás de qualquer
    item de produto.
 
-## Estado em 25/08/2026
+## Onde está o estado — e por que não está aqui
 
-Os números vivos estão na §6 de `docs/colaboracao.md`. F1–F3.6 fechadas; F4 em
-curso; a **F6 virou porta de fase** — nenhuma fase F4+ fecha sem o teste em
-máquina que não é nossa. Os pacotes dela seguem sendo do desktop e do painel, mas
-a porta é de todos. Pacotes no `ROADMAP.md`.
+**Esta skill diz quem você é, não o que já foi feito.** A lista de "o que o
+desktop já fez" saiu daqui em 25/08/2026 porque envelheceu duas vezes em três
+dias e passou a contradizer a fonte. Em 29/08/2026 saiu também a lista de "pacote
+da vez", pelo mesmo motivo e pela mesma regra: **número escrito à mão envelhece
+calado enquanto quem o lê segue decidindo por ele.**
 
-A lista de “o que o desktop já fez” saiu daqui de propósito: envelheceu duas
-vezes em três dias e passou a contradizer a §6. Ela vive na §6 de
-`colaboracao.md`, num lugar só.
+| Pergunta | Fonte única |
+|---|---|
+| Onde o sistema está, em cinco linhas | `CLAUDE.md`, §Estado atual |
+| Qual é o próximo pacote | `CLAUDE.md`, §Próximo passo |
+| Números vivos e o que o outro lado fez | [`docs/colaboracao.md`](../../../docs/colaboracao.md) §6 |
+| Contrato de pacote e fila | [`ROADMAP.md`](../../../ROADMAP.md), seção Pacotes |
 
-**O que está na sua mão agora:** o **`E1` endurecido** — gerador sintético como
-código versionado, as sete condições de
-[`docs/avaliacao-pacote-e1.md`](../../../docs/avaliacao-pacote-e1.md). Ele passou à
-frente da `F4-P` em 25/08/2026 porque é o instrumento de base desconhecida; a
-ordem anterior era `E5` → `F4-P` → `E1`.
+O que **não** muda, e por isso fica aqui: F1–F3.6 estão fechadas, a F4 está em
+curso, e a **F6 é porta de fase** — nenhuma fase F4+ fecha sem o teste em máquina
+que não é nossa. Os pacotes da F6 são do desktop e do painel; a porta é de todos.
 
-A **`F4-P` encolheu ao defeito** e continua valendo: reconciliar os dois caminhos
-de recuperação, com aceite binário — `buscar_chunks` alcança o que `search`
-alcança (cross-lingual recall@20 de 0,750 para 1,000), sem derrubar o piso. **A
-varredura de peso por tipo de fonte saiu do escopo:** melhor caso teórico +0,032
-de MRR agregado, efeito concentrado em 11 perguntas, que é a forma que o `E5`
-provou indetectável. Não regredir o que já está em curso nela.
+## As skills deste repositório
+
+Carregue a que couber, e não recite de memória o que elas dizem:
+
+| Skill | Quando |
+|---|---|
+| `/pacote` | antes de abrir a branch — as três perguntas, efeito mínimo, encerramento |
+| `/medir` | antes de rodar eval, e ao ler qualquer tabela de métrica |
+| `/revisar` | antes do PR, e ao revisar diff do outro lado |
+| `/entregar` | commit, branch e o PR como link de compare (não há `gh` aqui) |
+| `/navegar` | onde as coisas moram, e o que **não** ler |
 
 ## Você pode
 

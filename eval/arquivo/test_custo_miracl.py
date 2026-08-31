@@ -15,7 +15,7 @@ from pathlib import Path
 
 import pytest
 
-from eval.custo_miracl import (
+from eval.arquivo.custo_miracl import (
     ADOTAR,
     CORPUS_MIRACL,
     DESCARTAR,
@@ -40,8 +40,11 @@ from eval.custo_miracl import (
     taxa_semente,
 )
 
+pytestmark = pytest.mark.arquivo
+"""Pacote encerrado: fora da suíte padrão. `py -m pytest -m arquivo` roda."""
+
 FONTE = Path(__file__).resolve().parent / "custo_miracl.py"
-DOC = Path(__file__).resolve().parents[1] / "docs" / "custo-miracl.md"
+DOC = Path(__file__).resolve().parents[2] / "docs" / "custo-miracl.md"
 
 
 # --- língua, sem download ---------------------------------------------------

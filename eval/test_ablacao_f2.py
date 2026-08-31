@@ -12,7 +12,7 @@ from __future__ import annotations
 from eval.ablacao_f2 import Braco, Medida, render
 from eval.harness import Pergunta, avaliar
 from eval.idioma import EN, MISTO, PT
-from eval.test_escopo import RecuperadorFixo
+from eval.falsos import RecuperadorFixo
 
 
 def _medida(perguntas: list[Pergunta], rotulo: str = "híbrido") -> Medida:

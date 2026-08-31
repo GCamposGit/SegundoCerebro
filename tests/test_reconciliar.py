@@ -19,10 +19,16 @@ from segundocerebro.ingest.document import BlockKind
 
 
 def montar(tmp_path: Path, documentos: dict[str, str]):  # noqa: ANN201
-    """Índice com um chunk por documento; o valor do dict é o sha256 simulado."""
+    """Índice com um chunk por documento; o valor do dict é o sha256 simulado.
+
+    Um `gravar_chunks` só, e não um por documento (`Q17`, 30/08/2026). Os dois
+    testes de n=40 deste arquivo respondiam por **10,7 s dos 162 s** da suíte,
+    e o custo não era o dado: era a chamada. `registrar_documento` continua em
+    laço porque grava um registro por documento por contrato.
+    """
     store = Store(tmp_path / "indice", dim=4)
-    for i, (path, sha) in enumerate(documentos.items()):
-        chunk = Chunk(
+    chunks = [
+        Chunk(
             id=f"{path}#0",
             doc_path=path,
             ordinal=0,
@@ -31,7 +37,11 @@ def montar(tmp_path: Path, documentos: dict[str, str]):  # noqa: ANN201
             kind=BlockKind.TEXT,
             text=f"conteudo de {path}",
         )
-        store.gravar_chunks([chunk], [np.ones(4, dtype=np.float32)], 0.0, "m:4")
+        for path in documentos
+    ]
+    vetores = [np.ones(4, dtype=np.float32) for _ in chunks]
+    store.gravar_chunks(chunks, vetores, 0.0, "m:4")
+    for path, sha in documentos.items():
         store.registrar_documento(
             path=path, raiz="r", tamanho=1, mtime=0.0, status="ok", sha256=sha, n_chunks=1, model_id="m:4"
         )

@@ -10,7 +10,6 @@ from __future__ import annotations
 
 import os
 import struct
-from dataclasses import dataclass, field
 from pathlib import Path
 
 import pytest
@@ -20,37 +19,12 @@ from segundocerebro.index.usn import (
     Cursor,
     EstadoVolume,
     Journal,
-    JournalExpirado,
     Registro,
     disponivel,
     parse_registros,
     varrer,
 )
-
-
-@dataclass
-class FonteFalsa:
-    journal: Journal
-    registros: list[Registro] = field(default_factory=list)
-    caminhos: dict[int, Path] = field(default_factory=dict)
-    volume: str = "C:\\"
-    expirado: bool = False
-
-    def volume_de(self, path: Path) -> str | None:  # noqa: ARG002
-        return self.volume
-
-    def consultar(self, volume: str) -> Journal | None:  # noqa: ARG002
-        return self.journal
-
-    def ler(
-        self, volume: str, journal_id: int, start_usn: int  # noqa: ARG002
-    ) -> tuple[list[Registro], int]:
-        if self.expirado:
-            raise JournalExpirado(f"journal USN de {volume} recuou")
-        return list(self.registros), self.journal.next_usn
-
-    def caminho_de(self, volume: str, frn: int) -> Path | None:  # noqa: ARG002
-        return self.caminhos.get(frn)
+from tests.falsos import FonteFalsa
 
 
 def _raiz(tmp_path: Path) -> tuple[Path, Path, FonteFalsa]:

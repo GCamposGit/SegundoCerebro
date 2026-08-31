@@ -23,8 +23,9 @@ from collections.abc import Sequence
 from dataclasses import dataclass, replace
 
 from ..index.embeddings import Embedder
-from ..index.store import Store
+from ..index.store import ChunkArmazenado, Store
 from ..logger import get_logger
+from .contrato import Hit
 from .familias import chave_de_familia, colapsar
 from .fonte import REUNIAO, grupo_de_fonte
 from .glossario import Glossario
@@ -386,9 +387,15 @@ class BuscaHibrida:
         primeiro trecho é onde estão o cabeçalho e o título, que é o que um
         casamento por nome de arquivo está de fato afirmando.
         """
+        por_documento = self._nome_por_doc(consulta)
+        # Um `SELECT ... WHERE path IN (...)` no lugar de um por documento: o
+        # ranqueador de nome devolve `candidatos` documentos, e eram ~79 idas ao
+        # banco por consulta no acervo corporativo.
+        ids_por_documento = self.store.ids_de_chunks_por_path(list(por_documento))
+
         pontos: dict[str, float] = {}
-        for rel, contribuicao in self._nome_por_doc(consulta).items():
-            ids = self.store.ids_de_chunks(rel)
+        for rel, contribuicao in por_documento.items():
+            ids = ids_por_documento.get(rel, [])
             if not ids:
                 # Documento no registro sem nenhum chunk: invisível para a fusão,
                 # e o nome não é passe para entrar sem conteúdo indexado.
@@ -415,9 +422,11 @@ class BuscaHibrida:
             return acertos
 
         ja_presentes = {a.chunk_id for a in acertos}
+        # Duas idas ao banco para todos os acertos, no lugar de duas por acerto.
+        por_acerto = self.store.vizinhos_de([a.chunk_id for a in acertos], janela)
         saida: list[ChunkAcerto] = []
         for acerto in acertos:
-            vizinhos = self.store.vizinhos(acerto.chunk_id, janela)
+            vizinhos = por_acerto.get(acerto.chunk_id, [])
             antes, depois, passou = [], [], False
             for v in vizinhos:
                 if v.id == acerto.chunk_id:
@@ -444,13 +453,20 @@ class BuscaHibrida:
 
         ordenados = sorted(pontos.items(), key=lambda kv: (-kv[1], kv[0]))
 
-        descartados = self._irmaos_superados(ordenados) if self.agrupar_familias else {}
+        # Os metadados de todo o poço numa ida só. Era uma consulta por trecho, e
+        # o poço tem `candidatos` itens por ranqueador — 350 `execute()` por
+        # consulta medidos no acervo corporativo em 29/08/2026, contra 6 agora.
+        armazenados = self.store.chunks_por_id([c for c, _ in ordenados])
+
+        descartados = (
+            self._irmaos_superados(ordenados, armazenados) if self.agrupar_familias else {}
+        )
         ordenados = [(c, s) for c, s in ordenados if c not in descartados]
         ordenados = ordenados[: max(k, self._quantos_buscar)]
 
         saida: list[ChunkAcerto] = []
         for chunk_id, score in ordenados:
-            armazenado = self.store.chunk(chunk_id)
+            armazenado = armazenados.get(chunk_id)
             if armazenado is None:  # índice e registro fora de sincronia
                 log.warning("chunk %s está no vetorial mas não no registro", chunk_id)
                 continue
@@ -479,7 +495,11 @@ class BuscaHibrida:
         # seria trabalho de banco jogado fora.
         return self.expandir_contexto(saida[:k], contexto)
 
-    def _irmaos_superados(self, ordenados: Sequence[tuple[str, float]]) -> set[str]:
+    def _irmaos_superados(
+        self,
+        ordenados: Sequence[tuple[str, float]],
+        armazenados: dict[str, ChunkArmazenado] | None = None,
+    ) -> set[str]:
         """Chunks de versões antigas **quando a vigente também foi recuperada**.
 
         Sem isto, o ganho medido em `search` não chegaria à superfície MCP, que
@@ -490,10 +510,13 @@ class BuscaHibrida:
         mesmo ranking. Quando só a versão velha casou com a consulta, devolvê-la
         é melhor que devolver nada — e a procedência dirá que há uma mais nova.
         """
+        if armazenados is None:
+            armazenados = self.store.chunks_por_id([c for c, _ in ordenados])
+
         por_familia: dict[str, list[str]] = {}
         do_chunk: dict[str, str] = {}
         for chunk_id, _ in ordenados:
-            armazenado = self.store.chunk(chunk_id)
+            armazenado = armazenados.get(chunk_id)
             if armazenado is None:
                 continue
             chave = chave_de_familia(armazenado.path)
@@ -522,19 +545,26 @@ class BuscaHibrida:
         supplies one — a single chunk per document, mirroring this collapse — so
         the signal exists on the path the MCP client actually executes. This
         method stays the historical series (F0 → F4 was measured here).
-        """
-        from eval.harness import Hit
 
+        `Hit` used to be imported here from `eval.harness`, which made this
+        method — the whole historical series — raise `ModuleNotFoundError` on an
+        installed package, because `pyproject.toml` ships `src/` and nothing
+        else. It lives in `retrieve/contrato.py` since 29/08/2026.
+        """
         rankings_chunk, pesos, _, _ = self._rankings_de_chunk(consulta)
 
         rankings_doc: list[list[str]] = []
         pesos_doc: list[float] = []
         melhor_chunk: dict[str, str] = {}
 
+        # Todo o poço numa ida ao banco, antes de colapsar. Eram `candidatos`
+        # consultas por ranqueador — o mesmo N+1 de `buscar_chunks`.
+        armazenados = self.store.chunks_por_id([c for ranking in rankings_chunk for c in ranking])
+
         for ranking, peso in zip(rankings_chunk, pesos):
             documentos: list[str] = []
             for chunk_id in ranking:
-                armazenado = self.store.chunk(chunk_id)
+                armazenado = armazenados.get(chunk_id)
                 if armazenado is None:
                     continue
                 if armazenado.path not in documentos:
@@ -569,7 +599,7 @@ class BuscaHibrida:
             # e gastar candidatos com irmãs idênticas desperdiça o orçamento caro.
             def _texto(par: tuple[str, float]) -> str:
                 chunk_id = melhor_chunk.get(par[0])
-                armazenado = self.store.chunk(chunk_id) if chunk_id else None
+                armazenado = armazenados.get(chunk_id) if chunk_id else None
                 if armazenado is None:
                     # Documento que entrou só pelo ranqueador de nome: não tem
                     # chunk no poço. O nome é o que existe, e é sinal legítimo.
@@ -583,6 +613,6 @@ class BuscaHibrida:
         saida = []
         for path, score in ordenados:
             chunk_id = melhor_chunk.get(path)
-            armazenado = self.store.chunk(chunk_id) if chunk_id else None
+            armazenado = armazenados.get(chunk_id) if chunk_id else None
             saida.append(Hit(path=path, score=score, trecho=(armazenado.texto[:300] if armazenado else "")))
         return saida

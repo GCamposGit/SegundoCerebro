@@ -384,6 +384,20 @@ def _montar(nome: str, args, cfg, papel: str = "depois"):  # noqa: ANN001
         Args.peso_nome = args.peso_nome_depois if papel == "depois" else 0.0
         Args.sem_nome = papel == "antes"
 
+    # `--indice-depois` é o quarto braço assimétrico, e o `F4-O.3` é o pacote que
+    # o pediu. Os três anteriores mudam o **recuperador** sobre o mesmo índice;
+    # este muda o **índice** sob o mesmo recuperador, porque há mudanças que não
+    # são de ranking: OCR não altera peso nenhum, altera o que existe para ser
+    # recuperado. Sem isto a única forma de medir "com e sem OCR" seria rodar
+    # `eval.rodar` duas vezes e comparar médias — que é exatamente o que o `E5`
+    # existe para proibir, porque perde o pareamento por pergunta e com ele o
+    # intervalo estreito.
+    #
+    # Congelar o braço `antes` é responsabilidade de quem mede: copiar o índice
+    # **antes** da passada, e apontar `--indice` para a cópia.
+    if args.indice_depois is not None:
+        Args.indice = args.indice_depois if papel == "depois" else args.indice
+
     Args.rerank = rerank
     Args.sem_rerank = sem_rerank
     montado = montar_rodar(Args(), cfg)
@@ -420,6 +434,14 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--config", type=Path, default=REPO / "census.toml")
     parser.add_argument("--golden", type=Path, default=None)
     parser.add_argument("--indice", type=Path, default=None)
+    parser.add_argument(
+        "--indice-depois",
+        type=Path,
+        default=None,
+        help="braço assimétrico por **índice**: o `depois` mede este, o `antes` mede "
+        "`--indice`. Para mudança que não é de ranking — OCR, parser novo, corpus "
+        "que cresceu. Congelar o `antes` copiando o índice antes da passada",
+    )
     parser.add_argument("--glossario", type=Path, help="dicionário de siglas, nos dois braços")
     parser.add_argument(
         "--rerank",

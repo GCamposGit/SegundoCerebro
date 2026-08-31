@@ -17,7 +17,7 @@ from eval.com_grafo import ComSaltoNoGrafo
 from eval.harness import Hit
 from segundocerebro.index.store import Store
 from segundocerebro.retrieve.grafo import construir
-from tests.test_index import DIM, EmbedderFalso, chunk
+from tests.falsos import DIM, EmbedderFalso, chunk
 
 
 @dataclass

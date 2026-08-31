@@ -235,8 +235,10 @@ são "um de cada vez" e estão devolvidos no merge.
 
 ### Agora — notebook
 
-**F4-M fechado** (PR #10) e **F4-D reescopado** (PR #15): o dourado real cobre
-25% do índice, e a resposta adotada **não** é escrever mais perguntas para este
+**F4-M fechado** (PR #10) e **F4-D reescopado** (PR #15): o dourado real cobria
+18,2% do índice pelo teto por pasta (51 perguntas, 24/08/2026 — hoje são 62, e o
+instrumento do `F4-D` mede 38,5% de teto contra 3,3% de piso), e a resposta
+adotada **não** é escrever mais perguntas para este
 acervo — é parar de escolher peso global a partir de qualquer acervo único. Ver
 [`docs/dourado-cobertura.md`](dourado-cobertura.md) e o `ROADMAP.md`.
 
@@ -766,6 +768,167 @@ encerramento, está no laudo.
 (bloco 16.1 marcado como retratado), `ROADMAP.md` (pacote `F4-R`), este arquivo,
 `CLAUDE.md`. `ROADMAP.md` é "um de cada vez" e volta no merge. Nada de
 `retrieve/*`, nada de `[padrao]`, nada de `index/esforco.py` **neste** PR.
+
+### `F4-O.3` bloqueada, e o motivo é de vocês (28/08/2026)
+
+Laudo: [`ocr-no-acervo-bloqueado.md`](ocr-no-acervo-bloqueado.md). Tentei a
+medição do dourado de OCR. **O motor de vocês está verde aqui** — os 4 testes do
+`F4-O.1` com `-m ocr` passam nesta máquina em 21 s. O que bloqueia é o indexador.
+
+**A passada com `--ocr` não completa, e não falha: ela quarentena o acervo.** Duas
+tentativas, mesma assinatura — processo principal em 0% de CPU, contador de chunks
+parado, e a cada 61 s um documento vai para quarentena. A 666 PDFs isso é 11 h de
+timeout puro com o índice piorando o tempo todo.
+
+A cadeia, com o traceback na mão:
+
+1. `isolamento.deve_isolar` manda todo PDF para subprocesso, por extensão;
+2. o filho faz `runpy.run_module('segundocerebro.index.indexer')`, que importa
+   `embeddings` e o **fastembed inteiro** — para parsear um documento, o filho
+   carrega o encoder;
+3. o OpenBLAS não aloca no filho (`Memory allocation still failed after 10
+   retries`), porque o pai já segura o `e5-large`;
+4. o filho não responde, o timeout de 61 s dispara, e o documento é **quarentenado**;
+5. repete.
+
+**O teto de RAM do `F4-O.2` não vale no Windows.** `_worker_parse` aplica
+`resource.setrlimit` sob `os.name != "nt"`. O `plano-ocr.md` já dizia que a
+hipótese (c) seria medida sem Job Object; esta passada é o número que faltava para
+decidir se o Job Object se paga — e ele se paga.
+
+**Três consertos, em ordem de custo, e os três são de vocês:** não isolar (ou reusar
+processo de parse) quando o filho não couber; Job Object no Windows; e **falhar alto
+quando o filho morre por memória, em vez de quarentenar** — documento que não pôde
+ser lido por falta de RAM não é documento defeituoso, e tratar os dois igual é o que
+transforma pressão de memória em perda de índice.
+
+**E os dois testes de `tests/test_ocr.py` que oscilam são a canária disso** — mesma
+mensagem do OpenBLAS, mesma causa. Passam com memória livre, falham sem. Vale tratar
+como sinal.
+
+Do meu lado ficou pronto o que a `F4-O.3` vai precisar quando a passada completar: o
+índice `antes` congelado e `eval.comparar --indice-depois`, porque "com e sem OCR" é
+diferença de **índice** e a ferramenta só aceitava um para os dois braços. As três
+perguntas continuam `fora_de_escopo: ocr` — tirar a anotação sem a fonte indexada
+criaria a fatia vazia que a `F4-P.1` acabou de ensinar a não criar.
+
+### Passada de refatoração de base, e três coisas que são de vocês (29/08/2026)
+
+Uma passada estrutural sobre as 45.731 linhas de Python, **sem mudar
+funcionalidade**. Sete commits, cada um com a classe generalizada que o fecha; o
+que não entrou virou os pacotes `Q11`–`Q19` do `ROADMAP.md`. O detalhe está lá; o
+que muda para vocês está aqui.
+
+**A suíte de `main` estava vermelha, e agora não está.** 7 falhas → 1. As seis do
+`tests/test_watcher.py` eram o `aplicar_provider` que eu tinha reportado em 28/08
+e que ficou sem conserto pela regra 8 — como ele é de `index/*`, eu não devia
+mexer. **Mexi, e o motivo é que o mandato desta passada era a base inteira.** O
+conserto preserva o comportamento: `resolver_provider()` responde "qual provider
+vence" sem escrever, `aplicar_provider()` mantém nome, assinatura e a condição
+exata de escrita, e o docstring passa a dizer que só o `main()` de um processo
+pode chamá-la. Se vocês preferirem outra forma, o teste que fecha a classe é meu
+e continua valendo: `conftest.py` da raiz tira foto de `os.environ` antes de cada
+teste e devolve depois. A falha que sobra é `eval/test_golden.py` — duas fontes do
+dourado saíram do disco na troca de notebook.
+
+**O que passou a reprovar, e vale para os dois lados:**
+
+| Guarda nova | Reprova quando |
+|---|---|
+| `tests/test_pacote.py` | qualquer módulo de `src/` importa `eval/` — varredura de AST, enxerga import dentro de função |
+| `tests/test_tamanho_dos_modulos.py` | módulo novo acima de 500 linhas, função nova acima de 60, ou um dos grandes cresce |
+| `tests/test_hybrid.py` | uma consulta gasta mais de 12 idas ao SQLite |
+| `tests/test_painel.py` | abrir o painel carrega `fastembed`, `onnxruntime` ou o indexador |
+| `conftest.py` (raiz) | — não reprova, restaura: `os.environ` volta ao que era depois de cada teste, em `tests/` **e** em `eval/` |
+
+O `select` do `ruff` cresceu para `["E","F","BLE","S603","DTZ"]`. `BLE` custou
+zero erro e deu sentido a 77 `noqa` que não suprimiam nada; `S603` custou cinco
+`noqa` com motivo escrito. Os 264 que sobram, e a escada medida para ligá-los,
+estão no `Q18`.
+
+**`eval/arquivo/`** recebeu `varredura.py`, `varredura_fts.py`, `custo_miracl.py`
+e `alarme_externo.py` — instrumento de pacote encerrado, fora da suíte padrão pelo
+marcador `arquivo`, no mesmo desenho de `modelo`, `cuda` e `ocr`. Continuam
+reproduzíveis: `py -m pytest -m arquivo`. `varredura.py` não tinha **nenhum**
+importador nem teste, e o `ruff` e o `pyright` a liam a cada PR.
+
+**As três que são de vocês, reportadas e não corrigidas (regra 8):**
+
+1. **`Q15`, e é P0 de produto.** Sob pressão de memória o `pymupdf` falha ao
+   carregar **dentro do filho de parse**, e o erro chega como
+   `ModuleNotFoundError: No module named 'mupdf'`. O produto classifica como *sem
+   parser*: o documento fica `vazio`, `digitalizado` nunca é marcado, a fila de
+   OCR sai vazia, `progresso.ocr` é 0 — e **não há linha de quarentena**. No PDF
+   misto o disfarce é melhor ainda: fica `ok` com os chunks das páginas nativas.
+   Medido aqui em cinco passadas seguidas de `tests/test_ocr.py`: **2 reprovaram
+   com 3,5–3,6 GB livres e 3 passaram com ~3,9 GB**, sem uma linha mudar. Liga na
+   `F4-O.3`, que está bloqueada por vocês. A suíte já não confunde as duas coisas
+   (`PISO_RAM_OCR_MB` faz o teste **pular** com o número, em vez de reprovar pela
+   janela); o produto continua confundindo.
+2. **`Q14`.** `SEGUNDOCEREBRO_OCR_FAKE` (`ingest/ocr.py:43,149`) desvia o motor de
+   OCR sem nenhuma guarda de "só em teste". Variável herdada de sessão de shell
+   muda o comportamento de produção sem uma linha no log.
+3. **`mcp/registrar.py` ainda grava `PYTHONPATH=src` e `cwd` do repositório** no
+   `.mcp.json` e no config do Claude Desktop. Desde o `pip install -e .` isso
+   deixou de ser necessário, e para quem instalou por `pip` está **errado**:
+   aponta o cliente para uma pasta que não existe. É item de `F6`, não de higiene,
+   e eu não mexi porque muda o que o produto escreve no disco do usuário.
+
+**Nada disso toca ranking.** `buscar_chunks` e `search` foram despejados para JSON
+em 5 consultas contra o índice corporativo, antes e depois do lote de consultas, e
+o `diff` saiu limpo — id, path, score com 9 casas, origem, antes e depois.
+
+### Os pacotes `Q` da auditoria, executados — e quatro números dela que estavam errados (30/08/2026)
+
+Cinco commits fecharam `Q11`, `Q12`, metade do `Q13`, `Q17` e `Q19`, mais a
+superfície de pontos de entrada. Suíte: **1 falha / 1.232 passes → 1 falha /
+1.361 passes**, mesma falha de dado, e o tempo de **143,5 s para 113,6 s**.
+
+**O que muda para vocês, em ordem de quanto pode atrapalhar:**
+
+| Guarda nova | Reprova quando |
+|---|---|
+| `tests/test_config_chaves.py` | chave desconhecida em qualquer nível do `config.toml` deixa de levantar, ou a lista declarada discorda do que a função leitora lê (AST) |
+| `tests/test_isolamento_da_suite.py` | um arquivo de teste é importado por outro — dublê vai para `tests/falsos.py`, fixture vai para um `conftest.py` |
+| `tests/test_pacote.py` | um `[project.scripts]` do `pyproject.toml` não virou executável instalado. A lista é **derivada** do TOML |
+| `tests/test_documentacao.py` | link markdown em arquivo versionado aponta para arquivo que o Git não tem |
+| `tests/test_config.py` | um valor do `config.example.toml` diverge do padrão do código; a porta do painel aparece em `scripts/`; o `index.html` embute tabela de tetos |
+
+**Duas coisas que podem te pegar de surpresa no próximo rebase:**
+
+- **`from tests.test_index import ...` não existe mais.** `DIM`, `EmbedderFalso`,
+  `chunk`, `corpus`, `bytes_pdf` e `bytes_pdf_misto` moram em `tests/falsos.py`;
+  `RecuperadorFixo` em `eval/falsos.py`; a fixture `store` em
+  `tests/conftest.py`. Eram 18 sítios em 14 arquivos.
+- **`config.py` (1.081 linhas) e `census.py` (978) estão no teto exato da
+  escada.** Qualquer linha que vocês acrescentem a esses dois reprova até que a
+  costura do `Q16` correspondente saia. Não é rigidez: foi o que forçou
+  `config_escrita.py`, e é o que hoje bloqueia a outra metade do `Q13`.
+
+**O que continua sendo de vocês** — o `Q15` (P0, o OCR que some em silêncio sob
+pressão de memória), o `Q14` (`SEGUNDOCEREBRO_OCR_FAKE` sem guarda) e o
+`mcp/registrar.py` gravando `PYTHONPATH=src`. Nada disso mudou; o relato de
+29/08 acima continua valendo inteiro.
+
+**Uma decisão que precisa dos dois, com o número que faltava.** O `Q18`
+perguntava "apagar os `noqa` inertes ou ligar as regras?", e dizia que a escolha
+não era óbvia. Medi o que faltava: em `src`, ligar
+`ANN001,ANN201,ANN202,ANN401,ARG001,ARG002,T201,B007,N801,RET` faz **75 dos 92**
+`noqa` inertes passarem a suprimir algo de verdade, ao custo de **40 correções**.
+Apagar destruiria esse valor. Só que 8 desses 40 arquivos são de vocês —
+`indexer.py`, `gpu_pool.py`, `smoke_cuda.py`, `estimativa.py`, `ocr.py`,
+`ole_texto.py`, mais `registrar.py` e `painel/app.py`, que são "um de cada vez".
+Ligar a regra obriga vocês a anotar os arquivos de vocês, então **não liguei**.
+Recomendo ligar; em `tests/` e `eval/` a rota continua sendo apagar, porque lá
+`per-file-ignores` mantém as regras desligadas.
+
+**Um achado novo, fora de pacote:** `scripts/abrir-painel.cmd` ainda faz
+`set PYTHONPATH=src`. É a mesma classe do item 3 acima, e sobreviveu ao `F6-A`
+porque ninguém varreu `scripts/`. Não removi porque decidir como um clone sem
+`pip install -e .` abre o painel encosta na `F6-B`, que é de vocês.
+
+**Nada disso toca ranking.** Nenhum dos cinco commits entra em `retrieve/*`, em
+peso, em chunking ou no caminho de consulta.
 
 ### Agora — desktop
 
