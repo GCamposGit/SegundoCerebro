@@ -1,0 +1,81 @@
+# dourado-v1 — a série histórica, congelada.
+#
+# Gerado por `py -m eval.serie --congelar`. **Não editar à mão.**
+#
+# Cada linha é o `id` de uma pergunta do conjunto dourado e a impressão digital
+# do que move a métrica dela: o texto, o tipo e as fontes esperadas. O conjunto
+# em si é gitignorado — ele cita nome de arquivo do acervo real —, e é por isso
+# que este arquivo existe: sem ele uma pergunta editada muda a linha de base
+# histórica sem deixar diff em lugar nenhum, e as duas tabelas continuam
+# parecendo comparáveis.
+#
+# Mudar a série é ato deliberado: rode com `--congelar`, revise o diff, e diga
+# no relatório que a linha de base mudou.
+
+serie = "dourado-v1"
+congelado_em = "2026-08-31"
+n = 62
+
+[impressoes]
+g001 = "9fc97caa3ee9b477"
+g002 = "59b70cd1cd209b27"
+g003 = "c6eea7e89ac340bb"
+g004 = "264e00411f6e547d"
+g005 = "83b8fb97ec9e0b0e"
+g006 = "54542bf5e9fd297c"
+g007 = "2477e8739440e0f0"
+g008 = "326260c84c12940a"
+g009 = "5636dc27e0eaab96"
+g010 = "4c756579efdb8121"
+g011 = "2ae102d1912fce68"
+g012 = "b85c057235b63d01"
+g013 = "1859daccd0f9105c"
+g014 = "1a5a1413896253ed"
+g015 = "409d84e24cae09b0"
+g016 = "b8624c19c89e75f0"
+g017 = "629735a8f9ffedb6"
+g018 = "60a7794171cdc4af"
+g019 = "92a21e31759bcc49"
+g020 = "d6dd0f2e4d87a3bb"
+g021 = "709f320bc8890054"
+g022 = "a902f6b7bf6ee3a4"
+g023 = "71575ac467200737"
+g024 = "e194e755f5edad01"
+g025 = "1f29cb14ec96567b"
+g026 = "eca0e090133f9fc7"
+g027 = "c8ed30307b5e2d0f"
+g028 = "20e308597f2a1926"
+g029 = "7d128337264f8277"
+g030 = "dfdbacfb7c74930e"
+g031 = "8f0c9c8c119be457"
+g032 = "c20cd34062acf197"
+g033 = "dfc6e031258a43f2"
+g034 = "aadfa658a6bc9451"
+g035 = "2ff2efbb6333dcb1"
+g036 = "b7114fa115c276c7"
+g037 = "1c13ce8d84062387"
+g038 = "a011d0645a3c299c"
+g039 = "5e9ab2ecaaf3c88c"
+g040 = "884f34500f500b24"
+g041 = "cf401700b48582e5"
+g042 = "07525ecccf4ffc2f"
+g043 = "1c61f4b04bea6ba2"
+g044 = "51285866f4852b22"
+g045 = "d4822132194823fd"
+g046 = "bb0f12dca0c6c850"
+g047 = "00f71bbd93b9c9ce"
+g048 = "b44b020de1a4a854"
+g049 = "26fffaec78569e45"
+g050 = "115d4e550eb9501f"
+g051 = "5ed28ee38f24702f"
+g052 = "1b45a01b7494c4be"
+g053 = "b33aeffa2df79db5"
+g054 = "9fd4f073c06162fd"
+g055 = "6b7fe4251e081436"
+g056 = "a3b67af984ca2fd4"
+g057 = "2b22f6c5cd23c11a"
+g058 = "4a96675c5a4e7546"
+g059 = "0a6eb5e58d80bf30"
+g060 = "9123a61c8faab345"
+g061 = "4072589cfdb974ec"
+g062 = "cec1a10cb5eeea6b"
