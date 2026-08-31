@@ -277,7 +277,13 @@ def documentos_da_pasta(store: Store, pasta: str, *, recursivo: bool = False) ->
 
 
 def _irmaos_em_lote(store: Store, hashes: Iterable[str]) -> dict[str, list[str]]:
-    """Uma consulta para todos os hashes da página, nunca uma por documento.
+    """Uma consulta para todos os hashes de uma vez, nunca uma por documento.
+
+    Recebe os hashes da **pasta inteira** e devolve, para cada um, todos os
+    caminhos do índice que carregam aquele conteúdo — inclusive os de fora da
+    pasta. É por isso que `mesmo_conteudo_em` de um item pode citar caminho que o
+    manifesto não lista: o irmão está em outro lugar do acervo, e omiti-lo faria o
+    agente achar que o documento é único.
 
     A lição do N+1 deste repositório: a **forma** do acesso é a mesma no índice
     de quatro trechos da suíte e no acervo de 2.156 documentos, e só o N muda.

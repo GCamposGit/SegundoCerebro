@@ -302,3 +302,50 @@ def test_a_paginacao_e_pura_e_nao_depende_de_ordem_de_chamada(indice: Store) -> 
     tool(pasta=PASTA, recursivo=True, cursor=0, max_itens=2)
     de_novo = tool(pasta=PASTA, recursivo=True, cursor=2, max_itens=2)["itens"]
     assert depois == de_novo
+
+
+# --- o que a revisão achou ----------------------------------------------------
+
+
+def test_item_cujo_id_resolve_para_outro_caminho_diz_isso(indice: Store) -> None:
+    """Dois caminhos, um conteúdo, um id — e o id vai para **um** deles.
+
+    Achado em revisão. Sem o campo, o manifesto lista dois itens com `id`
+    idêntico, `outline` desse id devolve o preferido, e o agente que chaveie por
+    id perde o outro item sem sinal nenhum.
+    """
+    mesmo = "f" * 64
+    for path, mtime in (("Projetos/Alfa/Copia.docx", 100.0), ("Projetos/Alfa/Vigente.docx", 900.0)):
+        indice.registrar_documento(
+            path=path, raiz="acervo", tamanho=1, mtime=mtime, sha256=mesmo,
+            status="ok", n_chunks=0, model_id="falso:8", chunker="v1", parser="p1",
+        )
+    indice.commit()
+
+    itens = {i["arquivo"]: i for i in ferramentas_de_leitura(indice)["list_folder"](pasta=PASTA)["itens"]}
+    copia, vigente = itens["Projetos/Alfa/Copia.docx"], itens["Projetos/Alfa/Vigente.docx"]
+
+    assert copia["id"] == vigente["id"], "mesmo conteúdo, mesmo id — é o contrato do doc_id"
+    assert copia["id_resolve_para"] == "Projetos/Alfa/Vigente.docx"
+    assert "id_resolve_para" not in vigente, "o preferido não aponta para si mesmo"
+
+
+def test_servidor_sem_base_declarada_recusa_uri_com_nome_de_base(indice: Store) -> None:
+    """Achado em revisão: a conferência era no-op justamente onde mais importa.
+
+    Sem `config.toml` o servidor sobe com três valores soltos e não tem nome para
+    conferir contra. Aceitar qualquer `<base>` em silêncio entrega conteúdo deste
+    índice a quem pediu outro acervo, achando que pediu certo.
+    """
+    saida = ferramentas_de_leitura(indice, base_id="")["outline"](
+        documento=identidade.montar_uri("qualquer", "b" * 12)
+    )
+    assert "erro" in saida
+    assert "sem base declarada" in saida["erro"]
+
+
+def test_servidor_sem_base_declarada_aceita_caminho_e_id_nu(indice: Store) -> None:
+    """A recusa é sobre o nome da base, não sobre a leitura."""
+    tools = ferramentas_de_leitura(indice, base_id="")
+    assert tools["outline"](documento="Projetos/Alfa/Plano_v2.docx")["secoes"]
+    assert tools["outline"](documento="b" * 12)["secoes"]

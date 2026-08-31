@@ -148,6 +148,13 @@ def _item(
         item["motivo"] = quarentena
     if doc.duplicado:
         item["mesmo_conteudo_em"] = [c for c in doc.caminhos if c != doc.caminho]
+        if doc.caminhos[0] != doc.caminho:
+            # Achado em revisão. Dois caminhos com o mesmo conteúdo na mesma
+            # pasta entram como **dois** itens com o mesmo `id`, e `outline` desse
+            # id devolve o preferido — que é o outro. Um agente que chaveie por
+            # `id` perderia este item sem sinal nenhum. O campo diz para onde o
+            # id vai; enumerar continua sendo enumerar, e o silêncio acaba.
+            item["id_resolve_para"] = doc.caminhos[0]
     return item
 
 

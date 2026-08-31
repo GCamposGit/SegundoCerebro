@@ -13,12 +13,26 @@ são dois números plausíveis e incomparáveis, e nada na tela avisa.
 
 **O que este módulo congela, e o que ele não guarda.** O manifesto
 (`eval/golden/dourado-v1.toml`, versionado) tem o `id` de cada pergunta e uma
-**impressão digital** de 16 hex do que move a métrica: o texto da pergunta, o
-tipo e as fontes esperadas. Não guarda o texto, não guarda o nome de arquivo
-nenhum — impressão é de mão única, e o repositório é público. `notas`, `autoria`
-e `validada` ficam de fora de propósito: editá-los não muda número nenhum, e um
-manifesto que reprova por causa de uma nota reescrita seria abandonado na
-primeira semana.
+**impressão digital** de 16 hex do que move a métrica. Não guarda o texto e não
+guarda nome de arquivo nenhum — impressão é de mão única, e o repositório é
+público.
+
+**A lista de campos é derivada do modelo, não escrita à mão**, e a primeira
+versão deste módulo errou exatamente aí: ela cobria `pergunta`, `tipo` e
+`fontes`, e deixava fora `fora_de_escopo` e `armadilha`. Os dois movem número:
+`fora_de_escopo` **tira a pergunta da tabela principal** (é o que faz a série ser
+n=59 de 62, `harness.restrito_ao_escopo`), e `armadilha` alimenta o portão
+"regressão em caso-armadilha = 0" de `eval/comparar.py`, que **bloqueia merge**.
+Acrescentar um motivo catalogado a uma pergunta mudava o `recall@1` e o manifesto
+dizia "o conjunto desta máquina é o congelado" — a própria classe que este módulo
+existe para fechar, dentro dele.
+
+Por isso a impressão cobre **todo campo de `harness.Pergunta`**, menos os que
+`NAO_MOVEM_NUMERO` declara. Campo novo na dataclass entra sozinho; tirar um exige
+escrever o motivo na lista, e `test_serie.py` reprova se a lista mencionar campo
+que não existe. `notas`, `autoria` e `validada` são os declarados: editá-los não
+muda número nenhum, e um manifesto que reprova por uma nota reescrita seria
+abandonado na primeira semana.
 
     py -m eval.serie --base padrao              # confere, e diz o que mudou
     py -m eval.serie --base padrao --congelar   # grava a série nova
@@ -50,21 +64,50 @@ def caminho_da_serie(serie: str = SERIE_PADRAO) -> Path:
     return PASTA / f"{serie}.toml"
 
 
-def impressao_de(p: Pergunta) -> str:
-    """O que move a métrica desta pergunta, e só isso.
+NAO_MOVEM_NUMERO = frozenset({"notas", "autoria", "validada"})
+"""Os únicos campos fora da impressão, com o motivo de cada um.
 
-    Espaço em branco é normalizado porque quebra de linha reeditada não muda o
-    que a pergunta pergunta; o separador de caminho é normalizado para `/` pela
-    mesma razão que o harness normaliza — o dourado é escrito no Windows e lido
-    onde for.
+- `notas`: prosa para quem lê o dourado. Nenhuma métrica a consulta.
+- `autoria`: `rascunho` × `usuario`. Aparece em relatório como recorte, e o
+  recorte é derivado dela — mudá-la não muda o valor de nenhuma célula da série.
+- `validada`: mesma coisa. É controle de qualidade do conjunto, não entrada de
+  cálculo.
+
+Tirar um campo daqui é decisão com efeito na série histórica, e por isso mora
+numa lista com motivo escrito em vez de numa expressão dentro da função.
+"""
+
+
+def _campos_que_movem() -> tuple[str, ...]:
+    """Os campos da impressão, **derivados de `Pergunta`** e não escritos à mão.
+
+    Lista escrita de cabeça e prova escrita pela mesma cabeça concordam sempre —
+    foi assim que o dialeto de topo do `census.toml` saiu com uma chave quando o
+    leitor lia três. Aqui a lista vem da dataclass: campo novo entra sozinho na
+    impressão, e o teste reprova se `NAO_MOVEM_NUMERO` citar campo inexistente.
     """
+    return tuple(sorted(set(Pergunta.__dataclass_fields__) - NAO_MOVEM_NUMERO))
+
+
+def _canonizar(valor: object) -> str:
+    """Cada tipo de campo vira texto de uma forma só, e sempre a mesma.
+
+    Espaço em branco colapsa porque quebra de linha reeditada não muda o que a
+    pergunta pergunta; caminho vira `/` pela mesma razão que o harness normaliza,
+    e a lista de fontes é ordenada porque reordenar o JSON não é editar o
+    conjunto.
+    """
+    if isinstance(valor, bool):
+        return "1" if valor else "0"
+    if isinstance(valor, (tuple, list)):
+        return "\x1f".join(sorted(_canonizar(v) for v in valor))
+    return " ".join(str(valor).replace("\\", "/").split())
+
+
+def impressao_de(p: Pergunta) -> str:
+    """O que move a métrica desta pergunta — todo campo, menos os declarados."""
     canonico = "\n".join(
-        [
-            p.id,
-            p.tipo,
-            " ".join(p.pergunta.split()),
-            *sorted(f.replace("\\", "/") for f in p.fontes),
-        ]
+        f"{campo}={_canonizar(getattr(p, campo))}" for campo in _campos_que_movem()
     )
     return hashlib.sha256(canonico.encode("utf-8")).hexdigest()[:TAMANHO_DA_IMPRESSAO]
 

@@ -420,10 +420,24 @@ def test_o_documento_continua_na_fila_de_ocr_depois_da_falha(
         store.fechar()
 
 
-def test_o_documento_bom_continua_sendo_repescado_quando_o_erro_nao_e_de_scan(
-    tmp_path: Path,
-) -> None:
-    """O gate é estreito de propósito: só o que espera OCR sai deste laço.
+def _estado_em_erro(**mudancas: object):  # noqa: ANN202
+    """Um registro em `erro`, batendo com modelo, chunker, parser e bytes."""
+    from segundocerebro.ingest.chunking import CHUNKER_VERSION
+
+    campos = {
+        "status": ParseStatus.ERROR.value,
+        "tamanho": 10,
+        "mtime": 1.0,
+        "parser": "p1",
+        "model_id": "m",
+        "chunker": CHUNKER_VERSION,
+        **mudancas,
+    }
+    return type("Estado", (), campos)()
+
+
+def test_o_documento_bom_continua_sendo_repescado_quando_o_erro_nao_e_de_scan() -> None:
+    """O gate é estreito de propósito: só o que espera OCR perde o atalho.
 
     Sem esta prova o conserto seria "nada com `erro` volta", que abandonaria em
     silêncio todo documento cuja falha é transitória — a razão de
@@ -431,10 +445,36 @@ def test_o_documento_bom_continua_sendo_repescado_quando_o_erro_nao_e_de_scan(
     """
     from segundocerebro.index.repesca import _AlvoDoMapa, _precisa_indexar
 
-    class _Estado:
-        status = ParseStatus.ERROR.value
-        tamanho, mtime, parser, model_id, chunker = 10, 1.0, "p1", "m", "c"
-
     alvo = _AlvoDoMapa("rasgado.pdf", 10, 1.0)
-    assert _precisa_indexar(_Estado(), alvo, "m", "p1", frozenset())
-    assert not _precisa_indexar(_Estado(), alvo, "m", "p1", frozenset({"rasgado.pdf"}))
+    assert _precisa_indexar(_estado_em_erro(), alvo, "m", "p1", frozenset())
+    assert not _precisa_indexar(_estado_em_erro(), alvo, "m", "p1", frozenset({"rasgado.pdf"}))
+
+
+@pytest.mark.parametrize(
+    "motivo,estado,model_id,parser,alvo",
+    [
+        ("parser corrigido", {}, "m", "p2", (10, 1.0)),
+        ("modelo trocado", {}, "outro", "p1", (10, 1.0)),
+        ("chunker trocado", {"chunker": "chunker:antigo"}, "m", "p1", (10, 1.0)),
+        ("bytes novos", {}, "m", "p1", (99, 1.0)),
+        ("mtime novo", {}, "m", "p1", (10, 900.0)),
+    ],
+)
+def test_o_scan_que_espera_ocr_ainda_e_alcancado_por_motivo_de_verdade(
+    motivo: str, estado: dict, model_id: str, parser: str, alvo: tuple
+) -> None:
+    """O que o `Q15.a` tira do scan é a passada **gratuita**, não todas.
+
+    Achado em revisão: a primeira versão punha a condição do `Q15.a` **antes** dos
+    testes de parser, modelo e chunker, e com isso um scan em `erro` deixava de
+    ser alcançado por parser corrigido — trocando um defeito por outro, mais
+    silencioso, porque ninguém percebe documento que não volta.
+    """
+    from segundocerebro.index.repesca import _AlvoDoMapa, _precisa_indexar
+
+    fila = frozenset({"escaneado.pdf"})
+    item = _AlvoDoMapa("escaneado.pdf", alvo[0], alvo[1])
+
+    assert _precisa_indexar(_estado_em_erro(**estado), item, model_id, parser, fila), (
+        f"{motivo}: o scan devia voltar ao laço, e não voltou"
+    )

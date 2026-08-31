@@ -109,19 +109,30 @@ def pular_por_quarentena(store, arquivo, sha: str, progresso, estimador, publica
     return True
 
 
+def _do_ocr_e_nao_deste_laco(estado, arquivo, em_ocr) -> bool:  # noqa: ANN001
+    """Este `erro` é de um scan que espera OCR? Então o atalho de status não vale.
+
+    `Q15.a`, e o recorte estreito veio de revisão. A função nomeia **só** a
+    exceção ao atalho de `STATUS_PARA_REPESCAR` — não "não reprocessar nunca", que
+    era o que a primeira versão fazia e que trocava um defeito por outro: um scan
+    em `erro` deixava de ser alcançado por parser corrigido, por troca de modelo e
+    por troca de chunker, porque a condição vinha antes dos três.
+
+    O que o scan perde é a passada **gratuita** que o status lhe dava, e que só
+    produzia `vazio` por cima do `erro` que a fase capaz apurou. Tudo que é motivo
+    de verdade para reprocessar continua abaixo e continua valendo.
+    """
+    return bool(em_ocr) and estado.status == ParseStatus.ERROR.value and arquivo.rel in em_ocr
+
+
 def _precisa_indexar(estado, arquivo, model_id: str, parser: str, em_ocr=frozenset()) -> bool:  # noqa: ANN001, B008
     if estado is None:
         return True
-    bytes_mudaram = estado.tamanho != arquivo.size or abs(estado.mtime - arquivo.mtime) > 1e-6
-    if em_ocr and estado.status == ParseStatus.ERROR.value and arquivo.rel in em_ocr:
-        # `Q15.a`: este scan espera OCR, e o parse barato não pode melhorá-lo —
-        # ele já rodou, é determinístico dados os mesmos bytes, e a única coisa
-        # que produziria é `vazio` por cima do `erro` que a fase capaz apurou.
-        # Ver `esperando_ocr`. Bytes novos são outra história: aí o arquivo
-        # mudou, e a natureza precisa ser detectada de novo.
-        return bytes_mudaram
-    if estado.status in STATUS_PARA_REPESCAR:
+    if estado.status in STATUS_PARA_REPESCAR and not _do_ocr_e_nao_deste_laco(
+        estado, arquivo, em_ocr
+    ):
         return True
+    bytes_mudaram = estado.tamanho != arquivo.size or abs(estado.mtime - arquivo.mtime) > 1e-6
     if (estado.parser or "").startswith("ocr:"):
         # Cheap PDF parse would wipe OCR text back to vazio. The OCR phase
         # owns these rows unless the file itself changed.

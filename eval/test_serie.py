@@ -79,6 +79,51 @@ def test_trocar_uma_fonte_esperada_muda_a_impressao(tmp_path: Path, dourado: Pat
     assert serie.conferir(carregar_perguntas(outro), impressoes(dourado)).mudaram == ("s002",)
 
 
+def test_a_lista_de_campos_e_derivada_do_modelo_e_nao_escrita_a_mao(tmp_path: Path) -> None:
+    """A primeira versão desta impressão cobria três campos e deixava dois de fora.
+
+    `fora_de_escopo` **tira a pergunta da tabela principal** — é o que faz a série
+    ser n=59 de 62 — e `armadilha` alimenta o portão de merge de `eval.comparar`.
+    Acrescentar um motivo catalogado mudava o `recall@1` e o manifesto dizia "é o
+    congelado": a própria classe que o módulo existe para fechar, dentro dele.
+
+    O que impede a repetição não é uma lista maior — é a lista **vir da
+    dataclass**. Campo novo em `Pergunta` entra sozinho na impressão; tirar um
+    exige escrever o motivo em `NAO_MOVEM_NUMERO`, e este teste reprova se a
+    lista citar campo que não existe.
+    """
+    from eval.harness import Pergunta
+
+    campos = set(Pergunta.__dataclass_fields__)
+    assert serie.NAO_MOVEM_NUMERO <= campos, (
+        f"NAO_MOVEM_NUMERO cita campo que não existe em Pergunta: "
+        f"{sorted(serie.NAO_MOVEM_NUMERO - campos)}"
+    )
+    assert set(serie._campos_que_movem()) == campos - serie.NAO_MOVEM_NUMERO
+
+
+@pytest.mark.parametrize(
+    "campo,valor",
+    [
+        ("fora_de_escopo", "ocr"),
+        ("armadilha", True),
+        ("idioma", "en"),
+        ("idioma_fonte", "en"),
+        ("tipo", "semantica"),
+    ],
+)
+def test_campo_que_move_numero_muda_a_impressao(
+    tmp_path: Path, dourado: Path, campo: str, valor: object
+) -> None:
+    """Um por um, e nomeados: é o que separa "a lista é grande" de "a lista está certa"."""
+    alterado = [dict(PERGUNTAS[0], **{campo: valor}), PERGUNTAS[1]]
+    outro = escrever(tmp_path / "outro.jsonl", alterado)
+
+    assert serie.conferir(carregar_perguntas(outro), impressoes(dourado)).mudaram == ("s001",), (
+        f"editar `{campo}` não mudou a impressão, e ele move número"
+    )
+
+
 def test_reeditar_notas_ou_validada_nao_muda_nada(tmp_path: Path, dourado: Path) -> None:
     """Manifesto que reprova por nota reescrita é manifesto abandonado.
 

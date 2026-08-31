@@ -170,8 +170,19 @@ def conferir_base(referencia: Referencia, base_do_processo: str) -> str:
     "base como filtro de metadado" pela porta dos fundos, e um booleano errado
     vazaria uma base na outra. Aqui o nome só **confere**.
     """
-    if not referencia.base or not base_do_processo:
+    if not referencia.base:
         return ""
+    if not base_do_processo:
+        # Achado em revisão: o servidor sobe sem `config.toml` (três valores
+        # soltos, `--indice`), e aí não há nome para conferir contra. Aceitar
+        # qualquer `<base>` em silêncio é a garantia faltando **exatamente** onde
+        # o cliente não sabe em que base está — pior que recusar, porque ele
+        # recebe conteúdo de outro acervo achando que pediu certo.
+        return (
+            f"esta referência nomeia a base '{referencia.base}', e este servidor subiu "
+            "sem base declarada — não há nome para conferir contra. Use o caminho do "
+            "arquivo ou o doc_id sozinho, ou suba o servidor com --base."
+        )
     if referencia.base == base_do_processo:
         return ""
     return (
