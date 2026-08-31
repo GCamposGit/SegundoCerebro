@@ -134,9 +134,10 @@ py -m segundocerebro.index.watcher --base trabalho
 ```
 
 Ele usa o mesmo `comando.txt` da indexação para pausar e cancelar, e **não
-abre** arquivo que está só na nuvem. Se o observador estava desligado enquanto
-você mexia nas pastas, rode **Indexar** uma vez: ele não recupera o que mudou
-com o programa fechado.
+abre** arquivo que está só na nuvem. No Windows, em disco NTFS, ao religar ele
+recupera o que você salvou enquanto estava desligado — arquivo novo ou
+alterado. Arquivo **apagado** com o observador desligado só some do índice
+quando você rodar **Indexar** outra vez.
 
 Quem preferir o terminal para a indexação inteira:
 
@@ -234,10 +235,10 @@ Preferimos dizer isto do que deixar você descobrir depois.
   identificador impresso numa página-foto volta intacto. Ofício antigo
   (letra pequena, página mista) ainda não foi medido; não é garantia de
   que o PDF vira trecho buscável. Sem o extra, o resto da indexação não muda.
-- **O observador não recupera o passado.** Com
-  `py -m segundocerebro.index.watcher --base trabalho` ligado, arquivo novo,
-  salvo ou apagado entra ou sai sozinho. O que mudou **enquanto ele estava
-  desligado** só entra na próxima indexação.
+- **O observador recupera o que você salvou com ele desligado**, no Windows
+  em disco NTFS: arquivo novo ou alterado entra ao religar. Arquivo
+  **apagado** com o observador desligado só some do índice na próxima
+  indexação. Com ele ligado, criar, salvar e apagar entram ou saem sozinhos.
 - **Só estes formatos:** PDF (`.pdf`), Word (`.docx`, `.docm`, `.doc`, `.rtf`),
   Excel (`.xlsx`, `.xlsm`, `.xls`), PowerPoint (`.pptx`, `.pptm`, `.ppt`), e-mail
   (`.msg`, `.eml`), transcrição de reunião (`.vtt`, `.srt`, `.sbv`) e texto

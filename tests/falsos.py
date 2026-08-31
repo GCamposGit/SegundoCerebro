@@ -22,7 +22,10 @@ O código abaixo saiu de `test_index.py` **verbatim**."""
 from __future__ import annotations
 
 import hashlib
+from dataclasses import dataclass, field
 from pathlib import Path
+
+from segundocerebro.index.usn import Journal, JournalExpirado, Registro
 
 import numpy as np
 
@@ -135,3 +138,35 @@ def bytes_pdf_misto(
     dados = doc.tobytes()
     doc.close()
     return dados
+
+
+@dataclass
+class FonteFalsa:
+    """A fonte de journal USN que os testes usam no lugar do volume NTFS.
+
+    Saiu de `tests/test_usn.py` na fusao da `F4-W` com o `Q17` (30/08/2026):
+    `test_watcher.py` a importava de la, e arquivo de teste nao e modulo de
+    apoio — `tests/test_isolamento_da_suite.py` reprova. Movida verbatim.
+    """
+
+    journal: Journal
+    registros: list[Registro] = field(default_factory=list)
+    caminhos: dict[int, Path] = field(default_factory=dict)
+    volume: str = "C:\\"
+    expirado: bool = False
+
+    def volume_de(self, path: Path) -> str | None:  # noqa: ARG002
+        return self.volume
+
+    def consultar(self, volume: str) -> Journal | None:  # noqa: ARG002
+        return self.journal
+
+    def ler(
+        self, volume: str, journal_id: int, start_usn: int  # noqa: ARG002
+    ) -> tuple[list[Registro], int]:
+        if self.expirado:
+            raise JournalExpirado(f"journal USN de {volume} recuou")
+        return list(self.registros), self.journal.next_usn
+
+    def caminho_de(self, volume: str, frn: int) -> Path | None:  # noqa: ARG002
+        return self.caminhos.get(frn)

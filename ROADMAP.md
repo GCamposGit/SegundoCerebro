@@ -816,7 +816,7 @@ privada do desktop **não** trava nenhum destes:
 | F4-T | Parser de transcrição (`.vtt`/`.srt`/`.sbv`) — a saída nativa de todo gravador de reunião era contada e não indexada | notebook | 6 | ✅ **fechado em 27/08/2026**: fatia `reunião` de **0 para 100** perguntas alcançáveis, 17 → 20 extensões. [`docs/fatia-reuniao-invisivel.md`](docs/fatia-reuniao-invisivel.md) |
 | F4-O.3 | Dourado de OCR no acervo | notebook | 6 | **bloqueada em 28/08/2026** — não pelo dourado nem pelo motor: a passada com `--ocr` quarentena o acervo a 61 s por documento, com 0% de CPU. Laudo: [`docs/ocr-no-acervo-bloqueado.md`](docs/ocr-no-acervo-bloqueado.md) |
 | F4-R | Regime de máquina: a indexação varia 22× por estado do SO que o produto não observa | notebook (`esforco.py` emprestado) | 6 | **R.1 sim** — achar o gatilho. Laudo: [`docs/afinidade-e-estado-de-maquina.md`](docs/afinidade-e-estado-de-maquina.md) |
-| F4-W / R5.1 | Watcher, com camada USN Journal | desktop | 6 | **sim** |
+| F4-W / R5.1 | Watcher, com camada USN Journal | desktop | 6 | F4-W ✅ · **R5.1 neste PR** (`f4-w-usn`) |
 | F4-S | SharePoint = pasta sincronizada, só política e tela | notebook | 6 | **sim** |
 | R6.2+C4.2 · R7.1 · R7.2+C6.a · R6.3 | Rerank v2 · tools · descriptions · tempo/pasta | notebook | 7 | — |
 | F6-B / R8.2 | Primeira base sem terminal, MCPB, com a UX de C1 | quem não estiver no painel | 8 | depois de F6-A |
@@ -2267,16 +2267,19 @@ criptografado, `.ppt` que não é OLE2, `xlrd` recusando codepage. Status vira
 
 Processo à parte. Não é o laço do indexador: observa a raiz e dispara
 `indexer --prefixo` / documento único. Sem IPC novo — o contrato é o de
-`comando.txt` + `progresso.json`.
+`comando.txt` + `progresso.json`. O vivo (watchdog, trava, debounce) já
+está em `main`. **R5.1 (neste PR):** catch-up USN do que mudou com o
+processo desligado.
 
-- **Toca:** `src/segundocerebro/index/watcher.py` (**arquivo novo**),
-  `tests/test_watcher.py`, `requirements.txt` (`watchdog`, hoje comentado),
-  um atalho em `scripts/` se precisar. Opcional: uma linha no painel **só
-  depois** de F4-M soltar o painel
+- **Toca (R5.1):** `src/segundocerebro/index/usn.py` (novo),
+  `src/segundocerebro/index/watcher.py`, `tests/test_usn.py`,
+  `tests/test_watcher.py`, `docs/comecar.md`
 - **Não toca:** laço de `indexer.py` (chama o módulo, não reescreve),
-  `retrieve/*`, schema de `config.py`
-- **Saída:** criar/alterar um `.txt` em `tmp_path` dispara indexação; placeholder
-  de nuvem **não** é aberto; dois watchers no mesmo índice recusam pela trava
+  `retrieve/*`, schema de `config.py`, `ARCHITECTURE.md`
+- **Saída:** 1k arquivos alterados com o observador desligado voltam no
+  religar (Windows/NTFS, sem elevação). Journal recuado não mente — pede
+  Indexar. Apagado com o processo morto continua Indexar. Watchdog segue
+  sendo o vivo, inclusive no POSIX.
 - **Paralelo:** sim. Não precisa do índice privado do desktop
 
 #### F4-S — SharePoint via pasta sincronizada — **notebook** (depois de F4-M)
