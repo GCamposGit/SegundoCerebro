@@ -88,10 +88,11 @@ esquecer:
 | Como se mede, e o que invalida | [`docs/rigor-estatistico.md`](../../../docs/rigor-estatistico.md) |
 | Índice de tudo | [`docs/README.md`](../../../docs/README.md) |
 
-**Metade de `docs/` não está no Git.** 57 dos 104 arquivos — quase todos
-`metricas-*.md` e algumas `ablacao-*.md` — citam nome de arquivo do acervo real e
-ficam de fora por regra. Um link para eles resolve nesta máquina e dá 404 num
-clone. `docs/README.md` marca quais são.
+**Metade de `docs/` não está no Git.** 47 estão versionados; os demais — quase
+todos `metricas-*.md`, mais oito `ablacao-*.md` — citam nome de arquivo do acervo
+real e ficam de fora por regra. Um link para eles resolve nesta máquina e dá 404
+num clone; por isso a referência a eles é **menção em backticks**, não link.
+`tests/test_documentacao.py` reprova o link, e `docs/README.md` marca quais são.
 
 ## O que NÃO ler
 

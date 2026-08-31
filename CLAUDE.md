@@ -58,8 +58,9 @@ decisões e [ROADMAP.md](ROADMAP.md) para as fases.
 
 ## Estado atual
 
-**F0–F3.6 fechadas. F4 em curso. A F6 — primeiro uso em máquina desconhecida —
-passou a ser porta de fase, não trilha paralela.** Os números vivos ficam na §6 de
+**F0–F3.6 fechadas. F4 em curso. A `F6` — primeiro uso em máquina desconhecida —
+fechou em 30/08/2026**, com a `F6-B` (estágio 0 do painel, provado ponta a ponta)
+e a `F6-C` (hardware; estava implementada e não declarada). Os números vivos ficam na §6 de
 [`docs/colaboracao.md`](docs/colaboracao.md); os pacotes, no
 [`ROADMAP.md`](ROADMAP.md).
 
@@ -92,8 +93,11 @@ Onde o sistema está, em cinco linhas:
   (invariante 6).
 
 **Onde o produto não está pronto**, e é o que a régua de ouro manda olhar
-primeiro: OCR de PDF digitalizado, watcher, e o teste da F6 — instalar frio numa
-máquina que não é nossa, que segue sendo a porta de fase. O Office legado
+primeiro: o watcher, e o **`Q15.a`** — sob pressão de memória a fase de OCR
+quarentena certo, mas o status do documento fica `vazio` em vez de `erro`, e a
+causa é a ordenação de ondas do indexador. O silêncio acabou; a saída inteira do
+`Q15` não. Instalar frio numa máquina que não é nossa deixou de ser hipótese: o
+percurso do leigo tem teste. O Office legado
 (`.doc` `.xls` `.ppt` `.rtf`) **é lido** desde a F4; o que falta ali é o `F4-L`,
 o container OLE que mente sobre o próprio conteúdo.
 
@@ -108,6 +112,16 @@ o container OLE que mente sobre o próprio conteúdo.
 > ([`docs/ablacao-f4p1-nome-por-fonte.md`](docs/ablacao-f4p1-nome-por-fonte.md)).
 > **Não reabre com outra grade.**
 
+0. **`J.b1` e `J.c-mapa` — a camada de acesso ao corpus**, entrada de 30/08/2026
+   e o primeiro requisito **de produto** desta lista. O pacote J acrescenta um
+   segundo modo de consumo — *ingestão integral dirigida por agente*, o
+   "escreva um paper sobre esta pasta" — que nenhuma das três tools de hoje
+   serve. A especificação recebida é
+   [`docs/pacote-j-camada-acesso-corpus.md`](docs/pacote-j-camada-acesso-corpus.md);
+   **ler antes dela** a conferência contra o código,
+   [`docs/plano-pacote-j.md`](docs/plano-pacote-j.md), porque cinco premissas
+   medidas não batem com esta base. Os dois subpacotes acima não esperam nada:
+   saem do registro que já existe.
 1. **`F4-R.1` — o regime de máquina observável**, e é pré-requisito da passada de
    calibragem no acervo real: sem ele a `Calibracao` aprende coeficiente de dois
    regimes misturados (22× de diferença) com milhares de observações a favor.
@@ -115,18 +129,21 @@ o container OLE que mente sobre o próprio conteúdo.
    [`docs/colaboracao.md`](docs/colaboracao.md), porque o desktop não tem bateria
    nem CPU híbrida e não reproduz o defeito.
 2. **`F4-O.3` — o dourado de OCR** (`g015`/`g025`/`g048`), que é do notebook e
-   **está bloqueada desde 28/08/2026** — não pelo dourado nem pelo motor: com
-   `--ocr` a passada quarentena o acervo a 61 s por documento, com 0% de CPU
-   ([`docs/ocr-no-acervo-bloqueado.md`](docs/ocr-no-acervo-bloqueado.md)).
-3. **`F4-D.2` — `dourado-v1` é frase, não mecanismo.** Achado ao fechar a `F4-D`
+   destravou quando o `F4-O.2` entrou na `main` no PR #42.
+3. **`Q15.a`** — o resto do `Q15`: documento quarentenado pela fase de OCR fica
+   `vazio` no registro em vez de `erro`, e por isso a repesca o reprocessa sem
+   OCR. É mudança na ordem das ondas de `indexar()`, com a evidência no
+   `ROADMAP.md`.
+4. **`Q18`** — medido e resolvido, esperando execução: ligar as dez regras
+   baratas do `ruff` faz 75 dos 92 `noqa` inertes de `src` valerem, por 40
+   correções. Do `Q2` sobram lockfile e extras.
+
+5. **`F4-D.2` — `dourado-v1` é frase, não mecanismo.** Achado ao fechar a `F4-D`
    em 29/08/2026: nada congela quais ids compõem a série histórica, e o conjunto
-   é gitignorado — pergunta editada move a linha de base sem deixar diff. A outra
-   metade da `F4-D` (a cobertura em todo relatório) fechou.
-4. **`F6`** — restam `F6-C` (desktop) e `F6-B` (estágio 0 do painel); a `F6-A`
-   fechou no PR #14. A
-   `F6-D` (`docs/comecar.md`) e a `F6-E` (pasta hostil) fecharam em 25/08/2026, e
-   o `Q5` P0 — e2e do protocolo MCP — também. Do `Q2` sobram lockfile e extras,
-   que são do desktop.
+   é gitignorado — pergunta editada move a linha de base sem deixar diff.
+
+A **`F6` inteira fechou** em 30/08/2026 — `F6-A` (PR #14), `F6-D` e `F6-E`
+(25/08), `F6-B` e `F6-C` (30/08). O `Q5` P0 fechou junto com ela.
 
 ## Lições que valem para qualquer acervo
 
@@ -241,6 +258,65 @@ a evidência datada em [`docs/historico-decisoes.md`](docs/historico-decisoes.md
   reporta um **par** — 3,3% de piso e 38,5% de teto — e a leitura honesta fica
   entre os dois. Não é o mesmo defeito de "número sem corpus": é número **com**
   corpus e **sem** denominador.
+- **Marcador escrito e nunca lido é comentário caro.** `MOTIVO_RECURSO` existia
+  para separar *"tente com mais memória"* de *"este arquivo está corrompido"*,
+  era gravado por três sítios e **consultado por nenhum** — a quarentena
+  aposentava falha de ambiente com a política de arquivo podre, e duas passadas
+  apertadas tiravam o documento do acervo até alguém editá-lo. Marcador novo
+  entra com o leitor junto, ou não entra.
+- **Resultado sem informação não pode apagar a informação anterior.** O filho
+  que morria por recurso devolvia `ParseResult` sem `natureza`, e o `UPDATE`
+  gravava zero em todas as colunas dela: o `digitalizado` sumia e o documento
+  saía da fila de OCR. Não descobrir nada nesta passada não desfaz o que a
+  anterior soube.
+- **O escopo não desambigua nada quando o escopo é um.** "Todas as páginas
+  falharam ⇒ é a máquina" é falso em N=1, e PDF escaneado de uma página é comum.
+  Quem separa é o **tipo** da exceção — `ImportError` é a máquina, `MemoryError`
+  é recurso, o resto é o documento; o escopo entra depois, como confiança.
+- **Prova que copia a guarda prova a cópia.** As três provas "contra caso
+  isolado" desta passada reimplementavam a lógica dentro do teste, e as duas
+  cópias tinham **a mesma cegueira** sem ninguém notar: `ast.walk` de um `if`
+  protegia o ramo `else`, e um predicado exigia `=` dentro do literal, o que
+  tornava `ambiente["PYTHONPATH"] = …` invisível. O que fecha é um **núcleo
+  puro** que o teste real e a prova chamam — não dois blocos que concordam hoje.
+- **Conserto de silêncio pode ser pior que o silêncio.** Ao fazer a falha de
+  OCR subir, o PDF misto passou de `ok` com texto nativo para `erro` sem nada —
+  e `remover_documento` apaga chunks **e vetores já gravados**, com a quarentena
+  aposentando o documento na segunda tentativa. Perder texto indexado é pior que
+  não ganhar o do scan. A regra: **passada tardia que falha nunca apaga o
+  resultado da anterior**, e o documento volta para a fila em vez de sair dela.
+- **A mesma exceção é do documento numa camada e da máquina noutra.**
+  `MemoryError` numa página A0 é o documento (593 MB a 72 dpi, por si só);
+  `MemoryError` em todas as páginas é a janela. `ImportError` é sempre a
+  máquina. Classificar pela exceção sozinha erra; o que classifica é **em que
+  escopo ela se repete**.
+- **Prova de guarda contra o arquivo real passa por acidente — sempre.** Três
+  guardas escritas num dia passaram contra `src/` e falharam contra um caso
+  isolado de duas linhas: a de hook aceitava qualquer `log.warning` no arquivo,
+  a de `PYTHONPATH` não via texto gerado, e a de raiz do repositório comparava
+  contra `json.dumps`, que **dobra as contrabarras do Windows** e nunca casava.
+  Toda guarda nova entra com um teste sintético ao lado, onde o caso é a única
+  coisa no arquivo.
+- **Um valor de retorno com dois significados é um silêncio esperando
+  acontecer.** `ocr_pdf` devolvia `None` para *"esta instalação não tem OCR"* e
+  para *"o `pymupdf` não carregou agora"*. Condições opostas — uma é um no-op
+  legítimo, a outra é o acervo sumindo — e a benigna vencia, porque um
+  `except Exception` largo as fundia. O discriminador certo era o **nome do
+  módulo que faltou**: pedir `X` e receber "falta X" é ausência; pedir `X` e
+  receber "falta Y" é a máquina.
+- **Duas guardas para a mesma coisa em dois ramos é uma guarda pela metade.**
+  `parse_isolado` converte falha em status no filho **e** em processo, com dois
+  `except` diferentes. Consertar um só é o modo de falha mais comum deste
+  repositório, e aconteceu de novo com o registrador do MCP: consertei a CLI e
+  deixei o painel, no mesmo dia em que escrevi a lição. O que fecha é a
+  varredura que **deriva os sítios de chamada** — ela achou um terceiro que eu
+  não sabia que existia.
+- **Teste que pula por causa da máquina é teste que não tem veredito.** O piso
+  de RAM do OCR existia porque o produto tinha duas reações à pressão de memória
+  e só uma era honesta. Quando a outra ficou honesta, o piso saiu — e a régua
+  que ficou não é "o OCR sempre produz texto", que seria assertar sobre a RAM: é
+  *ou produz, ou o produto declara recurso*. Asserção sobre o comportamento
+  garantido não depende da janela; asserção sobre o resultado depende.
 - **Numa passada com cinco listas, a única escrita de cabeça foi a que
   quebrou.** Quatro eram derivadas — do modelo, do AST, do `pyproject.toml`. A
   quinta, o dialeto de topo do `census.toml`, saiu com uma chave quando o leitor
@@ -276,7 +352,11 @@ Isso já foi motivo de mal-entendido; não reintroduzir a premissa errada.
 - **Não há Obsidian instalado e não há wikilinks.** O Obsidian é gratuito e
   dispensa conta, mas foi deliberadamente **não** adotado — não acrescenta nada
   sobre uma pilha de arquivos Office. Se entrar depois, wikilink é sinal
-  *adicional*, nunca o principal
+  *adicional*, nunca o principal. **Isto vale para a entrada, e continua
+  valendo.** O `J.e` do pacote J (30/08/2026) traz o Obsidian de volta como
+  **saída**: um vault Markdown exportado por comando explícito, *view* one-way e
+  descartável, com wikilinks derivados da tabela `mencoes` que já existe. Nada
+  do vault volta para o acervo nem para o índice
 - Por isso o grafo que alimenta `neighbors` e o multi-hop é **derivado**:
   identificadores (contrato, projeto, processo, siglas), entidades, taxonomia de
   pastas, datas

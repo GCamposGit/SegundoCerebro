@@ -55,7 +55,7 @@ from mcp import ClientSession, StdioServerParameters
 from mcp.client.stdio import stdio_client
 
 from segundocerebro.config import Base
-from segundocerebro.mcp.registrar import AMBIENTE, entrada_de
+from segundocerebro.mcp.registrar import ambiente_do_cliente, entrada_de
 
 REPO = Path(__file__).resolve().parents[1]
 DRIVER = REPO / "tests" / "servidor_falso.py"
@@ -94,11 +94,11 @@ def _cwd_neutro(tmp: Path) -> str:
 def _ambiente() -> dict[str, str]:
     """O ambiente que o registro declara, com `PYTHONPATH` absoluto.
 
-    `AMBIENTE` vem de `mcp/registrar.py` em vez de ser reescrito aqui: se alguém
+    `ambiente_do_cliente()` vem de `mcp/registrar.py` em vez de ser reescrito aqui: se alguém
     tirar o `PYTHONIOENCODING` de lá, é este teste que cai.
     """
     env = {k: v for k, v in os.environ.items() if k != "PYTHONPATH"}
-    env.update(AMBIENTE)
+    env.update(ambiente_do_cliente())
     env["PYTHONPATH"] = os.pathsep.join([str(REPO), str(REPO / "src")])
     return env
 
@@ -443,3 +443,195 @@ def test_a_armadilha_do_caminho_esta_armada(tmp_path: Path) -> None:
             busca.search("qualquer", 3)
     finally:
         store.fechar()
+
+
+# --------------------------------------------------------------------------- #
+# F6 — o registro não pode levar o repositório para dentro da máquina do usuário
+
+
+def valores_de(entrada: dict) -> list[str]:
+    """Todo valor de texto do registro, achatado — args, env, cwd e command.
+
+    Existe porque a asserção que dava nome a esta guarda não podia reprovar:
+    ela comparava `str(RAIZ)` contra `json.dumps(entrada)`, e o `json` **dobra
+    as contrabarras** do Windows, então o caminho serializado nunca casava com
+    o caminho real. O teste passava com a raiz do repositório dentro dos três
+    campos. Achado por revisão em 30/08/2026 — comparar texto serializado é
+    comparar outra coisa."""
+    valores = [str(v) for v in entrada.get("args", [])]
+    valores += [str(v) for v in (entrada.get("env") or {}).values()]
+    if entrada.get("cwd"):
+        valores.append(str(entrada["cwd"]))
+    valores.append(str(entrada.get("command", "")))
+    return valores
+
+
+def test_o_registro_nao_grava_caminho_do_repositorio_para_quem_instalou(monkeypatch, tmp_path):
+    """Instalação por `pip`: nada no registro pode apontar para o checkout.
+
+    Achado em 30/08/2026. `mcp/registrar.py` gravava `PYTHONPATH=src`,
+    `--config <raiz>/config.toml` e `cwd=<raiz>` **sempre** — e para quem
+    instalou por `pip` a "raiz" deduzida cai dentro do `site-packages`. O
+    resultado é um cliente MCP configurado para uma pasta que não existe, e o
+    sintoma que o usuário vê é "servidor não conecta".
+
+    É a classe que este repositório já nomeou duas vezes — *código que só roda de
+    dentro do repositório* — na sua pior versão: mora no arquivo de configuração
+    do usuário e sobrevive a qualquer conserto no código.
+    """
+    from segundocerebro.config import Base
+    from segundocerebro.mcp import registrar
+
+    monkeypatch.setattr(registrar, "em_checkout", lambda: False)
+    config = tmp_path / "meu" / "config.toml"
+    config.parent.mkdir(parents=True)
+    entrada = registrar.entrada_de(Base(id="x"), absoluto=True, config=config)
+
+    assert "PYTHONPATH" not in entrada["env"], (
+        "instalação por pip não precisa de PYTHONPATH, e o que estava escrito ali "
+        "apontava para dentro do site-packages"
+    )
+    assert entrada["cwd"] == str(config.parent), (
+        "o `cwd` tem de ser a pasta do config do usuário — é a ela que o índice "
+        "e o dourado são relativos, não ao repositório"
+    )
+    assert str(config.resolve()) in entrada["args"]
+
+    raiz = str(registrar.RAIZ)
+    levam = [v for v in valores_de(entrada) if raiz in v]
+    assert not levam, f"o registro leva a raiz do repositório em {levam}"
+
+
+def test_no_checkout_o_pythonpath_continua(monkeypatch, tmp_path):
+    """A régua do teste acima: quem roda do checkout ainda precisa dele."""
+    from segundocerebro.config import Base
+    from segundocerebro.mcp import registrar
+
+    monkeypatch.setattr(registrar, "em_checkout", lambda: True)
+    config = tmp_path / "config.toml"
+    entrada = registrar.entrada_de(Base(id="x"), absoluto=True, config=config)
+    assert entrada["env"]["PYTHONPATH"] == str(registrar.RAIZ / "src")
+
+
+def _chaves_do_dicionario(arvore, nome: str) -> set[str]:  # noqa: ANN001
+    """As chaves de `nome = dict(a=..., b=...)`, para seguir um `**nome`."""
+    import ast as _ast
+
+    achadas: set[str] = set()
+    for no in _ast.walk(arvore):
+        if not isinstance(no, _ast.Assign) or len(no.targets) != 1:
+            continue
+        alvo = no.targets[0]
+        if not (isinstance(alvo, _ast.Name) and alvo.id == nome):
+            continue
+        if isinstance(no.value, _ast.Call) and getattr(no.value.func, "id", "") == "dict":
+            achadas |= {k.arg for k in no.value.keywords if k.arg}
+        elif isinstance(no.value, _ast.Dict):
+            achadas |= {c.value for c in no.value.keys if isinstance(c, _ast.Constant)}
+    return achadas
+
+
+ALVOS_DE_REGISTRO = ("entrada_de", "trecho", "gravar_em")
+
+
+def registros_sem_config(fonte: str) -> list[int]:
+    """As linhas que chamam um registro com `absoluto=` e sem `config=`.
+
+    Função pura, e é o ponto: o teste que varre `src/` e a prova em caso isolado
+    chamam **esta**, não duas cópias da mesma lógica.
+
+    Ela segue `**nome` até o dicionário que o define. Sem isso ficava cega nos
+    dois sítios da CLI — cegueira que o refactor `comum = dict(...)` do próprio
+    conserto introduziu, e que uma revisão de 30/08/2026 achou.
+    """
+    import ast as _ast
+
+    arvore = _ast.parse(fonte)
+    faltas: list[int] = []
+    for no in _ast.walk(arvore):
+        if not isinstance(no, _ast.Call) or not isinstance(no.func, _ast.Name):
+            continue
+        if no.func.id not in ALVOS_DE_REGISTRO:
+            continue
+        nomeados = {k.arg for k in no.keywords if k.arg}
+        for estrela in (k.value for k in no.keywords if k.arg is None):
+            if isinstance(estrela, _ast.Name):
+                nomeados |= _chaves_do_dicionario(arvore, estrela.id)
+            else:
+                faltas.append(no.lineno)  # espalhamento que não sei ler
+        if "absoluto" in nomeados and "config" not in nomeados:
+            faltas.append(no.lineno)
+    return faltas
+
+
+def test_todo_registro_absoluto_declara_o_config() -> None:
+    """Quem pede `absoluto=True` tem de dizer **qual** config — varredura de AST.
+
+    O conserto de 30/08/2026 passou o caminho real do config na CLI e esqueceu o
+    painel, que é o outro sítio de chamada. Guarda que cobre metade da
+    superfície é a classe que este repositório mais encontrou; aqui ela é
+    fechada derivando os sítios do código em vez de listá-los.
+
+    Sem `config=`, `entrada_de` cai em `RAIZ/config.toml` e `cwd=RAIZ` — que para
+    quem instalou por `pip` apontam para dentro do `site-packages`.
+    """
+    RAIZ_REPO = Path(__file__).resolve().parent.parent
+    faltas: list[str] = []
+    for arquivo in sorted((RAIZ_REPO / "src").rglob("*.py")):
+        for linha in registros_sem_config(arquivo.read_text(encoding="utf-8")):
+            rel = arquivo.relative_to(RAIZ_REPO).as_posix()
+            faltas.append(f"{rel}:{linha} chama registro com absoluto= e sem config=")
+    assert not faltas, (
+        "registro absoluto sem o config do usuário:\n  "
+        + "\n  ".join(faltas)
+        + "\n\nSem `config=` o caminho gravado é o do repositório (F6)."
+    )
+
+
+def test_a_guarda_de_registro_reprova_contra_caso_isolado() -> None:
+    """Prova que chama a **guarda real**, e não uma cópia dela.
+
+    A revisão de 30/08/2026 apontou que as provas "contra caso isolado" desta
+    passada reimplementavam a lógica dentro do teste: duas cópias que concordam
+    hoje e podem divergir amanhã — a mesma classe de *lista e prova escritas
+    pela mesma cabeça*. Aqui a prova alimenta `registros_sem_config`, que é
+    exatamente o que o teste acima executa.
+    """
+    assert registros_sem_config("trecho(bases, absoluto=True)")
+    assert not registros_sem_config("trecho(bases, absoluto=True, config=c)")
+    assert not registros_sem_config("comum = dict(absoluto=True, config=c)\ntrecho(b, **comum)")
+    assert registros_sem_config("comum = dict(absoluto=True)\ntrecho(b, **comum)"), (
+        "o `**` sem `config` no dicionário passou — é a cegueira que o refactor "
+        "`comum = dict(...)` introduziu nos dois sítios da CLI"
+    )
+    assert not registros_sem_config("trecho(bases, nomear=True)")
+
+
+def test_registro_sem_config_algum_recusa_em_vez_de_registrar_o_vazio() -> None:
+    """Sem config, o servidor sobe com base vazia — registrar isso é mentir.
+
+    Achado por revisão em 30/08/2026, e é o caso do usuário com `census.toml` e
+    sem `config.toml`: `_do_censo` devolve `caminho=None`, o registro saía sem
+    `--config` nem `cwd`, e o Claude Desktop nasce em `C:\Windows\system32`.
+    Dali `carregar()` **não levanta** — sintetiza a base `padrao` sem raiz
+    nenhuma. O cliente conecta, responde, e não recupera nada.
+
+    É a porta de entrada calada, que é o defeito que esta passada inteira ataca.
+    """
+    from types import SimpleNamespace
+
+    from segundocerebro.config import ErroDeConfig
+    from segundocerebro.mcp.registrar import argumentos_do_registro
+
+    conf = SimpleNamespace(caminho=None, bases=(SimpleNamespace(id="padrao"),))
+    absoluto = SimpleNamespace(cliente="claude-desktop", config=None, python="py")
+    with pytest.raises(ErroDeConfig, match="config.toml"):
+        argumentos_do_registro(conf, absoluto)
+
+    # O censo legado entra pelo `--config`, que o `Config` não carrega.
+    pelo_censo = SimpleNamespace(cliente="claude-desktop", config=Path("census.toml"), python="py")
+    assert argumentos_do_registro(conf, pelo_censo)["config"] == Path("census.toml")
+
+    # Cliente que abre na pasta do projeto não precisa de caminho absoluto.
+    relativo = SimpleNamespace(cliente="claude-code", config=None, python="py")
+    assert argumentos_do_registro(conf, relativo)["absoluto"] is False

@@ -963,6 +963,92 @@ Quem só roda no desktop nunca vê. O conserto pertence a vocês porque `index/*
 vocês; a forma que eu sugeriria é a função **não** escrever no ambiente do processo
 e devolver o provider para quem a chamou aplicar no escopo dele.
 
+### O notebook assumiu os pacotes do desktop (30/08/2026)
+
+**Autorização explícita do usuário**, e o motivo é de calendário: os créditos do
+Grok da semana acabaram e o sistema precisa fechar em dois dias. A regra 8
+continua valendo — *achado no acervo do outro se reporta, não se corrige* —, e o
+que a suspende aqui é a decisão de quem é dono dos dois lados, não a minha
+conveniência. Fica registrado para que a próxima sessão não trate isto como
+precedente.
+
+O que foi assumido e fechado, tudo em `ingest/ocr.py`, `index/isolamento.py`,
+`mcp/registrar.py` e `scripts/`:
+
+- **`Q15` (P0)** — sob pressão de memória o OCR sumia em silêncio. Causa: um
+  `except Exception` devolvendo `None`, e `None` já significava "esta instalação
+  não tem OCR". Fechado, **com resto declarado no `Q15.a`**: o status final do
+  documento ainda fica `vazio` depois de uma fase de OCR quarentenada, e a causa
+  é a ordenação de fases do indexador — que é o laço, e é de vocês. Não toquei.
+- **`Q14`** — `SEGUNDOCEREBRO_OCR_FAKE` só vale sob `PYTEST_CURRENT_TEST` e
+  avisa em toda passada com o texto que injeta.
+- **`F6` no registrador do MCP** — ele gravava `PYTHONPATH=src`,
+  `--config <raiz>/config.toml` e `cwd=<raiz>` **sempre**. Para quem instalou por
+  `pip`, os três apontam para dentro do `site-packages`. Agora `PYTHONPATH` só
+  num checkout, e `--config`/`cwd` vêm do config que o usuário de fato carregou.
+- **`F6-B`** — o estágio 0 do painel ganhou a prova de ponta a ponta que faltava.
+
+**O piso de RAM de `tests/test_ocr.py` saiu.** Se a suíte de vocês reprovar ali,
+leiam a mensagem: ela carrega o regime da máquina, e a regra agora é *"ou o OCR
+produziu texto, ou existe linha de quarentena com motivo de recurso"* — nunca
+mais um skip por janela de memória.
+
+**Uma coisa que continua sendo de vocês, e ficou mais fácil:** o `Q15.a` acima, e
+o `F6-C` (hardware). E o `Q18`, que segue precisando de acordo — ligar as dez
+regras baratas do `ruff` obriga a anotar oito arquivos de vocês, e a medição
+(75 dos 92 `noqa` passam a valer por 40 correções) está no `ROADMAP.md`.
+
+### O pacote J chegou, e a tabela de donos dele já nasce velha (30/08/2026)
+
+Documento novo do usuário:
+[`pacote-j-camada-acesso-corpus.md`](pacote-j-camada-acesso-corpus.md), marcado
+*FINAL*. Ele acrescenta um **segundo modo de consumo** ao produto — ingestão
+integral dirigida por agente, o *"escreva um paper sobre esta pasta"* — que
+nenhuma das três tools de hoje serve. A peça central é o **Parse Store**: a
+representação canônica de cada documento, persistida, promovida de cache interno
+a camada de produto.
+
+Conferi contra o código antes de tocar no plano, como os dossiês `R` e `C`
+foram conferidos. O laudo é [`plano-pacote-j.md`](plano-pacote-j.md) e o resumo
+está no `ROADMAP.md`. **Nada foi implementado nesta passada.** O que vocês
+precisam saber, em quatro pontos:
+
+1. **`J.a`, `J.b` e `J.f` estão atribuídos ao desktop na especificação**, e são
+   os três P0 de infraestrutura. Com o crédito do Grok parado, ou vocês pegam
+   quando voltar, ou o notebook assume também. **Não comecei nenhum dos três** —
+   `J.a`/`J.f` tocam o laço de `index/indexer.py`, que é de vocês por §1, e
+   assumir isso de novo precisa de autorização nova, não da de 30/08.
+2. **A dependência `J.d → R1.3` não vale aqui.** `R1.3` continua absorvido por
+   `C6` e continua *não implementar* — MinHash a 0,85 refaz a `g045`. O conceito
+   de canônico que o `pack_folder` precisa já existe em `retrieve/familias.py`,
+   por nome, e é do notebook.
+3. **Se vocês pegarem o `J.a`, a chave da entrada tem de carregar a versão do
+   motor externo, não só `parser_version`.** Três rotas do produto passam por
+   binário que não é nosso — LibreOffice (`R1.1`/`C7.a`), OCR (`R1.2`) e o
+   recálculo de planilha. Um upgrade de sistema que troca o soffice deixa o cache
+   servindo parse velho **para sempre**, e a mitigação que a especificação propõe
+   (regra de PR no bump) não dispara: ninguém commitou nada. É o único risco
+   sub-declarado do pacote, e é da família de falha silenciosa que este
+   repositório já pagou duas vezes.
+4. **O que o notebook começa, e que não cruza com vocês:** `J.b1` (o `doc_id`
+   público sobre `documentos.sha256`, que já é coluna) e `J.c-mapa` (`outline` e
+   `list_folder`, servidos do registro). Paths: `index/store.py`, `mcp/server.py`
+   — que é "um de cada vez" e volta no merge —, e um `mcp/leitura.py` novo,
+   porque `construir` já tem 148 linhas e a escada do
+   `tests/test_tamanho_dos_modulos.py` só desce.
+
+Três números medidos aqui que mudam o desenho, e que valem para o acervo de
+vocês também:
+
+- **29 de 2.156 documentos (1,3%) não têm `sha256`** — 27 `sem_parser`, 2
+  `travado`. `doc_id` derivado de hash não cobre o acervo inteiro, e
+  `list_folder` promete id justamente para o item que nunca foi aberto.
+- **223 de 2.127 caminhos (10,5%) são byte-idênticos a outro.** O "um preferido"
+  é 1 em 10, e hoje quem escolhe é a ordem de indexação.
+- **Chunk não reconstrói documento:** 14.399 caracteres viram 9 chunks somando
+  15.999, **+11,1%** pela sobreposição de 200. `get_document` precisa do store;
+  não há atalho pelos chunks.
+
 
 ### Agora — desktop
 

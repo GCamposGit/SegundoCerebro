@@ -233,3 +233,129 @@ def test_a_raiz_do_repositorio_tem_um_nome_so() -> None:
         and "parent.parent.parent" in arquivo.read_text(encoding="utf-8")
     )
     assert not copias, f"raiz do repositório deduzida à mão em {copias} — usar `repositorio.raiz()`"
+
+
+def pythonpath_desguardado(fonte: str) -> list[tuple[int, str]]:
+    """Literais que escrevem `PYTHONPATH` fora de um `if em_checkout():`.
+
+    Função pura, e é o ponto: o teste que varre `src/` e a prova em caso isolado
+    chamam **esta**. A revisão de 30/08/2026 mostrou que ter a lógica duas vezes
+    faz a prova provar a cópia, não a guarda — e as duas cópias tinham o mesmo
+    ponto cego sem que ninguém notasse.
+
+    Dois consertos que essa revisão exigiu:
+
+    - **Só o `body` do `if` protege.** `ast.walk(guarda)` percorria `orelse`
+      também, então o `else` de um `if em_checkout()` — exatamente o ramo de
+      quem instalou por `pip` — era dado como protegido.
+    - **Sem exigir `=` dentro do literal.** A forma `ambiente["PYTHONPATH"] =
+      str(...)` tem a chave num literal sem sinal de igual, e é a que existe em
+      `mcp/registrar.py`. A guarda escrita para essa classe era cega para ela.
+
+    Docstring continua fora: string que é *enunciado* nunca chega ao disco.
+    """
+    import ast
+
+    arvore = ast.parse(fonte)
+    guardas = [
+        no
+        for no in ast.walk(arvore)
+        if isinstance(no, ast.If)
+        and any(
+            isinstance(c, ast.Call) and getattr(c.func, "id", "") == "em_checkout"
+            for c in ast.walk(no.test)
+        )
+    ]
+    protegidos = {id(n) for guarda in guardas for corpo in guarda.body for n in ast.walk(corpo)}
+    protegidos |= {
+        id(no.value)
+        for no in ast.walk(arvore)
+        if isinstance(no, ast.Expr) and isinstance(no.value, ast.Constant)
+    }
+    return [
+        (no.lineno, no.value.strip())
+        for no in ast.walk(arvore)
+        if isinstance(no, ast.Constant)
+        and isinstance(no.value, str)
+        and "PYTHONPATH" in no.value
+        and id(no) not in protegidos
+    ]
+
+
+def test_nenhum_texto_gerado_pelo_produto_grava_pythonpath() -> None:
+    """`src/` não **escreve** `PYTHONPATH` em arquivo nenhum do usuário.
+
+    A guarda irmã varre `scripts/`, que são os atalhos versionados. Ela deixou
+    de fora o pior sítio, e uma revisão adversarial o achou:
+    `index/retomada.py` gera um `.cmd` e o grava na **pasta de Inicialização do
+    usuário**. Um atalho versionado quebrado o usuário apaga; esse fica lá
+    sozinho, e sobrevive até à desinstalação do pacote.
+
+    A regra é sobre **produzir** o texto, não sobre tê-lo: mencionar
+    `PYTHONPATH` num comentário ou dentro de um `if em_checkout()` é legítimo,
+    escrever a linha incondicionalmente não é. Por isso a varredura é de AST e
+    olha o contexto, não um `grep`.
+    """
+    culpados: list[str] = []
+    for arquivo in sorted(PACOTE.rglob("*.py")):
+        for linha, texto in pythonpath_desguardado(arquivo.read_text(encoding="utf-8")):
+            rel = arquivo.relative_to(PACOTE).as_posix()
+            culpados.append(f"{rel}:{linha} escreve {texto!r}")
+    assert not culpados, (
+        "o produto escreve PYTHONPATH num arquivo do usuário, sem perguntar "
+        "`em_checkout()`:\n  " + "\n  ".join(culpados)
+    )
+
+
+def test_nenhum_script_grava_pythonpath() -> None:
+    """`scripts/` não escreve `PYTHONPATH` — `F6`, 30/08/2026.
+
+    Terceira aparição da mesma classe: *código que só roda de dentro do
+    repositório*. A primeira foi `retrieve/hybrid.py` importando `eval.harness`;
+    a segunda, o registrador do MCP gravando `PYTHONPATH=src` no arquivo de
+    configuração do cliente. Esta é a mais fácil de esquecer, porque ninguém
+    varre `scripts/` — e é a que o leigo executa clicando duas vezes.
+
+    Com o pacote instalado o módulo é importável de qualquer diretório. Um
+    script que fixa `PYTHONPATH` esconde uma instalação quebrada em vez de
+    reportá-la, e o sintoma reaparece na primeira vez que o usuário rodar o
+    comando por fora do atalho.
+    """
+    culpados = [
+        arquivo.name
+        for arquivo in sorted((REPO / "scripts").glob("*"))
+        if arquivo.is_file() and "PYTHONPATH" in arquivo.read_text(encoding="utf-8", errors="ignore")
+    ]
+    assert not culpados, (
+        f"{culpados} grava PYTHONPATH. O pacote se instala com `pip install -e .`; "
+        "script que remenda o caminho esconde instalação quebrada (F6)."
+    )
+
+
+def test_a_guarda_de_pythonpath_gerado_reprova_contra_caso_isolado() -> None:
+    """Prova que chama a **guarda real** — e mostra os dois pontos cegos fechados.
+
+    A primeira versão reimplementava a lógica dentro do teste, e as duas cópias
+    tinham a mesma cegueira: o ramo `else` de um `if em_checkout()` e a forma
+    `ambiente["PYTHONPATH"] = ...` passavam nas duas. Prova que copia a guarda
+    prova a cópia.
+    """
+    solto = 'linhas.append("set PYTHONPATH=src")'
+    guardado = 'if em_checkout():\n    linhas.append("set PYTHONPATH=src")'
+    no_else = (
+        'if em_checkout():\n    pass\nelse:\n    linhas.append("set PYTHONPATH=src")'
+    )
+    subscrito = 'ambiente["PYTHONPATH"] = str(raiz)'
+    docstring = '"""A prosa pode citar `set PYTHONPATH=src` sem ser acusada."""'
+
+    assert pythonpath_desguardado(solto), "não vê a linha solta — era o caso do retomada.py"
+    assert not pythonpath_desguardado(guardado), "acusa a linha que TEM `em_checkout()`"
+    assert pythonpath_desguardado(no_else), (
+        "o ramo `else` de um `if em_checkout()` é o de quem instalou por pip, e "
+        "estava sendo dado como protegido"
+    )
+    assert pythonpath_desguardado(subscrito), (
+        "a forma `ambiente[\"PYTHONPATH\"] = ...` é a que existe em registrar.py, "
+        "e a guarda escrita para essa classe era cega para ela"
+    )
+    assert not pythonpath_desguardado(docstring), "acusa documentação, que nunca chega ao disco"
