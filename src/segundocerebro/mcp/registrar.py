@@ -28,14 +28,34 @@ from typing import Any
 
 from ..config import ErroDeConfig, carregar
 from ..logger import get_logger
+from ..repositorio import em_checkout
 from ..repositorio import raiz as raiz_do_repositorio
 
 log = get_logger("mcp.registrar")
 
 CHAVE = "mcpServers"
-AMBIENTE = {"PYTHONPATH": "src", "PYTHONIOENCODING": "utf-8"}
+AMBIENTE_BASE = {"PYTHONIOENCODING": "utf-8"}
 """`PYTHONIOENCODING` não é ornamento: sem ele o Windows entrega cp1252 no stdio
 e um acento no caminho de um documento corrompe o fluxo do protocolo."""
+
+
+def ambiente_do_cliente() -> dict[str, str]:
+    """O `env` do registro. `PYTHONPATH` **só** num checkout — `F6`, 30/08/2026.
+
+    Até aqui `PYTHONPATH=src` era gravado sempre, e para quem instalou por `pip`
+    ele aponta para uma pasta que não existe. É a mesma classe que o repositório
+    já nomeou duas vezes — *código que só roda de dentro do repositório* — e a
+    pior versão dela, porque mora no arquivo de configuração do cliente do
+    usuário e sobrevive a qualquer conserto no código.
+
+    Quem instalou por `pip` não precisa dele: o pacote está no `site-packages`.
+    Quem roda do checkout precisa, e `em_checkout()` é a pergunta que separa
+    os dois — ela já existia, e não estava sendo feita aqui.
+    """
+    ambiente = dict(AMBIENTE_BASE)
+    if em_checkout():
+        ambiente["PYTHONPATH"] = "src"
+    return ambiente
 
 
 RAIZ = raiz_do_repositorio()
@@ -71,7 +91,41 @@ RELATIVO = ("claude-code",)
 Todos os outros nascem em diretório arbitrário — o Claude Desktop começa em
 `C:\\Windows\\system32` — e ali `PYTHONPATH=src` não aponta para nada. O servidor
 subiria com `ModuleNotFoundError: segundocerebro`, que o cliente mostra como
-"servidor não conecta": silencioso quanto à causa, que é o pior modo de falha."""
+"servidor nao conecta": silencioso quanto a causa, que e o pior modo de falha.
+Num checkout o `PYTHONPATH` absoluto resolve; numa instalacao por `pip` ele nao
+e escrito, porque o pacote ja esta no `site-packages` (30/08/2026)."""
+
+
+SEM_CONFIG = (
+    "não há config.toml aqui, e sem ele o servidor sobe com uma base vazia. "
+    "Crie um (copie o config.example.toml) ou aponte um com --config."
+)
+
+
+def argumentos_do_registro(conf, args) -> dict[str, Any]:  # noqa: ANN001
+    """Os argumentos comuns de `trecho` e `gravar_em` — montados **uma vez**.
+
+    Duas listas iguais divergindo em silêncio é o defeito que o `Q12` mediu sete
+    vezes neste repositório, e havia duas aqui.
+
+    Recusa registrar sem config quando o cliente precisa de caminho absoluto
+    (`F6`, 30/08/2026). Sem arquivo nenhum, `carregar()` sintetiza uma base
+    `padrao` **sem raiz**: o registro escreveria um servidor que sobe, responde e
+    não recupera nada. É a porta de entrada calada — o defeito que esta passada
+    inteira ataca —, e recusar é o único jeito honesto. `--config census.toml`
+    entra aqui pelo `args.config`, que é o caminho que o censo legado não carrega
+    no `Config`.
+    """
+    absoluto = args.cliente not in RELATIVO
+    alvo = conf.caminho or args.config
+    if absoluto and alvo is None:
+        raise ErroDeConfig(SEM_CONFIG)
+    return dict(
+        nomear=conf.caminho is not None or len(conf.bases) > 1,
+        absoluto=absoluto,
+        python=args.python,
+        config=alvo,
+    )
 
 
 def destino_de(cliente: str) -> Path | None:
@@ -86,6 +140,7 @@ def entrada_de(
     nomear: bool = True,
     absoluto: bool = False,
     python: str = "py",
+    config: Path | None = None,
 ) -> dict[str, Any]:
     """`nomear=False` omite `--base`, para a base sintetizada do `census.toml`.
 
@@ -95,8 +150,11 @@ def entrada_de(
     for única e falha com a mensagem certa — "há 2 bases configuradas e nenhuma
     foi escolhida" — quando deixar de ser.
 
-    `absoluto=True` fixa `PYTHONPATH`, `--config` e o diretório de trabalho, para
-    cliente que não abre na pasta do projeto.
+    `absoluto=True` fixa `--config` e o diretório de trabalho, para cliente que
+    não abre na pasta do projeto. `config` é o arquivo que o usuário **de fato**
+    carregou: até 30/08/2026 era `RAIZ/config.toml` e o `cwd` era a raiz do
+    repositório — para quem instalou por `pip`, os dois apontam para dentro do
+    `site-packages`. O índice é relativo ao **config**, não ao repositório.
 
     `python` é o executável. Neste desktop o `py` do PATH é o 3.11 do sistema;
     o pacote mora no `.venv` 3.12 — sem apontar o venv o cliente sobe um
@@ -105,7 +163,7 @@ def entrada_de(
     args = ["-m", "segundocerebro.mcp.server"]
     if nomear:
         args += ["--base", base.id]
-    ambiente = dict(AMBIENTE)
+    ambiente = ambiente_do_cliente()
     comando = python
     if absoluto:
         candidato = Path(python)
@@ -113,11 +171,17 @@ def entrada_de(
             comando = str(candidato.resolve())
     entrada: dict[str, Any] = {"command": comando, "args": args, "env": ambiente}
     if absoluto:
-        ambiente["PYTHONPATH"] = str(RAIZ / "src")
-        args += ["--config", str(RAIZ / "config.toml")]
-        # `cwd` porque o índice e o conjunto dourado da base podem ser relativos
-        # ao config, e resolver isso a partir de system32 daria caminho vazio.
-        entrada["cwd"] = str(RAIZ)
+        if em_checkout():
+            ambiente["PYTHONPATH"] = str(RAIZ / "src")
+        # Sem config declarado e fora de um checkout, `RAIZ` e o site-packages:
+        # apontar para la faz o servidor levantar "configuracao nao encontrada".
+        # Melhor nao escrever nada e deixar o cliente descobrir (30/08/2026).
+        alvo = Path(config).resolve() if config else (RAIZ / "config.toml" if em_checkout() else None)
+        if alvo is not None:
+            args += ["--config", str(alvo)]
+            # `cwd` porque o índice e o dourado podem ser relativos ao config —
+            # e é ao **config**, não ao repositório, que eles são relativos.
+            entrada["cwd"] = str(alvo.parent)
     return entrada
 
 
@@ -127,10 +191,13 @@ def trecho(
     nomear: bool = True,
     absoluto: bool = False,
     python: str = "py",
+    config: Path | None = None,
 ) -> dict[str, Any]:
     return {
         CHAVE: {
-            b.servidor: entrada_de(b, nomear=nomear, absoluto=absoluto, python=python)
+            b.servidor: entrada_de(
+                b, nomear=nomear, absoluto=absoluto, python=python, config=config
+            )
             for b in bases
         }
     }
@@ -205,10 +272,11 @@ def gravar_em(
     absoluto: bool = False,
     python: str = "py",
     extra_env: dict[str, str] | None = None,
+    config: Path | None = None,
 ) -> tuple[list[str], list[str]]:
     """Mescla no arquivo. Recusa JSON ilegível em vez de apagar o dos outros."""
     existente = _ler_existente(destino)
-    novo = trecho(bases, nomear=nomear, absoluto=absoluto, python=python)
+    novo = trecho(bases, nomear=nomear, absoluto=absoluto, python=python, config=config)
     extra = dict(extra_env or {})
     if extra:
         for entrada in novo[CHAVE].values():
@@ -243,6 +311,7 @@ def ativar(base: Any, *, conf: Any, destino: Path | None = None) -> Path:
         absoluto=False,
         python=python_do_projeto(relativo=True),
         extra_env=extra_env_hardware(conf, existente),
+        config=getattr(conf, "caminho", None),
     )
     log.info(
         "MCP da base '%s' em %s: %s",
@@ -315,13 +384,12 @@ def main(argv: list[str] | None = None) -> int:
         log.error("%s", erro)
         return 2
 
-    # Configuração sintetizada tem uma base só e um id que ninguém escolheu.
-    novo = trecho(
-        bases,
-        nomear=conf.caminho is not None or len(conf.bases) > 1,
-        absoluto=args.cliente not in RELATIVO,
-        python=args.python,
-    )
+    try:
+        comum = argumentos_do_registro(conf, args)
+    except ErroDeConfig as erro:
+        log.error("%s", erro)
+        return 2
+    novo = trecho(bases, **comum)
     if args.cliente not in RELATIVO:
         log.info("cole em: %s", CLIENTES[args.cliente])
 
@@ -334,9 +402,7 @@ def main(argv: list[str] | None = None) -> int:
         acrescentados, trocados = gravar_em(
             args.out,
             bases,
-            nomear=conf.caminho is not None or len(conf.bases) > 1,
-            absoluto=args.cliente not in RELATIVO,
-            python=args.python,
+            **comum,
             extra_env=extra_env_hardware(conf, existente),
         )
     except ErroDeConfig as erro:

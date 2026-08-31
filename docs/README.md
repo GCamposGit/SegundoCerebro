@@ -1,6 +1,6 @@
 # Índice da documentação
 
-47 arquivos versionados. **Todo link daqui aponta para arquivo que o clone tem** —
+49 arquivos versionados. **Todo link daqui aponta para arquivo que o clone tem** —
 e essa é a regra do índice, não um detalhe: mais da metade de `docs/` fica fora do
 Git de propósito, porque cita nome de arquivo do acervo real, e um índice que
 prometesse esses arquivos daria 404 para quem clonou. A [seção final](#o-que-não-está-aqui)
@@ -59,6 +59,8 @@ com número, data e a mudança de método que fechou a classe.
 | [`spec-estimativa-v2.md`](spec-estimativa-v2.md) | A especificação de estimativa que hoje está em `calibracao.py` — e que refuta a v1 ponto a ponto |
 | [`estimativa-de-indexacao.md`](estimativa-de-indexacao.md) | O modelo v1, **superado** pelo acima. Fica pela leitura de por que errava |
 | [`dossie-melhorias.md`](dossie-melhorias.md) · [`dossie-complemento-update-devs.md`](dossie-complemento-update-devs.md) | Auditoria externa de 24/08, já conferida contra o código e absorvida pelo `ROADMAP.md` |
+| [`pacote-j-camada-acesso-corpus.md`](pacote-j-camada-acesso-corpus.md) | A especificação recebida do **pacote J** em 30/08: Parse Store e as quatro tools de acesso integral, para o modo de consumo que a busca não cobre |
+| [`plano-pacote-j.md`](plano-pacote-j.md) | **Leia antes da especificação acima.** A conferência contra o código: o que já existe, as cinco premissas medidas que não batem, e a ordem revisada |
 
 ## Ablações — a mudança e o número que a autorizou
 

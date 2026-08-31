@@ -20,7 +20,7 @@ from collections.abc import Mapping
 from pathlib import Path
 
 from ..ingest.converters.libreoffice import EXTENSOES_LEGADO
-from ..ingest.document import ParseResult, ParseStatus
+from ..ingest.document import MOTIVO_RECURSO, FalhaDeAmbiente, ParseResult, ParseStatus
 from ..ingest.natureza import FAMILIA_POR_EXTENSAO, FAMILIAS_BINARIAS
 from ..ingest.reader import parse_file
 from ..logger import get_logger
@@ -88,11 +88,12 @@ def _worker_parse(conn, path: str, kwargs: dict) -> None:  # noqa: ANN001
         resultado = parse_file(path, **kwargs)
         conn.send(resultado)
     except Exception as exc:  # noqa: BLE001 — the parent turns this into a recorded status
+        prefixo = MOTIVO_RECURSO if isinstance(exc, FalhaDeAmbiente) else type(exc).__name__
         conn.send(
             ParseResult(
                 path=path,
                 status=ParseStatus.ERROR,
-                detail=f"{type(exc).__name__}: {exc}",
+                detail=f"{prefixo}: {exc}",
             )
         )
     finally:
@@ -234,6 +235,26 @@ def _matar(proc: multiprocessing.Process) -> None:
         proc.join(timeout=2)
 
 
+def _erro_de_recurso(path: str, exc: BaseException) -> ParseResult:
+    """Falha de ambiente vira `erro` com motivo de recurso — `Q15`, 30/08/2026.
+
+    A linha de quarentena precisa distinguir *tente de novo com mais memória* de
+    *este arquivo está corrompido*: são conselhos opostos, e antes as duas
+    saíam como o mesmo `vazio` sem linha nenhuma."""
+    return ParseResult(path=path, status=ParseStatus.ERROR, detail=f"{MOTIVO_RECURSO}: {exc}")
+
+
+def _sem_isolar(path: str, kwargs: dict) -> ParseResult:
+    """Parse neste processo. Converte igual ao ramo isolado, e é esse o ponto.
+
+    São dois ramos com dois `except`, e um consertado sozinho é metade da
+    superfície — a classe que este repositório já nomeou três vezes."""
+    try:
+        return parse_file(path, **kwargs)
+    except FalhaDeAmbiente as exc:
+        return _erro_de_recurso(path, exc)
+
+
 def parse_isolado(
     path: str,
     *,
@@ -278,7 +299,7 @@ def parse_isolado(
         )
 
     if worker == "parse" and not deve_isolar(path):
-        return parse_file(path, **kwargs)
+        return _sem_isolar(path, kwargs)
 
     teto = timeout if timeout is not None else timeout_para(tamanho, path, ocr=ocr)
     ram_bytes = int(ram_mb * 1024 * 1024) if ram_mb else 0

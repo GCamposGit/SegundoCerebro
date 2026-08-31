@@ -7,6 +7,7 @@ from pathlib import Path
 
 import pytest
 
+
 from segundocerebro.ingest.document import ParseStatus
 from segundocerebro.ingest.ocr import VERSAO, backend_disponivel, doc_de_ocr
 from segundocerebro.ingest.reader import parse_file
@@ -14,9 +15,11 @@ from segundocerebro.index.indexer import indexar
 from segundocerebro.index.isolamento import timeout_para
 from segundocerebro.index.orcamento import medir
 from segundocerebro.index.store import Store
+from segundocerebro.ingest.document import MOTIVO_RECURSO
 from tests.falsos import DIM, EmbedderFalso, bytes_pdf, bytes_pdf_misto, config_de_raiz
 
 SINAIS_DE_RECURSO = (
+    MOTIVO_RECURSO,  # o marcador que o produto escreve desde o `Q15` (30/08/2026)
     "subprocesso morreu",
     "timeout",
     "memory",
@@ -30,30 +33,24 @@ success, not a red suite. Measured 27/08/2026 on the notebook: 2.7 GB free →
 OpenBLAS abort → status `erro`; RAM freed → the same tests `ok`. The suite
 verdict was the machine window. Same class as F4-R (regime not recorded)."""
 
-PISO_RAM_OCR_MB = 4096
-"""Abaixo disto esta suíte **não tem veredito** sobre OCR, e diz isso.
+PISO_RAM_OCR_REMOVIDO_EM = "30/08/2026"
+"""O piso de 4 GB saiu quando o `Q15` fechou, e o motivo é o pacote inteiro.
 
-A lista acima cobria metade da superfície, e é a terceira vez que essa forma
-aparece neste repositório. Ela trata o caso em que o filho de parse morre
-**dizendo** que morreu de recurso — aí há linha de quarentena e status `erro`. O
-outro caso é silencioso: sob pressão de memória o `pymupdf` falha ao carregar
-dentro do filho e o erro chega como `ModuleNotFoundError: No module named
-'mupdf'`, que o produto classifica como *sem parser*. O documento fica `vazio`,
-`digitalizado` nunca é marcado, a fila de OCR sai vazia e `progresso.ocr` é 0 —
-sem uma linha dizendo que faltou memória.
+Ele existia porque o produto tinha **duas** reações à pressão de memória e só
+uma era honesta. A honesta — filho de parse morre dizendo que morreu — sempre
+foi aceita aqui. A silenciosa não: o `import pymupdf` falhava dentro do filho
+com `ModuleNotFoundError: No module named 'mupdf'`, o documento terminava
+`vazio` sem linha de quarentena, e a suíte reprovava por uma janela de máquina
+em vez de por regressão. Medido em 29/08/2026 (16 GB), cinco passadas em
+sequência: **2 reprovaram com 3,5–3,6 GB livres e 3 passaram com ~3,9 GB**, sem
+uma linha mudar.
 
-Medido em 29/08/2026 neste notebook (16 GB), cinco passadas de
-`py -m pytest tests/test_ocr.py` em sequência: **2 reprovaram com 3,5–3,6 GB
-livres e 3 passaram com ~3,9 GB**, sem uma linha de código mudar entre elas. O
-piso de 4 GB é essa medição mais a de 27/08 (2,7 GB → abort), com folga.
-
-Acima do piso, `vazio` continua reprovando: é regressão de verdade e o sinal não
-se perde. Abaixo, o teste **pula com o número na mensagem** — mesmo desenho de
-`tests/test_baseline.py` com o `census.toml`, e a lição do `F4-R` aplicada à
-suíte: braço sem regime de máquina gravado mede a janela, não o braço.
-
-O comportamento silencioso do produto sob pressão de memória é da `F4-O.3`, que
-está bloqueada. Este arquivo não o conserta — recusa-se a fingir que o mediu."""
+Com o `Q15`, falha de ambiente vira `erro` com motivo de recurso — que é uma das
+duas saídas que `ocr_produziu_texto_ou_declarou_recurso` já aceitava. O ramo de
+pular ficou morto, e teste que pula por causa da máquina é teste que não tem
+veredito: agora ele **sempre** tem um, e `vazio` volta a ser reprovação em
+qualquer janela. `regime_da_maquina()` continua na mensagem de falha, porque a
+lição do `F4-R` não mudou — o número sem a máquina ao lado não diz nada."""
 
 
 def regime_da_maquina() -> str:
@@ -63,20 +60,6 @@ def regime_da_maquina() -> str:
         f"RAM livre {r.ram_livre_mb} MB de {r.ram_total_mb} MB · "
         f"{r.nucleos} núcleos · {r.gpus} GPU(s)"
     )
-
-
-def sem_veredito_de_ocr(detalhe: str) -> None:
-    """Pula quando a janela da máquina está abaixo do piso; caso contrário, segue.
-
-    Chamado nos dois lugares onde a pressão de memória se disfarça de resultado:
-    o documento que fica `vazio` sem linha de quarentena, e a fase de OCR que não
-    produz nada num PDF misto — que tem chunks nativos e por isso parece `ok`.
-    """
-    if medir().ram_livre_mb < PISO_RAM_OCR_MB:
-        pytest.skip(
-            f"sem veredito de OCR nesta janela: {regime_da_maquina()}, abaixo do piso de "
-            f"{PISO_RAM_OCR_MB} MB. {detalhe} — ver PISO_RAM_OCR_MB."
-        )
 
 
 def ocr_produziu_texto_ou_declarou_recurso(store: Store, rel: str, progresso) -> bool:  # noqa: ANN001
@@ -89,21 +72,34 @@ def ocr_produziu_texto_ou_declarou_recurso(store: Store, rel: str, progresso) ->
     assert estado is not None, f"{rel} saiu do registro"
     if estado.status == "ok" and estado.n_chunks >= 1:
         return True
-    if estado.status != "erro":
-        sem_veredito_de_ocr(f"{rel} ficou {estado.status!r}")
-        pytest.fail(
-            f"{rel} ficou {estado.status!r} — nem ok com texto nem erro honesto. "
-            f"Regime: {regime_da_maquina()} (acima do piso de {PISO_RAM_OCR_MB} MB, "
-            "então isto é regressão e não a janela da máquina)."
-        )
+    # A propriedade que o `Q15` instalou, e a unica que nao depende da RAM desta
+    # maquina: se o OCR nao produziu texto, **existe linha de quarentena com
+    # motivo de recurso**. Antes nao existia nenhuma, e o documento sumia
+    # parecendo um PDF sem texto. O status final ainda pode ficar `vazio` depois
+    # de uma fase de OCR quarentenada — e isso e o resto declarado do `Q15`, no
+    # ROADMAP —, mas o silencio acabou, e e o silencio que fazia o acervo sumir.
     item = store.quarentena_de(rel)
-    assert item is not None, f"{rel} em erro sem linha de quarentena"
+    assert item is not None, (
+        f"{rel} ficou {estado.status!r} SEM linha de quarentena — e a regressao do "
+        f"`Q15`: falha de ambiente indistinguivel de documento sem conteudo. "
+        f"Regime: {regime_da_maquina()}"
+    )
     motivo = (item.motivo or "").lower()
     assert any(s in motivo for s in SINAIS_DE_RECURSO), (
         f"{rel} em erro por motivo que não é recurso: {item.motivo!r}"
     )
     assert progresso.quarentena >= 1
-    return False
+    # O produto se comportou certo, e mesmo assim esta passada **não tem
+    # veredito sobre OCR**: nenhuma página foi reconhecida. Devolver `False` e
+    # deixar o chamador sair calado trocava um não-veredito VISÍVEL (o skip, que
+    # aparece no sumário) por um invisível (verde). Achado por revisão em
+    # 30/08/2026, e é a mesma armadilha que o piso de RAM tinha — só que pior,
+    # porque some do relatório. O motivo agora vem do produto, não de um número
+    # escrito à mão.
+    pytest.skip(
+        f"sem veredito de OCR nesta passada: o produto declarou recurso em {rel} "
+        f"({item.motivo!r}). Regime: {regime_da_maquina()}"
+    )
 
 
 TEXTO_VCE = "Contrato NN-VCE-001 da Varzea Clara Energia."
@@ -329,14 +325,31 @@ def test_indexar_misto_com_ocr_junta_as_paginas(tmp_path: Path, monkeypatch) -> 
         reconciliar_ao_fim=False,
         ocr=True,
     )
-    if not ocr_produziu_texto_ou_declarou_recurso(store, "oficio.pdf", progresso):
+    # No PDF misto a régua é OUTRA, e a primeira versão deste teste pedia a
+    # errada — pedia linha de quarentena, que o produto **de propósito** não
+    # emite aqui: o parse nativo valeu, o documento ficou `ok` com texto, e
+    # engolir a falha é o conserto que impede `remover_documento` de apagar
+    # chunks e vetores já gravados. As duas exigências se contradiziam, e a
+    # suíte reprovava 1 em 5 passadas por isso (achado por revisão, 30/08/2026).
+    #
+    # O que o produto promete aqui, e o que se cobra: o documento **continua na
+    # fila de OCR**. Não depende da RAM da máquina, e é a diferença entre "o OCR
+    # não rodou desta vez" e "o documento sumiu do acervo".
+    if progresso.ocr < 1:
+        estado = store.estado_documento("oficio.pdf")
+        assert estado is not None, "oficio.pdf saiu do registro"
+        texto_nativo = " ".join(c.texto for c in store.chunks_de("oficio.pdf"))
+        assert "4600009999" in texto_nativo, (
+            "o texto nativo do PDF misto se perdeu quando o OCR falhou — é o "
+            f"defeito que o conserto do `Q15` existe para impedir. Regime: {regime_da_maquina()}"
+        )
+        na_fila = [rel for rel, _ in store.documentos_para_ocr(VERSAO)]
+        assert "oficio.pdf" in na_fila, (
+            "o OCR não produziu nada e o documento saiu da fila — a próxima passada "
+            f"nunca mais tentaria. Estado: {estado.status!r}. Regime: {regime_da_maquina()}"
+        )
         store.fechar()
         return
-    if progresso.ocr < 1:
-        # `ok` com chunks nativos e OCR zerado: o PDF misto esconde a pressão de
-        # memória atrás das páginas que o parser nativo já tinha lido.
-        sem_veredito_de_ocr("a fase de OCR não produziu nada num PDF misto")
-    assert progresso.ocr >= 1
     texto = " ".join(c.texto for c in store.chunks_de("oficio.pdf"))
     assert "4600009999" in texto
     assert "SCAN-VCE-001" in texto
@@ -359,6 +372,14 @@ def test_teste_de_ocr_que_indexa_aceita_falha_de_recurso() -> None:
 
     F4-O.2 added a second test with the same assumption the first already had.
     The checklist is this helper, not a list of two names.
+
+    Desde 30/08/2026 há **duas** saídas aceitas, porque o produto passou a ter
+    duas garantias diferentes. Scan puro: `ocr_produziu_texto_ou_declarou_recurso`,
+    que pula com o motivo do produto. PDF misto: o OCR pode falhar sem quarentena
+    — engolir a falha é o conserto que preserva o texto nativo já indexado —, e a
+    régua ali é `documentos_para_ocr`, que prova que a próxima passada tenta de
+    novo. Exigir quarentena nos dois era uma contradição, e ela reprovava a suíte
+    1 em 5 passadas.
     """
     fonte = Path(__file__).read_text(encoding="utf-8")
     arvore = ast.parse(fonte)
@@ -369,11 +390,13 @@ def test_teste_de_ocr_que_indexa_aceita_falha_de_recurso() -> None:
         trecho = ast.get_source_segment(fonte, no) or ""
         if "indexar(" not in trecho or "ocr=True" not in trecho:
             continue
-        if "ocr_produziu_texto_ou_declarou_recurso" not in trecho:
+        aceita_recurso = "ocr_produziu_texto_ou_declarou_recurso" in trecho
+        aceita_fila = "documentos_para_ocr" in trecho
+        if not (aceita_recurso or aceita_fila):
             faltando.append(no.name)
     assert not faltando, (
-        "teste de OCR que indexa e afirma o caminho feliz sem aceitar "
-        "quarentena por recurso. Use ocr_produziu_texto_ou_declarou_recurso, "
-        "senão a suíte mede a janela de memória outra vez: "
-        + ", ".join(faltando)
+        "teste de OCR que indexa e afirma o caminho feliz sem aceitar falha de "
+        "recurso. Use `ocr_produziu_texto_ou_declarou_recurso` (scan puro) ou "
+        "confira `documentos_para_ocr` (PDF misto), senão a suíte mede a janela "
+        "de memória outra vez: " + ", ".join(faltando)
     )

@@ -119,3 +119,41 @@ class ParseResult:
     @property
     def ok(self) -> bool:
         return self.status is ParseStatus.OK
+
+
+MOTIVO_RECURSO = "recurso"
+"""Prefixo do `detail` quando a causa foi a máquina, não o documento.
+
+Marcador, e não prosa: a linha de quarentena precisa dizer *tente de novo com
+mais memória*, que é conselho oposto a *este arquivo está corrompido*."""
+
+
+class FalhaDeAmbiente(RuntimeError):
+    """A máquina falhou, não o documento — `Q15`, 30/08/2026.
+
+    Existe porque as duas coisas estavam entrando pelo mesmo cano. `ocr_pdf`
+    devolvia `None` tanto para *"esta instalação não tem OCR"* quanto para
+    *"o `pymupdf` não carregou agora"*, e o segundo caso vinha de um
+    `except Exception` largo. Sob pressão de memória o import falhava, o
+    documento terminava `vazio` — **sem linha de quarentena, porque para o
+    indexador nada deu errado** —, `digitalizado` nunca era marcado e a fila de
+    OCR saía vazia. No PDF misto o disfarce era melhor ainda: `ok`, com os
+    trechos das páginas nativas.
+
+    É a forma que este projeto mais teme: *a indexação diz pronto tendo engolido
+    metade do acervo*. Quem levanta isto está dizendo "não me classifique como
+    documento sem conteúdo" — o resultado tem de ser `erro` com quarentena e
+    motivo de recurso, para a próxima passada tentar de novo.
+    """
+
+
+def ausencia_declarada(exc: BaseException, modulo: str) -> bool:
+    """`import X` que falhou **por X faltar** é ausência; por outro, é ambiente.
+
+    O discriminador é `ModuleNotFoundError.name`. `import pymupdf` que falha com
+    `name='mupdf'` não é "pymupdf não está instalado": é a biblioteca nativa não
+    tendo carregado, que é condição de máquina. Sem esta distinção, todo probe de
+    extra opcional lê pressão de memória como "o extra não está aqui" e desliga
+    o recurso em silêncio.
+    """
+    return isinstance(exc, ModuleNotFoundError) and exc.name == modulo

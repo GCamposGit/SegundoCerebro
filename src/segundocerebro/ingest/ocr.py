@@ -21,7 +21,7 @@ from collections.abc import Callable
 from dataclasses import dataclass
 
 from ..logger import get_logger
-from .document import Block, BlockKind, ParsedDoc
+from .document import Block, BlockKind, FalhaDeAmbiente, ParsedDoc, ausencia_declarada
 
 log = get_logger("ingest.ocr")
 
@@ -38,25 +38,50 @@ class PaginaTexto:
     texto: str
 
 
+def _probe(modulo: str) -> bool:
+    """O extra está instalado? Ausência é `False`; falha de ambiente **levanta**.
+
+    `Q15`, 30/08/2026. Antes era `except Exception: pass`, e isso lia pressão de
+    memória como "o extra não está aqui" — o recurso se desligava sozinho, em
+    silêncio, exatamente quando a máquina estava apertada.
+    """
+    try:
+        __import__(modulo)
+    except Exception as exc:  # noqa: BLE001 — probe: qualquer falha que não seja ausência
+        if ausencia_declarada(exc, modulo):
+            return False
+        raise FalhaDeAmbiente(f"{modulo} está instalado e não carregou: {exc}") from exc
+    return True
+
+
 def backend_disponivel() -> str | None:
     """Which engine would run. `None` = OCR is a no-op this install."""
-    if motor_imagem is not None or os.environ.get("SEGUNDOCEREBRO_OCR_FAKE") is not None:
+    if motor_imagem is not None or _fake_de_teste() is not None:
         return "teste"
-    try:
-        import rapidocr_onnxruntime  # noqa: F401
-    except Exception:  # noqa: BLE001 — probe de import: extra [ocr] ausente é no-op
-        pass
-    else:
+    if _probe("rapidocr_onnxruntime"):
         return "rapidocr"
     import shutil
 
     if shutil.which("tesseract"):
-        try:
-            import pytesseract  # noqa: F401
-        except Exception:  # noqa: BLE001 — probe de import: pytesseract ausente
-            return None
-        return "tesseract"
+        return "tesseract" if _probe("pytesseract") else None
     return None
+
+
+def motor_de_ocr() -> str | None:
+    """`backend_disponivel()` que não derruba quem o chama — `Q15`, 30/08/2026.
+
+    O probe passou a **levantar** quando o extra está instalado e não carrega,
+    que é o conserto do `Q15`. Só que o indexador o chama depois das quatro
+    ondas de texto: sem envelope, a passada inteira morreria com traceback
+    tendo já feito o trabalho caro — pior que o defeito consertado. Quem
+    precisa do veredito cru usa `backend_disponivel`; quem está no meio de uma
+    passada usa este.
+    """
+    try:
+        return backend_disponivel()
+    except FalhaDeAmbiente as erro:
+        log.error("OCR indisponível nesta passada: %s", erro)
+        return None
 
 
 DPI_OCR = 144
@@ -145,10 +170,39 @@ def _texto_tesseract(imagem) -> str:  # noqa: ANN001
     return (pytesseract.image_to_string(pil, lang="por+eng") or "").strip()
 
 
+VARIAVEL_FAKE = "SEGUNDOCEREBRO_OCR_FAKE"
+
+
+def _fake_de_teste() -> str | None:
+    """O texto fixo do dublê, e **só sob pytest** — `Q14`, 30/08/2026.
+
+    A variável desviava o motor de OCR sem nenhuma guarda: herdada de uma sessão
+    de shell, ela mudava o comportamento do produto sem uma linha no log dizendo
+    que o motor era falso. Um acervo inteiro sairia indexado com a mesma frase.
+
+    Duas defesas, porque uma delas some quando alguém roda o produto de dentro de
+    um teste: só vale sob `PYTEST_CURRENT_TEST`, **e** avisa em toda passada com
+    o texto que está injetando. Fora de teste a variável é ignorada, e o aviso
+    diz isso — silêncio aqui seria a mesma classe do `Q15` noutra roupa.
+    """
+    fake = os.environ.get(VARIAVEL_FAKE)
+    if fake is None:
+        return None
+    if "PYTEST_CURRENT_TEST" not in os.environ:
+        log.warning(
+            "%s está definida fora de um teste e foi IGNORADA — o motor de OCR real "
+            "é que vai rodar. Remova a variável do ambiente para não ver este aviso.",
+            VARIAVEL_FAKE,
+        )
+        return None
+    log.warning("motor de OCR FALSO ativo por %s: injetando %r", VARIAVEL_FAKE, fake.strip())
+    return fake.strip()
+
+
 def _texto_de(imagem) -> str:  # noqa: ANN001
-    fake = os.environ.get("SEGUNDOCEREBRO_OCR_FAKE")
+    fake = _fake_de_teste()
     if fake is not None:
-        return fake.strip()
+        return fake
     if motor_imagem is not None:
         return (motor_imagem(imagem) or "").strip()
     backend = backend_disponivel()
@@ -157,6 +211,26 @@ def _texto_de(imagem) -> str:  # noqa: ANN001
     if backend == "tesseract":
         return _texto_tesseract(imagem)
     return ""
+
+
+def _conferir_falhas_de_pagina(total: int, falharam: int, por_memoria: int) -> None:
+    """Todas as páginas sem memória é a janela; qualquer outra falha é a página.
+
+    Quem separa é o **tipo**, não o escopo. A primeira versão levantava sempre
+    que todas as páginas falhavam, e uma revisão mostrou que em N=1 isso confunde
+    "a janela apertou" com "esta única página é um scan corrompido" — e PDF
+    escaneado de uma página é comum. Com o tipo a ambiguidade some: página
+    corrompida levanta `ValueError` e vira página vazia, como sempre foi;
+    `MemoryError` é sintoma de recurso, e aí "tente com mais memória" é o
+    conselho certo mesmo com uma página só.
+
+    O escopo continua entrando, mas como **confiança**: uma página gorda no meio
+    de um scan que rodou não derruba o arquivo (30/08/2026).
+    """
+    if falharam:
+        log.warning("OCR falhou em %d de %d páginas deste PDF", falharam, total)
+    if total and falharam == total and por_memoria == falharam:
+        raise FalhaDeAmbiente(f"OCR ficou sem memória nas {falharam} páginas deste PDF")
 
 
 def ocr_pdf(dados: bytes, *, teto_mb: int | None = None) -> list[PaginaTexto] | None:
@@ -168,18 +242,43 @@ def ocr_pdf(dados: bytes, *, teto_mb: int | None = None) -> list[PaginaTexto] | 
     if backend_disponivel() is None:
         return None
     paginas: list[PaginaTexto] = []
+    falharam = por_memoria = 0
     try:
         for i, imagem in _iter_rasters(dados, teto_mb=teto_mb):
             try:
                 texto = _texto_de(imagem)
+            except (FalhaDeAmbiente, ImportError):
+                # Dependência que não carrega é da máquina, e vale para o arquivo
+                # inteiro. `MemoryError` **não** entra aqui: uma página A0 a 72 dpi
+                # pede 593 MB por si só, e isso é o documento, não a janela — era
+                # exatamente o que o `noqa` abaixo existe para tratar (30/08/2026).
+                raise
+            except MemoryError as exc:
+                # Falha de memória numa página é sintoma de recurso — e para uma
+                # página A0, que pede 593 MB a 72 dpi, "tente com mais memória"
+                # é o conselho **certo**. Contada à parte, ver abaixo.
+                log.warning("OCR sem memória na página %d: %s", i, exc)
+                texto = ""
+                falharam += 1
+                por_memoria += 1
             except Exception as exc:  # noqa: BLE001 — laço de onda: página de scan hostil não mata o OCR do arquivo
                 log.warning("OCR falhou na página %d: %s", i, exc)
                 texto = ""
+                falharam += 1
             del imagem
             paginas.append(PaginaTexto(numero=i, texto=texto))
+    except FalhaDeAmbiente:
+        raise
+    except (ImportError, MemoryError) as exc:
+        # O `except Exception` abaixo engolia estes dois e devolvia `None`, que é
+        # o mesmo valor de "esta instalação não tem OCR". Sob pressão de memória
+        # `import pymupdf` levanta `ModuleNotFoundError: No module named 'mupdf'`,
+        # e o documento terminava `vazio` sem linha de quarentena (`Q15`).
+        raise FalhaDeAmbiente(f"OCR não pôde carregar suas dependências: {exc}") from exc
     except Exception as exc:  # noqa: BLE001 — a bad scan must not kill the wave
         log.warning("OCR não rasterizou o PDF: %s", exc)
         return None
+    _conferir_falhas_de_pagina(len(paginas), falharam, por_memoria)
     return paginas
 
 

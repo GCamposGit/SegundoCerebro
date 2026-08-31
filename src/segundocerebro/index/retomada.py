@@ -28,6 +28,7 @@ from pathlib import Path
 
 from ..config import ErroDeConfig, carregar, normalizar_perfil
 from ..logger import get_logger
+from ..repositorio import em_checkout
 from ..repositorio import raiz as raiz_do_repositorio
 from .indexer import TravaDeIndice
 from .progresso import ler
@@ -72,11 +73,16 @@ def comando_de_retomada(base, caminho_config: Path | None, perfil: str) -> list[
     return comando + ["--perfil", perfil]
 
 
-def linha_da_tarefa(raiz: Path) -> str:
+def linha_da_tarefa(raiz: Path, config: Path | None = None) -> str:
     """O conteúdo do `.cmd` que roda no logon.
 
-    `cd /d` porque o processo de logon nasce em `C:\\Windows\\system32`, e o
-    `PYTHONPATH` relativo do projeto não significa nada de lá.
+    `cd /d` porque o processo de logon nasce em `C:\\Windows\\system32`, e um
+    caminho relativo não significa nada de lá. Ele vai para a pasta **do
+    config**, não para a raiz deduzida (`F6`, 30/08/2026): numa instalação por
+    `pip` a raiz cai no `site-packages`, e ali a retomada subia, sintetizava a
+    base `padrao` sem raiz nenhuma e reindexava o nada — em silêncio, toda vez
+    que o usuário liga o computador. O `--config` explícito fecha o mesmo buraco
+    que `mcp/registrar.py` acabou de fechar, no arquivo vizinho.
 
     `start "" /min` em vez de chamar o Python direto: a retomada pode levar horas,
     e uma janela de console no meio da tela ao ligar o computador seria lida como
@@ -94,17 +100,25 @@ def linha_da_tarefa(raiz: Path) -> str:
     # acento por `?`. Escrever o aviso em ASCII puro é o que faz o arquivo dizer o
     # que quer dizer — e ele existe justamente para o usuário que o encontrar
     # sozinho na pasta de inicialização saber o que é e como desligar.
+    onde = config.parent if config is not None else raiz
     linhas = [
         "@echo off\r\n",
         "rem Criado pelo Segundo Cerebro. Apagar este arquivo desliga a retomada\r\n",
         "rem automatica da indexacao. Nada e reindexado do zero.\r\n",
-        f'cd /d "{raiz}"\r\n',
-        "set PYTHONPATH=src\r\n",
+        f'cd /d "{onde}"\r\n',
     ]
+    # `PYTHONPATH` so num checkout (`F6`, 30/08/2026). Este `.cmd` e gravado na
+    # pasta de Inicializacao do usuario: e a pior versao de 'codigo que so roda
+    # de dentro do repositorio', porque sobrevive ate a desinstalacao do pacote.
+    if em_checkout():
+        linhas.append("set PYTHONPATH=src\r\n")
     provider = os.environ.get("SEGUNDOCEREBRO_PROVIDER", "").strip()
     if provider:
         linhas.append(f"set SEGUNDOCEREBRO_PROVIDER={provider}\r\n")
-    linhas.append(f'start "" /min "{sys.executable}" -m segundocerebro.index.retomada\r\n')
+    alvo = f' --config "{config}"' if config is not None else ""
+    linhas.append(
+        f'start "" /min "{sys.executable}" -m segundocerebro.index.retomada{alvo}\r\n'
+    )
     return "".join(linhas)
 
 
@@ -159,6 +173,14 @@ def instalada() -> bool | None:
         return None
 
 
+def _config_carregado() -> Path | None:
+    """O `config.toml` que esta instalação de fato usa, ou `None`."""
+    try:
+        return carregar().caminho
+    except ErroDeConfig:
+        return None
+
+
 def agendar(*, instalar: bool) -> int:
     """Liga ou desliga o gatilho de logon, escrevendo ou apagando um `.cmd`.
 
@@ -178,7 +200,7 @@ def agendar(*, instalar: bool) -> int:
             # traduziria de novo e o `.cmd` sairia com `\r\r\n`, que o `cmd`
             # interpreta mal.
             with alvo.open("w", encoding="ascii", errors="replace", newline="") as saida:
-                saida.write(linha_da_tarefa(raiz))
+                saida.write(linha_da_tarefa(raiz, _config_carregado()))
         else:
             alvo.unlink(missing_ok=True)
     except OSError as erro:
