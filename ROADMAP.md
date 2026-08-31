@@ -2109,7 +2109,23 @@ partir das raízes da base, e o manifesto declara essa fronteira no próprio
 retorno (campo `fronteira`) em vez de deixar o agente supor. Entra como
 `J.c-mapa.2`, e é pequeno: `census.iter_files` já enumera sem abrir arquivo.
 
-**Ablação nula:** medida, não argumentada — ver a linha de execução abaixo.
+**Ablação nula: Δ exatamente zero, medido.** O pacote J exige, em todo PR seu, a
+prova de que o caminho de consulta não mudou — e "não regrediu dentro do IC" não
+serve, porque nenhuma linha da fusão foi tocada. Medido em 31/08/2026 no acervo
+corporativo, `main` contra a branch, mesmo comando nos dois braços
+(`py -m eval.rodar --base padrao --retriever hibrido --sem-rerank`):
+
+| | n | recall@1 | recall@10 | MRR@10 | nDCG@5 |
+|---|---:|---:|---:|---:|---:|
+| `main` | 59 | 0,534 | 0,907 | 0,660 | 0,656 |
+| branch | 59 | 0,534 | 0,907 | 0,660 | 0,656 |
+
+**184 células numéricas comparadas, 184 idênticas.** Cobertura recalculada na
+passada: 43,7% por pasta, 3,1% como fonte esperada, sobre 2.040 documentos.
+
+O número não é a série histórica (0,551 / 0,680) porque o braço aqui é o da base
+`padrao` sem rerank, e a série foi medida com outro glossário — o que a ablação
+afirma é a **igualdade entre os dois braços**, não o valor absoluto.
 
 **`J.a`+`J.f` entram antes da onda 5** (`R3.1`+`C4.1`+`R2.1`), que é o rebuild
 coordenado — é ela que paga o investimento do store, e fazer na ordem inversa é
