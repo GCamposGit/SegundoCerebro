@@ -1853,11 +1853,15 @@ o número acima é o argumento.**
 
 ### `Q19` — A documentação promete arquivos que o clone não tem — ✅ **FECHADO em 30/08/2026**
 
-**47 dos 104 arquivos de `docs/` estão versionados.** Os outros 57 — quase todos
+**47 dos `docs/*.md` estão versionados.** Os outros — quase todos
 `metricas-*.md` — ficam fora por regra, porque citam nome de arquivo do acervo
-real. Isso é correto e documentado. A consequência não é: **64 links em arquivos
-versionados apontam para eles**, e resolvem em 404 num clone. É a `F6` aplicada à
+real. Isso é correto e documentado. A consequência não é: um link em arquivo
+versionado que aponte para um deles resolve em 404 num clone. É a `F6` aplicada à
 documentação — quem clona não vê o que nós vemos.
+
+**O diagnóstico deste pacote dizia 64 links; a execução mediu 6** — o 64 somava
+link com menção em prosa, e são coisas diferentes (tabela da passada de
+30/08/2026, acima). Hoje a varredura acha **0**.
 
 O `docs/README.md` entrou nesta passada (o `Q8`) e **só linka o que o clone tem**.
 O que falta:
