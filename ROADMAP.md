@@ -2109,6 +2109,46 @@ partir das raízes da base, e o manifesto declara essa fronteira no próprio
 retorno (campo `fronteira`) em vez de deixar o agente supor. Entra como
 `J.c-mapa.2`, e é pequeno: `census.iter_files` já enumera sem abrir arquivo.
 
+### `J.a-núcleo` — o parse store no disco — ✅ **FECHADO em 31/08/2026**
+
+O núcleo, a renderização canônica e o GC. **Não** inclui os produtores gravando
+nem o fast-path do indexador — esses são o `J.f`, e ficam declarados abaixo.
+
+| O que | Onde | A classe que passa a ser pega |
+|---|---|---|
+| Markdown canônico + blocos com offset **no Markdown**, numa passada só | `ingest/canonico.py` | *Divergência silenciosa entre renderização e estrutura* — property test de reconstrução sobre 12 documentos sorteados, chamando o produto |
+| entrada no disco, chave de quatro partes, escrita atômica | `ingest/parse_store.py` | *Cache que serve parse velho depois de o motor externo mudar* |
+| GC por censo, com carência | idem | *GC que apaga o que está em uso* — censo vazio é **recusado**, não obedecido |
+
+Quatro decisões que divergem da especificação, e cada uma tem o motivo medido:
+
+1. **`zlib`, não `zstd` — sem dependência nova.** A especificação pede zstd
+   ("texto comprime 5–20×"). Medido em 31/08 sobre o texto extraído do acervo
+   real (4.000 chunks, 4,45 MB): `zlib` nível 6 dá **5,5×** (0,81 MB), já dentro
+   da faixa declarada. O store completo do acervo — 98.326 chunks, 87,5 M de
+   caracteres — cabe em **~16 MB**. Para um produto cuja régua é *um leigo
+   apontando uma pasta*, uma extensão nativa a menos na instalação vale mais que
+   o dobro de compressão num artefato descartável de 16 MB.
+2. **Uma entrada é um arquivo, não dois.** `.md.zst` + `.json` não têm escrita
+   atômica conjunta: `kill -9` entre os dois `os.replace` deixa Markdown sem
+   estrutura, e o critério de aceite do `J.a` exige sobreviver a interrupção. Um
+   arquivo, um `os.replace`, e o modo de falha não existe.
+3. **A chave tem quatro partes, não três.** `(hash, parser_version, rota,
+   motor)` — mais a versão da renderização. É o único ponto onde a especificação
+   sub-declarava risco (§3.6 do plano): ninguém commita um upgrade de
+   LibreOffice, então a "regra de PR no bump de `parser_version`" não dispara.
+4. **A assinatura do motor é tamanho + mtime do binário**, não `soffice
+   --version`: perguntar custa subir processo, e o upgrade muda os dois. A
+   consequência é dita: duas máquinas com a mesma versão podem ter assinaturas
+   diferentes, e a segunda paga um miss. Miss é custo; parse velho servido com
+   confiança é defeito.
+
+**O que falta para o `J.f`, com nome:** os produtores (`reader.parse_file`, a
+rota LibreOffice, o OCR) chamarem `gravar`, e o laço de `indexar()` consultar
+`obter` antes de qualquer parser. O ganho de ≥80% no rebuild é do `J.f` e **não
+foi medido** — medir exige um rebuild do corpus sintético com mix de
+PDF/OLE/OCR, que é passada longa.
+
 **Ablação nula: Δ exatamente zero, medido.** O pacote J exige, em todo PR seu, a
 prova de que o caminho de consulta não mudou — e "não regrediu dentro do IC" não
 serve, porque nenhuma linha da fusão foi tocada. Medido em 31/08/2026 no acervo

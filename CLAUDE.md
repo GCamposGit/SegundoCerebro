@@ -124,23 +124,40 @@ o container OLE que mente sobre o próprio conteúdo.
 > base, é [`docs/plano-pacote-j.md`](docs/plano-pacote-j.md). **Ler as duas antes
 > de tocar no resto do pacote J.**
 
-0. **`J.a` + `J.f` — o parse store e o indexador lendo dele**, que é o que
-   destrava `J.b2`, `J.c-conteúdo` e `J.d`, e o que paga o rebuild das ablações
-   `R2.1`/`R3.1` antes de elas rodarem. Era do desktop; o desktop está sem
-   créditos desde 30/08. Três avisos medidos, todos em
-   [`docs/plano-pacote-j.md`](docs/plano-pacote-j.md): `get_document` **não** sai
-   dos chunks (a sobreposição infla o texto em 11,1%), a chave da entrada precisa
-   da **versão do motor externo** para LibreOffice/OCR/recálculo de planilha, e o
-   store nasce dentro do diretório do índice por causa do invariante 1.
-1. **`F4-R.1` — o regime de máquina observável**, e é pré-requisito da passada de
+0. **`J.f` — os produtores gravando no store, e o indexador lendo dele.** O
+   núcleo do store fechou em 31/08 (`ingest/parse_store.py`,
+   `ingest/canonico.py`), com a chave de quatro partes, escrita atômica e GC que
+   recusa censo vazio. O que falta é o laço: `reader.parse_file`, a rota
+   LibreOffice e o OCR chamando `gravar`, e `indexar()` consultando `obter` antes
+   de qualquer parser. **O ganho de ≥80% no rebuild não foi medido** — exige
+   rebuild do sintético com mix de PDF/OLE/OCR, que é passada longa. É este
+   pacote que paga as ablações `R2.1`/`R3.1`, e fazê-lo depois delas é pagar o
+   parse duas vezes.
+1. **`J.c-conteúdo` — `get_document`**, que o store destravou. Um aviso medido, e
+   ele mata o atalho óbvio: **não sai dos chunks.** A sobreposição de 200
+   caracteres infla o texto em **+11,1%** (bloco de 14.399 chars → 9 chunks
+   somando 15.999, em 8 emendas), então o aceite *"concatenação das páginas == o
+   canônico"* falharia por construção. Sai do `parse_store.obter`, e o cursor
+   segue o padrão de `acesso/manifesto.py::Pagina`, que já é derivado por teste.
+2. **`J.b2` — o sidecar** é quase só declaração agora: os offsets no Markdown já
+   existem em `ingest/canonico.py` e já têm property test sobre 12 documentos
+   sorteados. O que falta é o `E4` (spans citáveis) conferir o schema antes de
+   congelá-lo, que a especificação pede explicitamente.
+3. **`J.c-mapa.2` — o status `so_censo` no manifesto.** Hoje `list_folder` lista o
+   que o **índice** conhece e declara essa fronteira no próprio retorno; arquivo
+   que está no disco e nunca foi indexado não aparece. Fechar isso é varrer a
+   pasta a partir das raízes da base — `census.iter_files` já enumera sem abrir
+   arquivo, e o portão de nuvem já existe. Pequeno, e é o que completa "o agente
+   sabe o que não viu".
+4. **`F4-R.1` — o regime de máquina observável**, e é pré-requisito da passada de
    calibragem no acervo real: sem ele a `Calibracao` aprende coeficiente de dois
    regimes misturados (22× de diferença) com milhares de observações a favor.
    `esforco.py` está emprestado ao notebook por declaração na §6 de
    [`docs/colaboracao.md`](docs/colaboracao.md), porque o desktop não tem bateria
    nem CPU híbrida e não reproduz o defeito.
-2. **`F4-O.3` — o dourado de OCR** (`g015`/`g025`/`g048`), que é do notebook e
+5. **`F4-O.3` — o dourado de OCR** (`g015`/`g025`/`g048`), que é do notebook e
    destravou quando o `F4-O.2` entrou na `main` no PR #42.
-3. **`Q18`** — medido e resolvido, **esperando acordo, não execução**: ligar as
+6. **`Q18`** — medido e resolvido, **esperando acordo, não execução**: ligar as
    dez regras baratas do `ruff` faz 75 dos 92 `noqa` inertes de `src` valerem,
    por 40 correções. Delas, oito arquivos são do desktop e dois são "um de cada
    vez" — é decisão de política de repositório com efeito cruzado, e a regra 8
@@ -365,6 +382,29 @@ a evidência datada em [`docs/historico-decisoes.md`](docs/historico-decisoes.md
   e uma pergunta editada movia a linha de base sem deixar diff. O que fecha é o
   manifesto **versionado** de impressões digitais: guarda o que move a métrica,
   não o texto, e a mudança passa a ter diff para revisar.
+- **Manifesto de impressões só congela o que ele lista, e a lista precisa vir do
+  modelo.** A primeira versão do `F4-D.2` cobria `pergunta`, `tipo` e `fontes`, e
+  deixava fora `fora_de_escopo` — que **tira a pergunta da tabela principal**, e é
+  o que faz a série ser n=59 de 62 — e `armadilha`, que alimenta um portão de
+  merge. Acrescentar um motivo catalogado mudava o `recall@1` e o instrumento
+  dizia "é o conjunto congelado": a classe que ele existe para fechar, dentro
+  dele. O conserto não foi uma lista maior, foi derivar a lista da dataclass e
+  exigir motivo escrito para excluir campo.
+- **Gate posto cedo demais troca um defeito por outro mais silencioso.** A
+  primeira versão do `Q15.a` punha a condição **antes** dos testes de parser,
+  modelo e chunker, e com isso um scan em `erro` deixava de ser alcançado por
+  parser corrigido. Ninguém percebe documento que não volta. O recorte certo
+  neutraliza só o **atalho** que causava o dano — a passada gratuita que o status
+  dava — e deixa todos os motivos de verdade valendo.
+- **Id compartilhado por dois itens da mesma lista é uma perda silenciosa.** Dois
+  caminhos com o mesmo conteúdo entram no manifesto como dois itens com o mesmo
+  `doc_id`, e o `outline` desse id devolve **um** deles. O agente que chaveia por
+  id perde o outro sem sinal. Enumerar continua sendo enumerar; o que faltava era
+  o item dizer para onde o id dele resolve.
+- **Conferência que depende de configuração é no-op onde mais importa.** A base na
+  URI `sc://` só era conferida quando o servidor subia com `config.toml`. Sem ele
+  — `--indice`, três valores soltos — qualquer nome de base era aceito, e é
+  exatamente aí que o cliente não sabe em que acervo está.
 - **Auditoria que não executa erra a contagem, e erra para os dois lados.**
   Dos cinco números da passada de 29/08, quatro estavam errados quando medidos
   ao executar: 6 links quebrados e não 64, sete defaults duplicados e não seis,
