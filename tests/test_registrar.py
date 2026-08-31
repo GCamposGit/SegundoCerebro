@@ -339,7 +339,7 @@ def test_bloco_do_claude_desktop_sobe_de_um_cwd_neutro():
     from mcp import ClientSession, StdioServerParameters
     from mcp.client.stdio import stdio_client
 
-    saida = subprocess.run(  # noqa: S603
+    saida = subprocess.run(  # argv fixo, interpretador é `sys.executable`
         [sys.executable, "-m", "segundocerebro.mcp.registrar", "--cliente", "claude-desktop"],
         capture_output=True,
         text=True,

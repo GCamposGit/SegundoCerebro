@@ -7,11 +7,10 @@ import zipfile
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
-from segundocerebro.census import Config, RootSpec
 from segundocerebro.index.isolamento import parse_isolado, timeout_para
 from segundocerebro.index.indexer import indexar
 from segundocerebro.index.store import BACKOFF_QUARENTENA_S, MAX_TENTATIVAS_QUARENTENA, Store
-from tests.test_index import DIM, EmbedderFalso
+from tests.falsos import DIM, EmbedderFalso, config_de_raiz
 
 
 def _zip_que_nao_e_docx() -> bytes:
@@ -26,6 +25,29 @@ def test_timeout_cresce_com_o_tamanho() -> None:
     assert timeout_para(2_000_000) == 80.0
     assert timeout_para(0, "contrato.doc") == 150.0
     assert timeout_para(0, "ata.md") == 60.0
+
+
+def test_todo_formato_que_o_libreoffice_converte_ganha_o_timeout_de_convert() -> None:
+    """A régua é a tabela do conversor, não uma lista escrita à mão.
+
+    A extensão de OLE legado estava declarada em **três** módulos que não se
+    importam: `ingest/converters/libreoffice.py`, `ingest/reader.py` e
+    `index/isolamento.py`. Um quarto formato legado exigia lembrar dos três, e o
+    esquecimento não falhava — o formato novo só ficava sem o timeout do
+    LibreOffice, e o filho de parse morria por tempo em vez de converter.
+
+    Mesma forma de `docs/fatia-reuniao-invisivel.md`: régua declarada num lugar,
+    consumida em outro, divergindo em silêncio. Aqui a régua passou a ser
+    derivada, e este teste é quem confere que ela chega ao consumidor.
+    """
+    from segundocerebro.index.isolamento import TIMEOUT_CONVERT_S
+    from segundocerebro.ingest.converters.libreoffice import EXTENSOES_LEGADO
+
+    assert EXTENSOES_LEGADO, "a tabela do conversor ficou vazia"
+    for extensao in EXTENSOES_LEGADO:
+        assert timeout_para(0, f"arquivo{extensao}") == 60.0 + TIMEOUT_CONVERT_S, (
+            f"{extensao} passa pelo LibreOffice e não ganha o timeout de convert"
+        )
 
 
 def test_arquivo_vazio_binario_vira_erro_sem_subprocesso(tmp_path: Path) -> None:
@@ -112,7 +134,7 @@ def test_onda_com_tres_venenosos_termina_e_quarentena(tmp_path: Path) -> None:
     (raiz / "vazio.pdf").write_bytes(b"")
     store = Store(tmp_path / "indice", DIM)
     progresso = indexar(
-        Config(roots=[RootSpec(name="teste", path=raiz)]),
+        config_de_raiz(raiz),
         store,
         EmbedderFalso(),
         publicar=False,

@@ -117,21 +117,46 @@ def provider_pedido() -> str:
     return "cuda" if os.environ.get("SEGUNDOCEREBRO_PROVIDER", "").lower() == "cuda" else "cpu"
 
 
-def aplicar_provider(provider: str | None) -> str:
-    """Copy `[maquina] provider` into the env if the env is empty.
+def resolver_provider(provider: str | None) -> str:
+    """Which provider wins between the env and `[maquina] provider` — no side effect.
 
     F6-C made empty env mean CPU. The desktop's `config.toml` says `cuda`;
-    without this, the indexer never starts the GPU pool and the cards sit at
+    without this the indexer never starts the GPU pool and the cards sit at
     1% while the pass runs on the CPU. Env still wins when set.
+
+    Pure on purpose. `aplicar_provider` is what writes, and only a process
+    entry point may call it — see the docstring there.
     """
     pedido = (os.environ.get("SEGUNDOCEREBRO_PROVIDER") or "").strip()
     if pedido:
         return pedido.lower()
-    p = (provider or "").strip().lower()
-    if p:
+    return (provider or "").strip().lower() or "cpu"
+
+
+def aplicar_provider(provider: str | None) -> str:
+    """Resolve, and publish the answer to the whole process — `main()` only.
+
+    A escrita em `os.environ` não é descuido: os processos de embed nascem por
+    `multiprocessing` e leem a variável do ambiente que herdaram. Publicar é o
+    mecanismo, e é por isso que ele continua aqui.
+
+    O que mudou em 29/08/2026 é **quem** pode chamar. Esta função era a única
+    porta, e um teste unitário a chamava direto: `monkeypatch.delenv` sobre uma
+    variável ausente não registra nada para desfazer, então a escrita feita pelo
+    produto dentro do teste sobrevivia à sessão inteira do pytest e envenenava
+    todo teste posterior que rodasse `indexar()` — seis falhas de
+    `tests/test_watcher.py` com `RuntimeError: Não achei placa NVIDIA`, verdes
+    quando o arquivo roda sozinho. No desktop `diagnosticar()` diz `ok` e a suíte
+    fica verde, então quem só roda lá nunca via.
+
+    Quem só precisa saber a resposta chama `resolver_provider`, que não escreve.
+    """
+    p = resolver_provider(provider)
+    # Publica só o que o ambiente ainda não disse e o arquivo declarou — a mesma
+    # condição de antes, escrita agora sobre a função pura.
+    if not (os.environ.get("SEGUNDOCEREBRO_PROVIDER") or "").strip() and (provider or "").strip():
         os.environ["SEGUNDOCEREBRO_PROVIDER"] = p
-        return p
-    return "cpu"
+    return p
 
 
 def listar_gpus() -> list[dict[str, str]]:

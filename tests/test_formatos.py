@@ -22,6 +22,8 @@ from segundocerebro.ingest.document import ParseStatus
 from segundocerebro.ingest.parsers import supported_extensions
 from segundocerebro.ingest.reader import parse_file
 
+from tests.falsos import config_de_raiz
+
 from eval.gerador.__main__ import gerar
 from eval.gerador.formatos import SO_HOSTIL
 
@@ -34,9 +36,9 @@ def corpus(tmp_path_factory: pytest.TempPathFactory) -> Path:
 
 
 def _extensoes_no_corpus(corpus: Path) -> set[str]:
-    from segundocerebro.census import Census, Config, RootSpec, iter_files
+    from segundocerebro.census import Census, iter_files
 
-    cfg = Config(roots=(RootSpec(name="fmt", path=corpus),))
+    cfg = config_de_raiz(corpus, "fmt")
     return {Path(a.path).suffix.lower() for a in iter_files(cfg.roots[0], cfg, Census())}
 
 

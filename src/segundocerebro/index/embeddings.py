@@ -20,7 +20,7 @@ spec, not to the call site.
 from __future__ import annotations
 
 import time
-from collections.abc import Callable, Iterable, Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -302,5 +302,3 @@ class Embedder:
         return n_chunks / self.spec.chunks_por_segundo / 3600
 
 
-def modelos_disponiveis() -> Iterable[tuple[str, ModelSpec]]:
-    return sorted(MODELOS.items(), key=lambda kv: -kv[1].chunks_por_segundo)

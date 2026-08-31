@@ -52,7 +52,14 @@ REPO = Path(__file__).resolve().parent.parent
 PESO_RERANK_DA_FLAG = 0.25
 """Voz usada quando `--rerank` é pedido numa base que não configura o peso.
 
-O valor medido em 16/08/2026 (`docs/ablacao-rerank.md`): o pico da grade."""
+O valor medido em 16/08/2026 (`docs/ablacao-rerank.md`): o pico da grade.
+
+**É a fonte deste 0,25**, e desde 30/08/2026 (`Q12`) o
+`config.example.toml` é conferido contra ele por
+`tests/test_config.py::test_o_rerank_sugerido_no_exemplo_bate_com_o_eval`. Não
+virou constante de `config.py` de propósito: é peso de *sugestão*, não padrão do
+produto — o padrão é desligado —, e o `Q12` aceita as duas saídas, "cada valor
+num lugar só **ou** amarrado por teste"."""
 
 
 def _montar(args, cfg):  # noqa: ANN001

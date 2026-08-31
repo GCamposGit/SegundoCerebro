@@ -10,7 +10,7 @@ from segundocerebro.index.comando import CANCELAR, PAUSAR, aguardar, ler, limpar
 from segundocerebro.index.estimativa import Relogio
 from segundocerebro.index.indexer import indexar
 from segundocerebro.index.store import Store
-from tests.test_index import DIM, EmbedderFalso, corpus
+from tests.falsos import DIM, EmbedderFalso, corpus
 
 
 def test_pedir_e_ler(tmp_path: Path) -> None:

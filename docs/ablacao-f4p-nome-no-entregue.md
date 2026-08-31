@@ -36,7 +36,7 @@ em vinte posições**. Cross-lingual recall@20 do caminho entregue: 0,750, contr
 
 Isto não é uma configuração que alguém escolheu e mediu. É a ausência de um
 ranqueador num caminho de código, e o projeto já tinha declarado o princípio
-contrário para famílias de versão em [`ablacao-familias.md`](ablacao-familias.md):
+contrário para famílias de versão em `docs/ablacao-familias.md`:
 *"ligado em `search` e em `buscar_chunks`, para o que se mede ser o que se
 entrega"*.
 

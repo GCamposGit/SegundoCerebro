@@ -222,7 +222,7 @@ tempo de consulta.
 
 Índice completo (1.601 documentos, 92.125 chunks), baseline e busca remedidos
 juntos no mesmo universo e nas mesmas 45 perguntas. Análise caso a caso em
-[`docs/portas-f1-condicao-c.md`](docs/portas-f1-condicao-c.md).
+`docs/portas-f1-condicao-c.md`.
 
 | Métrica | baseline | híbrido | Δ |
 |---|---:|---:|---:|
@@ -267,7 +267,7 @@ remedidas — `verificar_escopo()` avisa quando a anotação ficar velha.
 ## F2 — Precisão (o núcleo de R3)
 
 - ✅ **Reranking — entregue em 16/08/2026, com peso 0,25.**
-  [`docs/ablacao-rerank.md`](docs/ablacao-rerank.md). recall@1 0,644 → **0,678**,
+  `docs/ablacao-rerank.md`. recall@1 0,644 → **0,678**,
   MRR 0,762 → **0,785**, sem mexer em recall@10 nem nas armadilhas.
 
   **O cross-encoder entra como quarto ranqueador, não como juiz.** A grade é
@@ -309,7 +309,7 @@ remedidas — `verificar_escopo()` avisa quando a anotação ficar velha.
   estrutura, e estrutura não coincide com raciocínio
 - Expansão de contexto: devolve seção completa + vizinhos
 - ✅ **Expansão de consulta via glossário de siglas — entregue em 18/08/2026.**
-  [`docs/ablacao-glossario.md`](docs/ablacao-glossario.md). Expande nos dois
+  `docs/ablacao-glossario.md`. Expande nos dois
   sentidos — sigla → extenso e extenso → sigla — no bm25 e no ranqueador de nome.
   O **denso não recebe a expansão**: acrescentar sinônimo move o vetor para a
   média dos termos, e o embedding assimétrico do `e5` já resolve sinônimo.
@@ -333,7 +333,7 @@ remedidas — `verificar_escopo()` avisa quando a anotação ficar velha.
   sigla → extenso estava morto para `CT-VCE-2024-0142` e `PO-VCE-007`. **Achar o
   descasamento não é achar o gargalo**, e as duas pagam na próxima entrada
 - ✅ **Famílias de versão — entregue em 16/08/2026.**
-  [`docs/ablacao-familias.md`](docs/ablacao-familias.md). Agrupa por pasta +
+  `docs/ablacao-familias.md`. Agrupa por pasta +
   extensão + nome sem marcadores, devolve a vigente e cita as anteriores; ligado
   em `search` **e** em `buscar_chunks`, para o que se mede ser o que se entrega.
 
@@ -884,8 +884,12 @@ três não**, e duas delas mudam prioridade.
 
 Cinco pacotes do dossiê pedem "número no dourado real": `R2.1` (contexto no
 chunk), `R3.1` (ablação de modelo), `R6.1` (autotune), `R6.2` (rerank v2) e
-`R6.3` (tempo/pasta). **O dourado cobre 25% do índice** — 63 das 74 fontes numa
-única pasta de topo, de 30 (ver [`docs/dourado-cobertura.md`](docs/dourado-cobertura.md)).
+`R6.3` (tempo/pasta). **O dourado alcança de 3,3% a 38,5% do índice** — piso
+exato (só as fontes esperadas, 63 de 1.900) e teto generoso (a pasta inteira de
+cada pergunta, 732 de 1.900), medidos pelo instrumento do `F4-D` em 30/08/2026
+com 62 perguntas. A leitura honesta fica entre os dois. As 51 perguntas de
+24/08 mediam 18,2% pelo teto (ver [`docs/dourado-cobertura.md`](docs/dourado-cobertura.md));
+o "25%" que circulava aqui não era nenhum dos dois.
 
 Medir qualquer um deles hoje é medir um quarto do acervo e chamar de decisão. Por
 isso **`F4-D` entra na onda 1**, à frente de tudo que ela destrava. É a correção
@@ -1113,7 +1117,8 @@ Duas lições que valem além do pacote:
 ### A decisão que reordena tudo: não escolher peso global de acervo nenhum
 
 **24/08/2026, decisão do usuário.** O problema que a medição encontrou — o dourado
-real cobre 25% do índice — tem duas respostas possíveis, e a errada é a óbvia.
+real alcança um quinto do índice pelo teto por pasta, e 3,3% pelo piso exato —
+tem duas respostas possíveis, e a errada é a óbvia.
 
 A óbvia é **escrever mais perguntas para este acervo**. Ela conserta a cobertura e
 não conserta o viés: o resultado continua sendo um número desta máquina, deste
@@ -1189,7 +1194,7 @@ o próprio dossiê pede.
 ## O complemento C1–C7, conferido no código
 
 > **Acrescentado em 24/08/2026 pelo notebook.**
-> [`docs/dossie-complemento-update-devs.md`](dossie-complemento-update-devs.md)
+> [`docs/dossie-complemento-update-devs.md`](docs/dossie-complemento-update-devs.md)
 > traz sete pacotes `C<n>` e, ao contrário do dossiê original, **lê o código**.
 > Mesma regra de antes: a especificação mora lá, o `ROADMAP.md` assume ordem,
 > dono e porta.
@@ -1207,7 +1212,7 @@ incomum e muda o peso do documento:
 **Duas correções de dimensionamento**, nenhuma fatal:
 
 - **`C7.d` cita "o censo real tem 85 CSVs somando 492 MB".** Esse número vem de
-  [`docs/estatisticas-arquivos-por-extensao.md`](estatisticas-arquivos-por-extensao.md),
+  [`docs/estatisticas-arquivos-por-extensao.md`](docs/estatisticas-arquivos-por-extensao.md),
   que é a varredura de **um disco inteiro** (224.850 arquivos, 642 GB) e não de
   uma base — o próprio `prioridade-de-indexacao.md` avisa isso. Lá são 85 CSVs e
   **216,90 MB**, não 492. No acervo corporativo, medido agora: **2 arquivos
@@ -1221,7 +1226,7 @@ incomum e muda o peso do documento:
 
 `C3.a` descreve um mecanismo: o nome do arquivo pontua **duas vezes** — dentro do
 bm25, pela coluna `caminho`, e de novo na fusão, pelo `RanqueadorDeNome` com peso
-0,5. Em [`docs/dourado-cobertura.md`](dourado-cobertura.md) o notebook mediu o
+0,5. Em [`docs/dourado-cobertura.md`](docs/dourado-cobertura.md) o notebook mediu o
 **efeito**: desligar o ranqueador de nome sobe o MRR das perguntas de reunião em
 60% e piora o resto.
 
@@ -1460,7 +1465,7 @@ do produto, é de ferramenta de teste, e já estava no repositório.
 
 ---
 
-## O guia de engenharia — pacotes Q1–Q10
+## O guia de engenharia — pacotes Q1–Q19
 
 > **Acrescentado em 24/08/2026.** Fonte:
 > [`docs/guia-engenharia-5-estrelas.md`](docs/guia-engenharia-5-estrelas.md).
@@ -1470,16 +1475,25 @@ do produto, é de ferramenta de teste, e já estava no repositório.
 
 | # | Pacote | Dono | Prioridade |
 |---|---|---|:---:|
-| Q1 | CI ganha lint, format, types e coverage (a config do `ruff` não está commitada e os 95 `noqa` são carga de culto) | qualquer | **P0** |
+| Q1 | CI ganha lint, format, types e coverage — **lint, tipos e cobertura entraram em 28/08; o `select` cresceu em 29/08** e os `noqa` inertes viraram o `Q18` | qualquer | **P0 · em curso** |
 | Q2 | `pyproject` como fonte única: `dependencies = []` contradiz o `requirements.txt` | desktop (é `R8.1`) | **P0** |
-| Q3 | Teto de tamanho de módulo como regra de processo IA — decomposição só oportunista | cada um no seu | **P3 · vitrine** |
+| Q3 | Teto de tamanho de módulo — **o teto virou teste em 29/08** (`tests/test_tamanho_dos_modulos.py`) e o `indexer.py` caiu de 1.753 para 1.368; o que falta é o `Q16` | cada um no seu | **feito em parte** |
 | Q4 | Política escrita de `except Exception` (os 34 `BLE001`) | desktop | P1 · **neste PR** |
 | Q5 | **e2e do protocolo MCP** (**feito** em 25/08 — `tests/test_protocolo_mcp.py`) · property-based `consulta_fts`/`chave_de_familia` (P1) · smoke de mutação (P3) | notebook + desktop | **P0 feito / P1 / P3** |
 | Q6 | template de PR (**feito** em 25/08 — é onde as regras 10 a 12 mordem) · `CONTRIBUTING`, `SECURITY`, `pip-audit` | qualquer | **P0 feito / P2** |
 | Q7 | Tag e CHANGELOG por fase fechada | qualquer | **P3 · vitrine** |
-| Q8 | `docs/README.md` com índice temático — 67 arquivos sem sumário | notebook | **P3 · vitrine** |
+| Q8 | `docs/README.md` com índice temático — **feito em 29/08**, linkando só o que o clone tem; o resto é o `Q19` | notebook | **feito** |
 | Q9 | `docs/processo-ia.md`: o contrato de fronteira entre agentes como peça pública | acordo | **P3 · vitrine** |
 | Q10 | Observabilidade local do servidor (SQLite, nunca remota) | notebook | P2 |
+| Q11 | Config aceita chave desconhecida em silêncio — **fechado em 30/08/2026**, cinco níveis mais tipo errado, com a guarda derivada do modelo e do AST | notebook | **feito** |
+| Q12 | Defaults escritos duas vezes — **fechado em 30/08/2026**; eram **sete**, não seis (o `index.html` tinha uma quarta cópia dos tetos) | qualquer | **feito** |
+| Q13 | `pesos.fts_*` **documentado em 30/08**; o dialeto de `RootSpec` fica, e depende da costura de `census.py` (`Q16`) | notebook | **metade feita** |
+| Q14 | `SEGUNDOCEREBRO_OCR_FAKE` é hook de teste vivo em produção, sem guarda | desktop | **P1 · produto** |
+| Q15 | Sob pressão de memória o OCR some em silêncio — `vazio` sem quarentena | desktop | **P0 · produto** |
+| Q16 | O que falta decompor, com as costuras levantadas (continua o `Q3`) | cada um no seu | P3 · laboratório |
+| Q17 | Conftest informal — **fechado em 30/08/2026**; eram **18 sítios em 14 arquivos**, e a guarda achou mais quatro | notebook | **feito** |
+| Q18 | 265 `noqa` inertes — **a escolha foi resolvida por medição em 30/08** e a execução é dos dois lados (ver abaixo) | **acordo** | P2 · laboratório |
+| Q19 | Links quebrados e a cobertura obsoleta — **fechado em 30/08/2026**; eram **6** links, não 64, e a cobertura tinha **três** valores | notebook | **feito** |
 
 **Revisado em 25/08/2026 pela [regra de ouro](docs/regra-de-ouro.md).** O guia
 mirava um juiz imaginário — "um sênior clonando o repo a frio" — e cinco dos dez
@@ -1495,6 +1509,388 @@ Dois avisos para quem pegar:
 - **`Q6` item pre-commit não se faz**, pelo mesmo motivo já registrado na §10 do
   complemento: um pre-commit com a lista de nomes embutida seria o próprio
   vazamento. `tests/test_saneamento.py` já resolve, e melhor.
+---
+
+---
+
+## Auditoria de base — o que a passada de 29/08/2026 fechou, e o que ela achou
+
+> Uma passada de refatoração estrutural sobre as 45.731 linhas de Python do
+> repositório, com mandato explícito de **não mudar funcionalidade**. Ela nasceu
+> de um pedido de "deixar a base exemplar", e o que encontrou não foi desleixo:
+> foi o custo de dezenove dias de fase medida com lint entrando no CI só no
+> penúltimo dia.
+>
+> Esta seção tem duas metades. A primeira é o que **entrou** — sete commits, cada
+> um com a classe generalizada que o fecha. A segunda são os pacotes `Q11`–`Q19`,
+> que é o que ela **achou e não implantou**, com o contrato de sempre.
+>
+> A régua continua sendo [`docs/regra-de-ouro.md`](docs/regra-de-ouro.md). Vários
+> destes itens são **de laboratório** — custam a nós, não a quem instala amanhã —
+> e estão marcados como tal, para que ninguém os promova por parecerem urgentes.
+
+### Os números de partida, medidos antes de tocar em nada
+
+| Medida | Antes | Depois |
+|---|---|---|
+| Suíte | **7 falhas** em 141,8 s | **1 falha** em ~2 min |
+| Idas ao SQLite por consulta, índice corporativo | **350** | **6** |
+| `import segundocerebro.painel.app` | **1,08 s**, com `fastembed` carregado | **0,11 s**, sem |
+| `index/indexer.py` | 1.753 linhas | 1.368 + quatro módulos |
+| `main()` do indexador | 224 linhas | 101 |
+| `noqa` que não suprimem nada | **352** | 264, com a escada medida |
+| Módulos acima de 500 linhas | 9 | 9, agora com teto que só desce |
+
+A falha que sobra é `eval/test_golden.py::test_toda_fonte_existe`: duas fontes do
+dourado saíram do disco na troca de notebook. É condição de dado, não código.
+
+### O que entrou
+
+| Commit | Classe que ficou fechada, e quem passa a pegá-la |
+|---|---|
+| `fronteira: o produto para de depender do repositório` | `retrieve/hybrid.py::search` importava `Hit` de `eval.harness`, e `eval/` é o único diretório que o `pyproject.toml` não empacota — o método onde a série histórica inteira foi medida levantava `ModuleNotFoundError` para quem instalou com `pip`. **Guarda:** `tests/test_pacote.py` varre o AST de `src/` atrás de qualquer import de `eval`, inclusive dentro de função, que é onde o caso real se escondia |
+| `ambiente: a suíte para de entregar `os.environ` sujo` | `aplicar_provider` escreve no ambiente, e `monkeypatch.delenv` sobre variável ausente não registra nada para desfazer: um teste envenenava os seis seguintes que chamassem `indexar()`. **Guarda:** fixture autouse `ambiente_devolvido` no `conftest.py` da raiz |
+| `fronteira: o painel para de carregar o encoder` | duas linhas que liam o nome de um arquivo de trava arrastavam `fastembed` inteiro. **Guarda:** `tests/test_painel.py` sobe um subprocesso e reprova se seis módulos pesados aparecerem em `sys.modules` |
+| `teste: OCR declara a janela de máquina` | o mesmo arquivo reprovava com 3,5 GB livres e passava com 3,9 GB. **Guarda:** `PISO_RAM_OCR_MB`, e o teste pula com o número em vez de reprovar pela janela |
+| `consulta: 350 idas ao SQLite viram 6` | três padrões de N+1 invisíveis num índice de teste com quatro trechos. Resultado idêntico, conferido por `diff` de JSON contra o índice corporativo. **Guarda:** `tests/test_hybrid.py` conta `execute()` e reprova acima de 12 |
+| `higiene: código morto fora, regra derivada` | a extensão de OLE legado estava declarada em três módulos que não se importam. **Guarda:** `tests/test_quarentena.py` percorre a tabela do conversor e exige o timeout de convert para **cada** extensão dela |
+| `indexer: 1.753 linhas viram 1.368` | regra de teto escrita em 25/08 e não conferida: o arquivo cresceu 610 linhas em quatro dias. **Guarda:** `tests/test_tamanho_dos_modulos.py`, escada que só desce |
+
+Fora dos commits de código: `docs/README.md` (o `Q8`, feito), `eval/arquivo/`
+com o marcador `arquivo`, e o `select` do `ruff` com `BLE`, `S603` e `DTZ`.
+
+---
+
+### A passada de execução de 30/08/2026 — o que fechou, e o que ela corrigiu do próprio diagnóstico
+
+> Cinco commits no notebook fecharam `Q11`, `Q12`, metade do `Q13`, `Q17` e
+> `Q19`, mais a superfície de pontos de entrada. A suíte foi de **1 falha /
+> 1.232 passes** para **1 falha / 1.361 passes** — a falha é a mesma condição de
+> dado (`eval/test_golden.py::test_toda_fonte_existe`) — e o tempo caiu de
+> **143,5 s para 113,6 s**.
+>
+> O que mais importa registrar não é o que fechou: é que **quatro dos números
+> desta auditoria estavam errados**, e cada um errava para o lado que faz o
+> pacote parecer maior ou menor do que é.
+
+| O diagnóstico dizia | A execução mediu |
+|---|---|
+| `Q12`: seis defaults duplicados | **sete** — `painel/index.html` tinha uma quarta cópia dos tetos de fábrica, num literal JS de fallback que nunca dispara |
+| `Q17`: conftest informal de **dez** arquivos | **18 sítios em 14 arquivos**, três deles em `eval/`; e a guarda nova achou **mais quatro** conftests informais que ninguém tinha listado |
+| `Q17`: 12 construções de raiz única em 5 arquivos | **16 em 7** — a contagem não incluía a variante em tupla |
+| `Q19`: **64 links** para arquivo que o clone não tem | **6 links**. Os outros ~70 são menção em prosa, que é a forma que o próprio pacote prescreve. O número misturava as duas coisas |
+| `Q19`: a cobertura é 25%, e o valor medido é 38,5% | **nem um nem outro sozinho.** O `F4-D` reporta um **par**: 3,3% de piso (só as fontes esperadas) e 38,5% de teto (a pasta inteira de cada pergunta). O `README.md` ainda chamava 38,5% de "% das **pastas**", que é a unidade errada |
+
+**E a revisão adversarial do conjunto achou uma regressão que a suíte não pegou.**
+A conferência de topo subiu para antes do desvio do censo legado com uma lista de
+**uma** chave (`roots`), quando `census.load_config` lê **três** (`roots`, `top`,
+`exclude`): `census.example.toml`, que é versionado e é o que o clone copia,
+parou de carregar por caminho explícito — a forma documentada em `index/cli.py`.
+Assimétrico e por isso enganoso: `carregar()` sem caminho desviava antes da
+conferência e funcionava.
+
+Das cinco listas de chaves deste pacote, quatro eram derivadas (do modelo, do
+AST, do `pyproject.toml`) e **a única escrita de cabeça foi a que quebrou** — e
+o teste que devia prová-la foi escrito pela mesma cabeça, montando um
+`census.toml` mínimo com exatamente a chave que a lista tinha. Fechado: a quinta
+lista passou a ser derivada do AST de `census.load_config`, e o teste roda contra
+os arquivos **reais**.
+
+**Duas coisas que a execução achou e que não estavam em pacote nenhum:**
+
+- **`scripts/abrir-painel.cmd` ainda faz `set PYTHONPATH=src`.** É a mesma classe
+  que o repositório já nomeou — *código que só roda de dentro do repositório* —
+  e ela sobreviveu ao `F6-A` porque ninguém varreu `scripts/`. Fica como pacote
+  próprio: remover exige decidir como um clone sem `pip install -e .` abre o
+  painel, e isso encosta na `F6-B`.
+- **`config.py` (1.081) e `census.py` (978) estão no teto exato da escada.**
+  Toda mudança neles agora exige a costura do `Q16` primeiro. Já aconteceu duas
+  vezes nesta passada: o `Q11` empurrou `config.py` para 1.185 e a escada
+  reprovou com a instrução certa, o que forçou a extração de
+  `config_escrita.py` — a primeira das quatro costuras do `Q16`. E é o que
+  **bloqueia** a outra metade do `Q13`: o dialeto de `RootSpec` mora em
+  `census.py::load_config`, e não cabem lá as oito linhas que ele custa.
+
+---
+
+### `Q11` — A configuração aceita em silêncio o que não entende — ✅ **FECHADO em 30/08/2026**
+
+**Serve base desconhecida:** sim, e é o caso mais direto desta lista. Quem instala
+amanhã escreve o `config.toml` à mão, erra o nome de uma chave, e o produto roda
+com o padrão sem dizer nada.
+
+`_secao` recusa chave desconhecida dentro de `pesos`, `busca`, `chunking`,
+`limites`, `[maquina]` e `exclude`. Fora dessas, o silêncio é total:
+
+| Onde | Código | O que acontece |
+|---|---|---|
+| chave direto num `[[base]]` (`apelido = "x"`, `pesoss = {...}`) | `config.py:712-740` | ignorada |
+| seção de topo desconhecida (`[bogus]`) | `config.py:1051-1088` | ignorada |
+| chave dentro de `[indexacao]` | `config.py:778-792` | ignorada |
+| chave extra numa entrada de `raizes` | `config.py:609-621` | ignorada |
+
+É a classe que este repositório já nomeou duas vezes — *regra que não casa com
+nada falha em silêncio, e o silêncio parece sucesso*
+([`docs/duas-falhas-silenciosas.md`](docs/duas-falhas-silenciosas.md)) — agora na
+porta de entrada do usuário.
+
+Tipo errado também não é tratado igual: `LimitesDeIndexacao.validar` confere tipo
+antes de comparar (`config.py:217`), e `Pesos`/`Busca`/`Chunking` não —
+`candidatos = "muitos"` sai como `TypeError: '<' not supported between instances
+of 'str' and 'int'`, não como `ErroDeConfig`.
+
+- **Toca:** `config.py`, `config.example.toml`, `tests/test_config.py`
+- **Não toca:** `retrieve/*`, indexador, parsers
+- **Saída:** chave desconhecida em qualquer nível vira `ErroDeConfig` citando a
+  chave e as conhecidas, como já acontece nas seções; tipo errado idem
+- **Classe generalizada:** um teste que varre as dataclasses de `config.py` e
+  exige, para **cada** nível de aninhamento, que uma chave inventada levante —
+  lista derivada do modelo, não escrita à mão, no desenho de
+  `tests/test_formatos.py` e `eval/test_ranking_sintetico.py`
+
+#### `Q11.a` — o que ficou, e por que não entrou junto
+
+Entregue: os cinco níveis, o tipo errado nas quatro seções de base **e** em
+`[maquina]`, `exclude` recusando texto onde espera lista, e `[[bases]]` no plural
+saindo como o typo que é. `tests/test_config_chaves.py` é a guarda derivada.
+
+**Fica um caso da mesma classe, e é o pior dos que sobraram:** valor booleano
+escrito por extenso é engolido em silêncio. Medido em 30/08/2026:
+
+| No `config.toml` | O produto entende |
+|---|---|
+| `[indexacao] dois_passes = "verdadeiro"` | **`False`** |
+| `[indexacao] ocr = "talvez"` | **`False`** |
+| `[indexacao] ocr = 3` | `True` |
+
+É **mais grave** que a chave desconhecida, não menos: a chave é conhecida, o
+usuário escreveu o valor de propósito, e o silêncio resulta no recurso
+**desligado** — o estado que parece normal. Quem escreve `ocr = "sim, por favor"`
+não recebe OCR e não recebe erro.
+
+O conserto é um `_booleano(valor, chave)` que recusa o que não reconhece, e custa
+**+7 linhas líquidas** em `config.py`. O arquivo está em **1.081 linhas, o teto
+exato da escada**, então isto entra junto com a costura `leitura.py` do `Q16` — é
+o primeiro item concreto a cobrar daquele pacote.
+
+### `Q12` — Defaults escritos duas vezes — ✅ **FECHADO em 30/08/2026** (eram sete)
+
+**Serve base desconhecida:** sim. Quem copia o exemplo comentado do
+`config.example.toml` recebe um teto diferente do que o painel pré-preenche.
+
+| Valor | Onde diz uma coisa | Onde diz outra |
+|---|---|---|
+| teto de `.xlsx` | `LIMITES_RECOMENDADOS.xlsx = 15.0` (`config.py:240`) | `xlsx = 40` (`config.example.toml:160`) |
+| teto de `.md` | `5.0` (`config.py:243`) | `md = 0` (`config.example.toml:163`) |
+| tetos de `.pdf/.docx/.pptx` | `50/30/50` (`config.py:237-239`) | `0/0/0` (`config.example.toml:156-158`) |
+| porta do painel | `PORTA_PADRAO = 18787` (`painel/app.py`) | `--porta 18787` fixo em `scripts/abrir-painel.cmd` |
+| peso de rerank | `config.toml`, `config.example.toml` | `eval/rodar.py` |
+| lista de modelos | `MODELOS_CONHECIDOS` (`config.py:371`) | `index.embeddings.MODELOS` — espelho **sem** teste de paridade |
+
+`tests/test_config.py:43-69` já amarra os espelhos de `Pesos`, `Busca`,
+`Chunking`, `Maquina.lote` e `LimitesDeIndexacao().txt` contra as constantes de
+origem. Os seis acima ficaram de fora — não por decisão, por não terem sido
+notados.
+
+- **Saída:** cada valor num lugar só, ou amarrado por teste
+- **Classe generalizada:** estender o teste-amarra existente para **derivar** os
+  pares a conferir, em vez de listá-los — espelho novo nasce conferido
+
+### `Q13` — Duas chaves que o produto lê e o exemplo não documenta — **metade feita em 30/08/2026**
+
+- **`pesos.fts_texto` / `fts_trilha` / `fts_caminho`** (`config.py:75-77`) chegam
+  a `Store.buscar_lexical` e não aparecem em nenhum `.toml`. São a alavanca do
+  `C3.a`; quem quiser repetir a medição não descobre que elas existem lendo o
+  exemplo.
+- **`RootSpec` tem dois dialetos.** `config.py:619` espera `caminho`/`nome`;
+  `census.py:858` espera `path`/`name`, para a **mesma** dataclass. Copiar um
+  bloco `[[roots]]` de um arquivo para o outro falha com mensagem que cita a
+  chave que o usuário não escreveu.
+
+### `Q14` — Um hook de teste vivo em produção — **P1 · produto**
+
+`SEGUNDOCEREBRO_OCR_FAKE` (`ingest/ocr.py:43,149`) desvia o motor de OCR para um
+texto fixo, sem nenhuma guarda de "só em teste". Uma variável herdada de sessão de
+shell muda o comportamento do produto sem nada no log dizer que o motor é falso.
+
+- **Saída:** ou a variável só vale sob `PYTEST_CURRENT_TEST`, ou o motor falso
+  emite `log.warning` em toda passada, com o texto que está injetando
+- **Classe generalizada:** um teste que varre `src/` atrás de `os.environ.get`
+  cujo nome contenha `FAKE`, `TEST`, `DEBUG` ou `MOCK` e exige guarda ou aviso
+
+### `Q15` — Sob pressão de memória, o OCR some em silêncio — **P0 · produto** · liga na `F4-O.3`
+
+**Achado novo, reproduzido em 29/08/2026**, e é o mais grave desta lista porque
+tem a forma que o projeto mais teme: *"a indexação diz pronto tendo engolido
+metade do acervo"*.
+
+Com pouca RAM livre, `pymupdf` falha ao carregar **dentro do filho de parse** e o
+erro chega como `ModuleNotFoundError: No module named 'mupdf'`. O produto
+classifica isso como *sem parser*: o documento fica `vazio`, `digitalizado`
+**nunca é marcado**, `documentos_para_ocr` devolve lista vazia, `progresso.ocr`
+fica em 0 — e **não há linha de quarentena**, porque para o indexador nada deu
+errado. No PDF misto o disfarce é ainda melhor: o documento fica `ok` com os
+chunks das páginas nativas, e só `progresso.ocr == 0` denuncia.
+
+Medido: cinco passadas de `py -m pytest tests/test_ocr.py` em sequência, sem uma
+linha mudar entre elas — **2 reprovaram com 3,5–3,6 GB livres, 3 passaram com
+~3,9 GB**. Bate com a medição de 27/08 (2,7 GB → OpenBLAS abort), com a diferença
+de que aquela produzia `erro` honesto e esta produz silêncio.
+
+A suíte já não confunde as duas coisas: `PISO_RAM_OCR_MB` faz o teste declarar a
+janela em vez de reprovar por ela. **O produto continua confundindo.**
+
+- **Toca:** `ingest/ocr.py`, `index/isolamento.py`, `index/indexer.py` (fase de
+  OCR), `ingest/reader.py`
+- **Saída:** falha de import de dependência dentro do filho de parse vira
+  `erro` com linha de quarentena e motivo de recurso — nunca `vazio`
+- **Classe generalizada:** *"filho de parse que morre por ambiente deixa de ser
+  indistinguível de documento sem conteúdo"*. O teste é o que já existe, com o
+  piso removido depois do conserto
+
+### `Q16` — O que falta decompor, com as costuras levantadas — **P3 · laboratório** · continua o `Q3`
+
+O `Q3` foi rebaixado em 25/08/2026 com o argumento certo — *"nenhum leigo tropeça
+em `indexer.py` ter 1.143 linhas"* — e com uma ação que era só uma frase: *"regra
+em `colaboracao.md`: novo módulo ≤ ~500 linhas"*. Entre aquele dia e 29/08 o
+arquivo foi de 1.143 para **1.753**.
+
+A passada decompôs o `indexer.py` (1.753 → 1.368, mais `cli.py`, `trava.py`,
+`repesca.py`, `resultado.py`) e instalou o teto como teste
+(`tests/test_tamanho_dos_modulos.py`): escada que só desce, módulo novo acima do
+teto reprova, e degrau vencido tem de sair da tabela.
+
+O que **falta**, com as costuras já levantadas — decompor não precisa de
+releitura, precisa de um PR por linha desta tabela:
+
+| Módulo | Linhas | Costuras propostas |
+|---|---:|---|
+| `index/indexer.py` | 1.368 | `execucao.py`: o corpo de `indexar()` (1.042 linhas, 24 parâmetros, dez closures com `nonlocal`) como classe, com `relogio`, `estimador`, `publicador`, `fila` e `controle` como atributos |
+| `index/store.py` | 1.274 | `registro.py` · `quarentena.py` · `vetores.py` · `busca.py` · `grafo_armazenamento.py` · `execucoes.py`, com `Store` composto e a fachada preservada |
+| `config.py` | 1.093 | `modelos.py` (dataclasses) · `leitura.py` (TOML → dataclass) · `ambiente.py` (`SEGUNDOCEREBRO_*`) · `escrita.py` (`como_toml`, `gravar`) |
+| `painel/app.py` | 1.025 | `sessao.py` (é o conjunto que `__main__.py` já importa) + rotas por domínio: `ajuste`, `processo`, `base`, `ensino`, `cliente`. `criar_app()` tem **818 linhas** e 20 handlers aninhados |
+| `census.py` | 974 | `modelo.py` · `varredura.py` (`iter_files`, caminho longo, nuvem) · `relatorio.py` · `distribuicao.py` (contrato `E6.1`) · `cli.py` |
+| `index/calibracao.py` | 931 | `ajuste_rls.py` (o método numérico, sem domínio) · `perfil_maquina.py` · `perfil_formato.py`; persistência fica |
+| `ingest/parsers/sheets.py` | 868 | `planilha_bloco.py` (janelamento, compartilhado) · `csv.py` · `xlsx.py` · `xls_legado.py` · `xls_disfarcado.py`. Atenção ao efeito colateral de `@register` no import |
+
+**Duas regras que a decomposição tem de cumprir**, e valem mais que o resultado:
+
+1. **Docstring de decisão se move verbatim.** Elas têm número e data e são o ativo
+   mais raro do repositório. O próprio guia já reprova refactor que apaga
+   histórico de decisão.
+2. **A fachada continua.** Símbolos privados são importados por teste
+   (`_precisa_indexar`, `_extensoes`, `_limites_efetivos`, `_deve_ativar_mcp`), e
+   `tests/test_painel.py` faz monkeypatch por string em
+   `segundocerebro.painel.app.subprocess.Popen`.
+
+### `Q17` — A suíte tem um conftest informal — ✅ **FECHADO em 30/08/2026**
+
+`tests/test_index.py` exporta `EmbedderFalso`, `DIM` e `chunk()` para **dez**
+arquivos, por `from tests.test_index import ...`. Qualquer refator ali quebra os
+dez. E `tests/test_mcp.py:18-37` define **outro** `EmbedderFalso`, com o mesmo
+nome e contrato diferente.
+
+Outros itens da mesma passada, todos de custo baixo:
+
+- `Config(roots=[RootSpec(...)])` com uma raiz só, repetido textualmente em **12**
+  lugares de 5 arquivos.
+- `tests/test_reconciliar.py::montar()` grava um chunk por vez em laço, em vez de
+  um append em lote: **10,7 s dos 162 s** da suíte, em três testes.
+- `tests/test_gerador_sintetico.py` — 11 dos 13 testes exercitam só internals de
+  `eval/gerador` e pertencem a `eval/`, pela regra que o próprio repositório
+  segue (`tests/` ancora em `segundocerebro.*`).
+- Cobertura: `ingest/report.py` em **0%** — é uma CLI real
+  (`py -m segundocerebro.ingest.report`), 139 linhas, sem um teste.
+  `painel/__main__.py` 0%, `index/smoke_cuda.py` 16%.
+
+### `Q18` — 265 `noqa` inertes: a escolha foi resolvida por medição — **P2 · execução dos dois lados**
+
+Com `select = ["E","F"]` os **352** `# noqa` do repositório não suprimiam nada —
+era o culto à carga que o próprio `Q1` avisou que aconteceria. A passada ligou
+`BLE` (custo zero, deu sentido a 77), `S603` (cinco `noqa` com motivo escrito, que
+é o que o `Q4` pede) e `DTZ` (três, com a razão da hora local escrita ao lado), e
+tirou três que tinham ficado obsoletos.
+
+Sobram **264**, dos quais **243 são bare** — `# noqa: ANN001` sem uma palavra de
+motivo. Há duas saídas, e a escolha não é óbvia:
+
+- **Apagar os 243.** Diff mecânico, tira 243 linhas de ruído que todo agente lê
+  toda sessão. Custo: quando `ANN001` for ligado, 195 deles voltam.
+- **Ligar as regras.** Medido em 29/08 sobre `src` **apenas** (onde é barato):
+  `ANN001` 10 · `ANN201` 1 · `ANN202` 9 · `ANN401` 6 · `ARG001` 4 · `ARG002` 2 ·
+  `T201` 1 · `B007` 2 · `N801` 3 · `C901` 26. Sobre `src tests eval` os mesmos
+  números explodem (`ANN001` 359, `ANN201` 193), então a rota é
+  `per-file-ignores` para `tests/` e `eval/` — que por sua vez torna os `noqa`
+  deles inertes de novo.
+
+A escada de fora do `ANN`, medida no mesmo dia sobre `src tests eval`:
+`RET` 3 · `B` 17 · `SIM` 25 · `I` 49. **`I` e `ruff format` são PR próprio:**
+reescrevem import de 49 arquivos e o corpo de 136, e um diff desse tamanho apaga
+`git blame` das docstrings de decisão — que é o que o guia proíbe.
+
+- **Classe generalizada:** `ruff check --extend-select RUF100` no CI, que só passa
+  a ser possível quando este pacote fechar
+
+#### A escolha deixou de não ser óbvia — medido em 30/08/2026
+
+A pergunta acima ("apagar ou ligar?") era um empate porque faltava **uma** conta:
+quantos dos `noqa` existentes passariam a suprimir algo de verdade. Medida:
+
+| | `src` |
+|---|---:|
+| `noqa` inertes hoje (`RUF100`) | **92** |
+| ... e com `ANN001,ANN201,ANN202,ANN401,ARG001,ARG002,T201,B007,N801,RET` ligados | **17** |
+| Achados novos a consertar para ligar essas dez | **40** |
+
+**75 dos 92 passam a ter sentido por 40 correções.** Apagar seria destruir esse
+valor: o `noqa` bare não é ruído por natureza, é ruído porque a regra está
+desligada. Os inertes fora de `src` são 99 em `tests/` e 74 em `eval/`, e lá a
+rota continua sendo `per-file-ignores` — logo, **lá se apaga**.
+
+Fica, portanto: **ligar em `src`, apagar em `tests/` e `eval/`, e então `RUF100`
+global**, que é a classe generalizada já escrita acima e que passa a ser possível.
+
+**Por que não entrou nesta passada, e é o ponto que precisa de acordo:** as 40
+correções caem em **oito arquivos do desktop** — `index/indexer.py` (5),
+`index/gpu_pool.py` (7), `index/smoke_cuda.py` (2), `index/estimativa.py` (2),
+`ingest/ocr.py` (2), `ingest/parsers/ole_texto.py` (1), mais `mcp/registrar.py` e
+`painel/app.py`, que são "um de cada vez". Ligar a regra obriga o outro lado a
+anotar os arquivos dele; isso é decisão de política de repositório com efeito
+cruzado, e a regra 8 manda declarar, não fazer. **O notebook recomenda ligar, e
+o número acima é o argumento.**
+
+### `Q19` — A documentação promete arquivos que o clone não tem — ✅ **FECHADO em 30/08/2026**
+
+**47 dos 104 arquivos de `docs/` estão versionados.** Os outros 57 — quase todos
+`metricas-*.md` — ficam fora por regra, porque citam nome de arquivo do acervo
+real. Isso é correto e documentado. A consequência não é: **64 links em arquivos
+versionados apontam para eles**, e resolvem em 404 num clone. É a `F6` aplicada à
+documentação — quem clona não vê o que nós vemos.
+
+O `docs/README.md` entrou nesta passada (o `Q8`) e **só linka o que o clone tem**.
+O que falta:
+
+- **A cobertura de 25% ainda circula como se fosse atual** em cinco lugares
+  (`docs/colaboracao.md:239`, `docs/dossie-melhorias.md:10`,
+  `docs/fatia-cross-lingual.md:103`, `ROADMAP.md:887` e `ROADMAP.md:1116`),
+  enquanto o valor medido é 38,5%. O `F4-D` fechou o instrumento; a correção não
+  foi para trás nesses cinco.
+- **`docs/censo-conhecimento.md`** é duplicado de `docs/censo.md` com zero
+  backlinks — poda, não fusão.
+
+Feitos nesta passada, do mesmo pacote: os **três links quebrados do próprio
+`ROADMAP.md`** — o texto dizia `docs/X.md` e o href omitia o `docs/`, e como
+este arquivo está na raiz o link resolvia para a raiz. O `README.md` deixou de
+anunciar 480 testes
+(são 1.288) e de exibir a tabela da era F2 com **reranking ligado** como
+"condição de medição mais recente"; o `ARCHITECTURE.md` deixou de descrever o alvo
+como "vault Obsidian", que é a premissa que o `CLAUDE.md` marca como já tendo
+causado mal-entendido.
+
+- **Classe generalizada:** um teste que resolve todo link markdown de arquivo
+  **versionado** e reprova o que aponta para arquivo que o Git não tem. Link para
+  arquivo local vira menção em texto, não link
+
 ---
 
 ## F4 — Grafo derivado, SharePoint e automação

@@ -30,10 +30,10 @@ from .comando import CANCELAR, PAUSAR
 from .comando import ler as ler_comando
 from .indexer import TravaOcupada, indexar
 from .store import Store
+from .travas import NOME_DO_OBSERVADOR as NOME_DA_TRAVA  # reexport: o painel e os testes o pedem daqui
 
 log = get_logger("index.watcher")
 
-NOME_DA_TRAVA = "watcher.lock"
 DEBOUNCE_PADRAO = 0.8
 
 
