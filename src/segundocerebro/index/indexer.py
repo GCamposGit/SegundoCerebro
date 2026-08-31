@@ -62,6 +62,7 @@ from .cli import LIMITE_TEXTO_MB_PADRAO as LIMITE_TEXTO_MB_PADRAO
 from .cli import _extensoes, _limites_efetivos, construir_parser
 from .repesca import STATUS_PARA_REPESCAR as STATUS_PARA_REPESCAR, preservar_no_erro_de_ocr
 from .repesca import _AlvoDoMapa, _parser_gravado, _precisa_indexar, _venenoso
+from .repesca import esperando_ocr, pular_por_quarentena
 from .resultado import PedidoDeParada as PedidoDeParada
 from .resultado import Progresso
 from .store import ChunkArmazenado, Store
@@ -453,6 +454,7 @@ def indexar(
         ThreadPoolExecutor(max_workers=workers) as pool,
     ):
         pendentes: list[tuple] = []
+        em_ocr = esperando_ocr(store)  # `Q15.a`: o que pertence à fase de OCR, não a este laço
         for root, arquivos in trabalho:
             for arquivo in arquivos:
                 # Registrado antes de qualquer decisão de pular: a reconciliação
@@ -463,16 +465,9 @@ def indexar(
                 estado = store.estado_documento(arquivo.rel)
                 versao_parser = parser_version_for(os.path.splitext(arquivo.rel)[1])
                 sha_conhecido = estado.sha256 if estado is not None else ""
-                if store.deve_pular_quarentena(arquivo.rel, sha_conhecido):
-                    progresso.quarentena += 1
-                    progresso.registrar_falha("quarentena")
-                    estimador.pular(arquivo.rel, arquivo.size)
-                    if publicador is not None:
-                        publicador.anotar(
-                            falhas=progresso.falhas,
-                            quarentena=progresso.quarentena,
-                        )
-                        publicador.publicar()
+                if pular_por_quarentena(
+                    store, arquivo, sha_conhecido, progresso, estimador, publicador
+                ):
                     continue
                 if (
                     dois_passes
@@ -486,7 +481,9 @@ def indexar(
                 ):
                     # Pass 1 already wrote FTS. Pass 2 re-embeds without opening the file.
                     continue
-                if not _precisa_indexar(estado, arquivo, embedder.model_id, versao_parser):
+                if not _precisa_indexar(
+                    estado, arquivo, embedder.model_id, versao_parser, em_ocr
+                ):
                     progresso.pulados += 1
                     # Sai do restante sem entrar na calibragem: pular é grátis, e
                     # deixar isso ensinar a vazão faria a estimativa prometer um
@@ -513,6 +510,7 @@ def indexar(
                 _AlvoDoMapa(item.rel, item.tamanho, item.mtime),
                 embedder.model_id,
                 parser_version_for(os.path.splitext(item.rel)[1]),
+                em_ocr,
             )
 
         def ciclo() -> None:

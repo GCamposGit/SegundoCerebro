@@ -322,3 +322,159 @@ def test_a_guarda_de_hook_reprova_contra_caso_isolado():
     assert acusa(desguardado), "a guarda não vê um hook desguardado isolado"
     assert acusa(com_aviso), "um `log.warning` solto não pode contar como guarda"
     assert not acusa(guardado), "a guarda acusa um hook que TEM guarda"
+
+
+# --------------------------------------------------------------------------- #
+# `Q15.a` — a fase certa apura, e a fase errada não desfaz
+
+
+@pytest.mark.parametrize("modo,quebrar", MODOS, ids=[m for m, _ in MODOS])
+def test_a_repesca_barata_nao_reescreve_vazio_por_cima_do_erro_do_ocr(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path, modo: str, quebrar
+) -> None:  # noqa: ANN001
+    """O laço inteiro, e a passada **sem** `--ocr` — que é onde o `Q15.a` vivia.
+
+    A primeira versão deste teste rodava duas passadas com `--ocr` e passava com
+    o conserto desligado. Medida a sequência, a razão apareceu: com OCR a fase
+    de OCR é a última e regrava o `erro` por cima do `vazio` que o laço barato
+    acabou de escrever, então o defeito não aparece. Sem OCR o laço barato é a
+    última palavra:
+
+    | passada | `--ocr` | status ao fim, antes do conserto |
+    |---|---|---|
+    | 1 e 2 | sim | `erro` |
+    | 3 e 4 | não | **`vazio`** |
+
+    As duas palavras dizem coisas diferentes: `erro` é *"tentei ler e a máquina
+    não deixou"*; `vazio` é *"li e não há texto"*. A segunda é falsa, e era a que
+    ficava gravada — e ficava justamente na passada de rotina, que ninguém roda
+    com `--ocr`.
+
+    A quarentena é limpa entre as passadas de propósito: o backoff de uma hora
+    esconderia o defeito sem consertá-lo, e o que se afirma aqui é sobre a
+    **ordem das fases**, não sobre o relógio.
+    """
+    from segundocerebro.index.indexer import indexar
+    from segundocerebro.index.store import Store
+
+    from tests.falsos import DIM, EmbedderFalso, config_de_raiz
+
+    raiz = tmp_path / "corpus"
+    raiz.mkdir()
+    (raiz / "escaneado.pdf").write_bytes(bytes_pdf(texto=None, com_imagem=True))
+    monkeypatch.setattr("segundocerebro.index.isolamento.deve_isolar", lambda _p: False)
+    quebrar(monkeypatch)
+
+    store = Store(tmp_path / "indice", DIM)
+    try:
+        cfg = config_de_raiz(raiz)
+        for passada, com_ocr in enumerate([True, False, False], start=1):
+            indexar(
+                cfg, store, EmbedderFalso(), publicar=False,
+                reconciliar_ao_fim=False, ocr=com_ocr,
+            )
+            estado = store.estado_documento("escaneado.pdf")
+            assert estado is not None, f"passada {passada}: o documento sumiu do registro"
+            assert estado.status == ParseStatus.ERROR.value, (
+                f"{modo}, passada {passada} (ocr={com_ocr}): status `{estado.status}`. "
+                "`vazio` afirma que o documento não tem texto, e o que houve foi a máquina "
+                "recusar a leitura — a fase de OCR apurou, e o laço barato desfez."
+            )
+            store.limpar_quarentena("escaneado.pdf")  # o backoff esconderia o defeito
+    finally:
+        store.fechar()
+
+
+def test_o_documento_continua_na_fila_de_ocr_depois_da_falha(
+    monkeypatch: pytest.MonkeyPatch, tmp_path: Path
+) -> None:
+    """Ficar `erro` só vale se o documento continuar sendo tentado.
+
+    Um status honesto que tira o documento da fila troca um silêncio por outro:
+    o acervo perderia o scan de vez. `digitalizado` é a marca, e ela sobrevive
+    porque `registrar_documento` preserva a natureza quando o `ParseResult` não
+    traz nenhuma.
+    """
+    from segundocerebro.index.indexer import indexar
+    from segundocerebro.index.repesca import esperando_ocr
+    from segundocerebro.index.store import Store
+    from segundocerebro.ingest.ocr import VERSAO as OCR_VERSAO
+
+    from tests.falsos import DIM, EmbedderFalso, config_de_raiz
+
+    raiz = tmp_path / "corpus"
+    raiz.mkdir()
+    (raiz / "escaneado.pdf").write_bytes(bytes_pdf(texto=None, com_imagem=True))
+    monkeypatch.setattr("segundocerebro.index.isolamento.deve_isolar", lambda _p: False)
+    _quebrar_memoria(monkeypatch)
+
+    store = Store(tmp_path / "indice", DIM)
+    try:
+        indexar(
+            config_de_raiz(raiz), store, EmbedderFalso(), publicar=False,
+            reconciliar_ao_fim=False, ocr=True,
+        )
+        assert "escaneado.pdf" in {rel for rel, _ in store.documentos_para_ocr(OCR_VERSAO)}
+        assert esperando_ocr(store) == frozenset({"escaneado.pdf"})
+    finally:
+        store.fechar()
+
+
+def _estado_em_erro(**mudancas: object):  # noqa: ANN202
+    """Um registro em `erro`, batendo com modelo, chunker, parser e bytes."""
+    from segundocerebro.ingest.chunking import CHUNKER_VERSION
+
+    campos = {
+        "status": ParseStatus.ERROR.value,
+        "tamanho": 10,
+        "mtime": 1.0,
+        "parser": "p1",
+        "model_id": "m",
+        "chunker": CHUNKER_VERSION,
+        **mudancas,
+    }
+    return type("Estado", (), campos)()
+
+
+def test_o_documento_bom_continua_sendo_repescado_quando_o_erro_nao_e_de_scan() -> None:
+    """O gate é estreito de propósito: só o que espera OCR perde o atalho.
+
+    Sem esta prova o conserto seria "nada com `erro` volta", que abandonaria em
+    silêncio todo documento cuja falha é transitória — a razão de
+    `STATUS_PARA_REPESCAR` existir.
+    """
+    from segundocerebro.index.repesca import _AlvoDoMapa, _precisa_indexar
+
+    alvo = _AlvoDoMapa("rasgado.pdf", 10, 1.0)
+    assert _precisa_indexar(_estado_em_erro(), alvo, "m", "p1", frozenset())
+    assert not _precisa_indexar(_estado_em_erro(), alvo, "m", "p1", frozenset({"rasgado.pdf"}))
+
+
+@pytest.mark.parametrize(
+    "motivo,estado,model_id,parser,alvo",
+    [
+        ("parser corrigido", {}, "m", "p2", (10, 1.0)),
+        ("modelo trocado", {}, "outro", "p1", (10, 1.0)),
+        ("chunker trocado", {"chunker": "chunker:antigo"}, "m", "p1", (10, 1.0)),
+        ("bytes novos", {}, "m", "p1", (99, 1.0)),
+        ("mtime novo", {}, "m", "p1", (10, 900.0)),
+    ],
+)
+def test_o_scan_que_espera_ocr_ainda_e_alcancado_por_motivo_de_verdade(
+    motivo: str, estado: dict, model_id: str, parser: str, alvo: tuple
+) -> None:
+    """O que o `Q15.a` tira do scan é a passada **gratuita**, não todas.
+
+    Achado em revisão: a primeira versão punha a condição do `Q15.a` **antes** dos
+    testes de parser, modelo e chunker, e com isso um scan em `erro` deixava de
+    ser alcançado por parser corrigido — trocando um defeito por outro, mais
+    silencioso, porque ninguém percebe documento que não volta.
+    """
+    from segundocerebro.index.repesca import _AlvoDoMapa, _precisa_indexar
+
+    fila = frozenset({"escaneado.pdf"})
+    item = _AlvoDoMapa("escaneado.pdf", alvo[0], alvo[1])
+
+    assert _precisa_indexar(_estado_em_erro(**estado), item, model_id, parser, fila), (
+        f"{motivo}: o scan devia voltar ao laço, e não voltou"
+    )

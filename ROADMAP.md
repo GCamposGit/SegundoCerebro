@@ -827,7 +827,7 @@ privada do desktop **não** trava nenhum destes:
 | **J.d** | `pack_folder` manifest-first, corte em fronteira de documento | notebook | 3 | depois do `J.c`; depende de `familias.py`, **não** de `R1.3` |
 | **J.e** | Exportador de vault Markdown (Obsidian) como *view* one-way | qualquer | 4 | depois do `J.b2`; menções e glossário já existem |
 | F4-D | Cobertura do dourado real | notebook | — | **reescopado**: piso de regressão e limitação declarada, não fila de perguntas. **Instrumento fechado em 29/08/2026** — `eval/cobertura.py`; a cobertura entra em todo relatório e a omissão virou impossível. Medido: alcance **38,5%**, fontes **3,3%**. [`docs/dourado-cobertura.md`](docs/dourado-cobertura.md) |
-| F4-D.2 | **`dourado-v1` é frase, não mecanismo** — nada congela quais ids compõem a série histórica, e o conjunto é gitignorado: pergunta editada move a linha de base sem deixar diff | notebook | — | **aberto em 29/08/2026**, achado ao fechar a `F4-D` |
+| F4-D.2 | `dourado-v1` era frase, não mecanismo | notebook | — | ✅ **FECHADO em 31/08/2026**. `eval/serie.py` + `eval/golden/dourado-v1.toml`, **versionado**: id e impressão digital de 16 hex do que move a métrica (texto, tipo, fontes). Não guarda texto nem nome de arquivo — o repositório é público. `py -m eval.serie --base <id>` confere e diz qual pergunta mudou; `--congelar` grava, e é ato deliberado com diff para revisar. `notas`, `autoria` e `validada` ficam fora: manifesto que reprova por nota reescrita é manifesto abandonado |
 | R1.3 | Dedup e near-dup | — | — | **absorvido por C6** |
 | F5 | Segundo usuário, ACL | ninguém | — | gatilho: segundo usuário real |
 
@@ -1760,14 +1760,42 @@ com o conserto revertido, **18 das 20 células reprovam**.
 declarado. Nesta máquina, com ~3,4 GB livres, os 14 testes de OCR passam com
 zero skips em cinco passadas seguidas — antes dois pulavam por falta de veredito.
 
-#### `Q15.a` — o resto, medido e declarado
+#### `Q15.a` — ✅ **FECHADO em 31/08/2026**, e o conserto só ficou certo depois de medir
 
-Sob pressão de memória a fase de OCR quarentena corretamente, mas o **status
-final do documento fica `vazio`**, não `erro`. O silêncio acabou — há linha e há
-motivo, e desde 30/08 o documento também **continua na fila de OCR** e **não é
-aposentado** —, mas a saída declarada dizia "nunca `vazio`", e isso não está
-inteiro. A causa é a ordenação de fases do indexador, que repesca `erro` e
-reprocessa sem `ocr=True`; mexer nela é mudança no laço de `indexar()`.
+Sob pressão de memória a fase de OCR quarentenava corretamente, mas o **status
+final do documento ficava `vazio`**, não `erro`. A causa declarada em 30/08 era a
+ordenação de fases: a triagem vê `erro ∈ STATUS_PARA_REPESCAR`, manda o documento
+para o laço barato, que reparseia **sem** `ocr=True`.
+
+**A primeira versão do conserto consertava um caso que já funcionava**, e o teste
+dela passava com o conserto desligado. O que faltava era medir a sequência. Com o
+OCR falhando por `MemoryError` em quatro passadas seguidas sobre o mesmo scan:
+
+| passada | `--ocr` | status ao fim |
+|---|---|---|
+| 1 e 2 | sim | `erro` (`recurso: ...`) |
+| 3 e 4 | **não** | **`vazio`** |
+
+Com OCR o defeito **não aparece**: a fase de OCR é a última e regrava o `erro`
+por cima do `vazio` que o laço barato acabou de escrever. Sem OCR o laço barato é
+a última palavra — e a passada de rotina é justamente a que ninguém roda com
+`--ocr`. Um conserto condicionado a `ocr=True`, que é o que a leitura do código
+sugeria, teria fechado o pacote sem tocar no defeito.
+
+**O que entrou:** `repesca.esperando_ocr(store)` — a fila da fase de OCR, saída
+da **mesma** consulta que a fase usa — e um gate em `_precisa_indexar`: documento
+em `erro` que espera OCR não volta ao laço barato, só bytes novos o trazem de
+volta. A regra já estava escrita neste arquivo para `parser ocr:*` e para o
+`vazio` ficar fora de `STATUS_PARA_REPESCAR`; faltava valer para o `erro`.
+
+- **Classe generalizada:** *passada que não pode melhorar o resultado não
+  reprocessa, e nunca sobrescreve o que a passada capaz apurou.* A guarda é
+  `tests/test_falha_de_ambiente.py`, agora com o laço inteiro e a passada **sem**
+  `--ocr` — e com o caso estreito ao lado, para o gate não virar "nada com `erro`
+  volta", que abandonaria em silêncio toda falha transitória.
+- **Lição, e é sobre método:** *o teste que confirma o conserto tem de reprovar
+  com o conserto desligado.* Rodar essa checagem custou uma execução e derrubou a
+  primeira versão inteira.
 
 #### O conserto do `Q15` estava pior que o defeito, e uma revisão pegou
 
@@ -2034,11 +2062,110 @@ offsets, com store). Duas frentes em paralelo em vez de uma fila:
 
 | Onda | Subpacote | Dono proposto |
 |---|---|---|
-| **1** | `J.b1` (ids, índice em `sha256`, URI) · `J.c-mapa` (`outline`, `list_folder`) | notebook — não espera ninguém |
+| **1** | `J.b1` (ids, índice em `sha256`, URI) · `J.c-mapa` (`outline`, `list_folder`) | notebook — ✅ **fechados em 30/08/2026** |
 | **1** | `J.a` (store) · `J.f` (indexador lê do store) | desktop se houver crédito, senão notebook |
 | **2** | `J.b2` (sidecar) · `J.c-conteúdo` (`get_document`) | notebook |
 | **3** | `J.d` (`pack_folder`) | notebook |
 | **4** | `J.e` (export vault Markdown) | qualquer |
+
+### `J.b1` + `J.c-mapa` — ✅ **FECHADOS em 30/08/2026**
+
+A onda 1 do lado que não esperava ninguém. O que entrou, e o que cada peça
+fecha como classe:
+
+| O que | Onde | A classe que passa a ser pega |
+|---|---|---|
+| `doc_id` = 12 hex do `sha256`, URI `sc://<base>/<doc_id>`, preferência entre caminhos duplicados | `acesso/identidade.py` | *Identidade por caminho num acervo que move arquivo* — `tests/test_identidade.py` renomeia e move a fixture e exige o mesmo id |
+| índice em `documentos.sha256` + resolução por **faixa** de prefixo | `index/esquema.py` | *Resolver id vira varredura de tabela* — a mesma forma do N+1, com teto de consultas medido |
+| consultas de leitura do registro | `acesso/registro.py` | *N+1 no manifesto* — listar 30 documentos custa ≤ 4 idas ao SQLite |
+| `list_folder` e `outline`, com cursor | `acesso/manifesto.py` + `mcp/leitura.py` | *A tool que faz o agente acreditar que viu tudo* — property test de orçamento aleatório, com a lista de tools **derivada do módulo** |
+
+Cinco coisas que a execução mostrou e que o plano não previa:
+
+1. **O esquema saiu do `store.py`.** O `J.b1` precisa de um `CREATE INDEX`, e
+   `index/store.py` está na escada de `tests/test_tamanho_dos_modulos.py`, que só
+   desce. `ESQUEMA` virou `index/esquema.py` (comentários verbatim) e o degrau
+   caiu de **1.274 para 1.137** linhas. Arquivo que só desce não recebe linha
+   nova; o que se faz é tirar dele a parte com razão de mudar própria.
+2. **`familias._por_vigencia` virou pública.** Era privada e é a regra de "o
+   principal" do produto inteiro. Duas noções de vigência — uma no ranking, outra
+   na identidade — é como um agente recebe uma resposta na segunda e outra na
+   terça sem nada mudar.
+3. **`construir` teve de encolher antes de crescer.** As tools novas custam duas
+   linhas nela, e ela está em `FUNCOES_ACIMA_DO_TETO` com 148. `_instrucoes` saiu
+   para função própria e o degrau desceu para **143**.
+4. **A superfície MCP virou cinco tools, e três guardas apontavam para três.**
+   `test_mcp.py`, `test_protocolo_mcp.py` e o teste que confere
+   `docs/usar-o-mcp.md` contra o código — o último é o que impede a doc de
+   descrever superfície menor que a real, e ele reprovou como devia.
+5. **`chars`, não tokens.** O critério de aceite fala em "tokens do parse
+   canônico"; o tokenizador real vive no encoder e carregá-lo numa tool de mapa
+   custaria 80 s na primeira chamada. O campo se chama `chars` e o doc diz
+   caractere — número que circula sem unidade vira três números.
+
+**O que ficou de fora, declarado:** o status `so_censo` — arquivo que está no
+disco e nunca foi indexado — não aparece no manifesto. Ele exige varrer o disco a
+partir das raízes da base, e o manifesto declara essa fronteira no próprio
+retorno (campo `fronteira`) em vez de deixar o agente supor. Entra como
+`J.c-mapa.2`, e é pequeno: `census.iter_files` já enumera sem abrir arquivo.
+
+### `J.a-núcleo` — o parse store no disco — ✅ **FECHADO em 31/08/2026**
+
+O núcleo, a renderização canônica e o GC. **Não** inclui os produtores gravando
+nem o fast-path do indexador — esses são o `J.f`, e ficam declarados abaixo.
+
+| O que | Onde | A classe que passa a ser pega |
+|---|---|---|
+| Markdown canônico + blocos com offset **no Markdown**, numa passada só | `ingest/canonico.py` | *Divergência silenciosa entre renderização e estrutura* — property test de reconstrução sobre 12 documentos sorteados, chamando o produto |
+| entrada no disco, chave de quatro partes, escrita atômica | `ingest/parse_store.py` | *Cache que serve parse velho depois de o motor externo mudar* |
+| GC por censo, com carência | idem | *GC que apaga o que está em uso* — censo vazio é **recusado**, não obedecido |
+
+Quatro decisões que divergem da especificação, e cada uma tem o motivo medido:
+
+1. **`zlib`, não `zstd` — sem dependência nova.** A especificação pede zstd
+   ("texto comprime 5–20×"). Medido em 31/08 sobre o texto extraído do acervo
+   real (4.000 chunks, 4,45 MB): `zlib` nível 6 dá **5,5×** (0,81 MB), já dentro
+   da faixa declarada. O store completo do acervo — 98.326 chunks, 87,5 M de
+   caracteres — cabe em **~16 MB**. Para um produto cuja régua é *um leigo
+   apontando uma pasta*, uma extensão nativa a menos na instalação vale mais que
+   o dobro de compressão num artefato descartável de 16 MB.
+2. **Uma entrada é um arquivo, não dois.** `.md.zst` + `.json` não têm escrita
+   atômica conjunta: `kill -9` entre os dois `os.replace` deixa Markdown sem
+   estrutura, e o critério de aceite do `J.a` exige sobreviver a interrupção. Um
+   arquivo, um `os.replace`, e o modo de falha não existe.
+3. **A chave tem quatro partes, não três.** `(hash, parser_version, rota,
+   motor)` — mais a versão da renderização. É o único ponto onde a especificação
+   sub-declarava risco (§3.6 do plano): ninguém commita um upgrade de
+   LibreOffice, então a "regra de PR no bump de `parser_version`" não dispara.
+4. **A assinatura do motor é tamanho + mtime do binário**, não `soffice
+   --version`: perguntar custa subir processo, e o upgrade muda os dois. A
+   consequência é dita: duas máquinas com a mesma versão podem ter assinaturas
+   diferentes, e a segunda paga um miss. Miss é custo; parse velho servido com
+   confiança é defeito.
+
+**O que falta para o `J.f`, com nome:** os produtores (`reader.parse_file`, a
+rota LibreOffice, o OCR) chamarem `gravar`, e o laço de `indexar()` consultar
+`obter` antes de qualquer parser. O ganho de ≥80% no rebuild é do `J.f` e **não
+foi medido** — medir exige um rebuild do corpus sintético com mix de
+PDF/OLE/OCR, que é passada longa.
+
+**Ablação nula: Δ exatamente zero, medido.** O pacote J exige, em todo PR seu, a
+prova de que o caminho de consulta não mudou — e "não regrediu dentro do IC" não
+serve, porque nenhuma linha da fusão foi tocada. Medido em 31/08/2026 no acervo
+corporativo, `main` contra a branch, mesmo comando nos dois braços
+(`py -m eval.rodar --base padrao --retriever hibrido --sem-rerank`):
+
+| | n | recall@1 | recall@10 | MRR@10 | nDCG@5 |
+|---|---:|---:|---:|---:|---:|
+| `main` | 59 | 0,534 | 0,907 | 0,660 | 0,656 |
+| branch | 59 | 0,534 | 0,907 | 0,660 | 0,656 |
+
+**184 células numéricas comparadas, 184 idênticas.** Cobertura recalculada na
+passada: 43,7% por pasta, 3,1% como fonte esperada, sobre 2.040 documentos.
+
+O número não é a série histórica (0,551 / 0,680) porque o braço aqui é o da base
+`padrao` sem rerank, e a série foi medida com outro glossário — o que a ablação
+afirma é a **igualdade entre os dois braços**, não o valor absoluto.
 
 **`J.a`+`J.f` entram antes da onda 5** (`R3.1`+`C4.1`+`R2.1`), que é o rebuild
 coordenado — é ela que paga o investimento do store, e fazer na ordem inversa é

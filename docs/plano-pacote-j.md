@@ -3,6 +3,15 @@
 **Data:** 30/08/2026 · **Conferência:** notebook · **Especificação recebida:**
 [`pacote-j-camada-acesso-corpus.md`](pacote-j-camada-acesso-corpus.md)
 
+> **Estado da execução, 30/08/2026:** a onda 1 do notebook — **`J.b1`** (ids, URI,
+> índice em `sha256`, preferência declarada) e **`J.c-mapa`** (`list_folder`,
+> `outline`) — está **fechada**. O que entrou, as cinco coisas que só apareceram
+> ao executar e o que ficou de fora com nome próprio (`J.c-mapa.2`, o status
+> `so_censo`) estão no [`ROADMAP.md`](../ROADMAP.md), pacote J — aqui não, para o
+> registro não existir em dois lugares e envelhecer num deles. Este documento
+> segue valendo como a **conferência**: as dez divergências da §3 continuam
+> abertas para `J.a`, `J.b2`, `J.c-conteúdo`, `J.d` e `J.e`.
+
 O pacote J chegou marcado *FINAL* e pediu, no próprio texto, a única coisa que
 faltava para ele ser executável aqui: **"mapeie cada contrato para o layout real
 vigente antes de criar arquivo"**. Este documento é esse mapeamento, feito

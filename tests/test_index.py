@@ -601,6 +601,7 @@ def test_documento_travado_e_repescado_na_proxima_passada(tmp_path: Path) -> Non
             self.n_chunks = 0
 
     class Arquivo:
+        rel = "doc.pdf"  # `Q15.a`: a regra pergunta se este caminho espera OCR
         size = 10
         mtime = 1.0
 
@@ -624,6 +625,7 @@ def test_documento_ok_ou_vazio_nao_e_reprocessado(tmp_path: Path) -> None:
             self.n_chunks = 3
 
     class Arquivo:
+        rel = "doc.pdf"  # `Q15.a`: a regra pergunta se este caminho espera OCR
         size = 10
         mtime = 1.0
 

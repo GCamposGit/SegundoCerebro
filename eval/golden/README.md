@@ -107,6 +107,25 @@ Isso deixa uma pendência para quem for instalar o sistema do zero: como validar
 que a recuperação funciona sem um conjunto dourado pronto? Resolvida em
 19/08/2026 — ver abaixo.
 
+E deixa uma segunda, fechada em 31/08/2026 pelo `F4-D.2`: **se o conjunto não é
+versionado, editar uma pergunta move a linha de base histórica sem deixar diff.**
+As duas tabelas continuam parecendo comparáveis, e nada na tela avisa.
+
+`dourado-v1.toml`, ao lado deste README, é o que fecha isso. Ele é **versionado**
+e guarda, por pergunta, o `id` e uma impressão digital de 16 hex do que move a
+métrica: o texto, o tipo e as fontes esperadas. Não guarda o texto e não guarda
+nome de arquivo nenhum — impressão é de mão única, e o repositório é público.
+`notas`, `autoria` e `validada` ficam de fora de propósito: editá-los não muda
+número nenhum.
+
+```bash
+py -m eval.serie --base padrao              # confere, e diz qual pergunta mudou
+py -m eval.serie --base padrao --congelar   # grava a série nova
+```
+
+Congelar é ato deliberado, com diff para revisar. `eval/test_serie.py` é a porta:
+o conjunto desta máquina que divergir da série reprova, com o id na mensagem.
+
 ## Clone fresco — o exemplo sintético
 
 `perguntas.example.jsonl` + `eval/sintetico/corpus/` + `config.sintetico.toml`.

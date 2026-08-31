@@ -507,6 +507,54 @@ Regras de projeto da superfície:
 - **Poucas ferramentas, fronteiras claras.** Sobreposição entre ferramentas
   degrada a escolha do modelo.
 
+#### O segundo modo de consumo — enumerar e mapear (pacote J, 30/08/2026)
+
+As ferramentas acima servem **pergunta → top-k trechos**. O pacote J acrescenta o
+modo **ingestão integral dirigida por agente** — *"escreva um relatório sobre esta
+pasta"* —, que nenhuma delas serve: `search` devolve o que a relevância escolher e
+`read_note` devolve um trecho, e nenhuma das duas **enumera** ou **mapeia**. O
+agente que tenta hoje lê o que a busca escolher e não sabe o que não viu.
+
+| Ferramenta | Assinatura | Papel |
+|-----------|-----------|-------|
+| `list_folder` | `(pasta, recursivo?, cursor?, max_itens?)` | Manifesto da pasta: id, tipo, data, caracteres indexados, vigência de família e status por documento. Ordem por caminho, nunca por relevância |
+| `outline` | `(documento, cursor?, max_secoes?)` | Mapa do documento: seções na ordem do texto, onde cada uma está e quanto ocupa. Decide **o que** ler antes de gastar contexto |
+
+Três regras que valem para toda ferramenta deste modo:
+
+- **Cursor explícito sempre.** Toda resposta declara total, o que está mostrando e
+  como pedir o resto. A tool que corta em silêncio faz o agente acreditar que viu
+  tudo, e o sintoma é resposta confiante e incompleta — nunca um erro.
+- **Enumeração é neutra.** Nada de ranking dentro de `list_folder`: a lista é a
+  mesma toda vez, que é o que permite repetir o mesmo trabalho semana após semana.
+  Relevância é do `search`.
+- **Nada gera texto** — vale igual aqui. Estas ferramentas organizam o que existe;
+  quem escreve é o cliente.
+
+#### Identidade pública: `doc_id` e a URI `sc://`
+
+`doc_id` é o prefixo de 12 hex do `sha256` do conteúdo. **Deriva do conteúdo, não
+do caminho**: renomear ou mover não muda o id, editar muda. É o que torna um
+workflow agêntico repetível num acervo real, onde arquivo muda de pasta.
+
+Duas consequências que são de arquitetura, não de implementação:
+
+- **Nem todo documento tem id, e o manifesto diz por quê.** 1,3% do acervo
+  corporativo (29 de 2.156) não tem `sha256`, porque o portão de leitura recusa
+  placeholder de nuvem antes de abrir — abrir dispara download do SharePoint.
+  Hashear todo mundo seria baixar o acervo. O campo vem nulo com motivo legível.
+- **Um conteúdo, N caminhos, um preferido declarado.** 10,5% dos caminhos são
+  byte-idênticos a outro. O preferido sai da **mesma** regra de vigência de
+  `retrieve/familias.py` — número de versão declarado vence, data desempata —,
+  para não haver duas noções de "o principal" no mesmo produto.
+
+A URI `sc://<base>/<doc_id>` é aceita onde caminho é aceito. **O nome da base na
+URI confere, nunca seleciona** (invariante 7): o servidor já é um processo por
+base, e uma referência de outra base é erro. Uma ferramenta que aceitasse `<base>`
+como parâmetro reintroduziria "base como filtro de metadado" pela porta dos
+fundos, e um booleano errado vazaria uma base na outra — que é exatamente o que o
+isolamento físico existe para tornar impossível.
+
 ### Camada 5 — Avaliação (não é opcional)
 
 R3 diz "precisão". Precisão que não se mede não melhora. Antes de otimizar

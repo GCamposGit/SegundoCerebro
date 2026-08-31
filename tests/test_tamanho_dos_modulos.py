@@ -35,7 +35,7 @@ TETO_DE_FUNCAO = 60
 
 ACIMA_DO_TETO: dict[str, int] = {
     "index/indexer.py": 1368,
-    "index/store.py": 1274,
+    "index/store.py": 1137,
     "config.py": 1081,
     "painel/app.py": 1025,
     "census.py": 978,
@@ -54,14 +54,20 @@ espera o `Q16`.
 teste os pegou: são as três linhas de `# noqa: DTZ00x` com o motivo da hora
 local escrito ao lado. Subir o degrau porque a linha nova é justificada é o uso
 certo da tabela; subi-lo porque o arquivo cresceu de novo não é, e é essa
-diferença que a mensagem de falha obriga alguém a escrever."""
+diferença que a mensagem de falha obriga alguém a escrever.
+
+`store.py` desceu de 1.274 para 1.137 em 30/08/2026, e o gatilho foi o `J.b1`
+precisar de um `CREATE INDEX` num arquivo que a tabela não deixa crescer. `ESQUEMA`
+saiu para `index/esquema.py` com os comentários verbatim. É o uso que a escada
+espera: quando o arquivo grande precisa de linha nova, o que sai dele é a parte
+com razão de mudar própria — não a linha nova que entra."""
 
 FUNCOES_ACIMA_DO_TETO: dict[str, int] = {
     "index/indexer.py::indexar": 1042,
     "painel/app.py::criar_app": 818,
     "index/indexer.py::aplicar": 273,
     "ingest/reader.py::parse_file": 150,
-    "mcp/server.py::construir": 148,
+    "mcp/server.py::construir": 144,
     "index/cli.py::construir_parser": 127,
     "census.py::render_markdown": 119,
     "index/indexer.py::main": 101,
@@ -90,7 +96,13 @@ FUNCOES_ACIMA_DO_TETO: dict[str, int] = {
 importam; as outras 24 estão entre 60 e 150 e são leitura linear. `main` do
 indexador caiu de 224 para 101 quando o `argparse` saiu para `cli.py`, e
 `construir_parser` é o que ele virou — 124 das suas 127 linhas são
-`add_argument`, que não decompõe em nada mais legível."""
+`add_argument`, que não decompõe em nada mais legível.
+
+`construir` desceu de 148 para 144 em 30/08/2026: as duas tools do `J.c-mapa`
+custavam duas linhas nela, e `_instrucoes` — a única parte com razão de mudar
+própria, o que o cliente lê para escolher **entre bases** — saiu antes. As tools
+mesmas nasceram em `mcp/leitura.py`, que é o que a tabela força e o que evita a
+função de 200 linhas com quatro descriptions dentro."""
 
 
 def _modulos() -> dict[str, int]:

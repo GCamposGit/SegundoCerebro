@@ -86,18 +86,20 @@ Onde o sistema está, em cinco linhas:
   O caminho entregue está em **0,551 / 0,696** desde a `F4-P`. Com intervalo:
   [`docs/rigor-estatistico.md`](docs/rigor-estatistico.md). É **piso de
   regressão**, não autoridade de arquitetura.
-- **Superfície MCP**: `search`, `read_note`, `neighbors` — dois clientes
-  instalados por comando (Claude Code e Claude Desktop).
+- **Superfície MCP**: cinco ferramentas em dois modos. `search`, `read_note` e
+  `neighbors` respondem **pergunta**; `list_folder` e `outline` — do `J.c-mapa`,
+  30/08/2026 — servem **leitura**: enumerar uma pasta e mapear um documento para
+  o agente que vai ler tudo. Toda tool de leitura devolve cursor explícito. Dois
+  clientes instalados por comando (Claude Code e Claude Desktop).
 - **Painel** em `127.0.0.1`: criar base, indexar com barra, pesos, glossário,
   diagnóstico de consulta, ensinar quando erra. Fora do caminho de consulta
   (invariante 6).
 
 **Onde o produto não está pronto**, e é o que a régua de ouro manda olhar
-primeiro: o watcher, e o **`Q15.a`** — sob pressão de memória a fase de OCR
-quarentena certo, mas o status do documento fica `vazio` em vez de `erro`, e a
-causa é a ordenação de ondas do indexador. O silêncio acabou; a saída inteira do
-`Q15` não. Instalar frio numa máquina que não é nossa deixou de ser hipótese: o
-percurso do leigo tem teste. O Office legado
+primeiro: o watcher, e o **parse store** (`J.a`/`J.f`), sem o qual metade do
+pacote J não anda e todo rebuild paga o parse de novo. O `Q15` fechou inteiro em
+31/08/2026, com o `Q15.a`. Instalar frio numa máquina que não é nossa deixou de
+ser hipótese: o percurso do leigo tem teste. O Office legado
 (`.doc` `.xls` `.ppt` `.rtf`) **é lido** desde a F4; o que falta ali é o `F4-L`,
 o container OLE que mente sobre o próprio conteúdo.
 
@@ -112,35 +114,61 @@ o container OLE que mente sobre o próprio conteúdo.
 > ([`docs/ablacao-f4p1-nome-por-fonte.md`](docs/ablacao-f4p1-nome-por-fonte.md)).
 > **Não reabre com outra grade.**
 
-0. **`J.b1` e `J.c-mapa` — a camada de acesso ao corpus**, entrada de 30/08/2026
-   e o primeiro requisito **de produto** desta lista. O pacote J acrescenta um
-   segundo modo de consumo — *ingestão integral dirigida por agente*, o
-   "escreva um paper sobre esta pasta" — que nenhuma das três tools de hoje
-   serve. A especificação recebida é
-   [`docs/pacote-j-camada-acesso-corpus.md`](docs/pacote-j-camada-acesso-corpus.md);
-   **ler antes dela** a conferência contra o código,
-   [`docs/plano-pacote-j.md`](docs/plano-pacote-j.md), porque cinco premissas
-   medidas não batem com esta base. Os dois subpacotes acima não esperam nada:
-   saem do registro que já existe.
-1. **`F4-R.1` — o regime de máquina observável**, e é pré-requisito da passada de
+> **`J.b1` e `J.c-mapa` fecharam em 30/08/2026** e saíram desta lista. O acervo
+> ganhou identidade pública (`doc_id` de conteúdo, URI `sc://`, preferência
+> declarada entre os 10,5% de caminhos duplicados) e as duas tools de mapa
+> (`list_folder`, `outline`), servidas do registro e sem esperar o parse store.
+> A especificação recebida é
+> [`docs/pacote-j-camada-acesso-corpus.md`](docs/pacote-j-camada-acesso-corpus.md);
+> a conferência contra o código, com as cinco premissas que não batem com esta
+> base, é [`docs/plano-pacote-j.md`](docs/plano-pacote-j.md). **Ler as duas antes
+> de tocar no resto do pacote J.**
+
+0. **`J.f` — os produtores gravando no store, e o indexador lendo dele.** O
+   núcleo do store fechou em 31/08 (`ingest/parse_store.py`,
+   `ingest/canonico.py`), com a chave de quatro partes, escrita atômica e GC que
+   recusa censo vazio. O que falta é o laço: `reader.parse_file`, a rota
+   LibreOffice e o OCR chamando `gravar`, e `indexar()` consultando `obter` antes
+   de qualquer parser. **O ganho de ≥80% no rebuild não foi medido** — exige
+   rebuild do sintético com mix de PDF/OLE/OCR, que é passada longa. É este
+   pacote que paga as ablações `R2.1`/`R3.1`, e fazê-lo depois delas é pagar o
+   parse duas vezes.
+1. **`J.c-conteúdo` — `get_document`**, que o store destravou. Um aviso medido, e
+   ele mata o atalho óbvio: **não sai dos chunks.** A sobreposição de 200
+   caracteres infla o texto em **+11,1%** (bloco de 14.399 chars → 9 chunks
+   somando 15.999, em 8 emendas), então o aceite *"concatenação das páginas == o
+   canônico"* falharia por construção. Sai do `parse_store.obter`, e o cursor
+   segue o padrão de `acesso/manifesto.py::Pagina`, que já é derivado por teste.
+2. **`J.b2` — o sidecar** é quase só declaração agora: os offsets no Markdown já
+   existem em `ingest/canonico.py` e já têm property test sobre 12 documentos
+   sorteados. O que falta é o `E4` (spans citáveis) conferir o schema antes de
+   congelá-lo, que a especificação pede explicitamente.
+3. **`J.c-mapa.2` — o status `so_censo` no manifesto.** Hoje `list_folder` lista o
+   que o **índice** conhece e declara essa fronteira no próprio retorno; arquivo
+   que está no disco e nunca foi indexado não aparece. Fechar isso é varrer a
+   pasta a partir das raízes da base — `census.iter_files` já enumera sem abrir
+   arquivo, e o portão de nuvem já existe. Pequeno, e é o que completa "o agente
+   sabe o que não viu".
+4. **`F4-R.1` — o regime de máquina observável**, e é pré-requisito da passada de
    calibragem no acervo real: sem ele a `Calibracao` aprende coeficiente de dois
    regimes misturados (22× de diferença) com milhares de observações a favor.
    `esforco.py` está emprestado ao notebook por declaração na §6 de
    [`docs/colaboracao.md`](docs/colaboracao.md), porque o desktop não tem bateria
    nem CPU híbrida e não reproduz o defeito.
-2. **`F4-O.3` — o dourado de OCR** (`g015`/`g025`/`g048`), que é do notebook e
+5. **`F4-O.3` — o dourado de OCR** (`g015`/`g025`/`g048`), que é do notebook e
    destravou quando o `F4-O.2` entrou na `main` no PR #42.
-3. **`Q15.a`** — o resto do `Q15`: documento quarentenado pela fase de OCR fica
-   `vazio` no registro em vez de `erro`, e por isso a repesca o reprocessa sem
-   OCR. É mudança na ordem das ondas de `indexar()`, com a evidência no
-   `ROADMAP.md`.
-4. **`Q18`** — medido e resolvido, esperando execução: ligar as dez regras
-   baratas do `ruff` faz 75 dos 92 `noqa` inertes de `src` valerem, por 40
-   correções. Do `Q2` sobram lockfile e extras.
+6. **`Q18`** — medido e resolvido, **esperando acordo, não execução**: ligar as
+   dez regras baratas do `ruff` faz 75 dos 92 `noqa` inertes de `src` valerem,
+   por 40 correções. Delas, oito arquivos são do desktop e dois são "um de cada
+   vez" — é decisão de política de repositório com efeito cruzado, e a regra 8
+   manda declarar, não fazer. O notebook recomenda ligar. Do `Q2` sobram
+   lockfile e extras.
 
-5. **`F4-D.2` — `dourado-v1` é frase, não mecanismo.** Achado ao fechar a `F4-D`
-   em 29/08/2026: nada congela quais ids compõem a série histórica, e o conjunto
-   é gitignorado — pergunta editada move a linha de base sem deixar diff.
+> **`Q15.a` e `F4-D.2` fecharam em 31/08/2026** e saíram desta lista. O `Q15.a`
+> só ficou certo depois de **medir a sequência**: a primeira versão do conserto
+> arrumava um caso que já funcionava, e o teste dela passava com o conserto
+> desligado. O `F4-D.2` virou `eval/serie.py` + um manifesto versionado de
+> impressões digitais.
 
 A **`F6` inteira fechou** em 30/08/2026 — `F6-A` (PR #14), `F6-D` e `F6-E`
 (25/08), `F6-B` e `F6-C` (30/08). O `Q5` P0 fechou junto com ela.
@@ -335,6 +363,48 @@ a evidência datada em [`docs/historico-decisoes.md`](docs/historico-decisoes.md
   aceitava link para pasta usando `is_dir()`: pasta que existe nesta máquina com
   zero arquivos versionados passava verde e daria 404 em quem clonasse — a
   classe que aquele teste existe para pegar, dentro dele.
+- **O teste que confirma o conserto tem de reprovar com o conserto desligado.**
+  No `Q15.a` a primeira versão passava nos dois estados: ela media duas passadas
+  **com** `--ocr`, e com OCR o defeito não existe — a fase de OCR é a última e
+  regrava o `erro` por cima do `vazio`. O defeito vivia na passada de rotina,
+  **sem** a flag. Ligar e desligar o conserto custou uma execução e derrubou o
+  pacote inteiro; ler o código não teria derrubado.
+- **Garantia que depende de alguém lembrar da flag é coincidência.** O primeiro
+  conserto do `Q15.a` só valia quando a passada rodava com `--ocr`, o que é
+  justamente o que a passada de rotina não faz.
+- **`IN (...)` sem lote é o inverso do N+1: a forma está certa e só o N quebra.**
+  O teto de parâmetros do SQLite é da build da máquina do usuário, não nosso, e
+  uma pasta de 2.156 documentos o estoura. O que não prova nada é "listar 1.100 e
+  ver se explode" — numa build com teto de 32.766 isso passa por acidente. A
+  afirmação tem de ser sobre o produto: nenhuma consulta manda mais que o lote.
+- **Série histórica sem mecanismo é frase.** `dourado-v1` era citado como
+  congelado em três documentos e nada congelava nada — o conjunto é gitignorado,
+  e uma pergunta editada movia a linha de base sem deixar diff. O que fecha é o
+  manifesto **versionado** de impressões digitais: guarda o que move a métrica,
+  não o texto, e a mudança passa a ter diff para revisar.
+- **Manifesto de impressões só congela o que ele lista, e a lista precisa vir do
+  modelo.** A primeira versão do `F4-D.2` cobria `pergunta`, `tipo` e `fontes`, e
+  deixava fora `fora_de_escopo` — que **tira a pergunta da tabela principal**, e é
+  o que faz a série ser n=59 de 62 — e `armadilha`, que alimenta um portão de
+  merge. Acrescentar um motivo catalogado mudava o `recall@1` e o instrumento
+  dizia "é o conjunto congelado": a classe que ele existe para fechar, dentro
+  dele. O conserto não foi uma lista maior, foi derivar a lista da dataclass e
+  exigir motivo escrito para excluir campo.
+- **Gate posto cedo demais troca um defeito por outro mais silencioso.** A
+  primeira versão do `Q15.a` punha a condição **antes** dos testes de parser,
+  modelo e chunker, e com isso um scan em `erro` deixava de ser alcançado por
+  parser corrigido. Ninguém percebe documento que não volta. O recorte certo
+  neutraliza só o **atalho** que causava o dano — a passada gratuita que o status
+  dava — e deixa todos os motivos de verdade valendo.
+- **Id compartilhado por dois itens da mesma lista é uma perda silenciosa.** Dois
+  caminhos com o mesmo conteúdo entram no manifesto como dois itens com o mesmo
+  `doc_id`, e o `outline` desse id devolve **um** deles. O agente que chaveia por
+  id perde o outro sem sinal. Enumerar continua sendo enumerar; o que faltava era
+  o item dizer para onde o id dele resolve.
+- **Conferência que depende de configuração é no-op onde mais importa.** A base na
+  URI `sc://` só era conferida quando o servidor subia com `config.toml`. Sem ele
+  — `--indice`, três valores soltos — qualquer nome de base era aceito, e é
+  exatamente aí que o cliente não sabe em que acervo está.
 - **Auditoria que não executa erra a contagem, e erra para os dois lados.**
   Dos cinco números da passada de 29/08, quatro estavam errados quando medidos
   ao executar: 6 links quebrados e não 64, sete defaults duplicados e não seis,
@@ -414,11 +484,18 @@ Atualizado em 29/08/2026, depois da passada de refatoração estrutural. A skill
 `retrieve/contrato.py` guarda `Hit` e o protocolo `Retriever`, que o `eval/`
 importa — **nunca o contrário**: `eval/` é o único diretório fora do pacote.
 
+**Caminho de leitura** — o segundo modo, que não ranqueia nada:
+`mcp/leitura.py` (as tools `list_folder` e `outline`) → `acesso/manifesto.py` (o
+que vira retorno, com cursor) → `acesso/registro.py` (as consultas) e
+`acesso/identidade.py` (`doc_id`, URI `sc://`, qual caminho é o preferido). Ele
+lê o mesmo registro que a busca e **não** passa por `retrieve/hybrid.py`.
+
 **Indexação**: `index/indexer.py` é o laço. Ao redor dele, e com uma razão de
 mudar cada: `index/cli.py` (as flags), `index/trava.py` (a trava exclusiva),
 `index/travas.py` (só os nomes dos arquivos de trava, para quem precisa lê-los
-sem carregar o encoder), `index/repesca.py` (este documento precisa reprocessar?)
-e `index/resultado.py` (o que a passada relata).
+sem carregar o encoder), `index/repesca.py` (este documento precisa reprocessar?),
+`index/resultado.py` (o que a passada relata) e `index/esquema.py` (as tabelas e
+os índices do registro, com o motivo de cada um).
 
 **As fronteiras que têm teste**, e o que cada uma custou antes de tê-lo:
 
@@ -439,6 +516,9 @@ e `index/resultado.py` (o que a passada relata).
 | todo `[project.scripts]` virou executável instalado | `tests/test_pacote.py` |
 | link em arquivo versionado apontar para arquivo que o clone não tem | `tests/test_documentacao.py` |
 | arquivo de teste virar módulo de apoio de outro | `tests/test_isolamento_da_suite.py` |
+| id de documento mudar porque alguém moveu o arquivo | `tests/test_identidade.py` |
+| qual dos N caminhos do mesmo conteúdo é o principal depender da ordem de indexação | `tests/test_identidade.py` |
+| tool de leitura cortar a resposta sem devolver cursor | `tests/test_leitura.py` |
 
 **Skills**: `/pacote` antes de abrir a branch · `/medir` antes de rodar eval ·
 `/depurar` quando algo quebra · `/revisar` antes do PR · `/entregar` no commit ·

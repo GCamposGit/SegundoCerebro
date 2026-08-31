@@ -51,10 +51,86 @@ mesmo parser. PDFs digitalizados são a fila da fase OCR (R1.2), não desta
 repesca — reparseá-los como PDF barato apagaria o texto do OCR."""
 
 
-def _precisa_indexar(estado, arquivo, model_id: str, parser: str) -> bool:  # noqa: ANN001
+def esperando_ocr(store) -> frozenset[str]:  # noqa: ANN001
+    """Os documentos que pertencem à fase de OCR, e não a este laço.
+
+    `Q15.a`, 31/08/2026, e o conserto só ficou certo depois de **medir a
+    sequência** — a primeira versão consertava um caso que já funcionava.
+
+    Medido, com o OCR falhando por `MemoryError` em quatro passadas seguidas
+    sobre o mesmo scan:
+
+    | passada | `--ocr` | status ao fim |
+    |---|---|---|
+    | 1 e 2 | sim | `erro` (`recurso: ...`) |
+    | 3 e 4 | **não** | **`vazio`** |
+
+    Com OCR o defeito não aparece: a fase de OCR é a última e regrava o `erro`
+    por cima do `vazio` que o laço barato acabou de escrever. **Sem** OCR o laço
+    barato é a última palavra, e ele rebaixa `erro` para `vazio` — que é o
+    `Q15.a`. As duas palavras dizem coisas diferentes: `erro` é *"tentei ler e a
+    máquina não deixou"*; `vazio` é *"li e não há texto"*. A segunda é falsa.
+
+    A regra que fecha a classe não é sobre OCR: **passada que não pode melhorar o
+    resultado não reprocessa, e nunca sobrescreve o que a passada capaz apurou.**
+    Ela já estava escrita neste arquivo para `parser ocr:*` e para o `vazio` ficar
+    fora de `STATUS_PARA_REPESCAR` — *"PDFs digitalizados são a fila da fase OCR,
+    não desta repesca"*. Faltava valer para o `erro`.
+
+    Não depende de a passada rodar OCR, e é aí que a primeira versão errou: o
+    documento fica na fila com `digitalizado = 1` de qualquer jeito, e um status
+    honesto que só sobrevive quando alguém lembra de passar `--ocr` não é uma
+    garantia, é uma coincidência.
+
+    A fila sai de `store.documentos_para_ocr`, que é a **mesma** consulta que a
+    fase de OCR usa para escolher o que processar. Uma segunda regra aqui seria
+    duas noções de "documento que espera OCR", e neste repositório regra derivada
+    duas vezes já deu número menor e plausível.
+    """
+    return frozenset(rel for rel, _raiz in store.documentos_para_ocr(OCR_VERSAO))
+
+
+def pular_por_quarentena(store, arquivo, sha: str, progresso, estimador, publicador) -> bool:  # noqa: ANN001
+    """Este documento está em backoff de quarentena? Então a passada não o toca.
+
+    Saiu do corpo de `indexar()` em 31/08/2026, junto com o `Q15.a`: a função
+    está em `FUNCOES_ACIMA_DO_TETO` e a tabela só desce, então o que entra ali
+    tem de ser pago com o que sai. Esta é a decisão de "reprocessar ou não" mais
+    antiga do laço, e é deste módulo — não do laço — que ela é.
+    """
+    if not store.deve_pular_quarentena(arquivo.rel, sha):
+        return False
+    progresso.quarentena += 1
+    progresso.registrar_falha("quarentena")
+    estimador.pular(arquivo.rel, arquivo.size)
+    if publicador is not None:
+        publicador.anotar(falhas=progresso.falhas, quarentena=progresso.quarentena)
+        publicador.publicar()
+    return True
+
+
+def _do_ocr_e_nao_deste_laco(estado, arquivo, em_ocr) -> bool:  # noqa: ANN001
+    """Este `erro` é de um scan que espera OCR? Então o atalho de status não vale.
+
+    `Q15.a`, e o recorte estreito veio de revisão. A função nomeia **só** a
+    exceção ao atalho de `STATUS_PARA_REPESCAR` — não "não reprocessar nunca", que
+    era o que a primeira versão fazia e que trocava um defeito por outro: um scan
+    em `erro` deixava de ser alcançado por parser corrigido, por troca de modelo e
+    por troca de chunker, porque a condição vinha antes dos três.
+
+    O que o scan perde é a passada **gratuita** que o status lhe dava, e que só
+    produzia `vazio` por cima do `erro` que a fase capaz apurou. Tudo que é motivo
+    de verdade para reprocessar continua abaixo e continua valendo.
+    """
+    return bool(em_ocr) and estado.status == ParseStatus.ERROR.value and arquivo.rel in em_ocr
+
+
+def _precisa_indexar(estado, arquivo, model_id: str, parser: str, em_ocr=frozenset()) -> bool:  # noqa: ANN001, B008
     if estado is None:
         return True
-    if estado.status in STATUS_PARA_REPESCAR:
+    if estado.status in STATUS_PARA_REPESCAR and not _do_ocr_e_nao_deste_laco(
+        estado, arquivo, em_ocr
+    ):
         return True
     bytes_mudaram = estado.tamanho != arquivo.size or abs(estado.mtime - arquivo.mtime) > 1e-6
     if (estado.parser or "").startswith("ocr:"):
