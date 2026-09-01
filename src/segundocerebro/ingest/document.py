@@ -116,6 +116,10 @@ class ParseResult:
     depois exigiria abrir o arquivo de novo, e abrir de novo é o que o portão de
     leitura existe para evitar."""
 
+    parse_store_consultado: bool = False
+    parse_store_hit: bool = False
+    """Telemetria da passada; não participa do conteúdo nem da chave do cache."""
+
     @property
     def ok(self) -> bool:
         return self.status is ParseStatus.OK

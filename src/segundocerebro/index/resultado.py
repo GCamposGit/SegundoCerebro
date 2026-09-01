@@ -25,6 +25,8 @@ class Progresso:
     chunks: int = 0
     quarentena: int = 0
     ocr: int = 0
+    parse_store_consultas: int = 0
+    parse_store_hits: int = 0
     falhas: dict[str, int] = field(default_factory=dict)
     segundos: float = 0.0
     interrompido: bool = False
@@ -33,6 +35,12 @@ class Progresso:
 
     def registrar_falha(self, status: str) -> None:
         self.falhas[status] = self.falhas.get(status, 0) + 1
+
+    def registrar_parse_store(self, resultado) -> None:  # noqa: ANN001
+        if not resultado.parse_store_consultado:
+            return
+        self.parse_store_consultas += 1
+        self.parse_store_hits += int(resultado.parse_store_hit)
 
     def resumo(self) -> str:
         partes = [
@@ -44,6 +52,11 @@ class Progresso:
         ]
         if self.ocr:
             partes.append(f"{self.ocr} via OCR")
+        if self.parse_store_consultas:
+            taxa = 100 * self.parse_store_hits / self.parse_store_consultas
+            partes.append(
+                f"parse store {taxa:.0f}% ({self.parse_store_hits}/{self.parse_store_consultas})"
+            )
         if self.quarentena:
             partes.append(f"{self.quarentena} em quarentena")
         if self.falhas:

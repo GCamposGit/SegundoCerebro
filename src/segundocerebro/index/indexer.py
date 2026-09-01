@@ -724,6 +724,7 @@ def indexar(
                     "Cronometro(relogio) e credite as etapas nele."
                 )
             relogio.tique()
+            progresso.registrar_parse_store(resultado)
             if resultado.status is not ParseStatus.OK or resultado.doc is None:
                 if _venenoso(resultado):
                     item = store.registrar_quarentena(
@@ -770,7 +771,6 @@ def indexar(
                     publicador.anotar(falhas=progresso.falhas, etapa=None, trecho=None, trechos=None)
                     publicador.publicar()
                 return
-
             # conteúdo idêntico com mtime novo (sincronização, restauração,
             # cópia de volta): reembeddar seria pagar o caro por nada
             if (
