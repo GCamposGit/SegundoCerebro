@@ -136,7 +136,7 @@ def rota_de(meta: dict[str, str]) -> str:
     """Qual rota produziu este `ParsedDoc`, lida do `meta` que ela mesma grava."""
     if meta.get("fonte") == "ocr":
         return ROTA_OCR
-    if meta.get("convertido_de"):
+    if meta.get("convertido_de") or meta.get("convertido") or meta.get("recalculado"):
         return ROTA_LIBREOFFICE
     return ROTA_NATIVA
 

@@ -280,7 +280,7 @@ def parse_isolado(
         "espera": espera,
         "limite_planilha_mb": limite_planilha_mb,
         "limites_mb": dict(limites_mb) if limites_mb else None,
-        "ocr": ocr,
+        "ocr": ocr, "indice": indice,
     }
     try:
         tamanho = os.stat(path).st_size

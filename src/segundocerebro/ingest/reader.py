@@ -20,6 +20,8 @@ import hashlib
 import os
 import time
 from collections.abc import Mapping
+from dataclasses import replace
+from pathlib import Path
 
 from ..census import caminho_estendido, is_cloud_only
 from ..logger import get_logger
@@ -114,6 +116,7 @@ def parse_file(
     limite_texto_mb: float | None = None,
     limites_mb: Mapping[str, float] | None = None,
     ocr: bool = False,
+    indice: Path | None = None,
 ) -> ParseResult:
     """Read and parse one file, turning every failure into a recorded status.
 
@@ -175,6 +178,60 @@ def parse_file(
                 natureza=detectar(path, dados),
             )
 
+    from .parse_cache import gravar_resultado, obter_resultado
+
+    armazenado = obter_resultado(indice, path=path, dados=dados, sha256=sha, ocr=ocr)
+    if armazenado is not None:
+        return armazenado
+
+    resultado = _interpretar(path, dados, nome, extensao, parser, sha, ocr=ocr)
+    if indice is not None:
+        resultado = replace(resultado, parse_store_consultado=True)
+    gravar_resultado(indice, resultado)
+    return resultado
+
+
+def _interpretar(path, dados, nome, extensao, parser, sha, *, ocr: bool):  # noqa: ANN001
+    """Executa as rotas caras depois que o parse store confirmou o miss."""
+    doc = _parse_inicial(path, dados, nome, extensao, parser, sha)
+    if isinstance(doc, ParseResult):
+        return doc
+
+    if extensao in EXTENSOES_LEGADO and doc.meta.get("convertido") != "libreoffice":
+        melhor = _converter_legado(doc, dados, nome, extensao)
+        if melhor is not None:
+            doc = melhor
+
+    if doc.meta.get("sem_valor_em_cache") == "1":
+        doc = _recalcular_planilha(doc, dados, nome, parser)
+
+    natureza = detectar(path, dados, doc)
+    if ocr and natureza.digitalizado:
+        ocr_doc = _ocr_pdf(dados, nome, nativo=doc)
+        if ocr_doc is not None and ocr_doc.blocks:
+            natureza = detectar(path, dados, ocr_doc)
+            return ParseResult(
+                path=path,
+                status=ParseStatus.OK,
+                doc=ocr_doc,
+                sha256=sha,
+                natureza=natureza,
+            )
+    if not doc.blocks or not doc.total_chars:
+        detalhe = "digitalizado, sem camada de texto" if natureza.digitalizado else "nenhum texto extraível"
+        return ParseResult(
+            path=path,
+            status=ParseStatus.EMPTY,
+            doc=doc,
+            detail=detalhe,
+            sha256=sha,
+            natureza=natureza,
+        )
+    return ParseResult(path=path, status=ParseStatus.OK, doc=doc, sha256=sha, natureza=natureza)
+
+
+def _parse_inicial(path, dados, nome, extensao, parser, sha):  # noqa: ANN001
+    """Parser nativo, fallback legado e reinterpretação da extensão mentirosa."""
     try:
         doc = parser(dados, nome)
     except Exception as exc:  # noqa: BLE001 — a corrupt file must not stop the indexing run
@@ -221,39 +278,7 @@ def parse_file(
                     natureza=natureza,
                 )
             doc = alternativo
-
-    if extensao in EXTENSOES_LEGADO and doc.meta.get("convertido") != "libreoffice":
-        melhor = _converter_legado(doc, dados, nome, extensao)
-        if melhor is not None:
-            doc = melhor
-
-    if doc.meta.get("sem_valor_em_cache") == "1":
-        doc = _recalcular_planilha(doc, dados, nome, parser)
-
-    natureza = detectar(path, dados, doc)
-    if ocr and natureza.digitalizado:
-        ocr_doc = _ocr_pdf(dados, nome, nativo=doc)
-        if ocr_doc is not None and ocr_doc.blocks:
-            natureza = detectar(path, dados, ocr_doc)
-            return ParseResult(
-                path=path,
-                status=ParseStatus.OK,
-                doc=ocr_doc,
-                sha256=sha,
-                natureza=natureza,
-            )
-    if not doc.blocks or not doc.total_chars:
-        detalhe = "digitalizado, sem camada de texto" if natureza.digitalizado else "nenhum texto extraível"
-        return ParseResult(
-            path=path,
-            status=ParseStatus.EMPTY,
-            doc=doc,
-            detail=detalhe,
-            sha256=sha,
-            natureza=natureza,
-        )
-
-    return ParseResult(path=path, status=ParseStatus.OK, doc=doc, sha256=sha, natureza=natureza)
+    return doc
 
 
 def _reinterpretar(path: str, dados: bytes, nome: str, familia: str) -> ParsedDoc | None:
@@ -337,6 +362,7 @@ def _converter_legado(
         return None
     meta = dict(novo.meta)
     meta["convertido"] = "libreoffice"
+    meta["convertido_de"] = extensao
     meta["formato"] = extensao.lstrip(".")
     log.info("%s: legado %s via LibreOffice → %s (%d blocos)", nome, extensao, moderno, len(novo.blocks))
     return ParsedDoc(name=novo.name, blocks=novo.blocks, meta=meta)
