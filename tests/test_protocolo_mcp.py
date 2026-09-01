@@ -614,7 +614,7 @@ def test_a_guarda_de_registro_reprova_contra_caso_isolado() -> None:
 
 
 def test_registro_sem_config_algum_recusa_em_vez_de_registrar_o_vazio() -> None:
-    """Sem config, o servidor sobe com base vazia — registrar isso é mentir.
+    r"""Sem config, o servidor sobe com base vazia — registrar isso é mentir.
 
     Achado por revisão em 30/08/2026, e é o caso do usuário com `census.toml` e
     sem `config.toml`: `_do_censo` devolve `caminho=None`, o registro saía sem

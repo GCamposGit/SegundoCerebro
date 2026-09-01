@@ -26,6 +26,8 @@ from segundocerebro.index.smoke_cuda import (
 )
 
 MAXWELL = [{"name": "GTX 980 Ti", "driver": "582.28", "compute": "5.2", "memoria": "6 GiB"}]
+PROVIDER_INICIAL = os.environ.get("SEGUNDOCEREBRO_PROVIDER")
+"""Valor herdado pela sessão; no Desktop é legitimamente ``cuda``."""
 
 
 def test_gpus_devolve_lista() -> None:
@@ -149,12 +151,14 @@ def test_aplicar_provider_publica_para_os_filhos(monkeypatch: pytest.MonkeyPatch
 
 
 def test_o_provider_nao_atravessa_para_o_teste_seguinte() -> None:
-    """O teste acima escreveu `cuda` no ambiente; aqui já não está.
+    """O teste acima escreveu `cuda`; aqui o ambiente voltou ao valor herdado.
 
     É o caso concreto da classe que `tests/test_isolamento_da_suite.py` prova em
-    geral, e mora aqui porque foi aqui que ela custou seis falhas.
+    geral, e mora aqui porque foi aqui que ela custou seis falhas. "Não é cuda"
+    era uma guarda errada no próprio Desktop, cuja sessão começa em CUDA por
+    configuração legítima; o contrato é não atravessar a mutação do teste.
     """
-    assert (os.environ.get("SEGUNDOCEREBRO_PROVIDER") or "").lower() != "cuda"
+    assert os.environ.get("SEGUNDOCEREBRO_PROVIDER") == PROVIDER_INICIAL
 
 
 def test_driver_590_no_maxwell_recusa_em_portugues() -> None:

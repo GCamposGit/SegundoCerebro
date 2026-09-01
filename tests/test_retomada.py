@@ -252,6 +252,7 @@ def test_a_tarefa_de_logon_numa_instalacao_por_pip(monkeypatch, tmp_path):
     from segundocerebro.index import retomada
 
     monkeypatch.setattr(retomada, "em_checkout", lambda: False)
+    monkeypatch.setattr(retomada.sys, "executable", str(tmp_path / "Python" / "python.exe"))
     config = tmp_path / "meu" / "config.toml"
     config.parent.mkdir(parents=True)
     linha = retomada.linha_da_tarefa(retomada.raiz_do_repositorio(), config)

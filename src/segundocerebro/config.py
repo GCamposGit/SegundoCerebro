@@ -45,6 +45,7 @@ from typing import Any
 from .census import DEFAULT_EXCLUDE_DIRS, DEFAULT_EXCLUDE_GLOBS
 from .census import Config as CensoConfig
 from .census import DeclaredExclusions, RoleExclusion, RootSpec
+from .config_leitura import booleano
 from .logger import get_logger
 
 log = get_logger("config")
@@ -893,16 +894,14 @@ def _indexacao(dados: Mapping[str, Any]) -> Indexacao:
         return Indexacao()
     _recusar_desconhecidas(dados, Indexacao.__dataclass_fields__, "'[indexacao]'")
     rascunho = str(dados.get("modelo_rascunho", "") or "").strip()
-    dois = dados.get("dois_passes", False)
-    if isinstance(dois, str):
-        dois = dois.strip().lower() in {"1", "true", "sim", "yes"}
-    ocr = dados.get("ocr", False)
-    if isinstance(ocr, str):
-        ocr = ocr.strip().lower() in {"1", "true", "sim", "yes"}
+    dois = booleano(
+        dados.get("dois_passes", False), "indexacao.dois_passes", erro=ErroDeConfig
+    )
+    ocr = booleano(dados.get("ocr", False), "indexacao.ocr", erro=ErroDeConfig)
     return Indexacao(
         modelo_rascunho=rascunho,
-        dois_passes=bool(dois) or bool(rascunho),
-        ocr=bool(ocr),
+        dois_passes=dois or bool(rascunho),
+        ocr=ocr,
     )
 
 

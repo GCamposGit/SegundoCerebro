@@ -138,12 +138,13 @@ def test_o_caminho_longo_e_enumerado_e_lido(hostil: Path) -> None:
     assert "CT-LP-001" in "\n".join(b.text for b in r.doc.blocks)
 
 
-def test_pathlib_perde_caminho_longo_e_por_isso_nao_se_usa_no_corpus(tmp_path: Path) -> None:
-    """A armadilha do lado de cá, travada com um caminho que ela mesma constrói.
+def test_produto_nao_depende_da_politica_de_caminho_longo_do_pathlib(tmp_path: Path) -> None:
+    """A armadilha do lado de cá, sob as duas políticas possíveis do Windows.
 
     Não é defeito do produto — `iter_files` e `read_bytes` já estendem. É defeito
-    de **ferramenta de teste**: `pathlib` e `os.walk` devolvem menos arquivos, sem
-    erro, e subcontar em silêncio é como a métrica sobe com a regressão.
+    de **ferramenta de teste**: conforme a política LongPathsEnabled e a versão
+    do Python, `pathlib` pode devolver menos arquivos sem erro ou pode suportar o
+    caminho inteiro. O produto não pode depender de qual regime encontrou.
 
     A primeira versão deste teste media o corpus da fixture e era **frágil**: sob
     o `tmp_path` do pytest o caminho ficava curto e o `pathlib` acertava, então o
@@ -159,9 +160,16 @@ def test_pathlib_perde_caminho_longo_e_por_isso_nao_se_usa_no_corpus(tmp_path: P
     with open(caminho_estendido(alvo), "w", encoding="utf-8") as fh:
         fh.write("CT-LP-999")
 
-    assert not alvo.exists(), "`Path.exists()` deixou de perder caminho longo"
-    assert not list(tmp_path.rglob("*.txt")), "`rglob` deixou de perder caminho longo"
     assert os.path.exists(caminho_estendido(alvo)), "com o prefixo, existe"
+    enumerados = _enumerar(tmp_path)
+    assert any(p.endswith("contrato.txt") for p in enumerados), (
+        "a enumeração do produto dependeu da política de caminho longo do pathlib"
+    )
+
+    # Registra a coerência da biblioteca no regime desta máquina sem transformar
+    # uma melhoria do Python/Windows em regressão da suíte.
+    pelo_pathlib = list(tmp_path.rglob("*.txt"))
+    assert bool(pelo_pathlib) is alvo.exists()
 
 
 def test_o_placeholder_de_nuvem_nao_e_lido(hostil: Path) -> None:
