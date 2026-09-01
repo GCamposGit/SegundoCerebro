@@ -20,13 +20,14 @@ Em uma linha cada:
 - **Defeito se generaliza, não se remenda** — a entrega é o método que pega a
   classe inteira na próxima vez, não o caso consertado.
 
-## Dois setups desde 20/08/2026 — ler antes de tocar em qualquer coisa
+## Operação Desktop-only desde 01/09/2026 — ler antes de tocar em qualquer coisa
 
-Há um segundo computador (desktop, duas GTX 980 Ti, corpus novo, Grok Build).
-As regras são de [`docs/colaboracao.md`](docs/colaboracao.md), que é a **única**
-fonte, mais a skill
-[`.claude/skills/segundo-cerebro-notebook/SKILL.md`](.claude/skills/segundo-cerebro-notebook/SKILL.md).
-Este notebook é o lado do **acervo corporativo e do conjunto dourado real**.
+O notebook original foi desativado. O único executor ativo é o Desktop com duas
+GTX 980 Ti e corpus novo. A divisão histórica continua em
+[`docs/colaboracao.md`](docs/colaboracao.md), mas não distribui trabalho hoje:
+o Desktop pode assumir tudo que seja reproduzível com fixtures públicas e corpus
+sintético. Trabalho que exige o acervo corporativo, o dourado real ou uma máquina
+híbrida com bateria fica congelado até a retomada em outro notebook.
 
 Ninguém commita em `main`; cada lado trabalha na sua branch e entra por PR.
 
@@ -96,12 +97,12 @@ Onde o sistema está, em cinco linhas:
   (invariante 6).
 
 **Onde o produto não está pronto**, e é o que a régua de ouro manda olhar
-primeiro: o watcher, e o **parse store** (`J.a`/`J.f`), sem o qual metade do
-pacote J não anda e todo rebuild paga o parse de novo. O `Q15` fechou inteiro em
+primeiro: o **parse store** ainda não está ligado aos produtores e ao indexador
+(`J.f`), sem o qual metade do pacote J não anda e todo rebuild paga o parse de
+novo. O watcher com catch-up USN já está entregue. O `Q15` fechou inteiro em
 31/08/2026, com o `Q15.a`. Instalar frio numa máquina que não é nossa deixou de
 ser hipótese: o percurso do leigo tem teste. O Office legado
-(`.doc` `.xls` `.ppt` `.rtf`) **é lido** desde a F4; o que falta ali é o `F4-L`,
-o container OLE que mente sobre o próprio conteúdo.
+(`.doc` `.xls` `.ppt` `.rtf`) **é lido**, inclusive os disfarces do `F4-L`.
 
 ## Próximo passo
 
@@ -149,14 +150,14 @@ o container OLE que mente sobre o próprio conteúdo.
    pasta a partir das raízes da base — `census.iter_files` já enumera sem abrir
    arquivo, e o portão de nuvem já existe. Pequeno, e é o que completa "o agente
    sabe o que não viu".
-4. **`F4-R.1` — o regime de máquina observável**, e é pré-requisito da passada de
+4. **`F4-R.1` — CONGELADO até o novo notebook.** O regime de máquina observável é pré-requisito da passada de
    calibragem no acervo real: sem ele a `Calibracao` aprende coeficiente de dois
    regimes misturados (22× de diferença) com milhares de observações a favor.
    `esforco.py` está emprestado ao notebook por declaração na §6 de
    [`docs/colaboracao.md`](docs/colaboracao.md), porque o desktop não tem bateria
    nem CPU híbrida e não reproduz o defeito.
-5. **`F4-O.3` — o dourado de OCR** (`g015`/`g025`/`g048`), que é do notebook e
-   destravou quando o `F4-O.2` entrou na `main` no PR #42.
+5. **`F4-O.3` — CONGELADO até o novo notebook.** O dourado de OCR
+   (`g015`/`g025`/`g048`) exige o acervo e o conjunto dourado privados.
 6. **`Q18`** — medido e resolvido, **esperando acordo, não execução**: ligar as
    dez regras baratas do `ruff` faz 75 dos 92 `noqa` inertes de `src` valerem,
    por 40 correções. Delas, oito arquivos são do desktop e dois são "um de cada

@@ -3,6 +3,13 @@
 Dois setups, um repositório. Este arquivo é a **única** fonte das regras.
 As skills só dizem *quem você é* e apontam para cá.
 
+> **Estado vigente desde 01/09/2026.** O notebook original foi desativado e o
+> Desktop é o único executor ativo. A tabela e a crônica abaixo preservam a
+> história e os motivos das fronteiras, mas “dono notebook” agora significa uma
+> de duas coisas: o Desktop assume se o pacote fecha com fixture pública/corpus
+> sintético; ou o pacote fica congelado se exige acervo/dourado real, bateria ou
+> CPU híbrida. Nenhum dado privado migra para o Desktop ou para o Git.
+
 | Setup | Hardware | Acervo | Agente |
 |-------|----------|--------|--------|
 | **Desktop** | duas GTX 980 Ti (`sm_52`, driver 582.x) | corpus **novo**, sem o acervo corporativo | Grok Build |

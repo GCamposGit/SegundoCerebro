@@ -570,6 +570,38 @@ def test_indexacao_rascunho_desconhecido_recusa(tmp_path):
         carregar(caminho, ambiente=SEM_AMBIENTE)
 
 
+@pytest.mark.parametrize("chave", ["dois_passes", "ocr"])
+@pytest.mark.parametrize("valor", ['"talvez"', '"sim, por favor"', "3", "-1"])
+def test_indexacao_recusa_booleano_ambiguo(tmp_path, chave, valor):
+    caminho = escrever(
+        tmp_path,
+        f'[indexacao]\n{chave} = {valor}\n[[base]]\nid = "a"\n',
+    )
+    with pytest.raises(ErroDeConfig, match=rf"indexacao\.{chave}.*não é booleano"):
+        carregar(caminho, ambiente=SEM_AMBIENTE)
+
+
+@pytest.mark.parametrize(
+    "valor, esperado",
+    [
+        ("true", True),
+        ("false", False),
+        ('"sim"', True),
+        ('"não"', False),
+        ('"verdadeiro"', True),
+        ('"falso"', False),
+        ("1", True),
+        ("0", False),
+    ],
+)
+def test_indexacao_aceita_booleano_inequivoco(tmp_path, valor, esperado):
+    caminho = escrever(
+        tmp_path,
+        f'[indexacao]\nocr = {valor}\n[[base]]\nid = "a"\n',
+    )
+    assert carregar(caminho, ambiente=SEM_AMBIENTE).indexacao.ocr is esperado
+
+
 def test_perfil_invalido(tmp_path):
     caminho = escrever(tmp_path, '[maquina]\nperfil = "turbo"\n[[base]]\nid = "a"\n')
     with pytest.raises(ErroDeConfig, match="perfil de máquina"):

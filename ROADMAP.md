@@ -6,6 +6,13 @@ entra em **pacotes** (ver abaixo): um PR, um dono, lista de paths fechada.
 Indexação de horas não é pacote e **não bloqueia** o próximo PR — parser com
 versão alcança o que já está no disco na passada seguinte.
 
+> **Operação vigente desde 01/09/2026: somente Desktop.** O notebook original
+> foi desativado. As atribuições “desktop” e “notebook” abaixo permanecem como
+> registro histórico, não como fila ativa. Trabalho reproduzível com código,
+> fixtures e corpus sintético passa ao Desktop; `F4-O.3`, `F4-R`, ampliação do
+> dourado real e decisões de ranking padrão ficam congelados até a retomada em
+> outro notebook. [`docs/colaboracao.md`](docs/colaboracao.md) registra a regra.
+
 > **Precedência, desde 25/08/2026.** [`docs/regra-de-ouro.md`](docs/regra-de-ouro.md)
 > vem antes de qualquer prioridade deste arquivo, dos dossiês e do guia de
 > engenharia: **o produto é para um leigo apontando uma pasta que nunca vimos.**
@@ -811,13 +818,13 @@ privada do desktop **não** trava nenhum destes:
 | R3.1 + C4.1 + R2.1 | Modelo (com fatia cross-lingual) + contexto no chunk — **um rebuild só** | desktop roda, notebook mede | 5 | depois da régua multi-perfil |
 | C7.b · C7.c | Cartão de modelo de planilha; número é payload no modelo | desktop | 5 | — |
 | C2 + C3.b–d | Glossário automático do corpus + reescrita lexical (mesmo ponto de código) | desktop extrai, notebook mede | 6 | — |
-| F4-L / R1.1 | OLE que mente + conversor de legado | desktop | 6 | F4-L (mente) + R1.1 ✅ PR #37 |
+| F4-L / R1.1 | OLE que mente + conversor de legado | desktop | 6 | ✅ **fechado no PR #37** |
 | F4-O / R1.2 | OCR de PDF digitalizado | **desktop** + notebook (O.3) | 6 | **O.0 ✅** PR #38 · **O.1 neste PR** · O.2/O.3 em [`docs/plano-ocr.md`](docs/plano-ocr.md) |
 | F4-T | Parser de transcrição (`.vtt`/`.srt`/`.sbv`) — a saída nativa de todo gravador de reunião era contada e não indexada | notebook | 6 | ✅ **fechado em 27/08/2026**: fatia `reunião` de **0 para 100** perguntas alcançáveis, 17 → 20 extensões. [`docs/fatia-reuniao-invisivel.md`](docs/fatia-reuniao-invisivel.md) |
 | F4-O.3 | Dourado de OCR no acervo | notebook | 6 | **bloqueada em 28/08/2026** — não pelo dourado nem pelo motor: a passada com `--ocr` quarentena o acervo a 61 s por documento, com 0% de CPU. Laudo: [`docs/ocr-no-acervo-bloqueado.md`](docs/ocr-no-acervo-bloqueado.md) |
 | F4-R | Regime de máquina: a indexação varia 22× por estado do SO que o produto não observa | notebook (`esforco.py` emprestado) | 6 | **R.1 sim** — achar o gatilho. Laudo: [`docs/afinidade-e-estado-de-maquina.md`](docs/afinidade-e-estado-de-maquina.md) |
-| F4-W / R5.1 | Watcher, com camada USN Journal | desktop | 6 | F4-W ✅ · **R5.1 neste PR** (`f4-w-usn`) |
-| F4-S | SharePoint = pasta sincronizada, só política e tela | notebook | 6 | **sim** |
+| F4-W / R5.1 | Watcher, com camada USN Journal | desktop | 6 | ✅ **fechado** — watcher vivo + catch-up USN |
+| F4-S | SharePoint = pasta sincronizada, só política e tela | notebook | 6 | ✅ **fechado** — placeholder visível no painel, sem hidratar |
 | R6.2+C4.2 · R7.1 · R7.2+C6.a · R6.3 | Rerank v2 · tools · descriptions · tempo/pasta | notebook | 7 | — |
 | F6-B / R8.2 | Primeira base sem terminal, MCPB, com a UX de C1 | quem não estiver no painel | 8 | depois de F6-A |
 | **J.b1** | `doc_id` público por conteúdo, índice em `documentos.sha256`, URI `sc://`, regra de preferência entre os **223 caminhos duplicados** | notebook | **1** | **sim** — a coluna já existe, não espera o store |
@@ -1503,9 +1510,9 @@ do produto, é de ferramenta de teste, e já estava no repositório.
 | Q8 | `docs/README.md` com índice temático — **feito em 29/08**, linkando só o que o clone tem; o resto é o `Q19` | notebook | **feito** |
 | Q9 | `docs/processo-ia.md`: o contrato de fronteira entre agentes como peça pública | acordo | **P3 · vitrine** |
 | Q10 | Observabilidade local do servidor (SQLite, nunca remota) | notebook | P2 |
-| Q11 | Config aceita chave desconhecida em silêncio — **fechado em 30/08/2026**, cinco níveis mais tipo errado, com a guarda derivada do modelo e do AST | notebook | **feito** |
+| Q11 | Config aceita chave desconhecida ou booleano ambíguo em silêncio — **fechado em 01/09/2026**, com a guarda derivada do modelo e matriz booleana | desktop | **feito** |
 | Q12 | Defaults escritos duas vezes — **fechado em 30/08/2026**; eram **sete**, não seis (o `index.html` tinha uma quarta cópia dos tetos) | qualquer | **feito** |
-| Q13 | `pesos.fts_*` **documentado em 30/08**; o dialeto de `RootSpec` fica, e depende da costura de `census.py` (`Q16`) | notebook | **metade feita** |
+| Q13 | `pesos.fts_*` documentado; dialeto legado de censo aceito explicitamente e isolado do formato principal | desktop | **feito** |
 | Q14 | Hook de teste vivo em produção — **fechado em 30/08/2026**: só vale sob `PYTEST_CURRENT_TEST`, e avisa | notebook (assumido) | **feito** |
 | Q15 | OCR sumia em silêncio — **fechado em 30/08/2026**; resto declarado no `Q15.a` (status fica `vazio` depois da quarentena) | notebook (assumido) | **feito** |
 | Q16 | O que falta decompor, com as costuras levantadas (continua o `Q3`) | cada um no seu | P3 · laboratório |
@@ -1666,7 +1673,7 @@ of 'str' and 'int'`, não como `ErroDeConfig`.
   lista derivada do modelo, não escrita à mão, no desenho de
   `tests/test_formatos.py` e `eval/test_ranking_sintetico.py`
 
-#### `Q11.a` — o que ficou, e por que não entrou junto
+#### `Q11.a` — ✅ **FECHADO em 01/09/2026**
 
 Entregue: os cinco níveis, o tipo errado nas quatro seções de base **e** em
 `[maquina]`, `exclude` recusando texto onde espera lista, e `[[bases]]` no plural
@@ -1686,10 +1693,12 @@ usuário escreveu o valor de propósito, e o silêncio resulta no recurso
 **desligado** — o estado que parece normal. Quem escreve `ocr = "sim, por favor"`
 não recebe OCR e não recebe erro.
 
-O conserto é um `_booleano(valor, chave)` que recusa o que não reconhece, e custa
-**+7 linhas líquidas** em `config.py`. O arquivo está em **1.081 linhas, o teto
-exato da escada**, então isto entra junto com a costura `leitura.py` do `Q16` — é
-o primeiro item concreto a cobrar daquele pacote.
+O conserto entrou em `config_leitura.py`, a primeira costura concreta do `Q16`,
+sem aumentar `config.py`. Booleanos TOML, `sim/não`, `yes/no`,
+`verdadeiro/falso` e `1/0` são inequívocos; qualquer outro valor levanta
+`ErroDeConfig` com a chave exata. A matriz de `tests/test_config.py` cobre os
+dois campos e impede que texto não vazio ou inteiro arbitrário volte a passar por
+`bool(valor)`.
 
 ### `Q12` — Defaults escritos duas vezes — ✅ **FECHADO em 30/08/2026** (eram sete)
 
@@ -1714,7 +1723,7 @@ notados.
 - **Classe generalizada:** estender o teste-amarra existente para **derivar** os
   pares a conferir, em vez de listá-los — espelho novo nasce conferido
 
-### `Q13` — Duas chaves que o produto lê e o exemplo não documenta — **metade feita em 30/08/2026**
+### `Q13` — Duas chaves que o produto lê e o exemplo não documenta — ✅ **FECHADO**
 
 - **`pesos.fts_texto` / `fts_trilha` / `fts_caminho`** (`config.py:75-77`) chegam
   a `Store.buscar_lexical` e não aparecem em nenhum `.toml`. São a alavanca do
@@ -1725,7 +1734,14 @@ notados.
   bloco `[[roots]]` de um arquivo para o outro falha com mensagem que cita a
   chave que o usuário não escreveu.
 
-### `Q14` — Um hook de teste vivo em produção — **P1 · produto**
+Fecho: os três pesos FTS estão em `config.example.toml`. O dialeto do
+`census.toml` permanece legado por compatibilidade, mas é aceito pelo carregador
+principal quando identificado pelo conteúdo; o formato principal recusa as
+chaves legadas em vez de ignorá-las. `tests/test_config_chaves.py` deriva ambos
+os contratos do AST e carrega o exemplo real — compatibilidade explícita, não
+dois leitores silenciosamente divergentes.
+
+### `Q14` — Um hook de teste vivo em produção — ✅ **FECHADO em 30/08/2026**
 
 `SEGUNDOCEREBRO_OCR_FAKE` (`ingest/ocr.py:43,149`) desvia o motor de OCR para um
 texto fixo, sem nenhuma guarda de "só em teste". Uma variável herdada de sessão de
@@ -1735,6 +1751,10 @@ shell muda o comportamento do produto sem nada no log dizer que o motor é falso
   emite `log.warning` em toda passada, com o texto que está injetando
 - **Classe generalizada:** um teste que varre `src/` atrás de `os.environ.get`
   cujo nome contenha `FAKE`, `TEST`, `DEBUG` ou `MOCK` e exige guarda ou aviso
+
+Entregue: `SEGUNDOCEREBRO_OCR_FAKE` só vale sob `PYTEST_CURRENT_TEST` e avisa
+quando injeta texto. `tests/test_falha_de_ambiente.py` faz a varredura derivada
+para que um segundo hook da mesma classe não nasça desguardado.
 
 ### `Q15` — Sob pressão de memória, o OCR some em silêncio — ✅ **FECHADO em 30/08/2026** (com resto declarado)
 
@@ -2218,9 +2238,9 @@ com o traço real de uso fica claro quais arestas o modelo aproveita.
 > [`docs/ablacao-f4-grafo.md`](docs/ablacao-f4-grafo.md). As duas metades do
 > critério de saída estão cumpridas para esta parte: métricas da F2 **idênticas**
 > (recall@1 0,667, MRR 0,787, nDCG@5 0,793) e o caso plano → norma respondível só
-> pela aresta. MSG/EML e legado OLE **entraram**. Falta desta fase, em pacotes:
-> F4-W (watcher), F4-S (SharePoint pasta sincronizada), F4-L (OLE que mente),
-> F4-O (OCR) e F4-D (dourado que cubra o acervo). F4-M fechou em 24/08.
+> pela aresta. MSG/EML e legado OLE **entraram**. `F4-W`, `F4-S` e `F4-L`
+> fecharam; o que depende do notebook — `F4-O.3`, `F4-R` e a ampliação privada
+> do dourado — está congelado desde 01/09/2026. F4-M fechou em 24/08.
 >
 > **O "só" foi verificado, não presumido.** A norma não aparece em `search` com
 > k=10, nem k=20, nem quando a consulta nomeia a norma. A razão é estrutural:
@@ -2374,7 +2394,7 @@ Não continuar a passada pausada: o que estava em voo é andaime (`_context.txt`
   enumeração antes de escrever a pergunta, ler o texto **já indexado**, conferir
   a fonte trecho por trecho, e só então rodar o eval
 
-#### F4-L — OLE que mente — **desktop**
+#### F4-L — OLE que mente — ✅ **FECHADO no PR #37**
 
 Parsers existem. O que a passada na base privada do desktop mostrou: `.xls` que é HTML ou está
 criptografado, `.ppt` que não é OLE2, `xlrd` recusando codepage. Status vira
@@ -2390,7 +2410,7 @@ criptografado, `.ppt` que não é OLE2, `xlrd` recusando codepage. Status vira
 - **Paralelo:** sim. A passada em curso usa o parser velho; a próxima repesca
   por versão
 
-#### F4-W — Watcher — **desktop**
+#### F4-W — Watcher — ✅ **FECHADO**
 
 Processo à parte. Não é o laço do indexador: observa a raiz e dispara
 `indexer --prefixo` / documento único. Sem IPC novo — o contrato é o de
@@ -2409,7 +2429,7 @@ processo desligado.
   sendo o vivo, inclusive no POSIX.
 - **Paralelo:** sim. Não precisa do índice privado do desktop
 
-#### F4-S — SharePoint via pasta sincronizada — **notebook** (depois de F4-M)
+#### F4-S — SharePoint via pasta sincronizada — ✅ **FECHADO**
 
 A política de placeholder já está no `reader.py` (F1). O que falta é o leigo
 entender e o painel mostrar “arquivo só na nuvem”. Graph API continua F5.
@@ -2419,6 +2439,11 @@ entender e o painel mostrar “arquivo só na nuvem”. Graph API continua F5.
 - **Não toca:** `indexer.py`, parsers
 - **Saída:** a tela distingue placeholder de arquivo local; teste sem OneDrive
   real (atributo fabricado)
+
+Entregue: a prévia do painel conta `placeholders` sem abrir conteúdo e a tela
+explica que eles serão registrados, não baixados. `tests/test_census.py` fabrica
+o atributo de nuvem e `tests/test_painel.py` confere o contrato da API. Graph API
+continua fora desta fase e só volta com demanda concreta em F5.
 
 #### F4-O — OCR — **desktop** (R1.2)
 
