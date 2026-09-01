@@ -124,6 +124,11 @@ def test_o_botao_de_ligar_grava_config_do_usuario_e_nao_do_repositorio(
     destino.parent.mkdir()
     monkeypatch.setattr(registrar, "em_checkout", lambda: False)
     monkeypatch.setattr(registrar, "destino_de", lambda _c: destino)
+    monkeypatch.setattr(
+        registrar,
+        "python_do_projeto",
+        lambda **_k: str(tmp_path / "Python" / "python.exe"),
+    )
 
     cliente.post(
         "/api/base",
