@@ -4,11 +4,20 @@ from pathlib import Path
 
 import pytest
 
+from segundocerebro.ingest.canonico import renderizar
+from segundocerebro.ingest.document import Block, ParsedDoc
 from segundocerebro.index.isolamento import parse_isolado
 from segundocerebro.index.indexer import indexar
 from segundocerebro.index.store import Store
 from segundocerebro.ingest.document import ParseStatus
-from segundocerebro.ingest.parse_store import ParseStore, ROTA_LIBREOFFICE, rota_de
+from segundocerebro.ingest.parse_store import (
+    ROTA_LIBREOFFICE,
+    ROTA_NATIVA,
+    Chave,
+    ParseStore,
+    rota_de,
+)
+from segundocerebro.ingest.parsers import parser_version_for
 from segundocerebro.ingest.reader import parse_file
 from tests.falsos import DIM, EmbedderFalso, bytes_pdf, corpus
 
@@ -172,3 +181,62 @@ def test_falha_ao_gravar_cache_nao_invalida_parse(
 def test_metadados_reais_do_libreoffice_selecionam_a_rota_externa() -> None:
     assert rota_de({"convertido": "libreoffice"}) == ROTA_LIBREOFFICE
     assert rota_de({"recalculado": "libreoffice"}) == ROTA_LIBREOFFICE
+
+
+def _gravar_nativo(indice: Path, extensao: str, sha256: str, **meta: str) -> None:
+    doc = ParsedDoc(
+        name=f"legado{extensao}",
+        blocks=(Block(heading_path=(), text="conteúdo nativo"),),
+        meta=meta,
+    )
+    chave = Chave(
+        sha256=sha256,
+        parser=parser_version_for(extensao),
+        rota=ROTA_NATIVA,
+    )
+    ParseStore(indice).gravar(chave, renderizar(doc))
+
+
+def test_instalar_libreoffice_invalida_cache_nativo_de_legado(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from segundocerebro.ingest import parse_cache
+
+    indice = tmp_path / "indice"
+    sha256 = "a" * 64
+    _gravar_nativo(indice, ".doc", sha256)
+    monkeypatch.setattr(
+        parse_cache,
+        "assinatura_do_motor",
+        lambda rota: "soffice:novo" if rota == ROTA_LIBREOFFICE else "",
+    )
+
+    resultado = parse_cache.obter_resultado(
+        indice,
+        path=str(tmp_path / "legado.doc"),
+        dados=b"ole",
+        sha256=sha256,
+        ocr=False,
+    )
+
+    assert resultado is None, "o miss força a nova conversão pelo LibreOffice"
+
+
+def test_instalar_libreoffice_so_invalida_planilha_que_precisa_recalculo(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from segundocerebro.ingest import parse_cache
+
+    indice = tmp_path / "indice"
+    precisa, pronta = "b" * 64, "c" * 64
+    _gravar_nativo(indice, ".xlsx", precisa, sem_valor_em_cache="1")
+    _gravar_nativo(indice, ".xlsx", pronta)
+    monkeypatch.setattr(
+        parse_cache,
+        "assinatura_do_motor",
+        lambda rota: "soffice:novo" if rota == ROTA_LIBREOFFICE else "",
+    )
+
+    kwargs = {"indice": indice, "path": str(tmp_path / "dados.xlsx"), "dados": b"zip", "ocr": False}
+    assert parse_cache.obter_resultado(sha256=precisa, **kwargs) is None
+    assert parse_cache.obter_resultado(sha256=pronta, **kwargs).parse_store_hit

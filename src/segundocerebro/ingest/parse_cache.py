@@ -51,6 +51,21 @@ def _candidatas(sha256: str, extensao: str, *, ocr: bool) -> tuple[Chave, ...]:
     return tuple(chaves)
 
 
+def _nativo_superado_por_libreoffice(
+    chave: Chave,
+    *,
+    extensao: str,
+    meta: dict[str, str],
+    libreoffice_ativo: bool,
+) -> bool:
+    """Um cache anterior à instalação não pode esconder a rota agora disponível."""
+    if chave.rota != ROTA_NATIVA or not libreoffice_ativo:
+        return False
+    if extensao in EXTENSOES_LEGADO:
+        return True
+    return extensao in EXTENSOES_DE_PLANILHA and meta.get("sem_valor_em_cache") == "1"
+
+
 def obter_resultado(
     indice: Path | None,
     *,
@@ -64,9 +79,18 @@ def obter_resultado(
         return None
     extensao = os.path.splitext(path)[1].lower()
     store = ParseStore(indice)
-    for chave in _candidatas(sha256, extensao, ocr=ocr):
+    candidatas = _candidatas(sha256, extensao, ocr=ocr)
+    libreoffice_ativo = any(c.rota == ROTA_LIBREOFFICE and c.motor for c in candidatas)
+    for chave in candidatas:
         canonico = store.obter(chave)
         if canonico is None:
+            continue
+        if _nativo_superado_por_libreoffice(
+            chave,
+            extensao=extensao,
+            meta=canonico.meta,
+            libreoffice_ativo=libreoffice_ativo,
+        ):
             continue
         doc = ParsedDoc(
             name=os.path.basename(path),
