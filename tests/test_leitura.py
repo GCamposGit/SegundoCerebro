@@ -390,6 +390,10 @@ CASOS_DE_CURSOR = {
         "orcamento": "max_secoes",
         "lista": "secoes",
     },
+    "pack_folder": {
+        "argumentos": {"pasta": PASTA, "politica": "canonicos"},
+        "orcamento": "budget_chars", "lista": "incluidos", "cursor_inicial": None,
+    },
 }
 """Como exercitar cada tool de leitura. A **lista** de tools não mora aqui."""
 

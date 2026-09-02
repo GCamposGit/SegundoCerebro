@@ -29,7 +29,7 @@ entender como este projeto trabalha.
 | Documento | O que é |
 |---|---|
 | [`comecar.md`](comecar.md) | De zero à primeira pergunta respondida. É a `F6-D`, e é a página que o leigo lê |
-| [`usar-o-mcp.md`](usar-o-mcp.md) | As três ferramentas, e como ligar nos dois clientes |
+| [`usar-o-mcp.md`](usar-o-mcp.md) | As ferramentas MCP, e como ligar nos dois clientes |
 | [`painel-de-ajuste.md`](painel-de-ajuste.md) | O painel local: o que ele faz, e por que está fora do caminho de consulta |
 | [`arquitetura-tecnica.md`](arquitetura-tecnica.md) | A descrição técnica corrente |
 
@@ -61,6 +61,7 @@ com número, data e a mudança de método que fechou a classe.
 | [`dossie-melhorias.md`](dossie-melhorias.md) · [`dossie-complemento-update-devs.md`](dossie-complemento-update-devs.md) | Auditoria externa de 24/08, já conferida contra o código e absorvida pelo `ROADMAP.md` |
 | [`pacote-j-camada-acesso-corpus.md`](pacote-j-camada-acesso-corpus.md) | A especificação recebida do **pacote J** em 30/08: Parse Store e as quatro tools de acesso integral, para o modo de consumo que a busca não cobre |
 | [`plano-pacote-j.md`](plano-pacote-j.md) | **Leia antes da especificação acima.** A conferência contra o código: o que já existe, as cinco premissas medidas que não batem, e a ordem revisada |
+| [`jc-leitura-integral.md`](jc-leitura-integral.md) · [`jb2-estrutura-citacoes.md`](jb2-estrutura-citacoes.md) · [`jd-pack-folder.md`](jd-pack-folder.md) | `get_document`, contrato de citações e `pack_folder` |
 
 ## Ablações — a mudança e o número que a autorizou
 

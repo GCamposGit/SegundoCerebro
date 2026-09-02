@@ -103,11 +103,11 @@ def _tipo(caminho: str) -> str:
     return "." + nome.rsplit(".", 1)[-1].lower() if "." in nome else ""
 
 
-def _vigentes(documentos: Sequence[registro.Documento]) -> set[tuple[str, str]]:
+def vigentes(documentos: Sequence[registro.Documento]) -> set[tuple[str, str]]:
     """Um representante por família de versões, pela regra de `familias.py`.
 
-    É o mesmo conceito de canônico que o `pack_folder` (`J.d`) vai consumir, e
-    por isso ele sai daqui e não de uma segunda regra: `politica='canonicos'`
+    É o mesmo conceito de canônico que o `pack_folder` (`J.d`) consome, e por
+    isso ele sai daqui e não de uma segunda regra: `politica='canonicos'`
     tem de significar no manifesto o que significa no bundle.
     """
     por_familia: dict[tuple[str, str], dict[str, float]] = {}
@@ -229,6 +229,19 @@ def _declarar_fronteira(
         )
 
 
+def listar(
+    store: Store,
+    pasta: str,
+    *,
+    recursivo: bool = False,
+    censo_cfg: census_mod.Config | None = None,
+) -> tuple[list[registro.Documento], list[str]]:
+    """Todos os documentos da pasta, índice e censo, na ordem estável do manifesto."""
+    censo_cfg = censo_cfg if censo_cfg and censo_cfg.roots else None
+    documentos = registro.documentos_da_pasta(store, pasta, recursivo=recursivo)
+    return _complementar_com_censo(documentos, censo_cfg, pasta, recursivo=recursivo)
+
+
 def manifesto(
     store: Store,
     pasta: str,
@@ -240,17 +253,13 @@ def manifesto(
     censo_cfg: census_mod.Config | None = None,
 ) -> dict[str, Any]:
     """O que existe nesta pasta, em ordem de caminho e com o que falta declarado."""
-    censo_cfg = censo_cfg if censo_cfg and censo_cfg.roots else None
-    documentos = registro.documentos_da_pasta(store, pasta, recursivo=recursivo)
-    documentos, erros_censo = _complementar_com_censo(
-        documentos, censo_cfg, pasta, recursivo=recursivo
-    )
+    documentos, erros_censo = listar(store, pasta, recursivo=recursivo, censo_cfg=censo_cfg)
     quarentena = registro.quarentena_da_pasta(store, pasta, recursivo=recursivo)
 
     pagina = paginar(documentos, cursor, limite)
     caminhos = [d.caminho for d in pagina.itens]
     tamanhos = registro.texto_por_documento(store, caminhos)
-    vigentes = _vigentes(documentos)
+    canonico = vigentes(documentos)
 
     itens = [
         _item(
@@ -258,7 +267,7 @@ def manifesto(
             base=base,
             chars=0 if doc.status == "so_censo" else tamanhos.get(doc.caminho, (0, 0))[0],
             trechos=0 if doc.status == "so_censo" else tamanhos.get(doc.caminho, (0, 0))[1],
-            vigente=(doc.raiz, doc.caminho) in vigentes,
+            vigente=(doc.raiz, doc.caminho) in canonico,
             quarentena="" if doc.status == "so_censo" else quarentena.get(doc.caminho, ""),
         )
         for doc in pagina.itens

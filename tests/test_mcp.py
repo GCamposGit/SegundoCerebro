@@ -102,8 +102,10 @@ def chamar(servidor, nome: str, **kwargs) -> dict:  # noqa: ANN001
 # --- o contrato da superfície -----------------------------------------------
 
 
-SUPERFICIE = {"search", "read_note", "neighbors", "list_folder", "outline", "get_document"}
-"""As cinco ferramentas, e por que cada grupo está aqui.
+SUPERFICIE = {
+    "search", "read_note", "neighbors", "list_folder", "outline", "get_document", "pack_folder",
+}
+"""As sete ferramentas, e por que cada grupo está aqui.
 
 `search` e `read_note` fecham o laço de **retrieval** — "onde está X" e "me
 mostra o que tem em volta". `neighbors` entrou na F4 porque o traço de uso real
@@ -112,7 +114,7 @@ mostrou o limite concreto que ela rompe.
 `list_folder` e `outline` entraram em 30/08/2026 pelo `J.c-mapa`, e não são mais
 recuperação: são o **segundo modo de consumo** — enumerar e mapear, para o agente
 que vai ler uma pasta inteira e precisa saber o que existe antes de gastar
-contexto. Elas não ranqueiam e não leem conteúdo do acervo.
+contexto. `get_document` lê um; `pack_folder` cobre a pasta. Elas não ranqueiam.
 
 `list_recent` e `glossary` continuam de fora: são hipóteses que o uso real não
 confirmou.

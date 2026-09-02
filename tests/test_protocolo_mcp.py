@@ -60,7 +60,9 @@ from segundocerebro.mcp.registrar import ambiente_do_cliente, entrada_de
 REPO = Path(__file__).resolve().parents[1]
 DRIVER = REPO / "tests" / "servidor_falso.py"
 
-FERRAMENTAS = {"search", "read_note", "neighbors", "list_folder", "outline", "get_document"}
+FERRAMENTAS = {
+    "search", "read_note", "neighbors", "list_folder", "outline", "get_document", "pack_folder",
+}
 """A superfície inteira, declarada aqui de novo e de propósito.
 
 `test_mcp.py` já afirma isto sobre o objeto servidor; aqui a afirmação é sobre o
@@ -252,6 +254,10 @@ def test_o_esquema_diz_ao_cliente_como_chamar(do_produto: dict[str, Any]) -> Non
     assert esquemas["get_document"]["required"] == ["documento"]
     assert set(esquemas["get_document"]["properties"]) == {"documento", "cursor", "max_chars"}
     assert do_produto["ferramentas"]["get_document"].annotations.read_only_hint is True
+    assert set(esquemas["pack_folder"]["properties"]) == {
+        "pasta", "budget_chars", "cursor", "politica", "ids", "recursivo",
+    }
+    assert do_produto["ferramentas"]["pack_folder"].annotations.read_only_hint is True
 
 
 # --- 2. as três ferramentas por cima do cano de verdade ----------------------
@@ -287,6 +293,9 @@ def do_servidor_falso(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Any
                 "documento": POLITICA, "cursor": conteudo.get("cursor_proximo"), "max_chars": 32000,
             }),
             "integral_erro": await sessao.call_tool("get_document", {"documento": "../fora.md"}),
+            "pacote": await sessao.call_tool("pack_folder", {
+                "pasta": "Política de IA", "budget_chars": 8000, "politica": "canonicos",
+            }),
             "procedencia": await sessao.call_tool(
                 "search", {"consulta": "revisão humana", "k": 3}
             ),
@@ -415,6 +424,17 @@ def test_documento_integral_e_continuacao_pelo_stdio(do_servidor_falso):
         assert bloco["onde"] == original.locator
 
 
+def test_pack_folder_pelo_stdio_corta_em_documento(do_servidor_falso):
+    from tests.servidor_falso import POLITICA, canonico_de
+    pacote = carga(do_servidor_falso["pacote"])
+    assert not do_servidor_falso["pacote"].is_error
+    assert pacote["completo"]
+    assert POLITICA in pacote["incluidos"]
+    assert canonico_de(POLITICA).markdown in pacote["markdown"]
+    assert f"arquivo: {POLITICA}" in pacote["markdown"]
+    assert "id:" in pacote["markdown"]
+
+
 def test_erro_de_leitura_tem_is_error_e_json_compativel(do_servidor_falso):
     erro = do_servidor_falso["integral_erro"]
     assert erro.is_error
@@ -430,6 +450,7 @@ NUMERAIS = {
     4: "quatro ferramentas",
     5: "cinco ferramentas",
     6: "seis ferramentas",
+    7: "sete ferramentas",
 }
 """Como o título da seção conta as ferramentas. Só os casos que podem existir."""
 
