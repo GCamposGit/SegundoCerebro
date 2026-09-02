@@ -106,13 +106,18 @@ trechos que respondem. As duas seguintes servem o modo **leitura** — quando a
 tarefa não é "onde está X" e sim "escreva um relatório sobre esta pasta".
 
 **`list_folder(pasta="", recursivo=False, cursor=0, max_itens=100)`** — o que
-existe numa pasta: por documento, um `id` estável, o tipo, a data, quantos
+existe numa pasta: por documento, a `raiz`, um `id` estável quando já há hash, o tipo, a data, quantos
 caracteres de texto ele tem indexados, se é a versão vigente da família e o
-status (`indexado`, `quarentena`, `sem_texto`, `formato_nao_lido`). A ordem é por
-caminho e **nunca** por relevância, então a lista é a mesma toda vez — é o que
-permite repetir o mesmo trabalho semana após semana. Quando há mais itens que o
+status (`indexado`, `quarentena`, `sem_texto`, `formato_nao_lido`, `so_censo`).
+Com as raízes configuradas, inclui arquivos ainda não indexados por enumeração
+de metadados: não abre conteúdo, não baixa placeholders e respeita exclusões.
+Esses arquivos aparecem como `so_censo`, sem id e com motivo. Caminhos relativos
+iguais em raízes diferentes são entradas distintas. A ordem é por caminho e raiz,
+**nunca** por relevância. Quando há mais itens que o
 orçamento, o retorno traz `cursor_proximo` e `restante`: a ferramenta nunca corta
-em silêncio.
+em silêncio. A enumeração é ao vivo: se o acervo mudar entre páginas, reinicie
+com `cursor=0`. Sem raízes declaradas, o campo `fronteira` avisa que só há dados do
+índice; falhas de enumeração vêm em `aviso_censo`, sem fingir cobertura completa.
 
 **`outline(documento, cursor=0, max_secoes=80)`** — o mapa de um documento sem
 gastar contexto lendo o documento: as seções na ordem do texto, onde cada uma

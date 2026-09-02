@@ -16,11 +16,14 @@ Tool nova em `mcp/leitura.py` sem caso declarado aqui reprova.
 from __future__ import annotations
 
 import random
+from pathlib import Path
 from typing import Any
 
 import pytest
 
 from segundocerebro.acesso import identidade, manifesto
+from segundocerebro.census import Config as CensoConfig
+from segundocerebro.census import RootSpec
 from segundocerebro.index.store import Store
 from segundocerebro.mcp import leitura
 
@@ -83,16 +86,38 @@ class _Espiao:
         return registrar
 
 
+class _BaseDeTeste:
+    def __init__(self, id_: str, censo_cfg: CensoConfig) -> None:
+        self.id = id_
+        self._censo_cfg = censo_cfg
+
+    def censo(self) -> CensoConfig:
+        return self._censo_cfg
+
+
+class _BaseSoId:
+    def __init__(self, id_: str) -> None:
+        self.id = id_
+
+
 class _Recursos:
-    def __init__(self, store: Store, base_id: str = "") -> None:
+    def __init__(
+        self, store: Store, base_id: str = "", censo_cfg: CensoConfig | None = None
+    ) -> None:
         self.store = store
-        self.base = type("Base", (), {"id": base_id})() if base_id else None
+        self.base = (
+            _BaseDeTeste(base_id, censo_cfg)
+            if base_id and censo_cfg is not None
+            else _BaseSoId(base_id) if base_id else None
+        )
 
 
-def ferramentas_de_leitura(store: Store, base_id: str = "corp") -> dict[str, Any]:
+def ferramentas_de_leitura(
+    store: Store, base_id: str = "corp", censo_cfg: CensoConfig | None = None
+) -> dict[str, Any]:
     """As tools do `J.c`, **derivadas do módulo** e não escritas à mão."""
     espiao = _Espiao()
-    leitura.registrar(espiao, _Recursos(store, base_id))
+    leitura.registrar(espiao, _Recursos(store, base_id, censo_cfg))
     return espiao.tools
 
 
@@ -171,6 +196,128 @@ def test_o_manifesto_declara_a_propria_fronteira(indice: Store) -> None:
     """O que o manifesto **não** cobre entra no retorno, não numa nota de rodapé."""
     saida = ferramentas_de_leitura(indice)["list_folder"](pasta=PASTA)
     assert "índice" in saida["fronteira"] and "quarentena" in saida["fronteira"]
+
+
+@pytest.mark.parametrize("nuvem", [False, True])
+def test_manifesto_inclui_arquivo_so_no_censo_sem_abrir_conteudo(
+    indice: Store, tmp_path: Path, monkeypatch: pytest.MonkeyPatch, nuvem: bool
+) -> None:
+    """O agente enxerga o que o indexador ainda não alcançou, sem hidratar nada."""
+    raiz = tmp_path / "acervo"
+    pasta = raiz / "Projetos" / "Alfa"
+    pasta.mkdir(parents=True)
+    novo = pasta / "Novo.txt"
+    novo.write_text("conteúdo que o manifesto não pode abrir", encoding="utf-8")
+    cfg = CensoConfig(roots=[RootSpec(name="acervo", path=raiz)])
+    registro_antes = list(indice.con.iterdump())
+
+    def leitura_proibida(*_args, **_kwargs):  # noqa: ANN002, ANN003, ANN202
+        raise AssertionError("list_folder abriu conteúdo do acervo")
+
+    with monkeypatch.context() as portao:
+        if nuvem:
+            portao.setattr("segundocerebro.census._attrs_of", lambda _st: 0x00001000)
+        portao.setattr("builtins.open", leitura_proibida)
+        portao.setattr("io.open", leitura_proibida)
+        itens = ferramentas_de_leitura(indice, censo_cfg=cfg)["list_folder"](
+            pasta=PASTA
+        )["itens"]
+    item = next(i for i in itens if i["arquivo"] == "Projetos/Alfa/Novo.txt")
+
+    assert item["status"] == "so_censo"
+    assert item["bytes"] == novo.stat().st_size
+    assert "id" not in item and "censo" in item["sem_id"]
+    assert list(indice.con.iterdump()) == registro_antes
+
+
+def test_censo_e_indice_nao_duplicam_o_mesmo_caminho(indice: Store, tmp_path: Path) -> None:
+    raiz = tmp_path / "acervo"
+    existente = raiz / "Projetos" / "Alfa" / "Plano_v2.docx"
+    existente.parent.mkdir(parents=True)
+    existente.write_bytes(b"fixture")
+    cfg = CensoConfig(roots=[RootSpec(name="acervo", path=raiz)])
+
+    itens = ferramentas_de_leitura(indice, censo_cfg=cfg)["list_folder"](
+        pasta=PASTA
+    )["itens"]
+    planos = [i for i in itens if i["arquivo"] == "Projetos/Alfa/Plano_v2.docx"]
+
+    assert len(planos) == 1
+    assert planos[0]["status"] == "indexado"
+
+
+def test_censo_respeita_exclusoes_recursao_e_paginacao(indice: Store, tmp_path: Path) -> None:
+    raiz = tmp_path / "acervo"
+    nomes = [
+        "Projetos/Alfa/Antes.txt", "Projetos/Alfa/Zeta.txt",
+        "Projetos/Alfa/Sub/Novo.txt", "Projetos/Beta/Novo.txt",
+        "Projetos/Alfa/temporario.tmp", "Projetos/Alfa/.git/config",
+    ]
+    for nome in nomes:
+        alvo = raiz / nome
+        alvo.parent.mkdir(parents=True, exist_ok=True)
+        alvo.write_text("fixture", encoding="utf-8")
+    cfg = CensoConfig(roots=[RootSpec(name="acervo", path=raiz)])
+    tool = ferramentas_de_leitura(indice, censo_cfg=cfg)["list_folder"]
+    rasos = {i["arquivo"] for i in tool(pasta=PASTA)["itens"]}
+    assert "Projetos/Alfa/Sub/Novo.txt" not in rasos
+
+    caso = {"argumentos": {"pasta": PASTA, "recursivo": True},
+            "orcamento": "max_itens", "lista": "itens"}
+    completo = _paginar_tudo(tool, caso, 500)
+    for limite in (1, 2, 3, 5):
+        assert _paginar_tudo(tool, caso, limite) == completo
+    caminhos = [i["arquivo"] for i in completo]
+    assert caminhos == sorted(caminhos)
+    assert "Projetos/Alfa/Sub/Novo.txt" in caminhos
+    assert not any(".git" in p or p.endswith(".tmp") or "/Beta/" in p for p in caminhos)
+
+
+def test_censo_preserva_caminhos_iguais_em_raizes_distintas(
+    indice: Store, tmp_path: Path
+) -> None:
+    raiz = tmp_path / "outra"
+    alvo = raiz / "Projetos" / "Alfa" / "Plano_v2.docx"
+    alvo.parent.mkdir(parents=True)
+    alvo.write_bytes(b"outro documento")
+    cfg = CensoConfig(roots=[RootSpec(name="outra", path=raiz)])
+    itens = ferramentas_de_leitura(indice, censo_cfg=cfg)["list_folder"](pasta=PASTA)["itens"]
+    planos = [i for i in itens if i["arquivo"] == "Projetos/Alfa/Plano_v2.docx"]
+    assert len(planos) == 2
+    por_raiz = {i["raiz"]: i for i in planos}
+    assert por_raiz["acervo"]["status"] == "indexado"
+    assert por_raiz["outra"]["status"] == "so_censo"
+    assert por_raiz["outra"]["chars"] == por_raiz["outra"]["trechos"] == 0
+    assert "id" not in por_raiz["outra"]
+
+
+def test_versao_em_outra_raiz_nao_rebaixa_o_vigente_do_indice(
+    indice: Store, tmp_path: Path
+) -> None:
+    raiz = tmp_path / "outra"
+    alvo = raiz / "Projetos" / "Alfa" / "Plano_v3.docx"
+    alvo.parent.mkdir(parents=True)
+    alvo.write_bytes(b"projeto independente")
+    cfg = CensoConfig(roots=[RootSpec(name="outra", path=raiz)])
+    itens = ferramentas_de_leitura(indice, censo_cfg=cfg)["list_folder"](pasta=PASTA)["itens"]
+    assert next(i for i in itens if i["arquivo"].endswith("Plano_v2.docx"))["vigente"]
+    assert next(i for i in itens if i["arquivo"].endswith("Plano_v3.docx"))["vigente"]
+
+
+def test_falha_no_censo_declara_cobertura_incompleta_sem_vazar_caminho(
+    indice: Store, tmp_path: Path
+) -> None:
+    cfg = CensoConfig(roots=[RootSpec(name="offline", path=tmp_path / "ausente")])
+    saida = ferramentas_de_leitura(indice, censo_cfg=cfg)["list_folder"](pasta=PASTA)
+    assert "incompleta" in saida["aviso_censo"]
+    assert str(tmp_path) not in str(saida)
+    assert saida["itens"], "falha de enumeração não apaga os documentos já conhecidos"
+
+
+def test_servidor_sem_raizes_declara_lista_restrita_ao_indice(indice: Store) -> None:
+    saida = ferramentas_de_leitura(indice)["list_folder"](pasta=PASTA)
+    assert "não recebeu as raízes" in saida["fronteira"]
+    assert "so_censo" not in {i["status"] for i in saida["itens"]}
 
 
 # --- outline ------------------------------------------------------------------

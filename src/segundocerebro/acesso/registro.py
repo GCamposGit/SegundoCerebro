@@ -250,6 +250,11 @@ def _sob(caminho: str, prefixo: str, recursivo: bool) -> bool:
     return recursivo or "/" not in resto
 
 
+def esta_na_pasta(caminho: str, pasta: str, *, recursivo: bool = False) -> bool:
+    """O caminho relativo pertence à pasta pedida pela tool de manifesto?"""
+    return _sob(caminho, normalizar_prefixo(pasta), recursivo)
+
+
 def documentos_da_pasta(store: Store, pasta: str, *, recursivo: bool = False) -> list[Documento]:
     """Todo documento do registro sob esta pasta, em ordem de caminho.
 

@@ -97,9 +97,10 @@ Onde o sistema está, em cinco linhas:
   (invariante 6).
 
 **Onde o produto não está pronto**, e é o que a régua de ouro manda olhar
-primeiro: o **parse store** ainda não está ligado aos produtores e ao indexador
-(`J.f`), sem o qual metade do pacote J não anda e todo rebuild paga o parse de
-novo. O watcher com catch-up USN já está entregue. O `Q15` fechou inteiro em
+primeiro: a leitura integral `get_document` ainda falta. O **parse store já está
+ligado aos produtores e ao indexador** (PR #65), com invalidação após instalação
+do LibreOffice (PR #66); o ganho de ≥80% no rebuild ainda não foi medido.
+O watcher com catch-up USN já está entregue. O `Q15` fechou inteiro em
 31/08/2026, com o `Q15.a`. Instalar frio numa máquina que não é nossa deixou de
 ser hipótese: o percurso do leigo tem teste. O Office legado
 (`.doc` `.xls` `.ppt` `.rtf`) **é lido**, inclusive os disfarces do `F4-L`.
@@ -125,15 +126,10 @@ ser hipótese: o percurso do leigo tem teste. O Office legado
 > base, é [`docs/plano-pacote-j.md`](docs/plano-pacote-j.md). **Ler as duas antes
 > de tocar no resto do pacote J.**
 
-0. **`J.f` — os produtores gravando no store, e o indexador lendo dele.** O
-   núcleo do store fechou em 31/08 (`ingest/parse_store.py`,
-   `ingest/canonico.py`), com a chave de quatro partes, escrita atômica e GC que
-   recusa censo vazio. O que falta é o laço: `reader.parse_file`, a rota
-   LibreOffice e o OCR chamando `gravar`, e `indexar()` consultando `obter` antes
-   de qualquer parser. **O ganho de ≥80% no rebuild não foi medido** — exige
-   rebuild do sintético com mix de PDF/OLE/OCR, que é passada longa. É este
-   pacote que paga as ablações `R2.1`/`R3.1`, e fazê-lo depois delas é pagar o
-   parse duas vezes.
+0. **`J.f` — integração entregue; medição de desempenho pendente.** O PR #65
+   ligou produtores e indexador ao store. **O ganho de ≥80% no rebuild não foi
+   medido** — exige rebuild do sintético com mix de PDF/OLE/OCR. Não refazer a
+   integração nem citar a meta como ganho comprovado.
 1. **`J.c-conteúdo` — `get_document`**, que o store destravou. Um aviso medido, e
    ele mata o atalho óbvio: **não sai dos chunks.** A sobreposição de 200
    caracteres infla o texto em **+11,1%** (bloco de 14.399 chars → 9 chunks
@@ -144,12 +140,10 @@ ser hipótese: o percurso do leigo tem teste. O Office legado
    existem em `ingest/canonico.py` e já têm property test sobre 12 documentos
    sorteados. O que falta é o `E4` (spans citáveis) conferir o schema antes de
    congelá-lo, que a especificação pede explicitamente.
-3. **`J.c-mapa.2` — o status `so_censo` no manifesto.** Hoje `list_folder` lista o
-   que o **índice** conhece e declara essa fronteira no próprio retorno; arquivo
-   que está no disco e nunca foi indexado não aparece. Fechar isso é varrer a
-   pasta a partir das raízes da base — `census.iter_files` já enumera sem abrir
-   arquivo, e o portão de nuvem já existe. Pequeno, e é o que completa "o agente
-   sabe o que não viu".
+3. **`J.c-mapa.2` — entregue neste PR, em 01/09/2026.** Antecipado por ser o
+   pacote menor: `list_folder` une índice e censo de metadados, mostra `so_censo`
+   sem abrir conteúdo e declara quando a enumeração é incompleta. Próxima
+   funcionalidade: `J.c-conteúdo`, sem antecipar o novo motor de OCR.
 4. **`F4-R.1` — CONGELADO até o novo notebook.** O regime de máquina observável é pré-requisito da passada de
    calibragem no acervo real: sem ele a `Calibracao` aprende coeficiente de dois
    regimes misturados (22× de diferença) com milhares de observações a favor.
@@ -158,6 +152,9 @@ ser hipótese: o percurso do leigo tem teste. O Office legado
    nem CPU híbrida e não reproduz o defeito.
 5. **`F4-O.3` — CONGELADO até o novo notebook.** O dourado de OCR
    (`g015`/`g025`/`g048`) exige o acervo e o conjunto dourado privados.
+   **`F4-O.4` — FUTURO por decisão do usuário em 01/09/2026:** comparação com
+   PP-OCRv6 e avaliação de parsers visuais como NaviDC-OCR. Apenas registrado
+   no roadmap; não instalar, comparar nem trocar o motor agora.
 6. **`Q18`** — medido e resolvido, **esperando acordo, não execução**: ligar as
    dez regras baratas do `ruff` faz 75 dos 92 `noqa` inertes de `src` valerem,
    por 40 correções. Delas, oito arquivos são do desktop e dois são "um de cada

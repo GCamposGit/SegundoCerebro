@@ -31,12 +31,14 @@ from ..acesso import manifesto
 from ..acesso.identidade import conferir_base, interpretar
 
 DESCRICAO_LIST_FOLDER = (
-    "Enumera os documentos de uma pasta da base: id estável, tipo, data, tamanho em "
-    "caracteres indexados e status de cada um. **Comece por aqui quando a tarefa for ler "
+    "Enumera os documentos de uma pasta da base: raiz, id estável quando já há hash, "
+    "tipo, data, caracteres indexados e status. Inclui arquivos ainda não indexados "
+    "como `so_censo`, sem abrir conteúdo. **Comece por aqui quando a tarefa for ler "
     "uma pasta inteira** — 'escreva um relatório sobre o projeto X', 'resuma esta pasta': "
     "`list_folder` para saber o que existe, `outline` nos maiores para decidir o que vale "
     "ler, e `search` para perguntas pontuais. A ordem é por caminho e nunca por "
-    "relevância, então a lista é a mesma toda vez. Devolve `cursor_proximo` quando há mais."
+    "relevância. Devolve `cursor_proximo` quando há mais. Se o acervo mudar entre "
+    "páginas, reinicie com cursor=0."
 )
 
 DESCRICAO_OUTLINE = (
@@ -74,6 +76,7 @@ def registrar(servidor, recursos, limites=None) -> None:  # noqa: ANN001
     """
     base = getattr(recursos, "base", None)
     id_da_base = getattr(base, "id", "") or ""
+    censo_cfg = base.censo() if callable(getattr(base, "censo", None)) else None
     max_itens_teto = getattr(limites, "max_itens", None) or manifesto.LIMITE_ITENS_MAX
 
     @servidor.tool(description=DESCRICAO_LIST_FOLDER)
@@ -98,6 +101,7 @@ def registrar(servidor, recursos, limites=None) -> None:  # noqa: ANN001
             cursor=int(cursor or 0),
             limite=limite,
             base=id_da_base,
+            censo_cfg=censo_cfg,
         )
 
     @servidor.tool(description=DESCRICAO_OUTLINE)
