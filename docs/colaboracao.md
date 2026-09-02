@@ -3,17 +3,16 @@
 Dois setups, um repositório. Este arquivo é a **única** fonte das regras.
 As skills só dizem *quem você é* e apontam para cá.
 
-> **Estado vigente desde 01/09/2026.** O notebook original foi desativado e o
-> Desktop é o único executor ativo. A tabela e a crônica abaixo preservam a
-> história e os motivos das fronteiras, mas “dono notebook” agora significa uma
-> de duas coisas: o Desktop assume se o pacote fecha com fixture pública/corpus
-> sintético; ou o pacote fica congelado se exige acervo/dourado real, bateria ou
-> CPU híbrida. Nenhum dado privado migra para o Desktop ou para o Git.
+> **Estado vigente desde 02/09/2026.** O notebook original (i7-1355U) foi
+> desativado em 01/09. Este notebook (i7-14700HX, 8P+12E) retomou em 02/09, com
+> o acervo corporativo e o dourado real. O Desktop continua ativo. A tabela de
+> donos da §1 volta a distribuir trabalho. CUDA e `index/embeddings.py` seguem
+> do Desktop. Nenhum dado privado migra para o Desktop ou para o Git.
 
 | Setup | Hardware | Acervo | Agente |
 |-------|----------|--------|--------|
 | **Desktop** | duas GTX 980 Ti (`sm_52`, driver 582.x) | corpus **novo**, sem o acervo corporativo | Grok Build |
-| **Notebook** | i7-1355U, 15 W, CPU | acervo **corporativo** original e o conjunto dourado real | Claude Code |
+| **Notebook** | i7-14700HX (8P+12E), Windows 11 | acervo **corporativo** original e o conjunto dourado real | Claude Code |
 
 O índice corporativo, `perguntas.jsonl` e os relatórios de ablação **não
 viajam**. O que as duas máquinas compartilham é o código e o corpus sintético

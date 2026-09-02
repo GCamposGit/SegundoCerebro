@@ -1,7 +1,7 @@
 # J.e — exportador de vault Markdown no Desktop
 
 02/09/2026. View one-way do acervo; não inclui botão no painel, síntese,
-ranking nem OCR novo. O notebook original está desativado.
+ranking nem OCR novo. (O botão do painel entrou no `J.e.1`, PR #73.)
 
 ## Contrato e aceite
 
