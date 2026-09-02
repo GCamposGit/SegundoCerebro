@@ -87,20 +87,21 @@ Onde o sistema está, em cinco linhas:
   O caminho entregue está em **0,551 / 0,696** desde a `F4-P`. Com intervalo:
   [`docs/rigor-estatistico.md`](docs/rigor-estatistico.md). É **piso de
   regressão**, não autoridade de arquitetura.
-- **Superfície MCP**: seis ferramentas em dois modos. `search`, `read_note` e
-  `neighbors` respondem **pergunta**; `list_folder`, `outline` e `get_document`
-  servem **leitura**: enumerar, mapear e ler o texto canônico integralmente.
-  `get_document` entrou no Desktop em 02/09/2026, neste PR, sem carregar encoder.
-  Toda tool de leitura devolve cursor quando há mais conteúdo. Dois
-  clientes instalados por comando (Claude Code e Claude Desktop).
+- **Superfície MCP**: sete ferramentas em dois modos. `search`, `read_note` e
+  `neighbors` respondem **pergunta**; `list_folder`, `outline`, `get_document` e
+  `pack_folder` servem **leitura**: enumerar, mapear, ler e empacotar pasta.
+  `pack_folder` entrou no Desktop em 02/09/2026, neste PR. Toda tool de leitura
+  devolve cursor quando há mais conteúdo. Dois clientes instalados por comando
+  (Claude Code e Claude Desktop).
 - **Painel** em `127.0.0.1`: criar base, indexar com barra, pesos, glossário,
   diagnóstico de consulta, ensinar quando erra. Fora do caminho de consulta
   (invariante 6).
 
 **Onde o produto não está pronto**, e é o que a régua de ouro manda olhar
-primeiro: o empacotamento de pasta `pack_folder` ainda falta. A leitura integral
-`get_document` foi implementada neste PR, com testes sintéticos e MCP;
-ver [`docs/jc-leitura-integral.md`](docs/jc-leitura-integral.md).
+primeiro: o exportador de vault `J.e` ainda falta. `pack_folder` foi entregue
+neste PR, com testes sintéticos e MCP; ver [`docs/jd-pack-folder.md`](docs/jd-pack-folder.md).
+A leitura integral `get_document` está em
+[`docs/jc-leitura-integral.md`](docs/jc-leitura-integral.md).
 O **parse store já está
 ligado aos produtores e ao indexador** (PR #65), com invalidação após instalação
 do LibreOffice (PR #66); a meta de ≥80% no rebuild foi refutada no experimento
@@ -138,12 +139,13 @@ ser hipótese: o percurso do leigo tem teste. O Office legado
    **`Q15.b` corrigido no Desktop:** exceções nativas de memória encapsuladas
    deixam de virar `vazio`; erro de recurso preserva nova tentativa, sem aumentar
    teto padrão. [Pesquisa, testes reais e limites](docs/q15b-ocr-recursos.md).
-1. **`J.d` — `pack_folder`**, próximo pacote funcional: manifesto primeiro,
-   política de famílias e orçamento com continuação. `J.c-conteúdo` foi entregue
-   neste PR, no Desktop, em 02/09/2026: sai do Parse Store, nunca dos chunks
-   (+11,1% de sobreposição medidos); cursor opaco vincula versão e base.
-   Leitura sob demanda só para documentos com identidade no registro; sem cache
-   exige original local e raízes. Novo OCR continua reservado para fase futura.
+1. **`J.e` — exportador de vault Markdown**, próximo pacote funcional: view
+   one-way, destino fora das raízes, wikilinks derivados das menções. **`J.d` —
+   `pack_folder`** foi entregue neste PR, em 02/09/2026: manifesto primeiro,
+   `politica=canonicos` pela regra de `familias.py`, corte só em fronteira de
+   documento, cursor opaco. [Contrato e limites](docs/jd-pack-folder.md).
+   `J.c-conteúdo` sai do Parse Store, nunca dos chunks. Novo OCR continua
+   reservado para fase futura.
 2. **`J.b2` — contrato v1 consolidado no Desktop, em 02/09/2026.** Validação
    compartilhada, offsets Unicode, ordinal global, trilha e páginas/slides
    explícitos em `get_document`; cache legado compatível. Sem mudar Markdown.

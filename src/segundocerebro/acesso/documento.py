@@ -145,21 +145,27 @@ class LeitorDocumento:
         finally:
             self._parse.release()
 
-    def ler(self, documento: str, cursor: str | None = None, max_chars: int = CHARS_PADRAO) -> dict[str, Any]:
-        decodificar_cursor(cursor)  # Recusa barata antes de qualquer parse.
-        if type(max_chars) is not int or max_chars < 1:
-            raise ErroLeitura("orcamento_invalido", "max_chars deve ser um inteiro positivo.")
-        base_id = getattr(self.base, "id", "") or ""
+    def carregar_documento(self, doc: Documento) -> tuple[Chave, ParseCanonico, Path | None]:
+        """Canônico completo da versão indexada; mesmos portões de `ler`, sem paginar."""
         cfg = configuracao(self.base)
-        doc = _resolver(self.store, documento, base_id, cfg)
         conferir_cache(self.store.diretorio, cfg)
         alvo = localizar(doc, cfg)
         estado = conferir_original(alvo, doc)
         chave, canonico = self._canonico(doc, alvo)
         if conferir_original(alvo, doc) != estado:
             raise ErroLeitura("documento_alterado", "O original mudou durante a leitura. Reinicie após reindexar.")
+        return chave, canonico, alvo
+
+    def ler(self, documento: str, cursor: str | None = None, max_chars: int = CHARS_PADRAO) -> dict[str, Any]:
+        decodificar_cursor(cursor)  # Recusa barata antes de qualquer parse.
+        if type(max_chars) is not int or max_chars < 1:
+            raise ErroLeitura("orcamento_invalido", "max_chars deve ser um inteiro positivo.")
+        base_id = getattr(self.base, "id", "") or ""
+        doc = _resolver(self.store, documento, base_id, configuracao(self.base))
+        chave, canonico, alvo = self.carregar_documento(doc)
         identidade = json.dumps([str(resolver_caminho(self.store.diretorio)), base_id, doc.raiz,
-                                 doc.caminho, doc.sha256, chave.digest(), estado])
+                                 doc.caminho, doc.sha256, chave.digest(),
+                                 conferir_original(alvo, doc)])
         saida = paginar(canonico, identidade, cursor=cursor, max_chars=max_chars)
         saida["documento"] = _metadados(doc, canonico, chave, base_id)
         saida["fronteira"] = "Texto canônico extraído da versão indexada, não reprodução visual do original. Tabelas, imagens e OCR podem ter limitações. Use arquivo/raiz para citar o original."

@@ -1,4 +1,4 @@
-"""Superfície MCP do Segundo Cérebro — seis ferramentas, nenhuma que gere texto.
+"""Superfície MCP do Segundo Cérebro — sete ferramentas, nenhuma que gere texto.
 
     py -m segundocerebro.mcp.server --indice index
 
@@ -12,13 +12,13 @@ localmente, sem nenhuma chamada a API paga. Ver as invariantes em
 - **Multi-hop é do cliente.** Estas ferramentas são primitivas componíveis; o
   laço de agente é quem compõe. Não há orquestrador de recuperação aqui.
 
-Seis ferramentas, em dois grupos. `search`, `read_note` e `neighbors` servem o
-modo **pergunta**, e são as que este arquivo registra. `list_folder`, `outline`
-e `get_document` servem o modo **leitura** — enumerar, mapear e ler integralmente.
-As duas primeiras entraram em 30/08/2026 pelo `J.c-mapa`; a terceira em
-02/09/2026 pelo `J.c-conteúdo`. O registro deste grupo mora em
-`mcp/leitura.py`, porque `construir` está no teto de tamanho e superfície nova
-não empurra função que a tabela só deixa descer.
+Sete ferramentas, em dois grupos. `search`, `read_note` e `neighbors` servem o
+modo **pergunta**, e são as que este arquivo registra. `list_folder`, `outline`,
+`get_document` e `pack_folder` servem o modo **leitura** — enumerar, mapear, ler
+e empacotar. As duas primeiras entraram em 30/08/2026 pelo `J.c-mapa`; a terceira
+em 02/09/2026 pelo `J.c-conteúdo`; `pack_folder` em 02/09/2026 pelo `J.d`. O
+registro deste grupo mora em `mcp/leitura.py`, porque `construir` está no teto
+de tamanho e superfície nova não empurra função que a tabela só deixa descer.
 
 `list_recent` e `glossary` continuam de fora: são hipóteses que o uso real não
 confirmou.

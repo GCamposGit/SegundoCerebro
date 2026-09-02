@@ -519,15 +519,17 @@ agente que tenta hoje lê o que a busca escolher e não sabe o que não viu.
 |-----------|-----------|-------|
 | `list_folder` | `(pasta, recursivo?, cursor?, max_itens?)` | Manifesto da pasta: id, tipo, data, caracteres indexados, vigência de família e status por documento. Ordem por caminho, nunca por relevância |
 | `outline` | `(documento, cursor?, max_secoes?)` | Mapa do documento: seções na ordem do texto, onde cada uma está e quanto ocupa. Decide **o que** ler antes de gastar contexto |
+| `get_document` | `(documento, cursor?, max_chars?)` | Markdown canônico de um documento, paginado sem sobreposição de chunks |
+| `pack_folder` | `(pasta, budget_chars?, cursor?, politica?, ids?, recursivo?)` | Bundle manifesto-first da pasta; corta só em fronteira de documento |
 
 Três regras que valem para toda ferramenta deste modo:
 
 - **Cursor explícito sempre.** Toda resposta declara total, o que está mostrando e
   como pedir o resto. A tool que corta em silêncio faz o agente acreditar que viu
   tudo, e o sintoma é resposta confiante e incompleta — nunca um erro.
-- **Enumeração é neutra.** Nada de ranking dentro de `list_folder`: a lista é a
-  mesma toda vez, que é o que permite repetir o mesmo trabalho semana após semana.
-  Relevância é do `search`.
+- **Enumeração é neutra.** Nada de ranking dentro de `list_folder` nem de
+  `pack_folder`: a lista é a mesma toda vez, que é o que permite repetir o mesmo
+  trabalho semana após semana. Relevância é do `search`.
 - **Nada gera texto** — vale igual aqui. Estas ferramentas organizam o que existe;
   quem escreve é o cliente.
 

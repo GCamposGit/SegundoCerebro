@@ -1,17 +1,18 @@
-"""As ferramentas de acesso integral — `list_folder` e `outline` (`J.c-mapa`).
+"""As ferramentas de acesso integral — mapa, leitura e empacote (`J.c`/`J.d`).
 
 Em arquivo próprio e não em `mcp/server.py`, e o motivo é medido: `construir`
 tem 148 linhas e já está em `FUNCOES_ACIMA_DO_TETO` de
-`tests/test_tamanho_dos_modulos.py`, cuja tabela **só desce**. Quatro tools com
+`tests/test_tamanho_dos_modulos.py`, cuja tabela **só desce**. Tools com
 descriptions que ensinam o padrão de uso não cabem lá — o teste reprova, e é
 para isso que ele existe (`docs/plano-pacote-j.md` §3.10).
 
-O que estas duas acrescentam à superfície é um **modo de consumo**, não mais
+O que estas acrescentam à superfície é um **modo de consumo**, não mais
 recuperação. `search` responde "onde está X" para uma pergunta; estas respondem
-"o que existe aqui" e "como este documento é por dentro" para um agente que vai
-ler uma pasta inteira. As descriptions ensinam a sequência — enumerar, mapear,
-então ler —, que é a mesma disciplina de description do `R7.2`: quem escolhe a
-tool é o LLM cliente, e nenhum classificador roda deste lado.
+"o que existe aqui", "como este documento é por dentro" e "cubra esta pasta"
+para um agente que vai ler uma pasta inteira. As descriptions ensinam a
+sequência — enumerar, mapear, empacotar ou ler —, que é a mesma disciplina de
+description do `R7.2`: quem escolhe a tool é o LLM cliente, e nenhum
+classificador roda deste lado.
 
 Invariantes que este arquivo não pode violar, e nenhuma delas é opinião:
 
@@ -25,11 +26,14 @@ Invariantes que este arquivo não pode violar, e nenhuma delas é opinião:
 
 from __future__ import annotations
 
+from threading import Lock
 from typing import Any
 
 from ..acesso import manifesto
+from ..acesso.documento import LeitorDocumento
 from ..acesso.identidade import conferir_base, interpretar
 from .documento import registrar as registrar_documento
+from .empacote import registrar as registrar_empacote
 
 DESCRICAO_LIST_FOLDER = (
     "Enumera os documentos de uma pasta da base: raiz, id estável quando já há hash, "
@@ -37,9 +41,9 @@ DESCRICAO_LIST_FOLDER = (
     "como `so_censo`, sem abrir conteúdo. **Comece por aqui quando a tarefa for ler "
     "uma pasta inteira** — 'escreva um relatório sobre o projeto X', 'resuma esta pasta': "
     "`list_folder` para saber o que existe, `outline` nos maiores para decidir o que vale "
-    "ler, e `search` para perguntas pontuais. A ordem é por caminho e nunca por "
-    "relevância. Devolve `cursor_proximo` quando há mais. Se o acervo mudar entre "
-    "páginas, reinicie com cursor=0."
+    "ler, `pack_folder` para cobrir a pasta sob orçamento, e `search` para perguntas "
+    "pontuais. A ordem é por caminho e nunca por relevância. Devolve `cursor_proximo` "
+    "quando há mais. Se o acervo mudar entre páginas, reinicie com cursor=0."
 )
 
 DESCRICAO_OUTLINE = (
@@ -69,7 +73,21 @@ def _referencia(documento: str, id_da_base: str):  # noqa: ANN202
 
 
 def registrar(servidor, recursos, limites=None) -> None:  # noqa: ANN001
-    registrar_documento(servidor, recursos)
+    caixa: dict[str, LeitorDocumento | None] = {"leitor": None}
+    trava = Lock()
+
+    def obter() -> LeitorDocumento:
+        if caixa["leitor"] is None:
+            with trava:
+                if caixa["leitor"] is None:
+                    caixa["leitor"] = LeitorDocumento(
+                        recursos.store, getattr(recursos, "base", None),
+                    )
+        assert caixa["leitor"] is not None
+        return caixa["leitor"]
+
+    registrar_documento(servidor, recursos, obter)
+    registrar_empacote(servidor, recursos, obter, limites)
     _registrar_mapa(servidor, recursos, limites)
 
 
