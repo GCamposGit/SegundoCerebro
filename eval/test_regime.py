@@ -20,7 +20,9 @@ from eval.regime import (
     ordem_intercalada,
     plano_de_bracos,
     plano_ecoqos,
+    plano_mascara,
     rodar,
+    veredito_r3,
 )
 
 
@@ -185,6 +187,59 @@ class TestPlanoEcoqos:
         bracos, flags = plano_ecoqos(12, 6)
         assert bracos["contiguo_off"] == bracos["contiguo_on"] == [0, 1, 2, 3, 4, 5]
         assert flags == {"contiguo_off": False, "contiguo_on": True}
+
+
+class TestPlanoMascara:
+    def test_candidato_no_1355u_nao_e_os_primeiros_n(self) -> None:
+        topo = {"p": [0, 1, 2, 3], "e": list(range(4, 12)), "regra": "smt", "logicos": 12}
+        p = plano_mascara(12, 6, topo)
+        assert p["livre"] is None
+        assert p["contiguo"] == [0, 1, 2, 3, 4, 5]
+        assert p["candidato"] == [0, 2, 4, 5, 6, 7]
+
+    def test_candidato_no_14700hx_nao_copia_a_lista_do_1355u(self) -> None:
+        topo = {"p": list(range(16)), "e": list(range(16, 28)), "regra": "smt", "logicos": 28}
+        p = plano_mascara(28, 6, topo)
+        assert p["candidato"] == [0, 2, 16, 17, 18, 19]
+        assert p["candidato"] != [0, 2, 4, 5, 6, 7]
+
+
+class TestVereditoR3:
+    @staticmethod
+    def _bloco(livre: float, contig: float, cand: float) -> dict:
+        def braco(v: float) -> dict:
+            return {"medianas": [v, v], "mediana_das_replicas": v, "regime_mudou": False}
+
+        return {
+            "veredito": "medido",
+            "bracos": {"livre": braco(livre), "contiguo": braco(contig), "candidato": braco(cand)},
+        }
+
+    def test_adota_quando_ganha_no_lento_e_nao_regressa_no_benigno(self) -> None:
+        saida = veredito_r3(self._bloco(1.0, 8.0, 1.2), self._bloco(1.0, 1.0, 1.05))
+        assert saida["decisao"] == "adotar_candidato"
+        assert saida["passa_lento"] is True
+        assert saida["passa_benigno"] is True
+
+    def test_empate_no_lento_remove_a_mascara(self) -> None:
+        """Hypothesis refuted: the mix did not separate from first-N."""
+        saida = veredito_r3(self._bloco(1.0, 1.3, 1.3), self._bloco(1.0, 1.0, 1.0))
+        assert saida["decisao"] == "remover_mascara"
+        assert saida["empate_lento"] is True
+
+    def test_estoura_teto_lento_remove(self) -> None:
+        saida = veredito_r3(self._bloco(1.0, 8.0, 2.0), self._bloco(1.0, 1.0, 1.0))
+        assert saida["passa_lento"] is False
+        assert saida["decisao"] == "remover_mascara"
+
+    def test_estoura_teto_benigno_remove(self) -> None:
+        saida = veredito_r3(self._bloco(1.0, 8.0, 1.2), self._bloco(1.0, 1.0, 1.3))
+        assert saida["passa_benigno"] is False
+        assert saida["decisao"] == "remover_mascara"
+
+    def test_recusa_propaga(self) -> None:
+        saida = veredito_r3({"veredito": "recusado", "motivo": "EcoQoS"}, self._bloco(1, 1, 1))
+        assert saida["veredito"] == "recusado"
 
 
 class TestRodar:

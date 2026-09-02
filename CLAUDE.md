@@ -100,9 +100,8 @@ Onde o sistema está, em cinco linhas:
   (invariante 6).
 
 **Onde o produto não está pronto**, e é o que a régua de ouro manda olhar
-primeiro: `F4-R.3` (máscara nos dois regimes) e `F4-O.3` (OCR no acervo,
-bloqueio de 28/08 a reabrir nesta máquina). `Q18` espera acordo. `F4-O.4` é
-futuro. O exportador de vault `J.e` e o botão no painel (`J.e.1`) estão em
+primeiro: `F4-O.3` (OCR no acervo, bloqueio de 28/08 a reabrir nesta máquina).
+`Q18` espera acordo. `F4-O.4` é futuro. O exportador de vault `J.e` e o botão no painel (`J.e.1`) estão em
 [`docs/je-export-vault.md`](docs/je-export-vault.md).
 `pack_folder` está em [`docs/jd-pack-folder.md`](docs/jd-pack-folder.md).
 A leitura integral `get_document` está em
@@ -162,10 +161,11 @@ ser hipótese: o percurso do leigo tem teste. O Office legado
    lento por comando neste 14700HX; `contiguo6` reproduz 0,0365 vs 0,1357 s
    (**3,72×**), intercalado, tomada. Não é o 3,19/0,141 do 1355U. Laudo:
    [`docs/afinidade-e-estado-de-maquina.md`](docs/afinidade-e-estado-de-maquina.md).
-   **`F4-R.2` fechado neste PR:** EcoQoS-on não entra no coeficiente
-   (`test_r2_ecoqos_ligado_nao_move_coeficiente`). **`F4-R.3` só depois** —
-   e nesta CPU os primeiros N lógicos são só P-core. `esforco.py` segue
-   emprestado ao notebook até o R.3 devolver.
+   **`F4-R.2` fechado no PR #77.** **`F4-R.3` neste PR:** a mistura com
+   E-core foi refutada neste 14700HX (1,76× pior que P-only no EcoQoS-on;
+   tirar a máscara 1,90× pior). Produto: `mascara_afinidade` é só P-core.
+   `esforco.py` devolve. Laudo:
+   [`docs/afinidade-e-estado-de-maquina.md`](docs/afinidade-e-estado-de-maquina.md).
 5. **`F4-O.3` — acervo e dourado neste disco; o bloqueio de 28/08 permanece
    até reabrir.** `g015`/`g025`/`g048` conferidos contra `dourado-v1`. No 1355U
    a passada com `--ocr` quarentenava o acervo. Esta máquina não é aquela: a

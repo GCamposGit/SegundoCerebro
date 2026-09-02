@@ -105,6 +105,58 @@ def topologia() -> dict[str, Any]:
     return {"p": p, "e": e, "regra": regra, "logicos": len(p) + len(e)}
 
 
+def mascara_mista(n_usados: int, topo: dict[str, Any] | None = None) -> list[int]:
+    """R.3 candidate: one LP per P-core for ~n/3, rest E-cores.
+
+    On the 1355U that is `[0,2,4,5,6,7]`. Measured 02/09/2026 on the 14700HX
+    and refuted: 1.76× slower than P-only in the EcoQoS-on regime. Kept so
+    the instrument can reproduce the contrast; the product uses
+    `mascara_afinidade`.
+    """
+    p, e, n = _partes(n_usados, topo)
+    if not p or not e:
+        return list(range(n))
+    p_um = p[::2] or p
+    n_p = min(len(p_um), max(1, n // 3))
+    n_e = min(len(e), n - n_p)
+    n_p = min(len(p_um), n - n_e)
+    mask = p_um[:n_p] + e[:n_e]
+    if len(mask) < n:
+        resto = [x for x in p + e if x not in mask]
+        mask.extend(resto[: n - len(mask)])
+    return mask
+
+
+def mascara_afinidade(n_usados: int, topo: dict[str, Any] | None = None) -> list[int]:
+    """Product mask: P-cores only. Never a thin tail of E-cores.
+
+    F4-R.3. First-N on the 1355U was 4 P + 2 E; EcoQoS parked on the two
+    and cost 8×. The mix that added E-cores was the declared candidate; on
+    this 14700HX it lost to P-only (1.76× slower in EcoQoS-on) and so did
+    removing the mask (`livre`, 1.90× slower). Homogeneous machines keep
+    first-N. When there are fewer P-logicals than n, return the P-logicals
+    rather than padding with E-cores.
+    """
+    p, e, n = _partes(n_usados, topo)
+    if not p or not e:
+        return list(range(n))
+    if len(p) >= n:
+        return p[:n]
+    return list(p)
+
+
+def _partes(
+    n_usados: int, topo: dict[str, Any] | None
+) -> tuple[list[int], list[int], int]:
+    if topo is None:
+        topo = topologia()
+    p = [int(x) for x in (topo.get("p") or [])]
+    e = [int(x) for x in (topo.get("e") or [])]
+    n_logicos = int(topo.get("logicos") or (len(p) + len(e)) or 1)
+    n = max(1, min(int(n_usados), n_logicos))
+    return p, e, n
+
+
 def observar() -> dict[str, Any]:
     """What every speed observation must record. Never raises."""
     dados: dict[str, Any] = {

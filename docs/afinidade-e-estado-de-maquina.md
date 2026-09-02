@@ -248,3 +248,51 @@ o perfil de esforço já não entra na chave.
 Teste: `test_r2_ecoqos_ligado_nao_move_coeficiente`. Vinte observações 3,72×
 mais lentas com `ecoqos=True` deixam `(c0, c1, a_io)` iguais. R.3 continua
 depois.
+
+## R.3 — a máscara (02/09/2026, 14700HX)
+
+**Máquina:** a mesma do R.1, tomada, bateria 100%. **Não** copiar `[0,2,4,5,6,7]`
+nem 3,19/0,141. Sonda, `--nucleos 6`, 2 réplicas, 3 chunks, braços intercalados
+dentro de cada regime, EcoQoS on/off por comando.
+
+```
+py -m eval.regime --contraste-mascara --sonda --nucleos 6 --replicas 2 --chunks 3
+```
+
+Candidato derivado da topologia: um lógico por P-core em ~n/3, o resto E-cores.
+No 1355U isso é `[0,2,4,5,6,7]`. Aqui é `[0, 2, 16, 17, 18, 19]`. `contiguo` é
+`[0..5]` — três P-cores, zero E. `livre` é máscara nenhuma.
+
+Tetos, declarados antes: candidato ≤1,5× do `livre` no lento **e** ≤1,1× do
+`contiguo` no benigno. Empate com `contiguo` no lento ⇒ hipótese refutada, o
+pacote vira remover a máscara.
+
+| regime | `livre` | `contiguo` (P-only) | candidato (2P+4E) |
+|---|---:|---:|---:|
+| benigno (EcoQoS off) | 0,0356 | 0,0363 (**1,02×**) | 0,0360 (**1,01×**) |
+| lento (EcoQoS on) | 0,2556 | 0,1347 (**0,53×**) | 0,2370 (**0,93×**) |
+
+Veredito `medido`, ressalva nenhuma. No benigno a máscara continua custando
+**zero**. No lento o candidato passa o teto contra `livre` (0,93 ≤ 1,5) e não
+regressa no benigno (0,99 ≤ 1,1) — e **perde para o `contiguo`**: 1,76× mais
+lento. A mistura dá ao EcoQoS E-cores para estacionar; P-only obriga o processo
+a ficar nos P-cores, que mesmo com o 3,72× do R.1 ainda são 1,90× mais rápidos
+que `livre` no mesmo regime.
+
+**Hipótese da mistura refutada.** O fallback escrito — remover a máscara — é o
+braço `livre` desta mesma passada, e no lento ele é **1,90× pior** que P-only.
+Não é empate, e não é outra grade: os três braços já estavam na mesa.
+
+**Produto:** `mascara_afinidade` fica com **só P-cores**. Homogêneo (desktop)
+continua first-N. No 1355U n=6 isso é `[0,1,2,3]` (o `pcores4` do laudo original,
+1,37× do `livre`, dentro do teto 1,5) em vez de `[0..5]` com o rabo de 2 E-cores
+que custava 8×. Neste 14700HX n=6 e n=14 (perfil `normal`) first-N já era P-only;
+não muda a vazão medida. `maximo` neste pacote híbrido passa a 16 P-cores e
+deixa os 12 E para o resto da máquina.
+
+Testes: `test_r3_produto_e_so_p_core` (1355U sem o rabo de E; 14700HX n=6 igual
+a first-N) e `test_r3_afinidade_nao_reintroduz_rabo_fino_de_e_core` no
+`_afinidade` que o indexador chama. `esforco.py` estava emprestado; o R.3
+devolve.
+
+Não houve grade. Uma medição, três braços, dois regimes.

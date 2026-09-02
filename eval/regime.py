@@ -287,6 +287,69 @@ def plano_ecoqos(n_logicos: int, n_por_braco: int) -> tuple[dict[str, list[int]]
     )
 
 
+TETO_LENTO_LIVRE = 1.5
+"""R.3: candidato ≤ 1,5× de `livre` no regime lento. Declarado antes de medir."""
+
+TETO_BENIGNO_CONTIGUO = 1.1
+"""R.3: candidato ≤ 1,1× de `contiguo` no regime benigno. Declarado antes de medir."""
+
+EMPATE_LENTO = 0.1
+"""R.3: |candidato/contiguo − 1| no lento dentro disto é empate → remove a máscara."""
+
+
+def plano_mascara(
+    n_logicos: int, n_por_braco: int, topo: dict | None = None
+) -> dict[str, list[int] | None]:
+    """Um candidato, derivado da topologia — não uma grade, não a lista do 1355U."""
+    from segundocerebro.index.regime_maquina import mascara_mista, topologia
+
+    n_logicos = max(1, int(n_logicos))
+    n = max(1, min(int(n_por_braco), n_logicos))
+    t = topo if topo is not None else topologia()
+    return {
+        "livre": None,
+        "contiguo": list(range(n)),
+        "candidato": mascara_mista(n, t),
+    }
+
+
+def veredito_r3(lento: dict, benigno: dict) -> dict[str, object]:
+    """Tetos do R.3, declarados antes da tabela. Empate encerra em remover a máscara."""
+    for nome, bloco in (("lento", lento), ("benigno", benigno)):
+        if bloco.get("veredito") == "recusado":
+            return {"veredito": "recusado", "motivo": bloco.get("motivo"), "regime": nome}
+
+    def _med(bloco: dict, braco: str) -> float:
+        return float(bloco["bracos"][braco]["mediana_das_replicas"])
+
+    livre_l = _med(lento, "livre")
+    cand_l = _med(lento, "candidato")
+    contig_l = _med(lento, "contiguo")
+    cand_b = _med(benigno, "candidato")
+    contig_b = _med(benigno, "contiguo")
+    razao_lento_livre = round(cand_l / livre_l, 2)
+    razao_lento_contig = round(cand_l / contig_l, 2)
+    razao_benigno_contig = round(cand_b / contig_b, 2)
+    passa_lento = razao_lento_livre <= TETO_LENTO_LIVRE
+    passa_benigno = razao_benigno_contig <= TETO_BENIGNO_CONTIGUO
+    empate = abs(razao_lento_contig - 1.0) <= EMPATE_LENTO
+    if passa_lento and passa_benigno and not empate and razao_lento_contig < 1.0:
+        decisao = "adotar_candidato"
+    else:
+        decisao = "remover_mascara"
+    return {
+        "veredito": "medido",
+        "decisao": decisao,
+        "razao_lento_livre": razao_lento_livre,
+        "razao_lento_contiguo": razao_lento_contig,
+        "razao_benigno_contiguo": razao_benigno_contig,
+        "passa_lento": passa_lento,
+        "passa_benigno": passa_benigno,
+        "empate_lento": empate,
+        "tetos": {"lento_livre": TETO_LENTO_LIVRE, "benigno_contiguo": TETO_BENIGNO_CONTIGUO},
+    }
+
+
 def rodar(
     bracos: dict[str, list[int] | None],
     *,
@@ -381,6 +444,11 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="laço de CPU sem encoder — isola o gatilho sem carregar o modelo",
     )
+    ap.add_argument(
+        "--contraste-mascara",
+        action="store_true",
+        help="R.3: livre vs contiguo vs candidato, nos dois regimes, intercalado",
+    )
     a = ap.parse_args(argv)
     eco = None if a.ecoqos is None else a.ecoqos == "on"
 
@@ -401,6 +469,37 @@ def main(argv: list[str] | None = None) -> int:
 
     n_log = os.cpu_count() or 4
     n_por_braco = a.nucleos or max(1, n_log // 2)
+    if a.contraste_mascara:
+        bracos = plano_mascara(n_log, n_por_braco)
+        comum = dict(replicas=a.replicas, chunks=a.chunks, threads=a.threads, sonda=a.sonda)
+        obs_off = rodar(bracos, ecoqos=False, **comum)
+        obs_on = rodar(bracos, ecoqos=True, **comum)
+        benigno = contraste(obs_off)
+        lento = contraste(obs_on)
+        if any(o.estado_antes.get("ecoqos") is not False for o in obs_off):
+            benigno = {
+                "veredito": "recusado",
+                "motivo": "EcoQoS não ficou off no regime benigno.",
+            }
+        if any(o.estado_antes.get("ecoqos") is not True for o in obs_on):
+            lento = {
+                "veredito": "recusado",
+                "motivo": "EcoQoS não ficou on no regime lento.",
+            }
+        print(
+            json.dumps(
+                {
+                    "estado": estado(),
+                    "mascaras": bracos,
+                    "benigno": benigno,
+                    "lento": lento,
+                    "r3": veredito_r3(lento, benigno),
+                },
+                indent=2,
+                ensure_ascii=False,
+            )
+        )
+        return 0
     if a.contraste_ecoqos:
         bracos, flags = plano_ecoqos(n_log, n_por_braco)
         obs = rodar(

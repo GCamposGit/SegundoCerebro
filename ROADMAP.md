@@ -9,7 +9,8 @@ versão alcança o que já está no disco na passada seguinte.
 > **Operação vigente desde 02/09/2026: Desktop e notebook.** O notebook original
 > (i7-1355U) foi desativado em 01/09; este notebook (i7-14700HX) retomou em
 > 02/09, com acervo e dourado neste disco. As atribuições “desktop” e
-> “notebook” voltam a distribuir trabalho. `F4-R.1` fechou (PR #75). `F4-O.3`
+> “notebook” voltam a distribuir trabalho. `F4-R` fechou (R.1 PR #75, R.2 PR #77,
+> R.3 neste PR). `F4-O.3`
 > deixa de estar congelada por falta de máquina: o bloqueio que resta é o da
 > passada `--ocr` no laudo de 28/08, a reabrir aqui. CUDA/`embeddings.py`
 > continuam do Desktop. [`docs/colaboracao.md`](docs/colaboracao.md) registra a
@@ -824,7 +825,7 @@ privada do desktop **não** trava nenhum destes:
 | F4-O / R1.2 | OCR de PDF digitalizado | **desktop** + notebook (O.3) | 6 | **O.0 ✅** PR #38 · **O.1 neste PR** · O.2/O.3 em [`docs/plano-ocr.md`](docs/plano-ocr.md) |
 | F4-T | Parser de transcrição (`.vtt`/`.srt`/`.sbv`) — a saída nativa de todo gravador de reunião era contada e não indexada | notebook | 6 | ✅ **fechado em 27/08/2026**: fatia `reunião` de **0 para 100** perguntas alcançáveis, 17 → 20 extensões. [`docs/fatia-reuniao-invisivel.md`](docs/fatia-reuniao-invisivel.md) |
 | F4-O.3 | Dourado de OCR no acervo | notebook | 6 | **bloqueada em 28/08/2026** — não pelo dourado nem pelo motor: a passada com `--ocr` quarentena o acervo a 61 s por documento, com 0% de CPU. Laudo: [`docs/ocr-no-acervo-bloqueado.md`](docs/ocr-no-acervo-bloqueado.md) |
-| F4-R | Regime de máquina: a indexação varia 22× por estado do SO que o produto não observa | notebook (`esforco.py` emprestado) | 6 | **R.1 ✅ PR #75** · **R.2 neste PR**. R.3 depois. Laudo: [`docs/afinidade-e-estado-de-maquina.md`](docs/afinidade-e-estado-de-maquina.md) |
+| F4-R | Regime de máquina: a indexação varia 22× por estado do SO que o produto não observa | notebook (`esforco.py` emprestado até o R.3) | 6 | **R.1 ✅ PR #75** · **R.2 ✅ PR #77** · **R.3 neste PR** — mistura refutada; produto é P-only. Laudo: [`docs/afinidade-e-estado-de-maquina.md`](docs/afinidade-e-estado-de-maquina.md) |
 | F4-W / R5.1 | Watcher, com camada USN Journal | desktop | 6 | ✅ **fechado** — watcher vivo + catch-up USN |
 | F4-S | SharePoint = pasta sincronizada, só política e tela | notebook | 6 | ✅ **fechado** — placeholder visível no painel, sem hidratar |
 | R6.2+C4.2 · R7.1 · R7.2+C6.a · R6.3 | Rerank v2 · tools · descriptions · tempo/pasta | notebook | 7 | — |
@@ -2340,7 +2341,8 @@ com o traço real de uso fica claro quais arestas o modelo aproveita.
 > critério de saída estão cumpridas para esta parte: métricas da F2 **idênticas**
 > (recall@1 0,667, MRR 0,787, nDCG@5 0,793) e o caso plano → norma respondível só
 > pela aresta. MSG/EML e legado OLE **entraram**. `F4-W`, `F4-S` e `F4-L`
-> fecharam; `F4-R.1` fechou em 02/09/2026 (PR #75). `F4-O.3` e a ampliação
+> fecharam; `F4-R` fechou em 02/09/2026 (R.1 PR #75, R.2 PR #77, R.3 neste PR).
+> `F4-O.3` e a ampliação
 > privada do dourado voltaram à fila deste notebook. F4-M fechou em 24/08.
 >
 > **O "só" foi verificado, não presumido.** A norma não aparece em `search` com
@@ -2616,17 +2618,18 @@ o perfil **padrão** é o que converte um estado de 2× num estado de 16×.
 |---|---|---|
 | **R.1** o regime fica observável e **reproduzível sob comando** (gatilho do EcoQoS isolado; tomada/bateria e classe de eficiência gravados em toda observação) | ligar e desligar o estado lento por comando; `contiguo6` reproduz o par nesta CPU (não copiar 3,1/0,18 do 1355U) | ✅ **02/09/2026, PR #75** — 14700HX, EcoQoS on/off, `contiguo6` 0,0365 vs 0,1357 s (**3,72×**), intercalado, tomada |
 | **R.2** a `Calibracao` não agrupa regimes — regime na chave da observação, ou descarte declarado | teste que prova que observação de regime diferente não entra no mesmo coeficiente | ✅ **02/09/2026** — EcoQoS-on descartado em `Calibracao.observar`; `test_r2_ecoqos_ligado_nao_move_coeficiente` |
-| **R.3** escolher a máscara. Candidato **não medido**: `[0,2,4,5,6,7]` (2 de P-core + 4 de E-core) contra `[0..5]` | ≤1,5× do `livre` no regime lento **e** ≤1,1× do `contiguo6` no benigno. Empate ⇒ hipótese refutada e o pacote vira remover a máscara | depois do R.1 |
+| **R.3** escolher a máscara. Candidato derivado da topologia (no 1355U `[0,2,4,5,6,7]`; aqui `[0,2,16..19]`) contra `[0..5]` | ≤1,5× do `livre` no lento **e** ≤1,1× do `contiguo` no benigno | ✅ **02/09/2026** — mistura 1,76× pior que P-only no lento; `livre` 1,90× pior. Produto: só P-cores. `test_r3_produto_e_so_p_core` |
 
 - **Toca (R.1):** harness de medição, `index/esforco.py` (relato do regime), doc
 - **Toca (R.2):** `index/calibracao.py`, `tests/test_calibracao.py`
-- **Toca (R.3):** `index/esforco.py` (`_afinidade`), com número dos dois regimes
+- **Toca (R.3):** `index/esforco.py` (`_afinidade`), `index/regime_maquina.py`
+  (`mascara_afinidade`), `eval/regime.py` (`--contraste-mascara`), com número
+  dos dois regimes. `esforco.py` devolve neste PR
 - **Não toca:** `retrieve/*`, `[padrao]`, `model_id`, chunking. Nada de grade de
   máscaras, e **nada de trocar máscara antes do R.1** — sem o estado
   reproduzível, o braço mede a janela, que é o erro retratado
-- **Saída da fase:** R.1 verde é o que autoriza R.2 e R.3. Sem R.1, a passada de
-  calibragem no acervo real **não roda**: ela aprenderia coeficiente de dois
-  regimes misturados, com viés a favor e milhares de observações
+- **Saída da fase:** R.1–R.3 fechados. A calibragem não mistura EcoQoS; a máscara
+  do produto é P-only em CPU híbrida
 
 #### F4-P — Reconciliar os dois caminhos de recuperação — **notebook**
 
