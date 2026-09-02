@@ -22,17 +22,19 @@ information (a type whose coefficient is N× wrong produces ratio N).
 
 from __future__ import annotations
 
-import hashlib
 import json
 import math
-import os
-import platform
 import sqlite3
 import time
 from dataclasses import dataclass, field
 from pathlib import Path
 
 from ..logger import get_logger
+from .regime_maquina import (  # noqa: F401 — impressao re-exported for indexer/tests
+    aceita_regime,
+    diretorio_de_calibracao,
+    impressao_da_maquina,
+)
 
 log = get_logger("calibracao")
 
@@ -108,49 +110,6 @@ PERFIL_REFERENCIA = "maximo"
 
 DUTY = {"leve": 0.25, "normal": 0.50, "maximo": 1.00}
 """Seed for `g`: `dormir_ritmo` sleeps proportionally to work, so 1/duty."""
-
-
-# --------------------------------------------------------------------------
-# fingerprint
-
-
-def impressao_da_maquina(model_id: str, chunker: str, *, gpus: list[str] | None = None) -> str:
-    """Hash of everything that invalidates the machine coefficients.
-
-    The encoder is in the key on purpose: swapping `e5-large` for `minilm`
-    changes `c1` by an order of magnitude, and silently reusing the old value
-    is worse than having none. The v1 said this in prose; here it is the key.
-
-    Core count is the **total** logical count, not the profile's usable
-    slice: the profile is already its own dimension (`g`), and folding it in
-    here would split the machine's history in three and calibrate none.
-    """
-    partes = [
-        platform.machine(),
-        (platform.processor() or "")[:80],
-        str(os.cpu_count() or 0),
-        ",".join(sorted(gpus or [])),
-        model_id,
-        chunker,
-    ]
-    bruto = "|".join(partes)
-    return hashlib.sha256(bruto.encode("utf-8")).hexdigest()[:16]
-
-
-def diretorio_de_calibracao() -> Path:
-    """Per-machine, outside every base — what one base learned about the
-    encoder serves the next one, and that is what makes the second base index
-    already calibrated."""
-    forcado = os.environ.get("SEGUNDOCEREBRO_CALIBRACAO")
-    if forcado:
-        return Path(forcado)
-    if os.name == "nt":
-        raiz = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
-    else:
-        raiz = os.environ.get("XDG_DATA_HOME") or os.path.join(
-            os.path.expanduser("~"), ".local", "share"
-        )
-    return Path(raiz) / "segundocerebro"
 
 
 # --------------------------------------------------------------------------
@@ -707,6 +666,7 @@ class Calibracao:
         self._con: sqlite3.Connection | None = None
         self._sujo = False
         self._sem_disco = False
+        self.descartes_regime = 0
 
     @classmethod
     def em_memoria(cls) -> "Calibracao":
@@ -815,8 +775,14 @@ class Calibracao:
         Wall-clock never gets here: `obs.suspeito` marks a document the clock
         cannot vouch for, and it is dropped. That is D4 — and the reason it is
         checked here, once, instead of at each of the five call sites.
+
+        F4-R.2: EcoQoS-on is the other drop. Mixing it with EcoQoS-off is the
+        22× bias the fingerprint cannot see.
         """
         if obs.suspeito:
+            return
+        if not aceita_regime(getattr(obs, "ecoqos", None)):
+            self.descartes_regime += 1
             return
         self._sujo = True
         tipo = obs.tipo

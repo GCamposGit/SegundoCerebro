@@ -19,6 +19,7 @@ from segundocerebro.index.calibracao import (
     prior_de,
     tipo_de,
 )
+from segundocerebro.index.regime_maquina import aceita_regime
 from segundocerebro.index.estimativa import (
     CALIBRADO,
     CALIBRANDO,
@@ -213,6 +214,45 @@ def test_i4_suspensao_marca_suspeito_e_nao_move_coeficiente(tmp_path):
     calib.observar(obs)
     depois = (calib.maquina.c0, calib.maquina.c1, calib.maquina.a_io)
     assert antes == depois
+
+
+def test_r2_ecoqos_ligado_nao_move_coeficiente(tmp_path):
+    """F4-R.2: observation from the slow regime must not enter the coefficient.
+
+    Same shape as I4 (suspensão): the poison is a 3.72× embed, the flag is
+    EcoQoS-on, and the coefficient after twenty of those equals the coefficient
+    before. Mixing the two worlds is the 22× bias, not noise Huber can absorb.
+    """
+    calib = _calib(tmp_path)
+    for _ in range(20):
+        calib.observar(_obs(ecoqos=False))
+    antes = (calib.maquina.c0, calib.maquina.c1, calib.maquina.a_io)
+    n_antes = calib.maquina.n_obs
+    for _ in range(20):
+        calib.observar(_obs(s_embed=0.14 * 3.72, ecoqos=True))
+    depois = (calib.maquina.c0, calib.maquina.c1, calib.maquina.a_io)
+    assert antes == depois
+    assert calib.maquina.n_obs == n_antes
+    assert calib.descartes_regime == 20
+
+
+def test_r2_mesmo_regime_ainda_aprende(tmp_path):
+    """The gate drops the other world, not the observation itself."""
+    calib = _calib(tmp_path)
+    for _ in range(20):
+        calib.observar(_obs(s_embed=0.14, ecoqos=False))
+    c0_rapido = calib.maquina.c0
+    for _ in range(20):
+        calib.observar(_obs(s_embed=5.0, ecoqos=False))
+    assert calib.maquina.c0 != c0_rapido
+    assert calib.descartes_regime == 0
+
+
+def test_r2_ausencia_de_ecoqos_nao_e_o_regime_lento():
+    """Desktop/POSIX report None. That is not EcoQoS-on."""
+    assert aceita_regime(None) is True
+    assert aceita_regime(False) is True
+    assert aceita_regime(True) is False
 
 
 def test_i4_pausa_do_usuario_tambem_invalida_o_documento():
