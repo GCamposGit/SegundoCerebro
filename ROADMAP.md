@@ -832,7 +832,7 @@ privada do desktop **não** trava nenhum destes:
 | **J.a · J.f** | Parse Store canônico + indexador lendo dele | Desktop ativo | **1** | núcleo ✅; integração PR #65; experimento controlado encerrado: meta ≥80% refutada; [resultado e limite Q15.b](docs/jf-parse-store.md) |
 | **J.b2 · J.c-conteúdo** | Sidecar com offsets + `get_document` paginado por cursor | Desktop ativo | 2 | conteúdo entregue; contrato `blocos:1` consolidado em 02/09; consumidor futuro de spans exige integração própria |
 | **J.d** | `pack_folder` manifest-first, corte em fronteira de documento | Desktop ativo | 3 | ✅ entregue em 02/09/2026; [contrato](docs/jd-pack-folder.md) |
-| **J.e** | Exportador de vault Markdown (Obsidian) como *view* one-way | qualquer | 4 | depois do `J.b2`; menções e glossário já existem |
+| **J.e** | Exportador de vault Markdown (Obsidian) como *view* one-way | Desktop ativo | 4 | ✅ entregue em 02/09/2026; [contrato](docs/je-export-vault.md) |
 | F4-D | Cobertura do dourado real | notebook | — | **reescopado**: piso de regressão e limitação declarada, não fila de perguntas. **Instrumento fechado em 29/08/2026** — `eval/cobertura.py`; a cobertura entra em todo relatório e a omissão virou impossível. Medido: alcance **38,5%**, fontes **3,3%**. [`docs/dourado-cobertura.md`](docs/dourado-cobertura.md) |
 | F4-D.2 | `dourado-v1` era frase, não mecanismo | notebook | — | ✅ **FECHADO em 31/08/2026**. `eval/serie.py` + `eval/golden/dourado-v1.toml`, **versionado**: id e impressão digital de 16 hex do que move a métrica (texto, tipo, fontes). Não guarda texto nem nome de arquivo — o repositório é público. `py -m eval.serie --base <id>` confere e diz qual pergunta mudou; `--congelar` grava, e é ato deliberado com diff para revisar. `notas`, `autoria` e `validada` ficam fora: manifesto que reprova por nota reescrita é manifesto abandonado |
 | R1.3 | Dedup e near-dup | — | — | **absorvido por C6** |
@@ -2102,7 +2102,7 @@ offsets, com store). Duas frentes em paralelo em vez de uma fila:
 | **1** | `J.a` (store) · `J.f` (indexador lê do store) | desktop se houver crédito, senão notebook |
 | **2** | `J.b2` (sidecar) · `J.c-conteúdo` (`get_document`) | Desktop — conteúdo e contrato v1 entregues em 02/09/2026; [limites da integração futura de spans](docs/jb2-estrutura-citacoes.md) |
 | **3** | `J.d` (`pack_folder`) | Desktop — entregue em 02/09/2026; [contrato](docs/jd-pack-folder.md) |
-| **4** | `J.e` (export vault Markdown) | qualquer |
+| **4** | `J.e` (export vault Markdown) | Desktop — ✅ 02/09/2026 |
 
 ### `J.b1` + `J.c-mapa` — ✅ **FECHADOS em 30/08/2026**
 
@@ -2188,10 +2188,24 @@ identidade existente. O original permanece a fonte de citação.
 - **Encerramento:** aceite binário por testes sintéticos, MCP e suíte padrão.
   O dourado privado segue indisponível; não foi medido Δ de retrieval real.
   A meta de ganho ≥80% em rebuild continua pendente, não vira ganho comprovado.
-- **Próximo:** `J.e` (export vault); congelamento do sidecar com E4 ainda pendente.
+- **Próximo:** `J.e` entregue neste PR. Congelamento do sidecar com E4 ainda pendente.
   O notebook antigo segue desativado e o novo OCR continua futuro.
 
-### `J.d` — `pack_folder` — entregue no Desktop em 02/09/2026, neste PR
+### `J.e` — export vault Markdown — entregue no Desktop em 02/09/2026, neste PR
+
+Comando explícito grava uma *view* one-way fora das raízes. Cada canônico vira
+`.md` com frontmatter e wikilinks derivados de `mencoes` e do glossário da base.
+Re-export idêntico; incremental só no que mudou. Destino dentro da raiz é recusado.
+
+- **Hipótese / efeito mínimo:** recusa de destino no acervo; foto da raiz
+  inalterada; apagar e re-exportar produz os mesmos bytes; segunda passada sem
+  mudança não reescreve nota.
+- **Não faz:** ferramenta MCP, síntese, ranking, OCR novo, sync de volta, botão
+  no painel (`app.py` no teto da escada).
+- **Encerramento:** aceite binário por `tests/test_vault.py`. Sem Δ de ranking.
+- **Contrato:** [`docs/je-export-vault.md`](docs/je-export-vault.md).
+
+### `J.d` — `pack_folder` — entregue no Desktop em 02/09/2026
 
 `pack_folder` empacota a pasta em bundle Markdown, manifesto primeiro, documentos
 canônicos inteiros depois. Corta só em fronteira de documento; o cursor continua
@@ -2205,7 +2219,7 @@ mesma do manifesto. `todos` e `apenas_listados` são explícitas.
   acervo. `so_censo` e documento sem canônico vão para `omitidos` com motivo.
 - **Encerramento:** aceite binário por testes sintéticos, guarda derivada de
   cursor em `tests/test_leitura.py` e protocolo MCP. Sem Δ de ranking.
-- **Próximo:** `J.e` (export vault Markdown). [Contrato](docs/jd-pack-folder.md).
+- **Próximo:** `J.e` entregue neste PR. [Contrato](docs/jd-pack-folder.md).
 
 ### `J.a-núcleo` — o parse store no disco — ✅ **FECHADO em 31/08/2026**
 
