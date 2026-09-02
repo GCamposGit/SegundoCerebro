@@ -7,7 +7,14 @@ from pathlib import Path
 import pytest
 
 from segundocerebro.config import nucleos_para
-from segundocerebro.index.esforco import GpuInfo, PERFIS_DE_ESFORCO, ler_pedido, pedir, planar
+from segundocerebro.index.esforco import (
+    GpuInfo,
+    PERFIS_DE_ESFORCO,
+    _afinidade,
+    ler_pedido,
+    pedir,
+    planar,
+)
 
 
 def test_cpu_leve_e_normal_nunca_sao_100_por_cento() -> None:
@@ -88,3 +95,11 @@ def test_pedido_ao_vivo_grava_e_le(tmp_path: Path) -> None:
 
 def test_perfis_canonicos_sao_tres() -> None:
     assert PERFIS_DE_ESFORCO == ("leve", "normal", "maximo")
+
+
+def test_r3_afinidade_nao_reintroduz_rabo_fino_de_e_core(monkeypatch: pytest.MonkeyPatch) -> None:
+    """1355U first-N was 4 P + 2 E. The product takes the 4 P, never the tail."""
+    topo = {"p": [0, 1, 2, 3], "e": list(range(4, 12)), "regra": "smt", "logicos": 12}
+    monkeypatch.setattr("segundocerebro.index.regime_maquina.topologia", lambda: topo)
+    assert _afinidade(6, 12) == [0, 1, 2, 3]
+    assert _afinidade(6, 12) != list(range(6))

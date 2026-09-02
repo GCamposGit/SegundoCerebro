@@ -201,10 +201,13 @@ def planar(perfil: str, *, nucleos: int | None = None, gpus: list[GpuInfo] | Non
 
 
 def _afinidade(n_usados: int, n_total: int | None = None) -> list[int]:
+    """P-cores only on a hybrid package — F4-R.3, after the mix was refuted."""
+    from .regime_maquina import mascara_afinidade, topologia
+
     total = n_total if n_total is not None else (os.cpu_count() or 4)
     total = max(1, int(total))
     n_usados = max(1, min(int(n_usados), total))
-    return list(range(n_usados))
+    return mascara_afinidade(n_usados, topologia())
 
 
 def aplicar(perfil: str, *, pids: list[int] | None = None, nucleos: int | None = None) -> dict[str, object]:
