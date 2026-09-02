@@ -1,6 +1,6 @@
 # Índice da documentação
 
-49 arquivos versionados. **Todo link daqui aponta para arquivo que o clone tem** —
+50 arquivos versionados. **Todo link daqui aponta para arquivo que o clone tem** —
 e essa é a regra do índice, não um detalhe: mais da metade de `docs/` fica fora do
 Git de propósito, porque cita nome de arquivo do acervo real, e um índice que
 prometesse esses arquivos daria 404 para quem clonou. A [seção final](#o-que-não-está-aqui)
@@ -45,7 +45,8 @@ com número, data e a mudança de método que fechou a classe.
 | [`fatia-reuniao-invisivel.md`](fatia-reuniao-invisivel.md) | Régua que nomeia formato que o produto não ingere: a fatia que decidiria o pacote tinha n=0, e a declaração dizia n≈100 |
 | [`afinidade-e-estado-de-maquina.md`](afinidade-e-estado-de-maquina.md) | Braço de velocidade sem regime de máquina gravado mede a janela, não o braço — 22× de diferença, e uma causa falsa refutada em 2h16 |
 | [`dourado-cobertura.md`](dourado-cobertura.md) | Cobertura escrita à mão envelhece calada enquanto a métrica que ela qualifica segue circulando |
-| [`ocr-no-acervo-bloqueado.md`](ocr-no-acervo-bloqueado.md) | Por que a `F4-O.3` está bloqueada |
+| [`ocr-no-acervo-bloqueado.md`](ocr-no-acervo-bloqueado.md) | Por que a `F4-O.3` bloqueou no 1355U (28/08) |
+| [`ocr-o3-dourado.md`](ocr-o3-dourado.md) | `F4-O.3` medida neste 14700HX: 22/37 digitalizados, trio do dossiê ainda `vazio`, agregado empate |
 | [`revisao-tecnica-resposta.md`](revisao-tecnica-resposta.md) | Resposta à revisão técnica externa de 12/08 |
 
 ## Decisões e crônica

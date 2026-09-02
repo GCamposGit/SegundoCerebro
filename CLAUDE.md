@@ -100,8 +100,8 @@ Onde o sistema está, em cinco linhas:
   (invariante 6).
 
 **Onde o produto não está pronto**, e é o que a régua de ouro manda olhar
-primeiro: `F4-O.3` (OCR no acervo, bloqueio de 28/08 a reabrir nesta máquina).
-`Q18` espera acordo. `F4-O.4` é futuro. O exportador de vault `J.e` e o botão no painel (`J.e.1`) estão em
+primeiro: OCR continua opt-in — o `F4-O.3` mediu e o motor **não** alcança as
+três fontes do dossiê. `Q18` espera acordo. `F4-O.4` é futuro. O exportador de vault `J.e` e o botão no painel (`J.e.1`) estão em
 [`docs/je-export-vault.md`](docs/je-export-vault.md).
 `pack_folder` está em [`docs/jd-pack-folder.md`](docs/jd-pack-folder.md).
 A leitura integral `get_document` está em
@@ -166,13 +166,14 @@ ser hipótese: o percurso do leigo tem teste. O Office legado
    tirar a máscara 1,90× pior). Produto: `mascara_afinidade` é só P-core.
    `esforco.py` devolve. Laudo:
    [`docs/afinidade-e-estado-de-maquina.md`](docs/afinidade-e-estado-de-maquina.md).
-5. **`F4-O.3` — acervo e dourado neste disco; o bloqueio de 28/08 permanece
-   até reabrir.** `g015`/`g025`/`g048` conferidos contra `dourado-v1`. No 1355U
-   a passada com `--ocr` quarentenava o acervo. Esta máquina não é aquela: a
-   primeira ação é passada curta nos digitalizados, não no acervo inteiro.
-   Pacote de laboratório, atrás de qualquer item de produto. **`F4-O.4` —
-   FUTURO por decisão do usuário em 01/09/2026:** comparação com PP-OCRv6 e
-   parsers visuais. Não instalar, comparar nem trocar o motor agora.
+5. **`F4-O.3` — medido em 02/09/2026, neste PR.** Passada curta nos 37
+   digitalizados (399 páginas), não no acervo. RapidOCR extraiu trecho em 22;
+   as três fontes do dossiê (`g015`/`g025`/`g048`) continuam `vazio`. Agregado
+   n=59 Δ **+0,000 [+0,000, +0,000]** no caminho entregue. Hipótese do 2/3 no
+   top-5 não se cumpre; OCR **não** vira padrão. Instrumento:
+   `eval/ocr_fila.py` (main leve; `indexer --ocr` ainda morre no teto de 1024
+   MB — regra 8, desktop). Laudo: [`docs/ocr-o3-dourado.md`](docs/ocr-o3-dourado.md).
+   **`F4-O.4` — FUTURO (01/09/2026):** não instalar nem trocar o motor agora.
 6. **`Q18`** — medido e resolvido, **esperando acordo, não execução**: ligar as
    dez regras baratas do `ruff` faz 75 dos 92 `noqa` inertes de `src` valerem,
    por 40 correções. Delas, oito arquivos são do desktop e dois são "um de cada
