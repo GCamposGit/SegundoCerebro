@@ -192,6 +192,23 @@ Toda resposta traz **de onde veio**: o nome do arquivo e a seção. Confira. É 
 diferença entre uma citação e um palpite bem escrito — e o motivo pelo qual você
 pode abrir o documento e checar.
 
+---
+
+## 7. Exportar como vault Markdown (opcional)
+
+Se quiser *ver* o acervo como notas interligadas (Obsidian ou qualquer pasta de
+`.md`), exporte para um diretório **fora** das pastas que você indexou:
+
+```bash
+py -m segundocerebro.acesso.exportar --base trabalho --destino D:\vault-obsidian
+```
+
+É uma *view* descartável: re-exportar sobrescreve o que o programa gravou, e o
+que você editar lá **não** volta para os arquivos originais. O comando recusa
+destino dentro da pasta indexada — escrever derivado no acervo bagunça a
+taxonomia e o sincronizador. Os `[[wikilinks]]` saem das menções que o índice
+já tem (norma, contrato, sigla do glossário), sem inventar ligação.
+
 Três coisas que vale saber pedir:
 
 - **"me mostra o que tem em volta desse trecho"** — quando o parágrafo parece
