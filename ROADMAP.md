@@ -832,7 +832,7 @@ privada do desktop **não** trava nenhum destes:
 | **J.a · J.f** | Parse Store canônico + indexador lendo dele | Desktop ativo | **1** | núcleo ✅; integração PR #65; experimento controlado encerrado: meta ≥80% refutada; [resultado e limite Q15.b](docs/jf-parse-store.md) |
 | **J.b2 · J.c-conteúdo** | Sidecar com offsets + `get_document` paginado por cursor | Desktop ativo | 2 | conteúdo entregue; contrato `blocos:1` consolidado em 02/09; consumidor futuro de spans exige integração própria |
 | **J.d** | `pack_folder` manifest-first, corte em fronteira de documento | Desktop ativo | 3 | ✅ entregue em 02/09/2026; [contrato](docs/jd-pack-folder.md) |
-| **J.e** | Exportador de vault Markdown (Obsidian) como *view* one-way | Desktop ativo | 4 | ✅ entregue em 02/09/2026; [contrato](docs/je-export-vault.md) |
+| **J.e** | Exportador de vault Markdown (Obsidian) como *view* one-way | Desktop ativo | 4 | ✅ CLI em 02/09; **J.e.1** botão no painel neste PR; [contrato](docs/je-export-vault.md) |
 | F4-D | Cobertura do dourado real | notebook | — | **reescopado**: piso de regressão e limitação declarada, não fila de perguntas. **Instrumento fechado em 29/08/2026** — `eval/cobertura.py`; a cobertura entra em todo relatório e a omissão virou impossível. Medido: alcance **38,5%**, fontes **3,3%**. [`docs/dourado-cobertura.md`](docs/dourado-cobertura.md) |
 | F4-D.2 | `dourado-v1` era frase, não mecanismo | notebook | — | ✅ **FECHADO em 31/08/2026**. `eval/serie.py` + `eval/golden/dourado-v1.toml`, **versionado**: id e impressão digital de 16 hex do que move a métrica (texto, tipo, fontes). Não guarda texto nem nome de arquivo — o repositório é público. `py -m eval.serie --base <id>` confere e diz qual pergunta mudou; `--congelar` grava, e é ato deliberado com diff para revisar. `notas`, `autoria` e `validada` ficam fora: manifesto que reprova por nota reescrita é manifesto abandonado |
 | R1.3 | Dedup e near-dup | — | — | **absorvido por C6** |
@@ -1888,7 +1888,7 @@ releitura, precisa de um PR por linha desta tabela:
 | `index/indexer.py` | 1.368 | `execucao.py`: o corpo de `indexar()` (1.042 linhas, 24 parâmetros, dez closures com `nonlocal`) como classe, com `relogio`, `estimador`, `publicador`, `fila` e `controle` como atributos |
 | `index/store.py` | 1.274 | `registro.py` · `quarentena.py` · `vetores.py` · `busca.py` · `grafo_armazenamento.py` · `execucoes.py`, com `Store` composto e a fachada preservada |
 | `config.py` | 1.093 | `modelos.py` (dataclasses) · `leitura.py` (TOML → dataclass) · `ambiente.py` (`SEGUNDOCEREBRO_*`) · `escrita.py` (`como_toml`, `gravar`) |
-| `painel/app.py` | 1.025 | `sessao.py` (é o conjunto que `__main__.py` já importa) + rotas por domínio: `ajuste`, `processo`, `base`, `ensino`, `cliente`. `criar_app()` tem **818 linhas** e 20 handlers aninhados |
+| `painel/app.py` | 981 | `sessao.py` saiu em 02/09 (`J.e.1`). Restam rotas por domínio: `ajuste`, `processo`, `base`, `ensino`, `cliente`. `criar_app()` tem **815 linhas** |
 | `census.py` | 974 | `modelo.py` · `varredura.py` (`iter_files`, caminho longo, nuvem) · `relatorio.py` · `distribuicao.py` (contrato `E6.1`) · `cli.py` |
 | `index/calibracao.py` | 931 | `ajuste_rls.py` (o método numérico, sem domínio) · `perfil_maquina.py` · `perfil_formato.py`; persistência fica |
 | `ingest/parsers/sheets.py` | 868 | `planilha_bloco.py` (janelamento, compartilhado) · `csv.py` · `xlsx.py` · `xls_legado.py` · `xls_disfarcado.py`. Atenção ao efeito colateral de `@register` no import |
@@ -2188,8 +2188,8 @@ identidade existente. O original permanece a fonte de citação.
 - **Encerramento:** aceite binário por testes sintéticos, MCP e suíte padrão.
   O dourado privado segue indisponível; não foi medido Δ de retrieval real.
   A meta de ganho ≥80% em rebuild continua pendente, não vira ganho comprovado.
-- **Próximo:** `J.e` entregue neste PR. Congelamento do sidecar com E4 ainda pendente.
-  O notebook antigo segue desativado e o novo OCR continua futuro.
+- **Próximo:** `J.e.1` (botão no painel) neste PR. Congelamento do sidecar com E4
+  ainda pendente. O notebook antigo segue desativado e o novo OCR continua futuro.
 
 ### `J.e` — export vault Markdown — entregue no Desktop em 02/09/2026, neste PR
 

@@ -98,9 +98,9 @@ Onde o sistema está, em cinco linhas:
   (invariante 6).
 
 **Onde o produto não está pronto**, e é o que a régua de ouro manda olhar
-primeiro: o botão de exportar no painel (a costura de `painel/app.py`, no teto
-da escada). O exportador de vault `J.e` foi entregue neste PR por comando
-explícito; ver [`docs/je-export-vault.md`](docs/je-export-vault.md).
+primeiro: `Q18` (acordo para ligar regras do ruff) e o que está congelado
+(`F4-R.1`, `F4-O.3`, `F4-O.4`). O exportador de vault `J.e` e o botão no
+painel (`J.e.1`) estão em [`docs/je-export-vault.md`](docs/je-export-vault.md).
 `pack_folder` está em [`docs/jd-pack-folder.md`](docs/jd-pack-folder.md).
 A leitura integral `get_document` está em
 [`docs/jc-leitura-integral.md`](docs/jc-leitura-integral.md).
@@ -141,11 +141,10 @@ ser hipótese: o percurso do leigo tem teste. O Office legado
    **`Q15.b` corrigido no Desktop:** exceções nativas de memória encapsuladas
    deixam de virar `vazio`; erro de recurso preserva nova tentativa, sem aumentar
    teto padrão. [Pesquisa, testes reais e limites](docs/q15b-ocr-recursos.md).
-1. **`J.e` — entregue neste PR, em 02/09/2026.** View one-way por
-   `py -m segundocerebro.acesso.exportar`: recusa destino na raiz, re-export
-   idêntico, incremental só no que mudou, wikilinks das menções. Sem MCP, sem
-   painel, sem síntese. [Contrato](docs/je-export-vault.md). **`J.d`**
-   (`pack_folder`) já estava em `main`. Novo OCR continua reservado.
+1. **`J.e.1` — entregue neste PR, em 02/09/2026.** Botão **Exportar vault** no
+   painel: a mesma recusa de destino do CLI, sem carregar encoder. Costura
+   `painel/sessao.py` (Q16) para a rota caber. **`J.e`** (CLI) já estava em
+   `main`. [Contrato](docs/je-export-vault.md). Novo OCR continua reservado.
 2. **`J.b2` — contrato v1 consolidado no Desktop, em 02/09/2026.** Validação
    compartilhada, offsets Unicode, ordinal global, trilha e páginas/slides
    explícitos em `get_document`; cache legado compatível. Sem mudar Markdown.

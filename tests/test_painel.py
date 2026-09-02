@@ -1125,3 +1125,43 @@ def test_barra_nao_diz_faltam_quando_nao_ha_tempo() -> None:
     prefixo = html.index("`faltam ${p.restante}`")
     guarda = html.index('const semTempo = p.estimativa_estado === "cego";')
     assert guarda < prefixo, "o guarda tem de vir antes do prefixo"
+
+
+# --- J.e.1: exportar vault pela tela, a mesma recusa do CLI -------------------
+
+
+def test_exportar_sem_token_nao_responde(cliente) -> None:
+    assert cliente.post("/api/exportar", json={"destino": "D:/vault"}).status_code == 403
+
+
+def test_exportar_sem_destino_recusa(cliente) -> None:
+    r = cliente.post("/api/exportar", json={"base": "trabalho"}, headers=cabecalho())
+    assert r.status_code == 400
+    assert "pasta do vault" in r.json()["erro"]
+
+
+def test_exportar_recusa_destino_dentro_da_raiz(cliente, caminho: Path) -> None:
+    """A classe do J.e, agora na porta que o leigo usa."""
+    raiz = caminho.parent / "acervo"
+    raiz.mkdir()
+    (caminho.parent / "it").mkdir(exist_ok=True)
+    cliente.post(
+        "/api/raizes",
+        json={"base": "trabalho", "raizes": [str(raiz)], "confirmo": True},
+        headers=cabecalho(),
+    )
+    r = cliente.post(
+        "/api/exportar",
+        json={"base": "trabalho", "destino": str(raiz / "vault")},
+        headers=cabecalho(),
+    )
+    assert r.status_code == 400
+    assert r.json().get("codigo") == "destino_no_acervo"
+    assert not (raiz / "vault").exists()
+
+
+def test_a_tela_oferece_exportar_o_vault() -> None:
+    html = Path("src/segundocerebro/painel/index.html").read_text(encoding="utf-8")
+    assert 'id="exportarVault"' in html
+    assert 'id="destinoVault"' in html
+    assert "/api/exportar" in html

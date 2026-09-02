@@ -179,6 +179,15 @@ code { font-family: ui-monospace, "Cascadia Code", monospace; font-size: 12px; }
         <button id="observarBase">Acompanhar pastas</button>
       </div>
       <div id="recadoConectar"></div>
+      <p class="sub" style="margin:16px 0 10px">
+        Para ver o acervo como notas Markdown (Obsidian), exporte para uma pasta
+        <b>fora</b> das que você indexou. É uma view descartável: o original não muda.
+      </p>
+      <div class="linha">
+        <input type="text" id="destinoVault" placeholder="D:\vault-obsidian" spellcheck="false">
+        <button id="exportarVault">Exportar vault</button>
+      </div>
+      <div id="recadoVault"></div>
       <details style="margin-top:10px">
         <summary>Trecho para colar em outro cliente</summary>
         <pre id="trechoMcp" style="overflow-x:auto;margin:8px 0 0;font-size:12px"></pre>
@@ -774,6 +783,20 @@ async function mostrarRegistro() {
     $("conectar").classList.remove("oculto");
   } catch { $("conectar").classList.add("oculto"); }
 }
+
+$("exportarVault").onclick = async () => {
+  $("recadoVault").innerHTML = "";
+  try {
+    const r = await api("/api/exportar", {
+      base: $("base").value, destino: $("destinoVault").value.trim(),
+    });
+    $("recadoVault").innerHTML =
+      `<div class="ok">Vault em ${esc(r.destino)}: ${r.escritos.length} escritos, `
+      + `${r.reusados.length} já estavam, ${r.omitidos.length} omitidos.</div>`;
+  } catch (e) {
+    $("recadoVault").innerHTML = `<div class="aviso">${e.message}</div>`;
+  }
+};
 
 $("ligarDesktop").onclick = async () => {
   $("recadoConectar").innerHTML = "";
