@@ -39,9 +39,9 @@ ACIMA_DO_TETO: dict[str, int] = {
     "config.py": 1081,
     "painel/app.py": 981,
     "census.py": 978,
-    "index/calibracao.py": 931,
+    "index/calibracao.py": 897,
     "ingest/parsers/sheets.py": 870,
-    "index/estimativa.py": 692,
+    "index/estimativa.py": 691,
     "retrieve/hybrid.py": 618,
 }
 """Os módulos que já estavam grandes, com o tamanho de 29/08/2026 como teto.

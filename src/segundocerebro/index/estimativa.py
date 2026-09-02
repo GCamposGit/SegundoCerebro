@@ -40,6 +40,7 @@ from dataclasses import dataclass, field
 
 from .calibracao import Calibracao, tipo_de
 from .mapa import Mapa
+from .regime_maquina import ecoqos_ativo
 
 # ---------------------------------------------------------------------------
 # prior de formato herdado da v1 — segue servindo de semente para `peso_de`,
@@ -184,7 +185,8 @@ class Observacao:
     Mixing stages is what let one coefficient absorb another and produced a
     15 s per-document intercept out of per-chunk cost (defeito 5). So each
     stage has its own target, and `suspeito` marks a clock the estimator cannot
-    vouch for — dropped at a single place, in `Calibracao.observar`.
+    vouch for — dropped at a single place, in `Calibracao.observar`. F4-R.2
+    drops EcoQoS-on the same way: another clock the coefficient cannot mix.
     """
 
     rel: str
@@ -201,11 +203,11 @@ class Observacao:
     perfil: str = "maximo"
     situacao: str = "novo"
     status: str = "ok"
+    ecoqos: bool | None = None
 
     @property
     def previsto_zerado(self) -> bool:
         return self.mb <= 0 and self.n_chunks == 0
-
 
 class Cronometro:
     """Per-document stopwatch, one instance per document.
@@ -300,11 +302,8 @@ class Cronometro:
             perfil=perfil,
             situacao=situacao,
             status=status,
+            ecoqos=ecoqos_ativo(),
         )
-
-
-# ---------------------------------------------------------------------------
-
 
 @dataclass(frozen=True)
 class Faixa:

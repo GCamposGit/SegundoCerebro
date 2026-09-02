@@ -12,13 +12,60 @@ ones with SMT; E-cores are the single-thread cores on a hybrid package.
 
 from __future__ import annotations
 
+import hashlib
 import os
+import platform
+from pathlib import Path
 from typing import Any
 
 ProcessPowerThrottling = 4
 PROCESS_POWER_THROTTLING_CURRENT_VERSION = 1
 PROCESS_POWER_THROTTLING_EXECUTION_SPEED = 0x1
 RelationProcessorCore = 0
+
+
+def aceita_regime(ecoqos: bool | None) -> bool:
+    """Whether an observation may update the default coefficients.
+
+    EcoQoS-on is the slow scheduling regime isolated in F4-R.1 (3.72× on the
+    14700HX). Mixing it with EcoQoS-off is bias, not noise. `None` means the
+    OS has no API — desktop, POSIX — and there is no second regime to mix.
+    """
+    return ecoqos is not True
+
+
+def impressao_da_maquina(model_id: str, chunker: str, *, gpus: list[str] | None = None) -> str:
+    """Hash of everything that invalidates the machine coefficients.
+
+    Core count is the **total** logical count, not the profile's usable slice:
+    the profile is already its own dimension (`g`). EcoQoS is **not** folded
+    in: the slow regime is dropped at `Calibracao.observar`, so the remaining
+    history is the benign world. Splitting the fingerprint would calibrate
+    neither (the same reason profile is not in the key).
+    """
+    partes = [
+        platform.machine(),
+        (platform.processor() or "")[:80],
+        str(os.cpu_count() or 0),
+        ",".join(sorted(gpus or [])),
+        model_id,
+        chunker,
+    ]
+    return hashlib.sha256("|".join(partes).encode("utf-8")).hexdigest()[:16]
+
+
+def diretorio_de_calibracao() -> Path:
+    """Per-machine, outside every base — encoder cost learned once serves all."""
+    forcado = os.environ.get("SEGUNDOCEREBRO_CALIBRACAO")
+    if forcado:
+        return Path(forcado)
+    if os.name == "nt":
+        raiz = os.environ.get("LOCALAPPDATA") or os.path.expanduser("~")
+    else:
+        raiz = os.environ.get("XDG_DATA_HOME") or os.path.join(
+            os.path.expanduser("~"), ".local", "share"
+        )
+    return Path(raiz) / "segundocerebro"
 
 
 def ecoqos_ativo() -> bool | None:

@@ -233,3 +233,18 @@ Código: `src/segundocerebro/index/regime_maquina.py` (observar e aplicar),
 
 R.2 e R.3 destravam. R.3 **não** pode assumir que os primeiros N lógicos misturam
 P e E: nesta máquina, não misturam.
+
+## R.2 — a calibragem não mistura regimes (02/09/2026)
+
+`Calibracao.observar` descarta observação com EcoQoS ligado, no mesmo sítio em
+que já descarta `suspeito`. O coeficiente que sai é o do regime benigno; o
+lento é declarado em `descartes_regime`, não absorvido.
+
+`None` (desktop, POSIX, API ausente) **não** é o regime lento: sem segundo
+mundo, não há o que misturar. A impressão da máquina **não** ganha EcoQoS —
+dobrar o fingerprint calibraria os dois mundos mal, o mesmo motivo pelo qual
+o perfil de esforço já não entra na chave.
+
+Teste: `test_r2_ecoqos_ligado_nao_move_coeficiente`. Vinte observações 3,72×
+mais lentas com `ecoqos=True` deixam `(c0, c1, a_io)` iguais. R.3 continua
+depois.
