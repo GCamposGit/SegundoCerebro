@@ -6,12 +6,14 @@ entra em **pacotes** (ver abaixo): um PR, um dono, lista de paths fechada.
 Indexação de horas não é pacote e **não bloqueia** o próximo PR — parser com
 versão alcança o que já está no disco na passada seguinte.
 
-> **Operação vigente desde 01/09/2026: somente Desktop.** O notebook original
-> foi desativado. As atribuições “desktop” e “notebook” abaixo permanecem como
-> registro histórico, não como fila ativa. Trabalho reproduzível com código,
-> fixtures e corpus sintético passa ao Desktop; `F4-O.3`, `F4-R`, ampliação do
-> dourado real e decisões de ranking padrão ficam congelados até a retomada em
-> outro notebook. [`docs/colaboracao.md`](docs/colaboracao.md) registra a regra.
+> **Operação vigente desde 02/09/2026: Desktop e notebook.** O notebook original
+> (i7-1355U) foi desativado em 01/09; este notebook (i7-14700HX) retomou em
+> 02/09, com acervo e dourado neste disco. As atribuições “desktop” e
+> “notebook” voltam a distribuir trabalho. `F4-R.1` fechou (PR #75). `F4-O.3`
+> deixa de estar congelada por falta de máquina: o bloqueio que resta é o da
+> passada `--ocr` no laudo de 28/08, a reabrir aqui. CUDA/`embeddings.py`
+> continuam do Desktop. [`docs/colaboracao.md`](docs/colaboracao.md) registra a
+> regra.
 
 > **Precedência, desde 25/08/2026.** [`docs/regra-de-ouro.md`](docs/regra-de-ouro.md)
 > vem antes de qualquer prioridade deste arquivo, dos dossiês e do guia de
@@ -822,7 +824,7 @@ privada do desktop **não** trava nenhum destes:
 | F4-O / R1.2 | OCR de PDF digitalizado | **desktop** + notebook (O.3) | 6 | **O.0 ✅** PR #38 · **O.1 neste PR** · O.2/O.3 em [`docs/plano-ocr.md`](docs/plano-ocr.md) |
 | F4-T | Parser de transcrição (`.vtt`/`.srt`/`.sbv`) — a saída nativa de todo gravador de reunião era contada e não indexada | notebook | 6 | ✅ **fechado em 27/08/2026**: fatia `reunião` de **0 para 100** perguntas alcançáveis, 17 → 20 extensões. [`docs/fatia-reuniao-invisivel.md`](docs/fatia-reuniao-invisivel.md) |
 | F4-O.3 | Dourado de OCR no acervo | notebook | 6 | **bloqueada em 28/08/2026** — não pelo dourado nem pelo motor: a passada com `--ocr` quarentena o acervo a 61 s por documento, com 0% de CPU. Laudo: [`docs/ocr-no-acervo-bloqueado.md`](docs/ocr-no-acervo-bloqueado.md) |
-| F4-R | Regime de máquina: a indexação varia 22× por estado do SO que o produto não observa | notebook (`esforco.py` emprestado) | 6 | **R.1 sim** — achar o gatilho. Laudo: [`docs/afinidade-e-estado-de-maquina.md`](docs/afinidade-e-estado-de-maquina.md) |
+| F4-R | Regime de máquina: a indexação varia 22× por estado do SO que o produto não observa | notebook (`esforco.py` emprestado) | 6 | **R.1 ✅ PR #75**, 02/09/2026. R.2 em seguida. Laudo: [`docs/afinidade-e-estado-de-maquina.md`](docs/afinidade-e-estado-de-maquina.md) |
 | F4-W / R5.1 | Watcher, com camada USN Journal | desktop | 6 | ✅ **fechado** — watcher vivo + catch-up USN |
 | F4-S | SharePoint = pasta sincronizada, só política e tela | notebook | 6 | ✅ **fechado** — placeholder visível no painel, sem hidratar |
 | R6.2+C4.2 · R7.1 · R7.2+C6.a · R6.3 | Rerank v2 · tools · descriptions · tempo/pasta | notebook | 7 | — |
@@ -2338,8 +2340,8 @@ com o traço real de uso fica claro quais arestas o modelo aproveita.
 > critério de saída estão cumpridas para esta parte: métricas da F2 **idênticas**
 > (recall@1 0,667, MRR 0,787, nDCG@5 0,793) e o caso plano → norma respondível só
 > pela aresta. MSG/EML e legado OLE **entraram**. `F4-W`, `F4-S` e `F4-L`
-> fecharam; o que depende do notebook — `F4-O.3`, `F4-R` e a ampliação privada
-> do dourado — está congelado desde 01/09/2026. F4-M fechou em 24/08.
+> fecharam; `F4-R.1` fechou em 02/09/2026 (PR #75). `F4-O.3` e a ampliação
+> privada do dourado voltaram à fila deste notebook. F4-M fechou em 24/08.
 >
 > **O "só" foi verificado, não presumido.** A norma não aparece em `search` com
 > k=10, nem k=20, nem quando a consulta nomeia a norma. A razão é estrutural:
@@ -2612,7 +2614,7 @@ o perfil **padrão** é o que converte um estado de 2× num estado de 16×.
 
 | Fatia | Porta | Começa |
 |---|---|---|
-| **R.1** o regime fica observável e **reproduzível sob comando** (gatilho do EcoQoS isolado; tomada/bateria e classe de eficiência gravados em toda observação) | ligar e desligar o estado lento por comando, e o braço `contiguo6` reproduzir 3,1 e 0,18 sob demanda | **sim**, nada bloqueia |
+| **R.1** o regime fica observável e **reproduzível sob comando** (gatilho do EcoQoS isolado; tomada/bateria e classe de eficiência gravados em toda observação) | ligar e desligar o estado lento por comando; `contiguo6` reproduz o par nesta CPU (não copiar 3,1/0,18 do 1355U) | ✅ **02/09/2026, PR #75** — 14700HX, EcoQoS on/off, `contiguo6` 0,0365 vs 0,1357 s (**3,72×**), intercalado, tomada |
 | **R.2** a `Calibracao` não agrupa regimes — regime na chave da observação, ou descarte declarado | teste que prova que observação de regime diferente não entra no mesmo coeficiente | depois do R.1 |
 | **R.3** escolher a máscara. Candidato **não medido**: `[0,2,4,5,6,7]` (2 de P-core + 4 de E-core) contra `[0..5]` | ≤1,5× do `livre` no regime lento **e** ≤1,1× do `contiguo6` no benigno. Empate ⇒ hipótese refutada e o pacote vira remover a máscara | depois do R.1 |
 

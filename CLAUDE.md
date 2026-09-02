@@ -20,14 +20,16 @@ Em uma linha cada:
 - **Defeito se generaliza, não se remenda** — a entrega é o método que pega a
   classe inteira na próxima vez, não o caso consertado.
 
-## Operação Desktop-only desde 01/09/2026 — ler antes de tocar em qualquer coisa
+## Operação — dois setups desde 02/09/2026 — ler antes de tocar em qualquer coisa
 
-O notebook original foi desativado. O único executor ativo é o Desktop com duas
-GTX 980 Ti e corpus novo. A divisão histórica continua em
-[`docs/colaboracao.md`](docs/colaboracao.md), mas não distribui trabalho hoje:
-o Desktop pode assumir tudo que seja reproduzível com fixtures públicas e corpus
-sintético. Trabalho que exige o acervo corporativo, o dourado real ou uma máquina
-híbrida com bateria fica congelado até a retomada em outro notebook.
+O notebook original (i7-1355U) foi desativado em 01/09. **Este notebook** —
+i7-14700HX, 8P+12E, Windows 11 — retomou em 02/09/2026, com o acervo corporativo
+e o dourado real neste disco. O Desktop (duas GTX 980 Ti) continua ativo. A
+divisão está em [`docs/colaboracao.md`](docs/colaboracao.md).
+
+CUDA, `index/embeddings.py` e o laço do indexador **continuam do Desktop**: GPU
+nesta máquina não transfere a donia. Trabalho que exige bateria ou CPU híbrida
+fecha aqui; o que fecha com fixture pública pode ir ao Desktop.
 
 Ninguém commita em `main`; cada lado trabalha na sua branch e entra por PR.
 
@@ -98,9 +100,10 @@ Onde o sistema está, em cinco linhas:
   (invariante 6).
 
 **Onde o produto não está pronto**, e é o que a régua de ouro manda olhar
-primeiro: `Q18` (acordo para ligar regras do ruff) e o que está congelado
-(`F4-R.1`, `F4-O.3`, `F4-O.4`). O exportador de vault `J.e` e o botão no
-painel (`J.e.1`) estão em [`docs/je-export-vault.md`](docs/je-export-vault.md).
+primeiro: `F4-R.2` (calibragem sem misturar regimes) e `F4-O.3` (OCR no acervo,
+bloqueio de 28/08 a reabrir nesta máquina). `Q18` espera acordo. `F4-O.4` é
+futuro. O exportador de vault `J.e` e o botão no painel (`J.e.1`) estão em
+[`docs/je-export-vault.md`](docs/je-export-vault.md).
 `pack_folder` está em [`docs/jd-pack-folder.md`](docs/jd-pack-folder.md).
 A leitura integral `get_document` está em
 [`docs/jc-leitura-integral.md`](docs/jc-leitura-integral.md).
@@ -155,17 +158,20 @@ ser hipótese: o percurso do leigo tem teste. O Office legado
    pacote menor: `list_folder` une índice e censo de metadados, mostra `so_censo`
    sem abrir conteúdo e declara quando a enumeração é incompleta. Complemento
    de conteúdo entregue em `J.c-conteúdo`, sem antecipar o novo motor de OCR.
-4. **`F4-R.1` — CONGELADO até o novo notebook.** O regime de máquina observável é pré-requisito da passada de
-   calibragem no acervo real: sem ele a `Calibracao` aprende coeficiente de dois
-   regimes misturados (22× de diferença) com milhares de observações a favor.
-   `esforco.py` está emprestado ao notebook por declaração na §6 de
-   [`docs/colaboracao.md`](docs/colaboracao.md), porque o desktop não tem bateria
-   nem CPU híbrida e não reproduz o defeito.
-5. **`F4-O.3` — CONGELADO até o novo notebook.** O dourado de OCR
-   (`g015`/`g025`/`g048`) exige o acervo e o conjunto dourado privados.
-   **`F4-O.4` — FUTURO por decisão do usuário em 01/09/2026:** comparação com
-   PP-OCRv6 e avaliação de parsers visuais como NaviDC-OCR. Apenas registrado
-   no roadmap; não instalar, comparar nem trocar o motor agora.
+4. **`F4-R.1` — fechado em 02/09/2026 (PR #75).** EcoQoS liga e desliga o estado
+   lento por comando neste 14700HX; `contiguo6` reproduz 0,0365 vs 0,1357 s
+   (**3,72×**), intercalado, tomada. Não é o 3,19/0,141 do 1355U. Laudo:
+   [`docs/afinidade-e-estado-de-maquina.md`](docs/afinidade-e-estado-de-maquina.md).
+   **`F4-R.2` é o próximo pacote de produto:** a `Calibracao` não mistura
+   regimes. **`F4-R.3` só depois.** `esforco.py` segue emprestado ao notebook
+   até o R.3 devolver.
+5. **`F4-O.3` — acervo e dourado neste disco; o bloqueio de 28/08 permanece
+   até reabrir.** `g015`/`g025`/`g048` conferidos contra `dourado-v1`. No 1355U
+   a passada com `--ocr` quarentenava o acervo. Esta máquina não é aquela: a
+   primeira ação é passada curta nos digitalizados, não no acervo inteiro.
+   Pacote de laboratório, atrás de qualquer item de produto. **`F4-O.4` —
+   FUTURO por decisão do usuário em 01/09/2026:** comparação com PP-OCRv6 e
+   parsers visuais. Não instalar, comparar nem trocar o motor agora.
 6. **`Q18`** — medido e resolvido, **esperando acordo, não execução**: ligar as
    dez regras baratas do `ruff` faz 75 dos 92 `noqa` inertes de `src` valerem,
    por 40 correções. Delas, oito arquivos são do desktop e dois são "um de cada
