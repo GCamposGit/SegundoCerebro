@@ -9,10 +9,11 @@ natureza do documento.
 from __future__ import annotations
 
 import os
+from collections.abc import Iterator
 from pathlib import Path
 
 from ..logger import get_logger
-from .canonico import reconstruir, renderizar
+from .canonico import ParseCanonico, reconstruir, renderizar
 from .converters.libreoffice import EXTENSOES_LEGADO
 from .document import ParsedDoc, ParseResult, ParseStatus
 from .natureza import EXTENSOES_DE_PLANILHA, detectar
@@ -66,6 +67,22 @@ def _nativo_superado_por_libreoffice(
     return extensao in EXTENSOES_DE_PLANILHA and meta.get("sem_valor_em_cache") == "1"
 
 
+def canonicos_disponiveis(
+    indice: Path, sha256: str, extensao: str, *, ocr: bool = False,
+) -> Iterator[tuple[Chave, ParseCanonico]]:
+    """Uma só política de versão/rota para indexação e leitura integral."""
+    store = ParseStore(indice)
+    candidatas = _candidatas(sha256, extensao, ocr=ocr)
+    libreoffice_ativo = any(c.rota == ROTA_LIBREOFFICE and c.motor for c in candidatas)
+    for chave in candidatas:
+        canonico = store.obter(chave)
+        if canonico is not None and not _nativo_superado_por_libreoffice(
+            chave, extensao=extensao, meta=canonico.meta,
+            libreoffice_ativo=libreoffice_ativo,
+        ):
+            yield chave, canonico
+
+
 def obter_resultado(
     indice: Path | None,
     *,
@@ -78,20 +95,7 @@ def obter_resultado(
     if indice is None:
         return None
     extensao = os.path.splitext(path)[1].lower()
-    store = ParseStore(indice)
-    candidatas = _candidatas(sha256, extensao, ocr=ocr)
-    libreoffice_ativo = any(c.rota == ROTA_LIBREOFFICE and c.motor for c in candidatas)
-    for chave in candidatas:
-        canonico = store.obter(chave)
-        if canonico is None:
-            continue
-        if _nativo_superado_por_libreoffice(
-            chave,
-            extensao=extensao,
-            meta=canonico.meta,
-            libreoffice_ativo=libreoffice_ativo,
-        ):
-            continue
+    for chave, canonico in canonicos_disponiveis(indice, sha256, extensao, ocr=ocr):
         doc = ParsedDoc(
             name=os.path.basename(path),
             blocks=reconstruir(canonico),

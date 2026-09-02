@@ -827,10 +827,10 @@ privada do desktop **não** trava nenhum destes:
 | F4-S | SharePoint = pasta sincronizada, só política e tela | notebook | 6 | ✅ **fechado** — placeholder visível no painel, sem hidratar |
 | R6.2+C4.2 · R7.1 · R7.2+C6.a · R6.3 | Rerank v2 · tools · descriptions · tempo/pasta | notebook | 7 | — |
 | F6-B / R8.2 | Primeira base sem terminal, MCPB, com a UX de C1 | quem não estiver no painel | 8 | depois de F6-A |
-| **J.b1** | `doc_id` público por conteúdo, índice em `documentos.sha256`, URI `sc://`, regra de preferência entre os **223 caminhos duplicados** | notebook | **1** | **sim** — a coluna já existe, não espera o store |
-| **J.c-mapa** | `outline` + `list_folder`, servidos do registro (`chunks.trilha`/`locator`/`ordinal` + `documentos` + `quarentena`) | notebook | **1** | **sim** — nasce em `mcp/leitura.py`, não em `server.py` |
-| **J.a · J.f** | Parse Store canônico + indexador lendo dele (rebuild ≥80% mais barato) | desktop, **ou notebook se o crédito não voltar** | **1** | **sim, e antes da onda 5** — é ela que paga o store |
-| **J.b2 · J.c-conteúdo** | Sidecar com offsets + `get_document` paginado por cursor | notebook | 2 | depois do `J.a` — **não** sai dos chunks (+11,1% de sobreposição) |
+| **J.b1** | `doc_id` público por conteúdo, índice em `documentos.sha256`, URI `sc://`, regra de preferência entre os **223 caminhos duplicados** | notebook | **1** | ✅ fechado em 30/08/2026 |
+| **J.c-mapa** | `outline` + `list_folder`; complemento `J.c-mapa.2` inclui `so_censo` | Desktop ativo | **1** | mapa ✅ em 30/08; `so_censo` entregue neste PR, em 01/09 |
+| **J.a · J.f** | Parse Store canônico + indexador lendo dele | Desktop ativo | **1** | núcleo ✅; integração PR #65; meta de rebuild ≥80% **ainda não medida** |
+| **J.b2 · J.c-conteúdo** | Sidecar com offsets + `get_document` paginado por cursor | Desktop ativo | 2 | `get_document` entregue neste PR em 02/09; freeze do schema E4 pendente |
 | **J.d** | `pack_folder` manifest-first, corte em fronteira de documento | notebook | 3 | depois do `J.c`; depende de `familias.py`, **não** de `R1.3` |
 | **J.e** | Exportador de vault Markdown (Obsidian) como *view* one-way | qualquer | 4 | depois do `J.b2`; menções e glossário já existem |
 | F4-D | Cobertura do dourado real | notebook | — | **reescopado**: piso de regressão e limitação declarada, não fila de perguntas. **Instrumento fechado em 29/08/2026** — `eval/cobertura.py`; a cobertura entra em todo relatório e a omissão virou impossível. Medido: alcance **38,5%**, fontes **3,3%**. [`docs/dourado-cobertura.md`](docs/dourado-cobertura.md) |
@@ -2084,7 +2084,7 @@ offsets, com store). Duas frentes em paralelo em vez de uma fila:
 |---|---|---|
 | **1** | `J.b1` (ids, índice em `sha256`, URI) · `J.c-mapa` (`outline`, `list_folder`) | notebook — ✅ **fechados em 30/08/2026** |
 | **1** | `J.a` (store) · `J.f` (indexador lê do store) | desktop se houver crédito, senão notebook |
-| **2** | `J.b2` (sidecar) · `J.c-conteúdo` (`get_document`) | notebook |
+| **2** | `J.b2` (sidecar) · `J.c-conteúdo` (`get_document`) | Desktop — conteúdo entregue em 02/09/2026 neste PR; freeze E4 pendente |
 | **3** | `J.d` (`pack_folder`) | notebook |
 | **4** | `J.e` (export vault Markdown) | qualquer |
 
@@ -2123,11 +2123,57 @@ Cinco coisas que a execução mostrou e que o plano não previa:
    custaria 80 s na primeira chamada. O campo se chama `chars` e o doc diz
    caractere — número que circula sem unidade vira três números.
 
-**O que ficou de fora, declarado:** o status `so_censo` — arquivo que está no
-disco e nunca foi indexado — não aparece no manifesto. Ele exige varrer o disco a
-partir das raízes da base, e o manifesto declara essa fronteira no próprio
-retorno (campo `fronteira`) em vez de deixar o agente supor. Entra como
-`J.c-mapa.2`, e é pequeno: `census.iter_files` já enumera sem abrir arquivo.
+**Complemento `J.c-mapa.2` — entregue no Desktop em 01/09/2026, neste PR.**
+`list_folder` agora une o registro ao censo das raízes configuradas. Arquivo ainda
+não indexado aparece como `so_censo`, sem id de conteúdo e com o motivo explícito.
+O censo reutiliza `census.iter_files`: não abre conteúdo, não hidrata placeholders
+e respeita as exclusões. Mesmo caminho relativo em duas raízes permanece como
+duas entradas, identificadas pelo campo `raiz`.
+
+- **Defeito:** o agente não sabia que havia arquivos que a indexação não alcançou.
+- **Efeito mínimo / aceite:** todos os arquivos visíveis no censo da pasta entram
+  no manifesto, sem duplicar os já registrados; paginação recompõe a lista ordenada
+  sob diferentes orçamentos; nenhuma leitura de conteúdo.
+- **Encerramento:** aceite binário. Falha em qualquer garantia mantém o pacote
+  aberto; não há varredura de ranking nem mudança de modelo.
+- **Fronteira declarada:** sem raízes, o retorno explica que só cobre o índice.
+  Falha na enumeração avisa que a cobertura pode estar incompleta, sem devolver
+  caminhos absolutos de erro. A lista é ao vivo, não um snapshot: se o acervo mudar
+  entre páginas, o cliente deve reiniciar com `cursor=0`.
+- **Prova:** `tests/test_leitura.py` cobre união, exclusões, recursão, paginação,
+  raízes distintas, falha de enumeração e bloqueio de abertura de conteúdo,
+  inclusive com atributo de placeholder. Confere também que o registro não muda.
+- **Limite de validação Desktop-only:** testes sintéticos e MCP; nenhum arquivo
+  de ranking alterado. A ablação no dourado privado não foi executada porque o
+  acervo/conjunto não estão neste Desktop; não confundir isso com um Δ medido.
+
+### `J.c-conteúdo` — leitura integral — entregue no Desktop em 02/09/2026, neste PR
+
+`get_document(documento, cursor=None, max_chars=8000)` lê o Markdown canônico
+diretamente do Parse Store. O cliente continua até `completo=true`; nunca há
+concatenação de chunks com sobreposição. Caminho, id e URI `sc://` resolvem pela
+identidade existente. O original permanece a fonte de citação.
+
+- **Hipótese / efeito mínimo:** concatenação byte-idêntica ao canônico, sem
+  perdas nem repetição, com orçamentos variados e PDF sintético de 500 páginas.
+- **Reuso pesquisado:** MCP oficial/filesystem, Docling, LlamaIndex e Tika.
+  Reaproveitados o SDK, registro, política de cache e parser isolado existentes;
+  nenhuma dependência nova. Decisões e fontes em
+  [`docs/jc-leitura-integral.md`](docs/jc-leitura-integral.md).
+- **Cache ausente:** reconstrói do original conhecido, com hash conferido,
+  limites de tamanho/tempo/RAM, sem hidratação. Uma extração por servidor.
+- **Sem falsas promessas:** leitura da versão indexada e do texto extraído,
+  não reprodução visual. Limitações de OCR, digestos e truncagens do extrator
+  são explícitas. Arquivos `so_censo` precisam de indexação antes da leitura.
+- **Segurança e regressão:** paths relativos, exclusões, links/junctions,
+  separação física de bases, cursores ligados à versão, cache malformado e
+  concorrência de escrita no Windows cobertos. Nenhuma mudança de ranking,
+  chunking, encoder ou modelo de OCR.
+- **Encerramento:** aceite binário por testes sintéticos, MCP e suíte padrão.
+  O dourado privado segue indisponível; não foi medido Δ de retrieval real.
+  A meta de ganho ≥80% em rebuild continua pendente, não vira ganho comprovado.
+- **Próximo:** `J.d` (`pack_folder`); congelamento do sidecar com E4 ainda pendente.
+  O notebook antigo segue desativado e o novo OCR continua futuro.
 
 ### `J.a-núcleo` — o parse store no disco — ✅ **FECHADO em 31/08/2026**
 
@@ -2163,11 +2209,15 @@ Quatro decisões que divergem da especificação, e cada uma tem o motivo medido
    diferentes, e a segunda paga um miss. Miss é custo; parse velho servido com
    confiança é defeito.
 
-**O que falta para o `J.f`, com nome:** os produtores (`reader.parse_file`, a
-rota LibreOffice, o OCR) chamarem `gravar`, e o laço de `indexar()` consultar
-`obter` antes de qualquer parser. O ganho de ≥80% no rebuild é do `J.f` e **não
-foi medido** — medir exige um rebuild do corpus sintético com mix de
-PDF/OLE/OCR, que é passada longa.
+**`J.f` — integração entregue no PR #65, em 01/09/2026.** `reader.parse_file`,
+as rotas LibreOffice e OCR gravam no store; o indexador consulta o cache depois
+do portão de leitura/hash e antes do parser. Os resultados e a taxa de hit têm
+testes em `tests/test_parse_cache.py`. O PR #66 impede que um cache nativo antigo
+esconda a instalação/atualização do LibreOffice.
+
+**Pendente: a medição de desempenho do `J.f`.** A meta de ≥80% de redução no
+rebuild com PDF/OLE/OCR ainda **não foi medida**. A integração não equivale ao
+fechamento desse aceite e não autoriza citar o ganho como resultado.
 
 **Ablação nula: Δ exatamente zero, medido.** O pacote J exige, em todo PR seu, a
 prova de que o caminho de consulta não mudou — e "não regrediu dentro do IC" não
@@ -2473,6 +2523,31 @@ Plano do que falta, com hipótese / efeito mínimo / empate encerra, em
   `[padrao]`. `ocr = true` **não** vira padrão antes do O.3
 - **Saída da fase:** O.1+O.2 verdes na máquina com extra; O.3 medido ou
   declarado “motor não alcança este acervo”. Empate no O.3 deixa `--ocr` opt-in
+
+#### F4-O.4 — Evolução do motor OCR — **FUTURA, fora da fila atual**
+
+**Decisão do usuário em 01/09/2026:** registrar a melhoria e não executá-la agora.
+RapidOCR com PP-OCRv4, o extra opt-in e o fluxo atual permanecem inalterados.
+Este item não desbloqueia nem substitui a medição privada do `F4-O.3`.
+
+- **Primeiro candidato:** PP-OCRv6 via RapidOCR/ONNX, priorizando execução local
+  em CPU. Comparar com o motor atual em ambiente isolado, sem trocar dependências
+  nem o padrão antes da prova.
+- **Candidatos experimentais:** parsers visuais como NaviDC-OCR para estrutura de
+  PDFs, tabelas e ordem de leitura. Só avaliar quando houver hardware compatível
+  e necessidade medida; não pressupor suporte às GTX 980 Ti do Desktop.
+- **Porta futura:** declarar previamente corpus público/sintético em português,
+  qualidade mínima e orçamento de tempo/RAM; medir texto fiel, identificadores,
+  acentos, páginas mistas e cobertura, além dos testes reais já existentes.
+  Empate mantém o motor atual e encerra a comparação.
+- **Antes de integrar:** verificar licença, português, dependências e execução
+  totalmente local; versionar motor/modelo no cache para impedir reaproveitamento
+  de texto produzido pela versão anterior. Não promover OCR a padrão por este item.
+
+Referências para retomar, não decisões de adoção:
+[PP-OCRv6](https://github.com/PaddlePaddle/PaddleOCR),
+[RapidOCR](https://github.com/RapidAI/RapidOCR) e
+[NaviDC-OCR](https://github.com/caipeng328/NaviDC-OCR).
 
 #### F4-R — Regime de máquina — **notebook** (`esforco.py` emprestado)
 

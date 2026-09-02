@@ -102,7 +102,7 @@ def chamar(servidor, nome: str, **kwargs) -> dict:  # noqa: ANN001
 # --- o contrato da superfície -----------------------------------------------
 
 
-SUPERFICIE = {"search", "read_note", "neighbors", "list_folder", "outline"}
+SUPERFICIE = {"search", "read_note", "neighbors", "list_folder", "outline", "get_document"}
 """As cinco ferramentas, e por que cada grupo está aqui.
 
 `search` e `read_note` fecham o laço de **retrieval** — "onde está X" e "me

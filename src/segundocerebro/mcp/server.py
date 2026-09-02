@@ -1,4 +1,4 @@
-"""Superfície MCP do Segundo Cérebro — cinco ferramentas, nenhuma que gere texto.
+"""Superfície MCP do Segundo Cérebro — seis ferramentas, nenhuma que gere texto.
 
     py -m segundocerebro.mcp.server --indice index
 
@@ -12,10 +12,11 @@ localmente, sem nenhuma chamada a API paga. Ver as invariantes em
 - **Multi-hop é do cliente.** Estas ferramentas são primitivas componíveis; o
   laço de agente é quem compõe. Não há orquestrador de recuperação aqui.
 
-Cinco ferramentas, em dois grupos. `search`, `read_note` e `neighbors` servem o
-modo **pergunta**, e são as que este arquivo registra. `list_folder` e `outline`
-servem o modo **leitura** — enumerar e mapear uma pasta inteira, para o agente
-que vai ler tudo —, entraram em 30/08/2026 pelo `J.c-mapa` e moram em
+Seis ferramentas, em dois grupos. `search`, `read_note` e `neighbors` servem o
+modo **pergunta**, e são as que este arquivo registra. `list_folder`, `outline`
+e `get_document` servem o modo **leitura** — enumerar, mapear e ler integralmente.
+As duas primeiras entraram em 30/08/2026 pelo `J.c-mapa`; a terceira em
+02/09/2026 pelo `J.c-conteúdo`. O registro deste grupo mora em
 `mcp/leitura.py`, porque `construir` está no teto de tamanho e superfície nova
 não empurra função que a tabela só deixa descer.
 
@@ -40,7 +41,7 @@ from typing import Any
 from mcp.server import MCPServer
 
 from ..config import ErroDeConfig, carregar
-from ..index.embeddings import Embedder
+from ..index.embeddings import MODELOS, Embedder
 from ..index.store import Store
 from ..logger import get_logger
 from ..retrieve.hybrid import BuscaHibrida
@@ -79,7 +80,7 @@ está pedindo."""
 
 @dataclass
 class Recursos:
-    """Store e embedder, abertos na primeira consulta e não na importação.
+    """Store na primeira leitura; embedder apenas na primeira busca.
 
     O `e5-large` leva ~80 s para carregar. Carregar no import estoura o handshake
     do cliente MCP, que desiste antes de o servidor responder à inicialização —
@@ -104,7 +105,8 @@ class Recursos:
         if self._busca is None:
             log.info("abrindo índice %s com %s", self.indice, self.modelo)
             embedder = Embedder(self.modelo, threads=self.threads)
-            self._store = Store(self.indice, embedder.dim)
+            if self._store is None:
+                self._store = Store(self.indice, embedder.dim)
             self._busca = (
                 BuscaHibrida.de_base(self._store, embedder, self.base)
                 if self.base is not None
@@ -114,8 +116,8 @@ class Recursos:
 
     @property
     def store(self) -> Store:
-        self.busca  # garante a abertura
-        assert self._store is not None
+        if self._store is None:
+            self._store = Store(self.indice, MODELOS[self.modelo].dim)
         return self._store
 
 

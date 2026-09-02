@@ -1,7 +1,7 @@
 # Usar o Segundo Cérebro pelo MCP
 
-Estado em 30/08/2026: **superfície mínima de pé**, cinco ferramentas — três de
-pergunta e duas de leitura (`J.c-mapa`) —, provada ponta a ponta por stdio — contra o índice real em 13/08, e desde 25/08 também na
+Estado em 02/09/2026: **seis ferramentas** — três de pergunta e três de leitura,
+incluindo `get_document` (`J.c-conteúdo`) —, provadas ponta a ponta por stdio — contra o índice real em 13/08, e desde 25/08 também na
 suíte padrão, sem carregar modelo (`tests/test_protocolo_mcp.py`).
 
 ## Ligar no Claude Code
@@ -16,7 +16,8 @@ py -m segundocerebro.mcp.server --indice index
 ```
 
 com `PYTHONPATH=src` e o diretório de trabalho na raiz do projeto. O transporte é
-stdio; não há porta de rede, e o servidor só lê o índice.
+stdio; não há porta de rede. A leitura integral pode consultar originais e
+reconstruir o cache dentro do índice, sem modificar o acervo.
 
 ### Várias bases
 
@@ -47,7 +48,8 @@ sessão do agente. Registrar as duas e contar que o modelo escolha pela descriç
 é conveniência, não garantia; para isso a descrição de cada base precisa dizer
 de verdade o que ela cobre, porque é o único sinal que o modelo tem.
 
-A **primeira consulta demora ~80 s**: é o `e5-large` carregando. Depois disso as
+A **primeira busca demora ~80 s**: é o `e5-large` carregando. As ferramentas de
+leitura não carregam o encoder. Depois disso as
 buscas respondem em frações de segundo. O modelo é carregado sob demanda de
 propósito — carregar na importação estoura o handshake do cliente MCP, e o modo
 de falha seria "servidor não conecta", que não diz nada sobre a causa.
@@ -85,7 +87,7 @@ Sobre o `--instalar`: ele só existe para cliente cujo caminho **e** formato for
 conferidos. O VS Code fica fora de propósito — o `mcp.json` dele chama a seção
 `servers`, não `mcpServers`, e o trecho gerado aqui não serve para ele.
 
-## As cinco ferramentas
+## As seis ferramentas
 
 **`search(consulta, k=8, contexto=1)`** — trechos por significado e por termo
 exato, fundidos por RRF. Devolve, para cada trecho: `id`, `arquivo`, `secao`,
@@ -102,17 +104,22 @@ devolve **por que** cada um está ligado, com o identificador e o trecho, para a
 ligação ser conferível em vez de oracular.
 
 As três acima servem o modo **pergunta**: você pergunta, o servidor devolve os
-trechos que respondem. As duas seguintes servem o modo **leitura** — quando a
+trechos que respondem. As três seguintes servem o modo **leitura** — quando a
 tarefa não é "onde está X" e sim "escreva um relatório sobre esta pasta".
 
 **`list_folder(pasta="", recursivo=False, cursor=0, max_itens=100)`** — o que
-existe numa pasta: por documento, um `id` estável, o tipo, a data, quantos
+existe numa pasta: por documento, a `raiz`, um `id` estável quando já há hash, o tipo, a data, quantos
 caracteres de texto ele tem indexados, se é a versão vigente da família e o
-status (`indexado`, `quarentena`, `sem_texto`, `formato_nao_lido`). A ordem é por
-caminho e **nunca** por relevância, então a lista é a mesma toda vez — é o que
-permite repetir o mesmo trabalho semana após semana. Quando há mais itens que o
+status (`indexado`, `quarentena`, `sem_texto`, `formato_nao_lido`, `so_censo`).
+Com as raízes configuradas, inclui arquivos ainda não indexados por enumeração
+de metadados: não abre conteúdo, não baixa placeholders e respeita exclusões.
+Esses arquivos aparecem como `so_censo`, sem id e com motivo. Caminhos relativos
+iguais em raízes diferentes são entradas distintas. A ordem é por caminho e raiz,
+**nunca** por relevância. Quando há mais itens que o
 orçamento, o retorno traz `cursor_proximo` e `restante`: a ferramenta nunca corta
-em silêncio.
+em silêncio. A enumeração é ao vivo: se o acervo mudar entre páginas, reinicie
+com `cursor=0`. Sem raízes declaradas, o campo `fronteira` avisa que só há dados do
+índice; falhas de enumeração vêm em `aviso_censo`, sem fingir cobertura completa.
 
 **`outline(documento, cursor=0, max_secoes=80)`** — o mapa de um documento sem
 gastar contexto lendo o documento: as seções na ordem do texto, onde cada uma
@@ -120,9 +127,32 @@ está (página, slide ou aba) e quanto ocupa. É o que transforma "ler 50 arquiv
 em plano viável — o agente vê a estrutura, escolhe o que vale ler, e só então
 gasta contexto. Aceita o caminho, o `id` de `list_folder` ou uma URI `sc://`.
 
-O padrão de uso, e as descriptions o ensinam ao cliente: **`list_folder` para
-saber o que existe → `outline` nos maiores para decidir o que ler → `search` para
-perguntas pontuais.**
+**`get_document(documento, cursor=null, max_chars=8000)`** — todo o Markdown
+canônico extraído, paginado sem sobreposição dos chunks. Aceita caminho relativo,
+id ou URI `sc://` da própria base. Copie `cursor_proximo` na chamada seguinte
+até `completo=true`; a ausência do cursor indica o fim. `total` e `restante`
+contam caracteres Unicode, não tokens. O teto é 32.000 caracteres de Markdown
+por resposta, além dos metadados; até 200 blocos com offsets e localizadores.
+Os offsets são globais no canônico, não na fatia. Cite `documento.arquivo` e
+`documento.raiz`, nunca o cache. `read_note` continua sendo leitura de trechos.
+
+A função serve a **versão indexada**, não uma cópia ao vivo. Com raízes, confere
+tamanho e datas do original; se mudarem, pede reindexação. A continuação está
+vinculada ao documento, base, rota e conteúdo canônico. Sem raízes, só serve
+cache existente e declara `original_conferido=nao_configurado`. Um miss reabre o
+original pelo portão existente, compara o hash e reconstrói o Parse Store.
+Arquivos só no censo ou sem identidade precisam de indexação primeiro.
+Se o caminho existir em mais de uma raiz, use id ou URI para desambiguar.
+
+Não baixa placeholders nem inicia OCR novo: só restaura OCR previamente usado
+na indexação. Extração sob demanda tem teto de 50 MB por arquivo (ou menor,
+conforme a base), 60 s para formatos isolados e RAM limitada; arquivos demorados
+devem passar pelo indexador. `limitacoes_extracao`, `aviso_ocr` e `fronteira`
+distinguem texto extraído de reprodução completa de imagens, tabelas e páginas.
+Erros de execução retornam `isError=true` com código e orientação.
+
+O padrão de uso: **`list_folder` para saber o que existe → `outline` para mapear
+→ `get_document` para ler integralmente. `search` para perguntas pontuais.**
 
 O `id` merece uma linha: ele vem do **conteúdo** do arquivo, não do caminho.
 Renomear ou mover não muda o id; editar muda. Quando o mesmo conteúdo está em
@@ -132,7 +162,7 @@ sempre para o mesmo caminho preferido, pela mesma regra de versão vigente que a
 nuvem, formato não lido) aparece **sem** id e com o motivo escrito ao lado, em
 vez de sumir da lista.
 
-Cinco, e não as cinco do ROADMAP — a lista é outra. `search` e `read_note` fecham
+Seis, e não as cinco originalmente propostas no ROADMAP. `search` e `read_note` fecham
 o laço básico e foram as duas únicas até a F3. A `neighbors` entrou na F4 por um
 motivo diferente: o traço de uso real mostrou o limite que ela rompe. Um plano
 que termina em "certificação ISO 42001" e a norma, em outra pasta, não têm nome,
@@ -153,7 +183,7 @@ no servidor reintroduziria custo por consulta e amarraria o projeto a um
 fornecedor, que é exatamente o que a arquitetura existe para evitar. Quem gera
 texto é o cliente; o servidor recupera e devolve procedência.
 
-Multi-hop também é do cliente. As cinco ferramentas são primitivas componíveis, e
+Multi-hop também é do cliente. As seis ferramentas são primitivas componíveis, e
 o laço de agente é quem compõe.
 
 ## O que esperar, honestamente
