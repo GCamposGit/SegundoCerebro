@@ -50,6 +50,14 @@ from ..index.travas import NOME_DA_TRAVA, NOME_DO_OBSERVADOR
 from ..logger import get_logger
 from ..retrieve.glossario import ErroDeGlossario, Glossario
 from .erros import MedicaoIndisponivel
+from .exportar import rota_exportar
+from .sessao import (  # noqa: F401 — fachada: testes e Q12 leem estes nomes aqui
+    PORTA_PADRAO,
+    caminho_da_sessao,
+    gravar_sessao,
+    ler_sessao,
+    painel_responde,
+)
 
 log = get_logger("painel")
 
@@ -138,7 +146,7 @@ def criar_app(
     """
     from starlette.applications import Starlette
     from starlette.requests import Request
-    from starlette.responses import HTMLResponse, JSONResponse
+    from starlette.responses import JSONResponse
     from starlette.routing import Route
 
     medicoes = Medicoes()
@@ -909,10 +917,6 @@ def criar_app(
             }
         )
 
-    async def pagina(request: Request) -> HTMLResponse:
-        """A tela. O token vem na URL e o JavaScript o repassa em cada chamada."""
-        return HTMLResponse((Path(__file__).parent / "index.html").read_text(encoding="utf-8"))
-
     async def perfis(request: Request) -> JSONResponse:
         if not autorizado(request):
             return JSONResponse({"erro": "token inválido"}, status_code=403)
@@ -937,6 +941,7 @@ def criar_app(
             Route("/api/comando", comando, methods=["POST"]),
             Route("/api/registro", registro),
             Route("/api/conectar", conectar, methods=["POST"]),
+            Route("/api/exportar", rota_exportar(autorizado, _config, _base), methods=["POST"]),
             Route("/api/medir", medir, methods=["POST"]),
             Route("/api/salvar", salvar, methods=["POST"]),
             Route("/api/diagnostico", diagnostico, methods=["POST"]),
@@ -969,57 +974,8 @@ def gerar_token() -> str:
     return secrets.token_urlsafe(24)
 
 
-PORTA_PADRAO = 18787
-"""Porta fixa para o atalho do Windows reabrir a mesma URL.
+async def pagina(request) -> Any:  # noqa: ANN001 — Starlette Request, importado dentro de criar_app
+    """A tela. O token vem na URL e o JavaScript o repassa em cada chamada."""
+    from starlette.responses import HTMLResponse
 
-0 (livre) fazia cada abertura nascer noutro endereço, e o usuário não tinha
-como voltar à tela sem perguntar ao agente."""
-
-SESSAO_PAINEL = ".painel.json"
-
-
-def caminho_da_sessao(config: Path) -> Path:
-    return Path(config).expanduser().resolve().parent / SESSAO_PAINEL
-
-
-def ler_sessao(config: Path) -> dict[str, Any] | None:
-    alvo = caminho_da_sessao(config)
-    try:
-        dados = json.loads(alvo.read_text(encoding="utf-8"))
-    except (OSError, json.JSONDecodeError):
-        return None
-    if not isinstance(dados, dict):
-        return None
-    porta, token = dados.get("porta"), dados.get("token")
-    if not isinstance(porta, int) or not isinstance(token, str) or not token:
-        return None
-    return {"porta": porta, "token": token, "url": dados.get("url") or f"http://127.0.0.1:{porta}/?token={token}"}
-
-
-def gravar_sessao(config: Path, porta: int, token: str) -> None:
-    alvo = caminho_da_sessao(config)
-    payload = {
-        "porta": porta,
-        "token": token,
-        "url": f"http://127.0.0.1:{porta}/?token={token}",
-    }
-    tmp = alvo.with_suffix(".json.tmp")
-    tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=1), encoding="utf-8")
-    tmp.replace(alvo)
-
-
-def painel_responde(porta: int, token: str, host: str = "127.0.0.1", timeout: float = 0.4) -> bool:
-    """True se já há um painel vivo nesta porta com este token."""
-    from urllib.error import URLError
-    from urllib.request import Request, urlopen
-
-    pedido = Request(
-        f"http://{host}:{porta}/api/estado",
-        headers={"x-painel-token": token},
-        method="GET",
-    )
-    try:
-        with urlopen(pedido, timeout=timeout) as resp:  # noqa: S310 — loopback, token obrigatório
-            return 200 <= getattr(resp, "status", 200) < 300
-    except (URLError, TimeoutError, OSError):
-        return False
+    return HTMLResponse((Path(__file__).parent / "index.html").read_text(encoding="utf-8"))

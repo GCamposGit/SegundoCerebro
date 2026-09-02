@@ -197,7 +197,8 @@ pode abrir o documento e checar.
 ## 7. Exportar como vault Markdown (opcional)
 
 Se quiser *ver* o acervo como notas interligadas (Obsidian ou qualquer pasta de
-`.md`), exporte para um diretório **fora** das pastas que você indexou:
+`.md`), no painel, depois de indexar: cole o destino **fora** das pastas
+indexadas e clique em **Exportar vault**. Pelo terminal:
 
 ```bash
 py -m segundocerebro.acesso.exportar --base trabalho --destino D:\vault-obsidian

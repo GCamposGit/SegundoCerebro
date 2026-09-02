@@ -43,8 +43,9 @@ gravou e que saiu da seleção é removido.
 
 Não é ferramenta MCP — escrever no disco é ação do usuário, não do agente.
 Não resume, não ranqueia, não inicia OCR, não sincroniza de volta, não escreve
-nas raízes. O painel não ganhou botão neste PR: `painel/app.py` está no teto da
-escada de tamanho e extrair a costura seria outro pacote.
+nas raízes. O painel ganhou o botão **Exportar vault** (`J.e.1`, 02/09/2026):
+mesma recusa de destino, sem carregar encoder na abertura. A costura do `Q16`
+tirou a sessão para `painel/sessao.py` para a rota caber.
 
 ## Reuso
 

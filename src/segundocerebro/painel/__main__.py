@@ -14,14 +14,8 @@ import webbrowser
 from pathlib import Path
 
 from ..logger import get_logger
-from .app import (
-    PORTA_PADRAO,
-    criar_app,
-    gerar_token,
-    gravar_sessao,
-    ler_sessao,
-    painel_responde,
-)
+from .app import criar_app, gerar_token
+from .sessao import PORTA_PADRAO, gravar_sessao, ler_sessao, painel_responde
 
 log = get_logger("painel")
 

@@ -37,7 +37,7 @@ ACIMA_DO_TETO: dict[str, int] = {
     "index/indexer.py": 1368,
     "index/store.py": 1137,
     "config.py": 1081,
-    "painel/app.py": 1025,
+    "painel/app.py": 981,
     "census.py": 978,
     "index/calibracao.py": 931,
     "ingest/parsers/sheets.py": 870,
@@ -64,7 +64,7 @@ com razão de mudar própria — não a linha nova que entra."""
 
 FUNCOES_ACIMA_DO_TETO: dict[str, int] = {
     "index/indexer.py::indexar": 1042,
-    "painel/app.py::criar_app": 818,
+    "painel/app.py::criar_app": 815,
     "index/indexer.py::aplicar": 273,
     "ingest/reader.py::parse_file": 150,
     "mcp/server.py::construir": 144,
@@ -92,7 +92,7 @@ FUNCOES_ACIMA_DO_TETO: dict[str, int] = {
 }
 """As funções longas, com o tamanho de 29/08/2026 como teto.
 
-`indexar` com 1.042 linhas e 24 parâmetros e `criar_app` com 818 são as duas que
+`indexar` com 1.042 linhas e 24 parâmetros e `criar_app` com 815 são as duas que
 importam; as outras 24 estão entre 60 e 150 e são leitura linear. `main` do
 indexador caiu de 224 para 101 quando o `argparse` saiu para `cli.py`, e
 `construir_parser` é o que ele virou — 124 das suas 127 linhas são
