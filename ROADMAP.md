@@ -829,7 +829,7 @@ privada do desktop **não** trava nenhum destes:
 | F6-B / R8.2 | Primeira base sem terminal, MCPB, com a UX de C1 | quem não estiver no painel | 8 | depois de F6-A |
 | **J.b1** | `doc_id` público por conteúdo, índice em `documentos.sha256`, URI `sc://`, regra de preferência entre os **223 caminhos duplicados** | notebook | **1** | ✅ fechado em 30/08/2026 |
 | **J.c-mapa** | `outline` + `list_folder`; complemento `J.c-mapa.2` inclui `so_censo` | Desktop ativo | **1** | mapa ✅ em 30/08; `so_censo` entregue neste PR, em 01/09 |
-| **J.a · J.f** | Parse Store canônico + indexador lendo dele | Desktop ativo | **1** | núcleo ✅; integração PR #65; meta de rebuild ≥80% **ainda não medida** |
+| **J.a · J.f** | Parse Store canônico + indexador lendo dele | Desktop ativo | **1** | núcleo ✅; integração PR #65; experimento controlado encerrado: meta ≥80% refutada; [resultado e limite Q15.b](docs/jf-parse-store.md) |
 | **J.b2 · J.c-conteúdo** | Sidecar com offsets + `get_document` paginado por cursor | Desktop ativo | 2 | conteúdo entregue; contrato `blocos:1` consolidado em 02/09; consumidor futuro de spans exige integração própria |
 | **J.d** | `pack_folder` manifest-first, corte em fronteira de documento | notebook | 3 | depois do `J.c`; depende de `familias.py`, **não** de `R1.3` |
 | **J.e** | Exportador de vault Markdown (Obsidian) como *view* one-way | qualquer | 4 | depois do `J.b2`; menções e glossário já existem |
@@ -1817,6 +1817,19 @@ volta. A regra já estava escrita neste arquivo para `parser ocr:*` e para o
   com o conserto desligado.* Rodar essa checagem custou uma execução e derrubou a
   primeira versão inteira.
 
+#### `Q15.b` — OCR pode retornar vazio sob teto baixo de RAM — pendente
+
+Detectado no Desktop durante a pré-checagem do `J.f`, em 02/09/2026: o mesmo
+scan sintético retornou texto com teto maior e `vazio` com o teto adaptativo
+baixo, sem quarentena. Evidência e limites em
+[medição do Parse Store](docs/jf-parse-store.md). A medição controlada usa um
+teto explícito, **não corrige** o produto e não torna o caso padrão válido.
+
+Próximo recorte: reproduzir pelo processo isolado com teto de RAM, localizar
+a falha entre rasterização e motor e garantir que incapacidade de leitura não
+seja relatada como documento vazio. Não basta aumentar globalmente o teto nem
+testar apenas OCR falso. Separado da avaliação futura de modelos novos.
+
 #### O conserto do `Q15` estava pior que o defeito, e uma revisão pegou
 
 Registrado porque a lição é maior que o caso. A primeira versão re-levantava
@@ -2215,9 +2228,12 @@ do portão de leitura/hash e antes do parser. Os resultados e a taxa de hit têm
 testes em `tests/test_parse_cache.py`. O PR #66 impede que um cache nativo antigo
 esconda a instalação/atualização do LibreOffice.
 
-**Pendente: a medição de desempenho do `J.f`.** A meta de ≥80% de redução no
-rebuild com PDF/OLE/OCR ainda **não foi medida**. A integração não equivale ao
-fechamento desse aceite e não autoriza citar o ganho como resultado.
+**Medição controlada do `J.f` encerrada em 02/09/2026.** Seis pares de rebuilds
+reais no Desktop, mix sintético PDF/OLE/OCR, encoder real e índice lógico
+preservado. **Meta ≥80% refutada** neste experimento, sem ajuste posterior para
+persegui-la. [Resultado, IC, dados reproduzíveis e limitações](docs/jf-parse-store.md).
+O regime adaptativo padrão não recebeu veredito: a pré-checagem revelou o
+`Q15.b` (OCR sob teto baixo), e o experimento válido usou teto explícito de RAM.
 
 **Ablação nula: Δ exatamente zero, medido.** O pacote J exige, em todo PR seu, a
 prova de que o caminho de consulta não mudou — e "não regrediu dentro do IC" não

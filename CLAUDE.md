@@ -130,10 +130,12 @@ ser hipótese: o percurso do leigo tem teste. O Office legado
 > base, é [`docs/plano-pacote-j.md`](docs/plano-pacote-j.md). **Ler as duas antes
 > de tocar no resto do pacote J.**
 
-0. **`J.f` — integração entregue; medição de desempenho pendente.** O PR #65
-   ligou produtores e indexador ao store. **O ganho de ≥80% no rebuild não foi
-   medido** — exige rebuild do sintético com mix de PDF/OLE/OCR. Não refazer a
-   integração nem citar a meta como ganho comprovado.
+0. **`J.f` — experimento controlado encerrado em 02/09/2026.** A meta de ≥80%
+   foi refutada no mix sintético PDF/OLE/OCR; o cache preservou conteúdo e trouxe
+   ganho medido. [Resultado, IC e limites](docs/jf-parse-store.md). Não generalizar
+   para a configuração padrão: o experimento precisou de teto explícito de RAM.
+   **`Q15.b` pendente:** investigar OCR retornando vazio sob teto adaptativo baixo;
+   priorizar confiabilidade, não afinar desempenho para atingir a meta.
 1. **`J.d` — `pack_folder`**, próximo pacote funcional: manifesto primeiro,
    política de famílias e orçamento com continuação. `J.c-conteúdo` foi entregue
    neste PR, no Desktop, em 02/09/2026: sai do Parse Store, nunca dos chunks
