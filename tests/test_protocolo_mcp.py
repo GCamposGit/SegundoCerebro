@@ -407,6 +407,12 @@ def test_documento_integral_e_continuacao_pelo_stdio(do_servidor_falso):
     assert primeira["fim"] == resto["inicio"] == 9
     assert resto["completo"] and "cursor_proximo" not in resto
     assert resto["documento"]["arquivo"] == POLITICA
+    assert primeira["estrutura"] == resto["estrutura"]
+    assert resto["estrutura"]["versao"] == "blocos:1"
+    for bloco in resto["blocos"]:
+        original = canonico_de(POLITICA).blocos[bloco["ordinal"]]
+        assert bloco["trilha"] == list(original.trilha)
+        assert bloco["onde"] == original.locator
 
 
 def test_erro_de_leitura_tem_is_error_e_json_compativel(do_servidor_falso):

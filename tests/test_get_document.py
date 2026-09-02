@@ -52,6 +52,8 @@ def test_miss_reconstroi_sem_chunks_sem_mutar_original_ou_registro(acervo):
     assert pagina["completo"] and pagina["restante"] == 0
     assert pagina["documento"]["arquivo"] == original.name
     assert pagina["documento"]["total_chars"] == len(esperado)
+    assert pagina["estrutura"]["versao"] == "blocos:1"
+    assert leitor.ler(original.name)["blocos"][-1]["trilha"] == ["Política", "Prazos"]
     assert str(original.parent) not in str(pagina)
     assert original.read_bytes() == antes
     assert list(leitor.store.con.iterdump()) == db

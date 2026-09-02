@@ -136,6 +136,13 @@ por resposta, além dos metadados; até 200 blocos com offsets e localizadores.
 Os offsets são globais no canônico, não na fatia. Cite `documento.arquivo` e
 `documento.raiz`, nunca o cache. `read_note` continua sendo leitura de trechos.
 
+`estrutura` declara o contrato `blocos:1`: início inclusivo, fim exclusivo,
+base zero, em code points Unicode. Cada bloco traz `ordinal` global, `trilha`
+de seções e `pagina`/`slide` base um quando o parser os conhece (`null` nos
+demais casos). A página de transporte não é a página do original. Use também
+`versao` para identificar uma citação; o ordinal sozinho não sobrevive a reparse.
+Detalhes e compatibilidade: [estrutura para citações](jb2-estrutura-citacoes.md).
+
 A função serve a **versão indexada**, não uma cópia ao vivo. Com raízes, confere
 tamanho e datas do original; se mudarem, pede reindexação. A continuação está
 vinculada ao documento, base, rota e conteúdo canônico. Sem raízes, só serve

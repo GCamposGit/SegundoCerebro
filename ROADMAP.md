@@ -830,7 +830,7 @@ privada do desktop **não** trava nenhum destes:
 | **J.b1** | `doc_id` público por conteúdo, índice em `documentos.sha256`, URI `sc://`, regra de preferência entre os **223 caminhos duplicados** | notebook | **1** | ✅ fechado em 30/08/2026 |
 | **J.c-mapa** | `outline` + `list_folder`; complemento `J.c-mapa.2` inclui `so_censo` | Desktop ativo | **1** | mapa ✅ em 30/08; `so_censo` entregue neste PR, em 01/09 |
 | **J.a · J.f** | Parse Store canônico + indexador lendo dele | Desktop ativo | **1** | núcleo ✅; integração PR #65; meta de rebuild ≥80% **ainda não medida** |
-| **J.b2 · J.c-conteúdo** | Sidecar com offsets + `get_document` paginado por cursor | Desktop ativo | 2 | `get_document` entregue neste PR em 02/09; freeze do schema E4 pendente |
+| **J.b2 · J.c-conteúdo** | Sidecar com offsets + `get_document` paginado por cursor | Desktop ativo | 2 | conteúdo entregue; contrato `blocos:1` consolidado em 02/09; consumidor futuro de spans exige integração própria |
 | **J.d** | `pack_folder` manifest-first, corte em fronteira de documento | notebook | 3 | depois do `J.c`; depende de `familias.py`, **não** de `R1.3` |
 | **J.e** | Exportador de vault Markdown (Obsidian) como *view* one-way | qualquer | 4 | depois do `J.b2`; menções e glossário já existem |
 | F4-D | Cobertura do dourado real | notebook | — | **reescopado**: piso de regressão e limitação declarada, não fila de perguntas. **Instrumento fechado em 29/08/2026** — `eval/cobertura.py`; a cobertura entra em todo relatório e a omissão virou impossível. Medido: alcance **38,5%**, fontes **3,3%**. [`docs/dourado-cobertura.md`](docs/dourado-cobertura.md) |
@@ -2084,7 +2084,7 @@ offsets, com store). Duas frentes em paralelo em vez de uma fila:
 |---|---|---|
 | **1** | `J.b1` (ids, índice em `sha256`, URI) · `J.c-mapa` (`outline`, `list_folder`) | notebook — ✅ **fechados em 30/08/2026** |
 | **1** | `J.a` (store) · `J.f` (indexador lê do store) | desktop se houver crédito, senão notebook |
-| **2** | `J.b2` (sidecar) · `J.c-conteúdo` (`get_document`) | Desktop — conteúdo entregue em 02/09/2026 neste PR; freeze E4 pendente |
+| **2** | `J.b2` (sidecar) · `J.c-conteúdo` (`get_document`) | Desktop — conteúdo e contrato v1 entregues em 02/09/2026; [limites da integração futura de spans](docs/jb2-estrutura-citacoes.md) |
 | **3** | `J.d` (`pack_folder`) | notebook |
 | **4** | `J.e` (export vault Markdown) | qualquer |
 

@@ -10,6 +10,7 @@ from hashlib import sha256
 from typing import Any
 
 from ..ingest.canonico import ParseCanonico
+from ..ingest.estrutura import VERSAO_ESTRUTURA, citar, contrato, validar
 from .original import ErroLeitura
 
 MAX_CHARS = 32_000
@@ -44,25 +45,28 @@ def paginar(
     """Orçamento em code points Unicode, não bytes, tokens ou tamanho do JSON."""
     if type(max_chars) is not int or max_chars < 1:
         raise ErroLeitura("orcamento_invalido", "max_chars deve ser um inteiro positivo.")
+    validar(canonico)
     conteudo = json.dumps(asdict(canonico), ensure_ascii=False, sort_keys=True).encode("utf-8")
-    versao = sha256(identidade.encode("utf-8") + b"\x00" + conteudo).hexdigest()
+    versao = sha256(VERSAO_ESTRUTURA.encode() + b"\x00" + identidade.encode("utf-8")
+                    + b"\x00" + conteudo).hexdigest()
     continuacao = decodificar_cursor(cursor)
     inicio = continuacao[1] if continuacao else 0
     total = len(canonico.markdown)
     if continuacao and (continuacao[0] != versao or inicio >= total):
         raise ErroLeitura("cursor_desatualizado", "O documento ou a base mudou. Reinicie sem cursor.")
     fim = min(total, inicio + min(max_chars, MAX_CHARS))
-    blocos = [b for b in canonico.blocos if b.fim > inicio and b.inicio < fim]
+    blocos = [(n, b) for n, b in enumerate(canonico.blocos)
+              if b.fim > b.inicio and b.fim > inicio and b.inicio < fim]
     if len(blocos) > MAX_BLOCOS:
-        fim = blocos[MAX_BLOCOS].inicio
+        fim = blocos[MAX_BLOCOS][1].inicio
         blocos = blocos[:MAX_BLOCOS]
     saida: dict[str, Any] = {
         "markdown": canonico.markdown[inicio:fim], "inicio": inicio, "fim": fim,
         "total": total, "restante": total - fim, "unidade": "caracteres_unicode",
         "restante_chars": total - fim,
         "completo": fim == total, "versao": versao,
-        "blocos": [{"inicio": b.inicio, "fim": b.fim, "onde": b.locator,
-                    "tipo": b.kind} for b in blocos],
+        "estrutura": contrato(),
+        "blocos": [citar(b, n) for n, b in blocos],
     }
     if fim < total:
         saida["cursor_proximo"] = _cursor(versao, fim)
