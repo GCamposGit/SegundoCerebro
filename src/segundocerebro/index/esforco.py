@@ -297,6 +297,18 @@ def na_bateria() -> bool | None:
     return not energia.power_plugged
 
 
+def observar_regime() -> dict[str, object]:
+    """Tomada, EcoQoS e topologia híbrida — o que toda observação de velocidade grava.
+
+    Sem isto a `Calibracao` aprende um coeficiente de dois regimes (F4-R). O
+    corpo mora em `regime_maquina.py` porque `aplicar` já está no teto da
+    tabela de tamanho e não pode crescer.
+    """
+    from .regime_maquina import observar
+
+    return observar()
+
+
 def caminho_pedido(indice: Path) -> Path:
     return Path(indice) / NOME_PEDIDO
 

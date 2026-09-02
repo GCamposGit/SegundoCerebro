@@ -19,7 +19,8 @@ impossível, e é por isso que ele é a entrega e não o conserto da máscara:
 3. **Número sem regime é mentira**, ao lado de "sem corpus, sem máquina e sem
    data" (`docs/colaboracao.md` §4, regra 7). `estado()` entra em toda observação,
    antes e depois, e `contraste` marca o resultado como suspeito quando o estado
-   mudou no meio.
+   mudou no meio. Desde o R.1 (02/09/2026, 14700HX) o regime inclui EcoQoS, e
+   `--contraste-ecoqos` liga e desliga o estado lento por comando.
 
 Um braço por **processo**: a threadpool da ONNX Runtime e a afinidade são fixadas
 na criação da sessão, então medir dois braços no mesmo processo mede o primeiro.
@@ -51,12 +52,16 @@ TEXTO = (
 )
 """Vocabulário VCE, fixo. O braço mede a máquina; o texto não pode variar."""
 
+SONDA_ITERS = 800_000
+"""Iterações do laço da sonda. Mesmo valor da passada que isolou o EcoQoS no 14700HX."""
+
 
 def estado() -> dict[str, object]:
     """Regime da máquina agora — o que faltava em toda medição de vazão daqui.
 
     `tomada` é `None` em desktop sem bateria, e isso é informação: significa que
-    aquele setup não tem o eixo que produziu o 22× neste notebook.
+    aquele setup não tem o eixo que produziu o 22× no 1355U. `ecoqos` é o
+    gatilho isolado no 14700HX: ligar e desligar reproduz o par lento/rápido.
     """
     dados: dict[str, object] = {
         "maquina": platform.node(),
@@ -64,16 +69,12 @@ def estado() -> dict[str, object]:
         "logicos": os.cpu_count(),
     }
     try:
-        import psutil
+        from segundocerebro.index.esforco import observar_regime
 
-        bateria = psutil.sensors_battery()
-        dados["tomada"] = None if bateria is None else bool(bateria.power_plugged)
-        dados["bateria_pct"] = None if bateria is None else bateria.percent
-        freq = psutil.cpu_freq()
-        dados["mhz"] = None if freq is None else round(freq.current)
-        dados["fisicos"] = psutil.cpu_count(logical=False)
-    except Exception:  # noqa: BLE001 — sem psutil o resto do relato continua válido
-        dados["tomada"] = None
+        dados.update(observar_regime())
+    except Exception:  # noqa: BLE001 — probe de hardware: o relato segue sem o regime
+        dados.setdefault("tomada", None)
+        dados.setdefault("ecoqos", None)
     return dados
 
 
@@ -117,9 +118,19 @@ class Observacao:
 
     @property
     def regime_mudou(self) -> bool:
-        """Tomada ou frequência mudaram no meio do braço — o número é suspeito."""
+        """Tomada ou EcoQoS mudaram no meio do braço — o número é suspeito."""
         a, d = self.estado_antes, self.estado_depois
-        return a.get("tomada") != d.get("tomada")
+        return a.get("tomada") != d.get("tomada") or a.get("ecoqos") != d.get("ecoqos")
+
+
+def _ecoqos_nao_aplicou(observacoes: list[Observacao]) -> list[str]:
+    """HANDLE truncado, API recusada: o comando rodou e o estado não mudou."""
+    esperado = {"contiguo_on": True, "contiguo_off": False}
+    return [
+        o.braco
+        for o in observacoes
+        if o.braco in esperado and o.estado_antes.get("ecoqos") is not esperado[o.braco]
+    ]
 
 
 def contraste(observacoes: list[Observacao]) -> dict[str, object]:
@@ -142,12 +153,22 @@ def contraste(observacoes: list[Observacao]) -> dict[str, object]:
                 "Uma réplica mede a janela, não o braço — o regime muda em minutos."
             ),
         }
+    falhou = _ecoqos_nao_aplicou(observacoes)
+    if falhou:
+        return {
+            "veredito": "recusado",
+            "motivo": (
+                f"EcoQoS não aplicado em: {falhou}. "
+                "Número sem o gatilho ligado é a janela outra vez."
+            ),
+        }
 
     resumo = {
         b: {
             "medianas": [round(o.mediana, 4) for o in v],
             "mediana_das_replicas": round(statistics.median([o.mediana for o in v]), 4),
             "regime_mudou": any(o.regime_mudou for o in v),
+            "ecoqos": [o.estado_antes.get("ecoqos") for o in v],
         }
         for b, v in por_braco.items()
     }
@@ -155,6 +176,10 @@ def contraste(observacoes: list[Observacao]) -> dict[str, object]:
     if base:
         for b, d in resumo.items():
             d["razao_contra_livre"] = round(d["mediana_das_replicas"] / base, 2)
+    off = resumo.get("contiguo_off", {}).get("mediana_das_replicas")
+    on = resumo.get("contiguo_on", {}).get("mediana_das_replicas")
+    if off and on:
+        resumo["contiguo_on"]["razao_contra_off"] = round(on / off, 2)
 
     suspeito = [b for b, d in resumo.items() if d["regime_mudou"]]
     return {
@@ -162,7 +187,7 @@ def contraste(observacoes: list[Observacao]) -> dict[str, object]:
         "ressalva": (
             None
             if not suspeito
-            else f"estado de energia mudou durante: {suspeito}. Refazer com o estado fixo."
+            else f"estado de regime mudou durante: {suspeito}. Refazer com o estado fixo."
         ),
         "bracos": resumo,
     }
@@ -173,50 +198,92 @@ def contraste(observacoes: list[Observacao]) -> dict[str, object]:
 # ---------------------------------------------------------------------------
 
 
-def medir_neste_processo(mascara: list[int] | None, chunks: int, threads: int) -> Observacao:
-    """Um braço, neste processo. Chamado pelo subprocesso — não chamar em laço.
+def _preparar_braco(mascara: list[int] | None, ecoqos: bool | None) -> list[int]:
+    """Aplica EcoQoS e afinidade **antes** de cronometrar. Nunca levanta."""
+    if ecoqos is not None:
+        from segundocerebro.index.regime_maquina import aplicar_ecoqos
 
-    A máscara entra **antes** do `Embedder`, porque a sessão do ORT fixa a
-    threadpool na criação. (Que a ordem não seja a causa do 22× foi medido e está
-    no laudo; ainda assim o instrumento aplica na ordem do arranque do produto.)
-    """
-    import time
-
-    mascara_efetiva: list[int] = []
+        aplicar_ecoqos(ecoqos)
+    efetiva: list[int] = []
     try:
         import psutil
 
         proc = psutil.Process()
         if mascara is not None:
             proc.cpu_affinity(mascara)
-        mascara_efetiva = list(proc.cpu_affinity())
+        efetiva = list(proc.cpu_affinity())
     except Exception:  # noqa: BLE001 — sonda de máscara não aborta a medição
-        # `mascara_efetiva` fica vazia, e é isso que o relatório registra: a
-        # observação sai declarando que a afinidade **não** foi aplicada, em vez
-        # de sair como se tivesse sido. psutil ausente, plataforma sem afinidade
-        # de CPU e máscara recusada pelo SO caem todas aqui, e as três têm a
-        # mesma consequência para quem lê o número.
+        # Vazia no relato = afinidade não aplicada, em vez de fingir que foi.
         pass
+    return efetiva
 
-    antes = estado()
+
+def _tempos_sonda(chunks: int) -> list[float]:
+    """Laço de CPU sem encoder: isola o gatilho sem baixar 2 GB de modelo."""
+    import math
+    import time
+
+    def volta() -> float:
+        t = time.perf_counter()
+        acc = 0.0
+        for i in range(SONDA_ITERS):
+            acc += math.sin(i)
+        _ = acc
+        return time.perf_counter() - t
+
+    volta()
+    return [volta() for _ in range(chunks)]
+
+
+def _tempos_encoder(chunks: int, threads: int) -> list[float]:
+    import time
+
     from segundocerebro.index.embeddings import Embedder
 
     emb = Embedder("e5-large", threads=threads, lazy=False)
     for _ in range(AQUECIMENTO):
         emb.embed_passagens([TEXTO], batch_size=1, ritmo=1.0)
-
     tempos: list[float] = []
     for _ in range(chunks):
         t = time.perf_counter()
         emb.embed_passagens([TEXTO], batch_size=1, ritmo=1.0)
         tempos.append(time.perf_counter() - t)
+    return tempos
 
+
+def medir_neste_processo(
+    mascara: list[int] | None,
+    chunks: int,
+    threads: int,
+    *,
+    ecoqos: bool | None = None,
+    sonda: bool = False,
+) -> Observacao:
+    """Um braço, neste processo. Chamado pelo subprocesso — não chamar em laço.
+
+    A máscara e o EcoQoS entram **antes** do trabalho. A sessão do ORT fixa a
+    threadpool na criação; a sonda não carrega o encoder.
+    """
+    efetiva = _preparar_braco(mascara, ecoqos)
+    antes = estado()
+    tempos = _tempos_sonda(chunks) if sonda else _tempos_encoder(chunks, threads)
     return Observacao(
         braco="",
         s_chunk=tempos,
         estado_antes=antes,
         estado_depois=estado(),
-        mascara=mascara_efetiva,
+        mascara=efetiva,
+    )
+
+
+def plano_ecoqos(n_logicos: int, n_por_braco: int) -> tuple[dict[str, list[int]], dict[str, bool]]:
+    """Mesma máscara contígua, EcoQoS ligado e desligado — o contraste do R.1."""
+    n_logicos = max(1, int(n_logicos))
+    n = max(1, min(int(n_por_braco), n_logicos))
+    mask = list(range(n))
+    return (
+        {"contiguo_off": mask, "contiguo_on": mask},
+        {"contiguo_off": False, "contiguo_on": True},
     )
 
 
@@ -226,6 +293,8 @@ def rodar(
     replicas: int = 2,
     chunks: int = 8,
     threads: int = 6,
+    ecoqos: bool | dict[str, bool] | None = None,
+    sonda: bool = False,
     executor=None,
 ) -> list[Observacao]:
     """Roda os braços intercalados, um processo por braço.
@@ -234,9 +303,13 @@ def rodar(
     `Observacao`. Sem ele, cada braço vai para um subprocesso deste módulo.
     """
     if executor is None:
-        executor = lambda nome, mascara: _em_subprocesso(  # noqa: E731
-            nome, mascara, chunks=chunks, threads=threads
-        )
+
+        def executor(nome: str, mascara: list[int] | None) -> Observacao:
+            flag = ecoqos.get(nome) if isinstance(ecoqos, dict) else ecoqos
+            return _em_subprocesso(
+                nome, mascara, chunks=chunks, threads=threads, ecoqos=flag, sonda=sonda
+            )
+
     fora: list[Observacao] = []
     for nome in ordem_intercalada(list(bracos), replicas):
         obs = executor(nome, bracos[nome])
@@ -246,7 +319,13 @@ def rodar(
 
 
 def _em_subprocesso(
-    nome: str, mascara: list[int] | None, *, chunks: int, threads: int
+    nome: str,
+    mascara: list[int] | None,
+    *,
+    chunks: int,
+    threads: int,
+    ecoqos: bool | None = None,
+    sonda: bool = False,
 ) -> Observacao:
     cmd = [
         sys.executable,
@@ -260,6 +339,12 @@ def _em_subprocesso(
         "--threads",
         str(threads),
     ]
+    if ecoqos is True:
+        cmd.extend(["--ecoqos", "on"])
+    elif ecoqos is False:
+        cmd.extend(["--ecoqos", "off"])
+    if sonda:
+        cmd.append("--sonda")
     saida = subprocess.run(  # noqa: S603
         cmd, capture_output=True, text=True, cwd=str(Path(__file__).resolve().parent.parent)
     )
@@ -285,11 +370,23 @@ def main(argv: list[str] | None = None) -> int:
     ap.add_argument("--threads", type=int, default=6)
     ap.add_argument("--replicas", type=int, default=2)
     ap.add_argument("--nucleos", type=int, default=None, help="tamanho das máscaras restritas")
+    ap.add_argument("--ecoqos", choices=("on", "off"), default=None)
+    ap.add_argument(
+        "--contraste-ecoqos",
+        action="store_true",
+        help="mesma máscara contígua, EcoQoS ligado e desligado intercalados",
+    )
+    ap.add_argument(
+        "--sonda",
+        action="store_true",
+        help="laço de CPU sem encoder — isola o gatilho sem carregar o modelo",
+    )
     a = ap.parse_args(argv)
+    eco = None if a.ecoqos is None else a.ecoqos == "on"
 
     if a.um_braco:
         mascara = [int(i) for i in a.mascara.split(",") if i.strip()] or None
-        obs = medir_neste_processo(mascara, a.chunks, a.threads)
+        obs = medir_neste_processo(mascara, a.chunks, a.threads, ecoqos=eco, sonda=a.sonda)
         print(
             json.dumps(
                 {
@@ -304,8 +401,26 @@ def main(argv: list[str] | None = None) -> int:
 
     n_log = os.cpu_count() or 4
     n_por_braco = a.nucleos or max(1, n_log // 2)
-    bracos = plano_de_bracos(n_log, n_por_braco)
-    obs = rodar(bracos, replicas=a.replicas, chunks=a.chunks, threads=a.threads)
+    if a.contraste_ecoqos:
+        bracos, flags = plano_ecoqos(n_log, n_por_braco)
+        obs = rodar(
+            bracos,
+            replicas=a.replicas,
+            chunks=a.chunks,
+            threads=a.threads,
+            ecoqos=flags,
+            sonda=a.sonda,
+        )
+    else:
+        bracos = plano_de_bracos(n_log, n_por_braco)
+        obs = rodar(
+            bracos,
+            replicas=a.replicas,
+            chunks=a.chunks,
+            threads=a.threads,
+            ecoqos=eco,
+            sonda=a.sonda,
+        )
     print(json.dumps({"estado": estado(), "contraste": contraste(obs)}, indent=2, ensure_ascii=False))
     return 0
 
