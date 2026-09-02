@@ -94,7 +94,13 @@ smoke é **só** `CUDAExecutionProvider`.
 
 ## Pin
 
-`requirements-gpu.txt`. Depois de `pip install -r requirements.txt`:
+O extra `[gpu]` em `pyproject.toml` é a fonte: `onnxruntime-gpu==1.18.0` +
+CUDA 11.8 / cuDNN 8, vendidos por pip. **Não** é o CUDA 13 (ORT ≥ 1.27) que
+derrubou o indexador neste desktop. `tests/test_gpu_extra.py` recusa extra ou
+overlay que aceite 1.19+ ou `cu12`/`cu13`.
+
+`requirements-gpu.txt` é o overlay: os mesmos pins **e** `numpy<2`, porque o
+extra do pip é união e o pin de CPU é `numpy>=2`. Depois de `pip install -e .`:
 
 ```
 pip uninstall -y onnxruntime

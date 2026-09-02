@@ -65,19 +65,71 @@ def _script(nome: str) -> Path:
     return Path(sysconfig.get_path("scripts")) / f"{nome}{ext}"
 
 
-def test_pyproject_le_dependencias_do_requirements() -> None:
-    """Uma lista só. Copiar requirements.txt para o toml envelhece na próxima pin."""
+def test_pyproject_e_fonte_unica_das_dependencias() -> None:
+    """Q2: declared deps live in pyproject. requirements.txt is the lock, not the source.
+
+    F6-A still pointed setuptools at requirements.txt. Two lists drift; the
+    empty `[project.dependencies]` was the original P0. Copying the file into
+    the toml by hand would age on the next pin — the lock is generated.
+    """
     pyproject = tomllib.loads((REPO / "pyproject.toml").read_text(encoding="utf-8"))
-    dynamic = pyproject["tool"]["setuptools"]["dynamic"]
-    assert dynamic["dependencies"]["file"] == ["requirements.txt"]
-    scripts = pyproject["project"]["scripts"]
+    project = pyproject["project"]
+    assert "dependencies" not in project.get("dynamic", [])
+    dynamic = pyproject.get("tool", {}).get("setuptools", {}).get("dynamic", {})
+    assert "dependencies" not in dynamic
+    deps = project["dependencies"]
+    assert deps, "dependencies vazia — pip install instala um pacote quebrado"
+    nomes = {d.split(">")[0].split("<")[0].split("=")[0].split("[")[0].strip().lower() for d in deps}
+    assert "fastembed" in nomes
+    assert "lancedb" in nomes
+    scripts = project["scripts"]
     assert scripts["segundocerebro-mcp"].endswith("mcp.server:main")
     assert scripts["segundocerebro-painel"].endswith("painel.__main__:main")
     assert scripts["segundocerebro-indexar"].endswith("index.indexer:main")
     assert scripts["segundocerebro-observar"].endswith("index.watcher:main")
-    extras = pyproject["project"]["optional-dependencies"]
+    extras = project["optional-dependencies"]
     assert "gpu" in extras
     assert "ocr" in extras
+
+
+def _linhas_de_requisito(texto: str) -> list[str]:
+    linhas: list[str] = []
+    for bruta in texto.splitlines():
+        s = bruta.split("#", 1)[0].strip()
+        if s and not s.startswith("-"):
+            linhas.append(s)
+    return linhas
+
+
+def test_lockfile_congela_o_conjunto() -> None:
+    """pip install today and next month install the same set.
+
+    Declared ranges stay in pyproject (`numpy>=2,<3`). The lock pins every
+    wheel, including transitives. An install that changes ORT/CUDA without a
+    pin is the defect this exists to catch — extra [gpu] has its own test.
+    """
+    lock = (REPO / "requirements.txt").read_text(encoding="utf-8")
+    cabeca = "\n".join(lock.splitlines()[:12]).lower()
+    assert "pyproject.toml" in cabeca, (
+        "requirements.txt deixou de dizer que a fonte é pyproject.toml — "
+        "regenerar com pip-compile --output-file=requirements.txt pyproject.toml"
+    )
+    pins = _linhas_de_requisito(lock)
+    assert pins, "lock vazio"
+    sem_igual = [s for s in pins if "==" not in s]
+    assert not sem_igual, f"lock com requisito sem pin: {sem_igual}"
+    nomes = {
+        s.split("==")[0].split("[")[0].strip().lower().replace("_", "-") for s in pins
+    }
+    pyproject = tomllib.loads((REPO / "pyproject.toml").read_text(encoding="utf-8"))
+    for dep in pyproject["project"]["dependencies"]:
+        nome = dep.split(">")[0].split("<")[0].split("=")[0].split("[")[0].strip().lower()
+        nome = nome.replace("_", "-")
+        assert nome in nomes, f"{nome} está no pyproject e não no lock"
+    assert "onnxruntime-gpu" not in nomes, (
+        "lock de CPU puxou o extra [gpu] — CUDA 13 voltaria no CI Windows sem ninguém pedir"
+    )
+    assert not any("cu12" in n or "cu13" in n for n in nomes)
 
 
 def test_import_sem_pythonpath_de_system32() -> None:

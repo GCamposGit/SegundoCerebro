@@ -24,6 +24,12 @@ log = get_logger("index.cuda_runtime")
 _preparado = False
 
 COMPUTE_MAXWELL = "5.2"
+# Extra [gpu] pin in pyproject.toml. ORT >= 1.19 is cuDNN 9 (ReduceSum dies
+# on Maxwell); ORT >= 1.27 is CUDA 13. tests/test_gpu_extra.py derives the
+# extra against these numbers — bumping the extra without this constant, or
+# the other way around, is the class Q2 exists to catch.
+ORT_GPU_PINADO = (1, 18, 0)
+ORT_CUDNN9 = (1, 19, 0)
 ORT_CUDA13 = (1, 27, 0)
 DRIVER_MAXWELL_LIMITE = 590
 
@@ -43,8 +49,9 @@ MSG_SEM_GPU = (
 MSG_CUDA13 = (
     "Este pacote de GPU usa CUDA 13, que não roda nesta placa de vídeo. "
     "Desinstale o extra [gpu] (`pip uninstall onnxruntime-gpu`) e a indexação "
-    "continua na CPU. O extra que funciona nesta placa é CUDA 11.8, pinado em "
-    "requirements-gpu.txt — não instale o CUDA 13 do winget."
+    "continua na CPU. O extra [gpu] pinado neste pacote é CUDA 11.8 "
+    "(onnxruntime-gpu 1.18.0) — não instale o CUDA 13 do winget nem um "
+    "onnxruntime-gpu sem pin."
 )
 MSG_MINILM = (
     "O modelo pequeno (MiniLM) devolve NaN nesta GPU — números inválidos, o "
@@ -55,7 +62,8 @@ MSG_MINILM = (
 MSG_EP = (
     "O CUDA não carregou neste Python. O `onnxruntime` CPU (o que o fastembed "
     "puxa sozinho) tampa o extra [gpu]. Neste desktop: "
-    "`pip uninstall -y onnxruntime` e `pip install -r requirements-gpu.txt`. "
+    "`pip uninstall -y onnxruntime` e `pip install -r requirements-gpu.txt` "
+    "(o extra [gpu] é CUDA 11.8; o overlay também baixa o numpy para 1.x). "
     "Ou tire SEGUNDOCEREBRO_PROVIDER=cuda para indexar na CPU — é o padrão."
 )
 MSG_DRIVER = (
@@ -212,6 +220,28 @@ def _versao_ort() -> str | None:
     return getattr(ort, "__version__", "") or None
 
 
+def _listar_providers() -> list[str] | None:
+    """Production discovers providers. Tests inject them.
+
+    Without this, `import onnxruntime` of the CPU wheel (1.29, what fastembed
+    pulls) looks like CUDA 13 on Maxwell: 1.29 >= 1.27, and the indexer
+    refuses the extra that is actually 1.18.0 sitting unused. F6-C already
+    named this EP_AUSENTE when the caller listed providers; the product path
+    did not list them.
+    """
+    try:
+        import onnxruntime as ort
+    except ImportError:
+        return None
+    get = getattr(ort, "get_available_providers", None)
+    if not callable(get):
+        return None
+    try:
+        return list(get())
+    except Exception:  # noqa: BLE001 — probe de hardware: listar EP do ORT é best-effort
+        return None
+
+
 def _eh_minilm(modelo: str) -> bool:
     baixo = modelo.lower()
     return baixo == "minilm" or "minilm" in baixo or "onnx-q" in baixo
@@ -257,8 +287,11 @@ def diagnosticar(
     if versao_ort is None and providers is None:
         return DiagnosticoCuda(False, SEM_ORT, MSG_SEM_ORT)
 
-    # CPU wheel shadowing the extra [gpu] is not CUDA 13. Check the EP first
-    # when the caller already listed providers (smoke / indexer).
+    # CPU wheel shadowing the extra [gpu] is not CUDA 13. Discover providers
+    # when the caller did not list them — indexer and embeddings call
+    # diagnosticar() with only the model. Tests inject the list.
+    if providers is None:
+        providers = _listar_providers()
     if providers is not None and "CUDAExecutionProvider" not in providers:
         return DiagnosticoCuda(False, EP_AUSENTE, MSG_EP)
 

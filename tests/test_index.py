@@ -257,6 +257,13 @@ def test_pipeline_duas_gpus_grava_via_fila(tmp_path: Path, monkeypatch: pytest.M
         "segundocerebro.index.cuda_runtime.listar_gpus",
         lambda: [{"name": "fake", "driver": "582.28", "compute": "8.9", "memoria": "8 GiB"}],
     )
+    # The product path discovers providers. Without this stub, the CPU wheel
+    # that fastembed pulled (1.29, no CUDA EP) refuses the pool as EP_AUSENTE
+    # — the same class as CUDA 13 on Maxwell, a different message.
+    monkeypatch.setattr(
+        "segundocerebro.index.cuda_runtime._listar_providers",
+        lambda: ["CUDAExecutionProvider", "CPUExecutionProvider"],
+    )
     monkeypatch.setattr("segundocerebro.index.gpu_pool.contar_gpus", lambda: 2)
     monkeypatch.setattr(
         "segundocerebro.index.indexer.dispositivos_embed", lambda **k: ["0", "1"]

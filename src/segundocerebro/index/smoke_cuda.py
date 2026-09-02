@@ -6,7 +6,8 @@ ROADMAP: descobrir que o runtime não roda nas 980 Ti *depois* de escrever o
 pipeline é a ordem errada. Este módulo não desenha pipeline. Ele diz sim ou não.
 
 `sm_52` saiu do CUDA 13. Neste desktop o pin que funciona é ORT 1.18.0 +
-CUDA 11.8 + cuDNN 8 (`requirements-gpu.txt`). Driver 582.x: não subir para 590+.
+CUDA 11.8 + cuDNN 8 (extra `[gpu]` em `pyproject.toml`; overlay em
+`requirements-gpu.txt` por causa do numpy). Driver 582.x: não subir para 590+.
 
 Não grava nada no índice. Não altera `model_id`. Hardware não entra no vetor.
 """

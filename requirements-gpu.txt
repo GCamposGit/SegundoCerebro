@@ -1,9 +1,14 @@
-# Desktop only — never on the notebook.
+# Desktop overlay — never on the notebook.
+# Source of ORT/nvidia pins: pyproject.toml extra [gpu]. This file exists
+# because numpy<2 contradicts the CPU pin (numpy>=2); pip extras are a union
+# and cannot express that. tests/test_gpu_extra.py fails if the two drift or
+# if either would pull CUDA 13 / cuDNN 9.
+#
 # Working stack on two GTX 980 Ti (sm_52), measured 19/08/2026.
 # See docs/smoke-cuda.md.
 #
 # In a Python 3.12 venv:
-#   pip install -r requirements.txt
+#   pip install -e .
 #   pip uninstall -y onnxruntime
 #   pip install -r requirements-gpu.txt
 #
@@ -13,7 +18,8 @@
 #   winget Nvidia.CUDA       (currently 13.3, and it can touch the driver)
 #
 # PyPI 1.18.0 is CUDA 11.8 + cuDNN 8. numpy<2 because that wheel was built
-# against NumPy 1.x. Do not put numpy<2 in requirements.txt — that file is shared.
+# against NumPy 1.x. Do not put numpy<2 in pyproject dependencies — that list
+# is the CPU install.
 onnxruntime-gpu==1.18.0
 nvidia-cuda-runtime-cu11==11.8.89
 nvidia-cublas-cu11==11.11.3.6
