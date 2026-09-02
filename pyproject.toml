@@ -7,12 +7,48 @@ name = "segundocerebro"
 version = "0.0.1"
 description = "Servidor MCP de recuperação sobre base de conhecimento pessoal e corporativa"
 requires-python = ">=3.12"
-dynamic = ["dependencies"]
+# Q2: pyproject is the only declared source. requirements.txt is the lock
+# generated from this list (pip-compile). A floating extra that swapped ORT
+# for CUDA 13 dropped 45 indexer tests on this desktop — pin, don't clean.
+dependencies = [
+    # F0 — census uses the stdlib. pytest is the suite, declared because tests import it.
+    "pytest>=8.0",
+    # F1 — ingest. An embedding version swap invalidates the whole index
+    # without warning (fastembed 0.8.0 changed e5-large pooling CLS→mean).
+    "pymupdf==1.28.2",
+    "pymupdf4llm==1.28.2",
+    "python-docx==1.2.0",
+    "openpyxl==3.1.5",
+    "python-pptx==1.0.2",
+    "xlrd==1.2.0",
+    "fastembed==0.8.0",
+    # Vector index. Was commented until 17/08/2026 and only worked because
+    # someone had installed it by hand — a hitchhiker is a missing dep on a
+    # clean machine.
+    "lancedb==0.37.1",
+    # Hitchhiker of fastembed; embeddings.py and store.py import it directly.
+    "numpy>=2.0,<3",
+    "mcp>=2.0,<3",
+    # F4-W — disk watcher. Separate process; not in the indexer loop.
+    "watchdog==6.0.0",
+    # F3.5 — panel. starlette/uvicorn already come with mcp; the panel imports
+    # them directly, so they are declared. The panel stays optional at runtime
+    # (invariant 6): without these the MCP server still serves.
+    "starlette>=1.0,<2",
+    "uvicorn>=0.30",
+    "tomli-w>=1.0",
+    # Starlette test client (tests/test_painel.py). Same hitchhiker argument.
+    "httpx>=0.27",
+    # OLE compound (CFB). olefile is one pure-Python module and does not
+    # change model_id.
+    "olefile==0.47",
+]
 
 [project.optional-dependencies]
-# CUDA 11.8 + cuDNN 8, for Maxwell (sm_52). numpy<2 stays in
-# requirements-gpu.txt — it contradicts the CPU pin, and the install
-# procedure is still: pip install -e . ; pip uninstall onnxruntime ;
+# Q2: this extra is the pin. CUDA 13 (ORT >= 1.27) and cuDNN 9 (ORT >= 1.19)
+# are refused by tests/test_gpu_extra.py — they dropped 45 indexer tests on
+# Maxwell. numpy<2 stays in requirements-gpu.txt: pip extras are a union and
+# the CPU pin is numpy>=2. Overlay: pip uninstall onnxruntime ;
 # pip install -r requirements-gpu.txt. See docs/smoke-cuda.md.
 gpu = [
     "onnxruntime-gpu==1.18.0",
@@ -28,12 +64,16 @@ gpu = [
 ocr = [
     "rapidocr-onnxruntime>=1.3,<2",
 ]
-# Q1: lint, types, coverage. The pytest job on CI stays `pip install -e .`
-# plus this extra; ruff/pyright jobs install only what they need.
+# Q1: lint, types, coverage. The pytest job on CI installs the lock, then
+# the editable package with --no-deps. ruff/pyright jobs install only what
+# they need.
 dev = [
     "ruff==0.16.5",
     "pyright==1.1.411",
     "pytest-cov>=5,<8",
+    # Q2 — regenerate the lock:
+    #   pip-compile --strip-extras --output-file=requirements.txt pyproject.toml
+    "pip-tools>=7.4,<8",
 ]
 
 [project.scripts]
@@ -43,9 +83,6 @@ segundocerebro-painel = "segundocerebro.painel.__main__:main"
 segundocerebro-indexar = "segundocerebro.index.indexer:main"
 segundocerebro-observar = "segundocerebro.index.watcher:main"
 segundocerebro-exportar = "segundocerebro.acesso.exportar:main"
-
-[tool.setuptools.dynamic]
-dependencies = {file = ["requirements.txt"]}
 
 [tool.setuptools.packages.find]
 where = ["src"]

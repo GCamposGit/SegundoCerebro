@@ -59,7 +59,9 @@ def test_sem_gpu_explica_cpu_em_portugues() -> None:
 
 
 def test_cuda13_no_maxwell_recusa_em_portugues() -> None:
-    diag = diagnosticar(gpus=MAXWELL, versao_ort="1.27.0")
+    diag = diagnosticar(
+        gpus=MAXWELL, versao_ort="1.27.0", providers=["CUDAExecutionProvider"]
+    )
     assert not diag.ok
     assert diag.codigo == CUDA13
     assert "CUDA 13" in diag.mensagem
@@ -119,6 +121,25 @@ def test_ort_cpu_tampando_gpu_nao_e_cuda13() -> None:
     assert "CUDA 13" not in diag.mensagem
 
 
+def test_sem_providers_injetados_descobre_e_nao_chama_cpu_de_cuda13(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """O indexador chama `diagnosticar()` sem a lista. 1.29 CPU não é CUDA 13.
+
+    Era o canário deste desktop: a suíte com extra GPU falhava no indexador
+    com a mensagem de CUDA 13, e o wheel instalado era o CPU que o fastembed
+    puxa. Injetar providers no teste passava; o caminho do produto não.
+    """
+    monkeypatch.setattr(
+        "segundocerebro.index.cuda_runtime._listar_providers",
+        lambda: ["CPUExecutionProvider"],
+    )
+    diag = diagnosticar(gpus=MAXWELL, versao_ort="1.29.0")
+    assert not diag.ok
+    assert diag.codigo == EP_AUSENTE
+    assert "CUDA 13" not in diag.mensagem
+
+
 def test_resolver_provider_config_vale_com_env_vazio(monkeypatch: pytest.MonkeyPatch) -> None:
     """A pergunta "qual provider vence" não precisa escrever em lugar nenhum.
 
@@ -163,7 +184,9 @@ def test_o_provider_nao_atravessa_para_o_teste_seguinte() -> None:
 
 def test_driver_590_no_maxwell_recusa_em_portugues() -> None:
     gpus = [{"name": "GTX 980 Ti", "driver": "590.26", "compute": "5.2", "memoria": "6 GiB"}]
-    diag = diagnosticar(gpus=gpus, versao_ort="1.18.0")
+    diag = diagnosticar(
+        gpus=gpus, versao_ort="1.18.0", providers=["CUDAExecutionProvider"]
+    )
     assert not diag.ok
     assert diag.codigo == DRIVER
     assert "590" in diag.mensagem

@@ -27,3 +27,19 @@ def test_ci_roda_lint_types_e_coverage() -> None:
     assert "pyright" in yml, "CI perdeu pyright"
     assert "--cov=" in yml, "CI perdeu coverage"
     assert "--cov-fail-under=80" in yml, "piso de coverage saiu do medido−2 p.p. (82% → 80%)"
+
+
+def test_ci_pytest_instala_do_lock() -> None:
+    """Q2: the pytest job must not resolve floating ranges on a Tuesday.
+
+    install-smoke keeps `pip install -e .` — that job proves the package
+    installs from pyproject on three OSes. The Windows suite is the one that
+    has to be the same set next month.
+    """
+    yml = (REPO / ".github" / "workflows" / "tests.yml").read_text(encoding="utf-8")
+    assert "pip install -r requirements.txt" in yml, (
+        "job pytest deixou de instalar o lock — um release de terceiro muda a suíte"
+    )
+    assert "pip install -e . --no-deps" in yml, (
+        "job pytest tem de instalar o pacote sem resolver de novo por cima do lock"
+    )

@@ -1504,7 +1504,7 @@ do produto, é de ferramenta de teste, e já estava no repositório.
 | # | Pacote | Dono | Prioridade |
 |---|---|---|:---:|
 | Q1 | CI ganha lint, format, types e coverage — **lint, tipos e cobertura entraram em 28/08; o `select` cresceu em 29/08** e os `noqa` inertes viraram o `Q18` | qualquer | **P0 · em curso** |
-| Q2 | `pyproject` como fonte única: `dependencies = []` contradiz o `requirements.txt` | desktop (é `R8.1`) | **P0** |
+| Q2 | `pyproject` como fonte única: lock + extra `[gpu]` pinado (CUDA 11.8, recusa CUDA 13) — **fechado neste PR** | desktop (é `R8.1`) | **P0 · feito** |
 | Q3 | Teto de tamanho de módulo — **o teto virou teste em 29/08** (`tests/test_tamanho_dos_modulos.py`) e o `indexer.py` caiu de 1.753 para 1.368; o que falta é o `Q16` | cada um no seu | **feito em parte** |
 | Q4 | Política escrita de `except Exception` (os 34 `BLE001`) | desktop | P1 · **neste PR** |
 | Q5 | **e2e do protocolo MCP** (**feito** em 25/08 — `tests/test_protocolo_mcp.py`) · property-based `consulta_fts`/`chave_de_familia` (P1) · smoke de mutação (P3) | notebook + desktop | **P0 feito / P1 / P3** |
@@ -1531,9 +1531,12 @@ item de F6 aberto. A Parte 0 do guia tem o raciocínio inteiro.
 
 Dois avisos para quem pegar:
 
-- **`Q2` já andou.** `F6-A`/`R8.1` fechou no PR #14 e o pacote instala com
-  `pip install -e .`. O que sobra é o lockfile e os extras — e `R8.1.b`, que é o
-  defeito de `_script()` achar o console script pelo `sys.executable`.
+- **`Q2` fechou.** `F6-A`/`R8.1` (PR #14) instalava com `pip install -e .`;
+  `R8.1.b` já achava o console script pelo `sysconfig`. O resto era o lock e o
+  extra `[gpu]`: `pyproject.toml` é a fonte declarada, `requirements.txt` é o
+  lock gerado, o extra pinado é ORT 1.18.0 / CUDA 11.8 (não o CUDA 13 que
+  derrubou o indexador neste desktop), e `tests/test_gpu_extra.py` recusa extra
+  ou overlay que aceite ORT ≥ 1.19 ou `cu12`/`cu13`.
 - **`Q6` item pre-commit não se faz**, pelo mesmo motivo já registrado na §10 do
   complemento: um pre-commit com a lista de nomes embutida seria o próprio
   vazamento. `tests/test_saneamento.py` já resolve, e melhor.
