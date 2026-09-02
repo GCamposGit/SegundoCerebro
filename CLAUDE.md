@@ -140,10 +140,12 @@ ser hipótese: o percurso do leigo tem teste. O Office legado
    (+11,1% de sobreposição medidos); cursor opaco vincula versão e base.
    Leitura sob demanda só para documentos com identidade no registro; sem cache
    exige original local e raízes. Novo OCR continua reservado para fase futura.
-2. **`J.b2` — o sidecar** é quase só declaração agora: os offsets no Markdown já
-   existem em `ingest/canonico.py` e já têm property test sobre 12 documentos
-   sorteados. O que falta é o `E4` (spans citáveis) conferir o schema antes de
-   congelá-lo, que a especificação pede explicitamente.
+2. **`J.b2` — contrato v1 consolidado no Desktop, em 02/09/2026.** Validação
+   compartilhada, offsets Unicode, ordinal global, trilha e páginas/slides
+   explícitos em `get_document`; cache legado compatível. Sem mudar Markdown.
+   [Contrato e limites](docs/jb2-estrutura-citacoes.md). A referência a `E4`
+   na especificação não corresponde ao red-team do roadmap; consumidor futuro
+   de spans ainda precisa de integração própria, não há homologação implícita.
 3. **`J.c-mapa.2` — entregue neste PR, em 01/09/2026.** Antecipado por ser o
    pacote menor: `list_folder` une índice e censo de metadados, mostra `so_censo`
    sem abrir conteúdo e declara quando a enumeração é incompleta. Complemento

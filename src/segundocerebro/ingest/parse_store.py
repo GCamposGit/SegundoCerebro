@@ -61,6 +61,7 @@ from pathlib import Path
 from ..logger import get_logger
 from ..caminhos import resolver_caminho
 from .canonico import VERSAO_CANONICA, BlocoCanonico, ParseCanonico
+from .estrutura import VERSAO_ESTRUTURA, validar
 
 log = get_logger("ingest.parse_store")
 
@@ -153,25 +154,21 @@ def _decodificar(dados: dict, chave: Chave) -> ParseCanonico:
     """JSON válido também pode ser cache corrompido: valide identidade e offsets."""
     if not isinstance(dados, dict) or dados.get("sha256") != chave.sha256:
         raise ValueError("identidade inválida")
+    if dados.get("estrutura_versao", "blocos:1") != VERSAO_ESTRUTURA:
+        raise ValueError("versão de estrutura desconhecida")
     markdown, meta, blocos = dados["markdown"], dados["meta"], dados["blocos"]
     if not isinstance(markdown, str) or not isinstance(meta, dict) or not isinstance(blocos, list):
         raise ValueError("estrutura inválida")
-    if not all(isinstance(k, str) and isinstance(v, str) for k, v in meta.items()):
-        raise ValueError("metadados inválidos")
     resultado = []
-    anterior = 0
     for b in blocos:
-        inicio, fim, trilha = b["inicio"], b["fim"], b["trilha"]
-        if (type(inicio) is not int or type(fim) is not int
-                or not anterior <= inicio <= fim <= len(markdown)
-                or not isinstance(trilha, list) or not all(isinstance(t, str) for t in trilha)
-                or not isinstance(b.get("kind", "texto"), str)
-                or not isinstance(b.get("locator", ""), str)):
+        if not isinstance(b, dict) or not isinstance(b.get("trilha"), list):
             raise ValueError("bloco inválido")
+        inicio, fim, trilha = b["inicio"], b["fim"], b["trilha"]
         resultado.append(BlocoCanonico(tuple(trilha), inicio, fim,
                                       b.get("kind", "texto"), b.get("locator", "")))
-        anterior = fim
-    return ParseCanonico(markdown, tuple(resultado), meta)
+    canonico = ParseCanonico(markdown, tuple(resultado), meta)
+    validar(canonico)
+    return canonico
 
 
 def _substituir(temporario: Path, alvo: Path) -> None:
@@ -234,6 +231,7 @@ class ParseStore:
         """
         if not chave.valida:
             return None
+        validar(canonico)
         alvo = self.caminho(chave)
         alvo.parent.mkdir(parents=True, exist_ok=True)
         corpo = {
@@ -243,6 +241,7 @@ class ParseStore:
             # de um parser que não escreve hash, o que é vazamento de disco, ou
             # apagar tudo, o que é pior.
             "sha256": chave.sha256,
+            "estrutura_versao": VERSAO_ESTRUTURA,
             "markdown": canonico.markdown,
             "blocos": [
                 {
