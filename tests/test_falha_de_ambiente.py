@@ -69,7 +69,21 @@ def _quebrar_memoria(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(ocr_mod, "_iter_rasters", estoura)
 
 
-MODOS = [("import da nativa", _quebrar_import), ("memória", _quebrar_memoria)]
+def _quebrar_memoria_encapsulada(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Q15.b: the backend preserves allocation failure behind an exception."""
+    def estoura(_imagem):
+        try:
+            raise MemoryError("allocation refused")
+        except MemoryError as original:
+            raise RuntimeError("inference failed") from original
+
+    monkeypatch.setattr(ocr_mod, "motor_imagem", estoura)
+
+
+MODOS = [
+    ("import da nativa", _quebrar_import), ("memória", _quebrar_memoria),
+    ("memória encapsulada", _quebrar_memoria_encapsulada),
+]
 
 PDFS = [("escaneado", lambda: bytes_pdf(texto=None, com_imagem=True)),
         ("misto", bytes_pdf_misto)]

@@ -103,7 +103,8 @@ primeiro: o empacotamento de pasta `pack_folder` ainda falta. A leitura integral
 ver [`docs/jc-leitura-integral.md`](docs/jc-leitura-integral.md).
 O **parse store já está
 ligado aos produtores e ao indexador** (PR #65), com invalidação após instalação
-do LibreOffice (PR #66); o ganho de ≥80% no rebuild ainda não foi medido.
+do LibreOffice (PR #66); a meta de ≥80% no rebuild foi refutada no experimento
+controlado do `J.f` (PR #69), sem invalidar o ganho menor medido.
 O watcher com catch-up USN já está entregue. O `Q15` fechou inteiro em
 31/08/2026, com o `Q15.a`. Instalar frio numa máquina que não é nossa deixou de
 ser hipótese: o percurso do leigo tem teste. O Office legado
@@ -134,8 +135,9 @@ ser hipótese: o percurso do leigo tem teste. O Office legado
    foi refutada no mix sintético PDF/OLE/OCR; o cache preservou conteúdo e trouxe
    ganho medido. [Resultado, IC e limites](docs/jf-parse-store.md). Não generalizar
    para a configuração padrão: o experimento precisou de teto explícito de RAM.
-   **`Q15.b` pendente:** investigar OCR retornando vazio sob teto adaptativo baixo;
-   priorizar confiabilidade, não afinar desempenho para atingir a meta.
+   **`Q15.b` corrigido no Desktop:** exceções nativas de memória encapsuladas
+   deixam de virar `vazio`; erro de recurso preserva nova tentativa, sem aumentar
+   teto padrão. [Pesquisa, testes reais e limites](docs/q15b-ocr-recursos.md).
 1. **`J.d` — `pack_folder`**, próximo pacote funcional: manifesto primeiro,
    política de famílias e orçamento com continuação. `J.c-conteúdo` foi entregue
    neste PR, no Desktop, em 02/09/2026: sai do Parse Store, nunca dos chunks
