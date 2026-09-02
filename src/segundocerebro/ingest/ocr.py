@@ -22,6 +22,7 @@ from dataclasses import dataclass
 
 from ..logger import get_logger
 from .document import Block, BlockKind, FalhaDeAmbiente, ParsedDoc, ausencia_declarada
+from .ocr_recursos import falha_de_memoria
 
 log = get_logger("ingest.ocr")
 
@@ -213,7 +214,9 @@ def _texto_de(imagem) -> str:  # noqa: ANN001
     return ""
 
 
-def _conferir_falhas_de_pagina(total: int, falharam: int, por_memoria: int) -> None:
+def _conferir_falhas_de_pagina(
+    total: int, falharam: int, por_memoria: int, *, produziu_texto: bool
+) -> None:
     """Todas as páginas sem memória é a janela; qualquer outra falha é a página.
 
     Quem separa é o **tipo**, não o escopo. A primeira versão levantava sempre
@@ -229,8 +232,10 @@ def _conferir_falhas_de_pagina(total: int, falharam: int, por_memoria: int) -> N
     """
     if falharam:
         log.warning("OCR falhou em %d de %d páginas deste PDF", falharam, total)
-    if total and falharam == total and por_memoria == falharam:
-        raise FalhaDeAmbiente(f"OCR ficou sem memória nas {falharam} páginas deste PDF")
+    # Q15.b: blank/broken companion pages do not make allocation failure benign.
+    # Keep the existing partial-text policy; no text + any OOM must remain retryable.
+    if por_memoria and not produziu_texto:
+        raise FalhaDeAmbiente(f"OCR ficou sem memória em {por_memoria} páginas deste PDF")
 
 
 def ocr_pdf(dados: bytes, *, teto_mb: int | None = None) -> list[PaginaTexto] | None:
@@ -265,6 +270,7 @@ def ocr_pdf(dados: bytes, *, teto_mb: int | None = None) -> list[PaginaTexto] | 
                 log.warning("OCR falhou na página %d: %s", i, exc)
                 texto = ""
                 falharam += 1
+                por_memoria += int(falha_de_memoria(exc))
             del imagem
             paginas.append(PaginaTexto(numero=i, texto=texto))
     except FalhaDeAmbiente:
@@ -276,9 +282,14 @@ def ocr_pdf(dados: bytes, *, teto_mb: int | None = None) -> list[PaginaTexto] | 
         # e o documento terminava `vazio` sem linha de quarentena (`Q15`).
         raise FalhaDeAmbiente(f"OCR não pôde carregar suas dependências: {exc}") from exc
     except Exception as exc:  # noqa: BLE001 — a bad scan must not kill the wave
+        if falha_de_memoria(exc):
+            raise FalhaDeAmbiente(f"OCR ficou sem memória ao rasterizar: {exc}") from exc
         log.warning("OCR não rasterizou o PDF: %s", exc)
         return None
-    _conferir_falhas_de_pagina(len(paginas), falharam, por_memoria)
+    _conferir_falhas_de_pagina(
+        len(paginas), falharam, por_memoria,
+        produziu_texto=any(p.texto.strip() for p in paginas),
+    )
     return paginas
 
 

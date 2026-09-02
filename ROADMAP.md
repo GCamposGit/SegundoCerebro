@@ -1817,7 +1817,7 @@ volta. A regra já estava escrita neste arquivo para `parser ocr:*` e para o
   com o conserto desligado.* Rodar essa checagem custou uma execução e derrubou a
   primeira versão inteira.
 
-#### `Q15.b` — OCR pode retornar vazio sob teto baixo de RAM — pendente
+#### `Q15.b` — falha nativa de memória no OCR — corrigido no Desktop
 
 Detectado no Desktop durante a pré-checagem do `J.f`, em 02/09/2026: o mesmo
 scan sintético retornou texto com teto maior e `vazio` com o teto adaptativo
@@ -1825,10 +1825,13 @@ baixo, sem quarentena. Evidência e limites em
 [medição do Parse Store](docs/jf-parse-store.md). A medição controlada usa um
 teto explícito, **não corrige** o produto e não torna o caso padrão válido.
 
-Próximo recorte: reproduzir pelo processo isolado com teto de RAM, localizar
-a falha entre rasterização e motor e garantir que incapacidade de leitura não
-seja relatada como documento vazio. Não basta aumentar globalmente o teto nem
-testar apenas OCR falso. Separado da avaliação futura de modelos novos.
+Correção em 02/09/2026: reconhece falha de alocação ONNX encapsulada pelo
+RapidOCR e código de memória do OpenCV, sem confundir erro genérico com RAM.
+OCR sem texto e com falha de memória passa a `erro` de recurso, inclusive com
+páginas brancas/ilegíveis ao lado. Preserva texto nativo e nova tentativa.
+Teste com motor real, subprocesso Windows, quarentena e recuperação; sem elevar
+teto padrão ou trocar modelo. [Pesquisa, prova e limites](docs/q15b-ocr-recursos.md).
+Não refaz nem amplia o veredito de desempenho do `J.f`; novo OCR segue futuro.
 
 #### O conserto do `Q15` estava pior que o defeito, e uma revisão pegou
 
