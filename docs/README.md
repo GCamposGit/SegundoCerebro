@@ -1,6 +1,6 @@
 # Índice da documentação
 
-50 arquivos versionados. **Todo link daqui aponta para arquivo que o clone tem** —
+51 arquivos versionados. **Todo link daqui aponta para arquivo que o clone tem** —
 e essa é a regra do índice, não um detalhe: mais da metade de `docs/` fica fora do
 Git de propósito, porque cita nome de arquivo do acervo real, e um índice que
 prometesse esses arquivos daria 404 para quem clonou. A [seção final](#o-que-não-está-aqui)
@@ -47,6 +47,7 @@ com número, data e a mudança de método que fechou a classe.
 | [`dourado-cobertura.md`](dourado-cobertura.md) | Cobertura escrita à mão envelhece calada enquanto a métrica que ela qualifica segue circulando |
 | [`ocr-no-acervo-bloqueado.md`](ocr-no-acervo-bloqueado.md) | Por que a `F4-O.3` bloqueou no 1355U (28/08) |
 | [`ocr-o3-dourado.md`](ocr-o3-dourado.md) | `F4-O.3` medida neste 14700HX: 22/37 digitalizados, trio do dossiê ainda `vazio`, agregado empate |
+| [`ocr-como-padrao.md`](ocr-como-padrao.md) | OCR é invariante de produto: scan na pasta do leigo não pode ficar `vazio` em silêncio |
 | [`revisao-tecnica-resposta.md`](revisao-tecnica-resposta.md) | Resposta à revisão técnica externa de 12/08 |
 
 ## Decisões e crônica

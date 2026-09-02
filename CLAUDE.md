@@ -100,8 +100,9 @@ Onde o sistema está, em cinco linhas:
   (invariante 6).
 
 **Onde o produto não está pronto**, e é o que a régua de ouro manda olhar
-primeiro: OCR continua opt-in — o `F4-O.3` mediu e o motor **não** alcança as
-três fontes do dossiê. `Q18` espera acordo. `F4-O.4` é futuro. O exportador de vault `J.e` e o botão no painel (`J.e.1`) estão em
+primeiro: o motor RapidOCR ainda não lê as três fontes do dossiê (`F4-O.3`);
+OCR **é** padrão de indexação neste PR (`docs/ocr-como-padrao.md`). `Q18`
+espera acordo. `F4-O.4` é futuro. O exportador de vault `J.e` e o botão no painel (`J.e.1`) estão em
 [`docs/je-export-vault.md`](docs/je-export-vault.md).
 `pack_folder` está em [`docs/jd-pack-folder.md`](docs/jd-pack-folder.md).
 A leitura integral `get_document` está em
@@ -558,7 +559,7 @@ Fora da suíte padrão, por declaração (`pyproject.toml`, `markers`):
 
 ```bash
 py -m pytest -m modelo     # carrega o encoder real — ~2 GB na primeira vez
-py -m pytest -m ocr        # exige o extra [ocr]
+py -m pytest -m ocr        # motor RapidOCR real (já vem no pip install)
 py -m pytest -m cuda       # exige GPU
 py -m pytest -m arquivo    # instrumento de pacote encerrado (eval/arquivo/)
 ```

@@ -2,13 +2,12 @@
 
 The PDF parser already marks `digitalizado` and returns no blocks. That is
 the first-day path: text files stay searchable while scans wait. This module
-turns those scans into pages of text when a backend is installed.
+turns those scans into pages of text. RapidOCR ships with the default install.
 
 Backends, in order:
-1. RapidOCR (ONNX) — `pip install segundocerebro[ocr]`, no system binary.
+1. RapidOCR (ONNX) — a main dependency, not an extra.
 2. Tesseract, if `tesseract` is on PATH and `pytesseract` imports.
-3. Nothing — `None`, not an exception. The extra is optional; the default
-   install and the standard suite stay identical to today.
+3. Nothing — `None`, and the indexer treats that as an error, not a no-op.
 
 Parsers still receive bytes. Rendering is pymupdf, which already opens PDFs.
 The indexer owns *when* this runs (after the four text waves).
