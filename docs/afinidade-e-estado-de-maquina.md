@@ -172,3 +172,64 @@ valer para **vazão**, onde a variação é 22× e não 1,6×.
 Isto retrata também o meu próprio erro de método: a tabela coerente que eu tinha
 depois de dois blocos sequenciais era artefato da ordem dos blocos, e ela
 sobreviveria a qualquer revisão que olhasse só os números.
+
+## R.1 — o gatilho isolado (02/09/2026, 14700HX)
+
+**Máquina:** notebook, Intel 14700HX (8 P-cores com SMT + 12 E-cores = 20
+físicos / 28 lógicos), Windows 11, **tomada**, bateria 100%. **Não** é o 1355U:
+os 3,19 vs 0,141 s/chunk da tabela acima ficam lá. Aqui o efeito mínimo era
+ligar e desligar o estado lento por comando, e o `contiguo6` reproduzir o par
+nesta CPU.
+
+### Topologia, porque copiar a máscara copiaria o erro
+
+O Windows enumera os P-cores primeiro. Classificar por `EfficiencyClass` **mente
+neste processador**: os P-cores reportam classe 1 e os E-cores classe 0, o
+contrário do MSDN. A regra que sobrevive é o SMT — núcleo com dois lógicos é
+P-core.
+
+| classe | lógicos | o que é |
+|---|---|---|
+| P | 0–15 | 8 núcleos com SMT |
+| E | 16–27 | 12 núcleos sem SMT |
+
+`contiguo6` = `[0..5]` = **três P-cores, zero E-cores**. O perfil `normal` do
+produto pega os primeiros 14 lógicos — ainda só P-core. A assinatura do 1355U
+(máscara `[0..5]` com 4 lógicos de P + 2 de E, EcoQoS estacionando nos dois E)
+**não existe nesta topologia**. Isolar o gatilho não é reproduzir aquele
+número.
+
+### O gatilho
+
+`SetProcessInformation(ProcessPowerThrottling, EXECUTION_SPEED)` — EcoQoS /
+Efficiency Mode. Liga e desliga neste processo. `GetProcessInformation` lê de
+volta. Sem `argtypes` no ctypes, o HANDLE de 64 bits vira `c_int`, a chamada
+falha em silêncio, `ecoqos` sai `None` e o contraste devolve 1,1× — número
+plausível, gatilho morto. O instrumento **recusa** braço `contiguo_on` /
+`contiguo_off` cujo estado não bate com o pedido.
+
+### O par, intercalado, sob comando
+
+```
+py -m eval.regime --contraste-ecoqos --sonda --nucleos 6 --replicas 2 --chunks 3
+```
+
+`--sonda` é um laço de CPU (800 000 `sin`), sem encoder. O gatilho é do
+agendador, não do ORT; carregar o `e5-large` mediria o mesmo eixo com 2 GB a
+mais. Veredito `medido`, ressalva nenhuma, tomada o tempo todo:
+
+| braço | réplica 1 | réplica 2 | mediana | razão |
+|---|---:|---:|---:|---:|
+| `contiguo_off` | 0,0365 | 0,0365 | **0,0365** | 1 |
+| `contiguo_on` | 0,1361 | 0,1354 | **0,1357** | **3,72×** |
+
+As duas réplicas lentas intercalam com as duas rápidas. Não é deriva. O estado
+lento liga e desliga por comando nesta CPU.
+
+Código: `src/segundocerebro/index/regime_maquina.py` (observar e aplicar),
+`esforco.observar_regime()` (relato, sem crescer `aplicar`), `eval/regime.py`
+(`--ecoqos`, `--contraste-ecoqos`, `--sonda`). Testes em
+`tests/test_regime_maquina.py` e `eval/test_regime.py` — nenhum carrega modelo.
+
+R.2 e R.3 destravam. R.3 **não** pode assumir que os primeiros N lógicos misturam
+P e E: nesta máquina, não misturam.

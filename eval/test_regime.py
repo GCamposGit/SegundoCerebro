@@ -8,14 +8,18 @@ e regime de máquina fora do relato.
 
 from __future__ import annotations
 
+import os
+
 import pytest
 
 from eval.regime import (
     REPLICAS_MINIMAS,
     Observacao,
     contraste,
+    estado,
     ordem_intercalada,
     plano_de_bracos,
+    plano_ecoqos,
     rodar,
 )
 
@@ -46,6 +50,44 @@ class TestContrasteRecusa:
         assert saida["veredito"] == "recusado"
         assert "réplicas por braço" in str(saida["motivo"])
         assert "bracos" not in saida
+
+    def test_ecoqos_nao_aplicado_e_recusado(self) -> None:
+        """ctypes sem argtypes 'rodava' e devolveva 1,1× — número plausível, gatilho morto."""
+        morto = [
+            Observacao(
+                braco=nome,
+                s_chunk=[0.2, 0.2],
+                estado_antes={"tomada": True, "ecoqos": None},
+                estado_depois={"tomada": True, "ecoqos": None},
+            )
+            for nome in ("contiguo_off", "contiguo_on", "contiguo_off", "contiguo_on")
+        ]
+        saida = contraste(morto)
+        assert saida["veredito"] == "recusado"
+        assert "EcoQoS" in str(saida["motivo"])
+
+    def test_razao_contra_off_quando_o_gatilho_aplicou(self) -> None:
+        pares = []
+        for _ in range(2):
+            pares.append(
+                Observacao(
+                    braco="contiguo_off",
+                    s_chunk=[0.0365, 0.0365],
+                    estado_antes={"tomada": True, "ecoqos": False},
+                    estado_depois={"tomada": True, "ecoqos": False},
+                )
+            )
+            pares.append(
+                Observacao(
+                    braco="contiguo_on",
+                    s_chunk=[0.1357, 0.1357],
+                    estado_antes={"tomada": True, "ecoqos": True},
+                    estado_depois={"tomada": True, "ecoqos": True},
+                )
+            )
+        saida = contraste(pares)
+        assert saida["veredito"] == "medido"
+        assert saida["bracos"]["contiguo_on"]["razao_contra_off"] == 3.72
 
     def test_um_braco_magro_derruba_o_contraste_inteiro(self) -> None:
         saida = contraste(
@@ -86,9 +128,32 @@ class TestRegimeNoRelato:
         assert saida["veredito"] == "medido_com_ressalva"
         assert "livre" in str(saida["ressalva"])
 
+    def test_mudanca_de_ecoqos_no_meio_vira_ressalva(self) -> None:
+        a = Observacao(
+            braco="contiguo",
+            s_chunk=[0.2, 0.2],
+            estado_antes={"tomada": True, "ecoqos": False},
+            estado_depois={"tomada": True, "ecoqos": True},
+        )
+        b = Observacao(
+            braco="contiguo",
+            s_chunk=[0.2, 0.2],
+            estado_antes={"tomada": True, "ecoqos": False},
+            estado_depois={"tomada": True, "ecoqos": False},
+        )
+        saida = contraste([a, b])
+        assert saida["veredito"] == "medido_com_ressalva"
+        assert "contiguo" in str(saida["ressalva"])
+
     def test_sem_mudanca_nao_tem_ressalva(self) -> None:
         saida = contraste([_obs("livre", [0.2, 0.2]), _obs("livre", [0.2, 0.2])])
         assert saida["ressalva"] is None
+
+    def test_estado_traz_ecoqos_e_tomada(self) -> None:
+        dados = estado()
+        assert "tomada" in dados
+        assert "ecoqos" in dados
+        assert "topologia" in dados
 
 
 class TestPlanoDeBracos:
@@ -115,6 +180,13 @@ class TestPlanoDeBracos:
             assert len(set(mascara)) == len(mascara), nome
 
 
+class TestPlanoEcoqos:
+    def test_mesma_mascara_nos_dois_bracos(self) -> None:
+        bracos, flags = plano_ecoqos(12, 6)
+        assert bracos["contiguo_off"] == bracos["contiguo_on"] == [0, 1, 2, 3, 4, 5]
+        assert flags == {"contiguo_off": False, "contiguo_on": True}
+
+
 class TestRodar:
     def test_intercala_e_rotula_cada_observacao(self) -> None:
         vistos: list[str] = []
@@ -128,3 +200,41 @@ class TestRodar:
         obs = rodar({"livre": None, "contiguo": [0, 1]}, replicas=2, executor=executor)
         assert vistos == ["livre", "contiguo", "livre", "contiguo"]
         assert [o.braco for o in obs] == ["livre", "contiguo", "livre", "contiguo"]
+
+    def test_contraste_ecoqos_intercala_off_on(self) -> None:
+        vistos: list[str] = []
+
+        def executor(nome, mascara):  # noqa: ANN001, ANN202
+            vistos.append(nome)
+            return Observacao(
+                braco="", s_chunk=[0.2], estado_antes={}, estado_depois={}, mascara=mascara or []
+            )
+
+        bracos, _flags = plano_ecoqos(8, 6)
+        obs = rodar(bracos, replicas=2, executor=executor)
+        assert vistos == ["contiguo_off", "contiguo_on", "contiguo_off", "contiguo_on"]
+        assert [o.braco for o in obs] == vistos
+
+
+@pytest.mark.skipif(os.name != "nt", reason="EcoQoS is Windows")
+def test_sonda_grava_ecoqos_sem_carregar_encoder() -> None:
+    """The on-demand path records the trigger. Restores affinity and EcoQoS."""
+    import psutil
+
+    from eval.regime import medir_neste_processo
+    from segundocerebro.index.regime_maquina import aplicar_ecoqos, ecoqos_ativo
+
+    proc = psutil.Process()
+    afinidade = proc.cpu_affinity()
+    antes = ecoqos_ativo()
+    try:
+        obs = medir_neste_processo([0], 1, 1, ecoqos=True, sonda=True)
+        assert obs.estado_antes.get("ecoqos") is True
+        assert obs.estado_depois.get("ecoqos") is True
+        assert 0 in obs.mascara
+        obs_off = medir_neste_processo([0], 1, 1, ecoqos=False, sonda=True)
+        assert obs_off.estado_antes.get("ecoqos") is False
+    finally:
+        proc.cpu_affinity(afinidade)
+        if antes is not None:
+            aplicar_ecoqos(antes)
