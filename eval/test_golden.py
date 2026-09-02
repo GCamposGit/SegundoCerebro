@@ -102,6 +102,8 @@ def test_toda_fonte_existe(perguntas: list[dict]) -> None:
     todas = raizes()
     if not todas:
         pytest.skip("nenhuma raiz configurada")
+    if not any(raiz.exists() for raiz in todas):
+        pytest.skip("raízes do census.toml não existem neste disco")
 
     faltando: list[str] = []
     for p in perguntas:

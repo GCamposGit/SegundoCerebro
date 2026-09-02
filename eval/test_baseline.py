@@ -1,7 +1,9 @@
 """Baseline over the real golden set: the F0 starting number.
 
-Skips when census.toml is absent — the roots are personal paths and are not
-versioned, so a fresh clone runs the metric tests and skips this one.
+Skips when census.toml or perguntas.jsonl is absent — both are local and
+gitignored, so a fresh clone (or a machine that lost the golden set) runs
+the rest of the suite and skips this one. The default suite must pass
+without perguntas.jsonl; that is a F6 exit criterion.
 """
 
 from __future__ import annotations
@@ -18,6 +20,19 @@ from eval.harness import KS_PADRAO, avaliar, carregar_perguntas
 REPO = Path(__file__).resolve().parent.parent
 CONFIG = REPO / "census.toml"
 GOLDEN = REPO / "eval" / "golden" / "perguntas.jsonl"
+
+
+def _raiz_do_acervo_existe() -> bool:
+    """census.toml can exist while pointing at a machine that is not this one."""
+    if not CONFIG.exists():
+        return False
+    try:
+        import tomllib
+
+        dados = tomllib.loads(CONFIG.read_text(encoding="utf-8"))
+    except (OSError, tomllib.TOMLDecodeError, UnicodeDecodeError):
+        return False
+    return any(Path(r["path"]).exists() for r in dados.get("roots", []) if "path" in r)
 
 
 def test_tokenizar_remove_acento_e_palavra_vazia() -> None:
@@ -51,6 +66,8 @@ SUBARVORE_DEV = "01. Inteligência Artificial"
 
 
 @pytest.mark.skipif(not CONFIG.exists(), reason="census.toml ausente (raízes reais não configuradas)")
+@pytest.mark.skipif(not GOLDEN.exists(), reason="perguntas.jsonl ausente (conjunto dourado real não versionado)")
+@pytest.mark.skipif(not _raiz_do_acervo_existe(), reason="raízes do census.toml não existem neste disco")
 @pytest.mark.parametrize("prefixo", [SUBARVORE_DEV, None], ids=["subárvore de dev", "raiz completa"])
 def test_baseline_no_corpus_real(prefixo: str | None, capsys: pytest.CaptureFixture) -> None:
     """Imprime a referência que as portas do ROADMAP citam, nas duas condições.
