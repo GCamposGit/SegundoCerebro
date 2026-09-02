@@ -33,11 +33,13 @@ Restrições declaradas:
 | R6 | Pessoal primeiro, empresa depois | Núcleo reutilizável, duas portas de entrada |
 
 **Nota sobre Obsidian.** Um "vault" é um diretório com arquivos markdown — não é
-conta nem produto. O Obsidian é gratuito (a licença comercial tornou-se opcional
-em 20/02/2025) e **não é dependência deste projeto**. O indexador percorre
-diretórios. Hoje as fontes são pastas em disco (pessoal) e SharePoint
-(corporativo), nenhuma delas com wikilinks. Se o Obsidian entrar depois, o grafo
-de `[[wikilinks]]` passa a ser um sinal *adicional* — nunca o principal.
+conta nem produto. O Obsidian **não é dependência** e **não é fonte**: o acervo
+continua sendo pastas em disco (pessoal) e SharePoint (corporativo), sem
+wikilink na entrada. O `J.e` (02/09/2026) traz o Obsidian como *saída*: um
+comando explícito (`py -m segundocerebro.acesso.exportar`) grava uma view
+one-way fora das raízes, com `[[wikilinks]]` derivados da tabela `mencoes`.
+Nada do vault volta para o acervo nem para o índice. Wikilink no acervo
+continuaria sendo sinal *adicional*, nunca o principal.
 
 ---
 

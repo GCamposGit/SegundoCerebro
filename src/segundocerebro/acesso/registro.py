@@ -343,3 +343,28 @@ def quarentena_da_pasta(store: Store, pasta: str, *, recursivo: bool = False) ->
         for item in store.listar_quarentena()
         if _sob(item.path, prefixo, recursivo)
     }
+
+
+def mencoes_de_caminhos(
+    store: Store, caminhos: Sequence[str],
+) -> dict[str, list[tuple[str, str]]]:
+    """`path -> [(tipo, valor), ...]` em lote, nunca uma consulta por documento.
+
+    O export do vault precisa das menções de todos os canônicos de uma pasta
+    para materializar wikilinks. A forma N+1 já custou neste repositório: no
+    índice de teste o N some e o defeito só aparece no acervo real.
+    """
+    saida: dict[str, list[tuple[str, str]]] = {c: [] for c in caminhos}
+    presentes = [c for c in caminhos if c]
+    for lote in _em_lotes(presentes):
+        marcas = ",".join("?" * len(lote))
+        linhas = store.con.execute(
+            f"SELECT path, tipo, valor FROM mencoes WHERE path IN ({marcas}) "
+            "ORDER BY path, tipo, valor",
+            tuple(lote),
+        )
+        for linha in linhas:
+            saida.setdefault(str(linha["path"]), []).append(
+                (str(linha["tipo"]), str(linha["valor"]))
+            )
+    return saida

@@ -42,6 +42,7 @@ segundocerebro-mcp = "segundocerebro.mcp.server:main"
 segundocerebro-painel = "segundocerebro.painel.__main__:main"
 segundocerebro-indexar = "segundocerebro.index.indexer:main"
 segundocerebro-observar = "segundocerebro.index.watcher:main"
+segundocerebro-exportar = "segundocerebro.acesso.exportar:main"
 
 [tool.setuptools.dynamic]
 dependencies = {file = ["requirements.txt"]}
