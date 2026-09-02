@@ -830,7 +830,7 @@ privada do desktop **não** trava nenhum destes:
 | **J.b1** | `doc_id` público por conteúdo, índice em `documentos.sha256`, URI `sc://`, regra de preferência entre os **223 caminhos duplicados** | notebook | **1** | ✅ fechado em 30/08/2026 |
 | **J.c-mapa** | `outline` + `list_folder`; complemento `J.c-mapa.2` inclui `so_censo` | Desktop ativo | **1** | mapa ✅ em 30/08; `so_censo` entregue neste PR, em 01/09 |
 | **J.a · J.f** | Parse Store canônico + indexador lendo dele | Desktop ativo | **1** | núcleo ✅; integração PR #65; meta de rebuild ≥80% **ainda não medida** |
-| **J.b2 · J.c-conteúdo** | Sidecar com offsets + `get_document` paginado por cursor | notebook | 2 | depois do `J.a` — **não** sai dos chunks (+11,1% de sobreposição) |
+| **J.b2 · J.c-conteúdo** | Sidecar com offsets + `get_document` paginado por cursor | Desktop ativo | 2 | `get_document` entregue neste PR em 02/09; freeze do schema E4 pendente |
 | **J.d** | `pack_folder` manifest-first, corte em fronteira de documento | notebook | 3 | depois do `J.c`; depende de `familias.py`, **não** de `R1.3` |
 | **J.e** | Exportador de vault Markdown (Obsidian) como *view* one-way | qualquer | 4 | depois do `J.b2`; menções e glossário já existem |
 | F4-D | Cobertura do dourado real | notebook | — | **reescopado**: piso de regressão e limitação declarada, não fila de perguntas. **Instrumento fechado em 29/08/2026** — `eval/cobertura.py`; a cobertura entra em todo relatório e a omissão virou impossível. Medido: alcance **38,5%**, fontes **3,3%**. [`docs/dourado-cobertura.md`](docs/dourado-cobertura.md) |
@@ -2084,7 +2084,7 @@ offsets, com store). Duas frentes em paralelo em vez de uma fila:
 |---|---|---|
 | **1** | `J.b1` (ids, índice em `sha256`, URI) · `J.c-mapa` (`outline`, `list_folder`) | notebook — ✅ **fechados em 30/08/2026** |
 | **1** | `J.a` (store) · `J.f` (indexador lê do store) | desktop se houver crédito, senão notebook |
-| **2** | `J.b2` (sidecar) · `J.c-conteúdo` (`get_document`) | notebook |
+| **2** | `J.b2` (sidecar) · `J.c-conteúdo` (`get_document`) | Desktop — conteúdo entregue em 02/09/2026 neste PR; freeze E4 pendente |
 | **3** | `J.d` (`pack_folder`) | notebook |
 | **4** | `J.e` (export vault Markdown) | qualquer |
 
@@ -2146,6 +2146,34 @@ duas entradas, identificadas pelo campo `raiz`.
 - **Limite de validação Desktop-only:** testes sintéticos e MCP; nenhum arquivo
   de ranking alterado. A ablação no dourado privado não foi executada porque o
   acervo/conjunto não estão neste Desktop; não confundir isso com um Δ medido.
+
+### `J.c-conteúdo` — leitura integral — entregue no Desktop em 02/09/2026, neste PR
+
+`get_document(documento, cursor=None, max_chars=8000)` lê o Markdown canônico
+diretamente do Parse Store. O cliente continua até `completo=true`; nunca há
+concatenação de chunks com sobreposição. Caminho, id e URI `sc://` resolvem pela
+identidade existente. O original permanece a fonte de citação.
+
+- **Hipótese / efeito mínimo:** concatenação byte-idêntica ao canônico, sem
+  perdas nem repetição, com orçamentos variados e PDF sintético de 500 páginas.
+- **Reuso pesquisado:** MCP oficial/filesystem, Docling, LlamaIndex e Tika.
+  Reaproveitados o SDK, registro, política de cache e parser isolado existentes;
+  nenhuma dependência nova. Decisões e fontes em
+  [`docs/jc-leitura-integral.md`](docs/jc-leitura-integral.md).
+- **Cache ausente:** reconstrói do original conhecido, com hash conferido,
+  limites de tamanho/tempo/RAM, sem hidratação. Uma extração por servidor.
+- **Sem falsas promessas:** leitura da versão indexada e do texto extraído,
+  não reprodução visual. Limitações de OCR, digestos e truncagens do extrator
+  são explícitas. Arquivos `so_censo` precisam de indexação antes da leitura.
+- **Segurança e regressão:** paths relativos, exclusões, links/junctions,
+  separação física de bases, cursores ligados à versão, cache malformado e
+  concorrência de escrita no Windows cobertos. Nenhuma mudança de ranking,
+  chunking, encoder ou modelo de OCR.
+- **Encerramento:** aceite binário por testes sintéticos, MCP e suíte padrão.
+  O dourado privado segue indisponível; não foi medido Δ de retrieval real.
+  A meta de ganho ≥80% em rebuild continua pendente, não vira ganho comprovado.
+- **Próximo:** `J.d` (`pack_folder`); congelamento do sidecar com E4 ainda pendente.
+  O notebook antigo segue desativado e o novo OCR continua futuro.
 
 ### `J.a-núcleo` — o parse store no disco — ✅ **FECHADO em 31/08/2026**
 

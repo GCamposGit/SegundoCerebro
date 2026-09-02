@@ -50,6 +50,7 @@ from __future__ import annotations
 import json
 import os
 import shutil
+import tempfile
 import time
 import zlib
 from collections.abc import Iterable
@@ -58,6 +59,7 @@ from hashlib import sha256 as _sha256
 from pathlib import Path
 
 from ..logger import get_logger
+from ..caminhos import resolver_caminho
 from .canonico import VERSAO_CANONICA, BlocoCanonico, ParseCanonico
 
 log = get_logger("ingest.parse_store")
@@ -147,6 +149,43 @@ def chave_de(sha256: str, parser: str, meta: dict[str, str] | None = None) -> Ch
     return Chave(sha256=sha256, parser=parser, rota=rota, motor=assinatura_do_motor(rota))
 
 
+def _decodificar(dados: dict, chave: Chave) -> ParseCanonico:
+    """JSON válido também pode ser cache corrompido: valide identidade e offsets."""
+    if not isinstance(dados, dict) or dados.get("sha256") != chave.sha256:
+        raise ValueError("identidade inválida")
+    markdown, meta, blocos = dados["markdown"], dados["meta"], dados["blocos"]
+    if not isinstance(markdown, str) or not isinstance(meta, dict) or not isinstance(blocos, list):
+        raise ValueError("estrutura inválida")
+    if not all(isinstance(k, str) and isinstance(v, str) for k, v in meta.items()):
+        raise ValueError("metadados inválidos")
+    resultado = []
+    anterior = 0
+    for b in blocos:
+        inicio, fim, trilha = b["inicio"], b["fim"], b["trilha"]
+        if (type(inicio) is not int or type(fim) is not int
+                or not anterior <= inicio <= fim <= len(markdown)
+                or not isinstance(trilha, list) or not all(isinstance(t, str) for t in trilha)
+                or not isinstance(b.get("kind", "texto"), str)
+                or not isinstance(b.get("locator", ""), str)):
+            raise ValueError("bloco inválido")
+        resultado.append(BlocoCanonico(tuple(trilha), inicio, fim,
+                                      b.get("kind", "texto"), b.get("locator", "")))
+        anterior = fim
+    return ParseCanonico(markdown, tuple(resultado), meta)
+
+
+def _substituir(temporario: Path, alvo: Path) -> None:
+    """Windows pode negar rename enquanto outro leitor/rename fecha o handle."""
+    for tentativa in range(4):
+        try:
+            os.replace(temporario, alvo)
+            return
+        except PermissionError:
+            if tentativa == 3:
+                raise
+            time.sleep(0.02 * 2**tentativa)
+
+
 class ParseStore:
     """Única porta de leitura e escrita da representação canônica."""
 
@@ -155,7 +194,10 @@ class ParseStore:
 
     def caminho(self, chave: Chave) -> Path:
         d = chave.digest()
-        return self.raiz / d[:2] / f"{d}{SUFIXO}"
+        alvo = self.raiz / d[:2] / f"{d}{SUFIXO}"
+        if alvo.is_symlink() or not resolver_caminho(alvo.parent).is_relative_to(resolver_caminho(self.raiz)):
+            raise OSError("entrada aponta para fora do Parse Store")
+        return alvo
 
     # --- leitura ----------------------------------------------------------
 
@@ -172,26 +214,13 @@ class ParseStore:
         alvo = self.caminho(chave)
         try:
             dados = json.loads(zlib.decompress(alvo.read_bytes()).decode("utf-8"))
+            return _decodificar(dados, chave)
         except FileNotFoundError:
             return None
-        except (zlib.error, UnicodeDecodeError, json.JSONDecodeError, OSError) as erro:
+        except (zlib.error, UnicodeDecodeError, ValueError, KeyError, TypeError, OSError) as erro:
             log.warning("entrada ilegível em %s (%s) — apagando e reparseando", alvo.name, erro)
             alvo.unlink(missing_ok=True)
             return None
-        return ParseCanonico(
-            markdown=dados["markdown"],
-            blocos=tuple(
-                BlocoCanonico(
-                    trilha=tuple(b["trilha"]),
-                    inicio=int(b["inicio"]),
-                    fim=int(b["fim"]),
-                    kind=b.get("kind", "texto"),
-                    locator=b.get("locator", ""),
-                )
-                for b in dados.get("blocos", ())
-            ),
-            meta=dict(dados.get("meta", {})),
-        )
 
     # --- escrita ----------------------------------------------------------
 
@@ -231,9 +260,14 @@ class ParseStore:
         # duas versões do Python produziria bytes diferentes, e a byte-identidade
         # que o `J.a` promete cairia por causa da serialização, não do parse.
         cru = json.dumps(corpo, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-        temporario = alvo.with_suffix(alvo.suffix + f".tmp{os.getpid()}")
-        temporario.write_bytes(zlib.compress(cru.encode("utf-8"), NIVEL_ZLIB))
-        os.replace(temporario, alvo)
+        f = tempfile.NamedTemporaryFile(dir=alvo.parent, suffix=".tmp", delete=False)
+        temporario = Path(f.name)
+        try:
+            with f:
+                f.write(zlib.compress(cru.encode("utf-8"), NIVEL_ZLIB))
+            _substituir(temporario, alvo)
+        finally:
+            temporario.unlink(missing_ok=True)
         return alvo
 
     # --- manutenção -------------------------------------------------------

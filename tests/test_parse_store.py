@@ -21,6 +21,8 @@
 from __future__ import annotations
 
 import random
+import json
+from concurrent.futures import ThreadPoolExecutor
 import zlib
 from pathlib import Path
 
@@ -342,3 +344,82 @@ def test_a_rota_sai_do_meta_que_o_parser_escreveu() -> None:
 def test_a_rota_nativa_nao_inventa_assinatura_de_motor() -> None:
     """Motor vazio onde não há motor: `parser_version` já cobre a saída."""
     assert ps.assinatura_do_motor(ps.ROTA_NATIVA) == ""
+
+
+@pytest.mark.parametrize("alteracao", ["hash", "markdown", "bloco", "offset", "ordem", "meta"])
+def test_json_valido_com_estrutura_corrompida_vira_miss(tmp_path, alteracao):
+    store, chave = ps.ParseStore(tmp_path), ps.Chave(SHA, "pdf:2")
+    store.gravar(chave, renderizar(documento(2)))
+    alvo = store.caminho(chave)
+    dados = json.loads(zlib.decompress(alvo.read_bytes()))
+    if alteracao == "hash":
+        dados["sha256"] = OUTRO_SHA
+    elif alteracao == "markdown":
+        dados["markdown"] = []
+    elif alteracao == "bloco":
+        dados["blocos"] = [None]
+    elif alteracao == "offset":
+        dados["blocos"][0]["fim"] = len(dados["markdown"]) + 1
+    elif alteracao == "ordem":
+        dados["blocos"].reverse()
+    else:
+        dados["meta"] = {"paginas": 2}
+    alvo.write_bytes(zlib.compress(json.dumps(dados).encode()))
+    assert store.obter(chave) is None
+
+
+@pytest.mark.parametrize("rodada", range(5))
+def test_gravacoes_concorrentes_nao_compartilham_temporario(tmp_path, rodada):
+    store, chave = ps.ParseStore(tmp_path), ps.Chave(SHA, "docx:2")
+    canonico = renderizar(documento(4))
+    with ThreadPoolExecutor(max_workers=8) as pool:
+        list(pool.map(lambda _n: store.gravar(chave, canonico), range(40)))
+    assert store.obter(chave) == canonico
+    assert not list(store.raiz.rglob("*.tmp"))
+
+
+def test_prefixos_longos_mistos_nao_simulam_escape_do_cache(tmp_path, monkeypatch):
+    from segundocerebro.caminhos import resolver_caminho
+    chave, cache = ps.Chave(SHA, "p1"), ps.ParseStore(tmp_path)
+    pai = cache.raiz / chave.digest()[:2]
+    real = type(pai).resolve
+    def misto(self, *args, **kwargs):
+        resolvido = real(self, *args, **kwargs)
+        return type(self)("\\\\?\\" + str(resolvido)) if self == pai else resolvido
+    monkeypatch.setattr(type(pai), "resolve", misto)
+    assert resolver_caminho(pai).is_relative_to(resolver_caminho(cache.raiz))
+    assert cache.caminho(chave).parent == pai
+
+
+def test_falha_no_replace_preserva_entrada_e_limpa_temporario(tmp_path, monkeypatch):
+    store, chave = ps.ParseStore(tmp_path), ps.Chave(SHA, "docx:2")
+    antes = renderizar(documento(2))
+    store.gravar(chave, antes)
+    def falhar(*_args):
+        raise OSError("disco indisponível")
+    monkeypatch.setattr(ps.os, "replace", falhar)
+    with pytest.raises(OSError):
+        store.gravar(chave, renderizar(documento(3)))
+    assert store.obter(chave) == antes
+    assert not list(store.raiz.rglob("*.tmp"))
+
+
+@pytest.mark.parametrize("falhas", [1, 4])
+def test_replace_tem_retry_limitado_para_disputa_de_handle(tmp_path, monkeypatch, falhas):
+    store, chave = ps.ParseStore(tmp_path), ps.Chave(SHA, "docx:2")
+    real, chamadas, pausas = ps.os.replace, [], []
+    def intermitente(origem, destino):
+        chamadas.append(1)
+        if len(chamadas) <= falhas:
+            raise PermissionError("handle ocupado")
+        real(origem, destino)
+    monkeypatch.setattr(ps.os, "replace", intermitente)
+    monkeypatch.setattr(ps.time, "sleep", pausas.append)
+    if falhas == 4:
+        with pytest.raises(PermissionError):
+            store.gravar(chave, renderizar(documento(1)))
+    else:
+        store.gravar(chave, renderizar(documento(1)))
+    assert len(chamadas) == min(4, falhas + 1)
+    assert sum(pausas) <= 0.15
+    assert not list(store.raiz.rglob("*.tmp"))

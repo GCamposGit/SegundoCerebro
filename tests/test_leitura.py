@@ -25,6 +25,10 @@ from segundocerebro.acesso import identidade, manifesto
 from segundocerebro.census import Config as CensoConfig
 from segundocerebro.census import RootSpec
 from segundocerebro.index.store import Store
+from segundocerebro.ingest.canonico import renderizar
+from segundocerebro.ingest.document import Block, ParsedDoc
+from segundocerebro.ingest.parse_store import Chave, ParseStore
+from segundocerebro.ingest.parsers import parser_version_for
 from segundocerebro.mcp import leitura
 
 from tests.falsos import chunk
@@ -67,6 +71,10 @@ def indice(store: Store) -> Store:
         chunk("p2#3", "Projetos/Alfa/Plano_v2.docx", 3, "d" * 200, ("Plano", "Custos")),
     ]
     store.gravar_textos(trechos)
+    ParseStore(store.diretorio).gravar(
+        Chave("b" * 64, parser_version_for(".docx")),
+        renderizar(ParsedDoc("Plano_v2.docx", (Block(("Plano",), "Integral 📄 çã"),))),
+    )
     store.commit()
     return store
 
@@ -372,6 +380,10 @@ def test_documento_sem_trecho_indexado_diz_o_status(indice: Store) -> None:
 
 
 CASOS_DE_CURSOR = {
+    "get_document": {
+        "argumentos": {"documento": "Projetos/Alfa/Plano_v2.docx"},
+        "orcamento": "max_chars", "lista": "markdown", "cursor_inicial": None,
+    },
     "list_folder": {"argumentos": {"pasta": PASTA, "recursivo": True}, "orcamento": "max_itens", "lista": "itens"},
     "outline": {
         "argumentos": {"documento": "Projetos/Alfa/Plano_v2.docx"},
@@ -394,10 +406,13 @@ def test_todo_caso_de_cursor_cobre_uma_tool_que_existe(indice: Store) -> None:
 def _paginar_tudo(tool, caso: dict, orcamento: int) -> list[Any]:
     """Segue o cursor até o fim, exigindo que ele exista sempre que houver mais."""
     colhidos: list[Any] = []
-    cursor: int | None = 0
+    cursor = caso.get("cursor_inicial", 0)
     vistos = 0
-    while cursor is not None:
+    while True:
         saida = tool(**caso["argumentos"], cursor=cursor, **{caso["orcamento"]: orcamento})
+        if hasattr(saida, "structured_content"):
+            assert not saida.is_error, saida
+            saida = saida.structured_content
         pagina = saida[caso["lista"]]
         colhidos.extend(pagina)
 
@@ -414,6 +429,8 @@ def _paginar_tudo(tool, caso: dict, orcamento: int) -> list[Any]:
 
         vistos += 1
         assert vistos < 200, "a paginação não terminou — cursor que não avança é laço infinito"
+        if cursor is None:
+            break
     return colhidos
 
 

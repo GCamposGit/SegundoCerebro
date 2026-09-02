@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import sys
+from hashlib import sha256
 from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parent.parent
@@ -37,6 +38,10 @@ from segundocerebro.mcp.server import Recursos, construir  # noqa: E402
 from segundocerebro.retrieve.grafo import construir as construir_grafo  # noqa: E402
 from segundocerebro.retrieve.hybrid import BuscaHibrida  # noqa: E402
 from tests.falsos import DIM, EmbedderFalso, chunk  # noqa: E402
+from segundocerebro.ingest.canonico import renderizar  # noqa: E402
+from segundocerebro.ingest.document import Block, ParsedDoc  # noqa: E402
+from segundocerebro.ingest.parse_store import Chave, ParseStore  # noqa: E402
+from segundocerebro.ingest.parsers import parser_version_for  # noqa: E402
 
 POLITICA = "Política de IA/PO-ACME-007 — política 📄.docx"
 """Acento, travessão e um caractere fora do cp1252, no **caminho**.
@@ -86,6 +91,12 @@ TRECHOS = [
 ]
 
 
+def canonico_de(path: str):
+    return renderizar(ParsedDoc(path, tuple(
+        Block(trilha, texto) for _id, p, _ord, texto, trilha in TRECHOS if p == path
+    )))
+
+
 def montar_indice(diretorio: Path) -> Store:
     """Índice minúsculo com o que as três ferramentas precisam para responder.
 
@@ -99,12 +110,17 @@ def montar_indice(diretorio: Path) -> Store:
     store.gravar_chunks(chunks, emb.embed_passagens([c.text for c in chunks]), 0.0, emb.model_id)
 
     for path in (POLITICA, PLANO, NORMA):
+        canonico = canonico_de(path)
+        sha = sha256(canonico.markdown.encode()).hexdigest()
+        parser = parser_version_for(Path(path).suffix)
+        ParseStore(diretorio).gravar(Chave(sha, parser), canonico)
         store.registrar_documento(
             path=path,
             raiz="r",
             tamanho=1,
             mtime=0.0,
             status="ok",
+            sha256=sha, parser=parser,
             n_chunks=sum(1 for c in chunks if c.doc_path == path),
             model_id=emb.model_id,
         )

@@ -29,6 +29,7 @@ from typing import Any
 
 from ..acesso import manifesto
 from ..acesso.identidade import conferir_base, interpretar
+from .documento import registrar as registrar_documento
 
 DESCRICAO_LIST_FOLDER = (
     "Enumera os documentos de uma pasta da base: raiz, id estável quando já há hash, "
@@ -68,6 +69,11 @@ def _referencia(documento: str, id_da_base: str):  # noqa: ANN202
 
 
 def registrar(servidor, recursos, limites=None) -> None:  # noqa: ANN001
+    registrar_documento(servidor, recursos)
+    _registrar_mapa(servidor, recursos, limites)
+
+
+def _registrar_mapa(servidor, recursos, limites=None) -> None:  # noqa: ANN001
     """Acrescenta as tools de mapa ao servidor já construído.
 
     Recebe o servidor em vez de devolver um: a superfície MCP é uma só, e um

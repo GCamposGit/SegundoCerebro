@@ -87,17 +87,21 @@ Onde o sistema está, em cinco linhas:
   O caminho entregue está em **0,551 / 0,696** desde a `F4-P`. Com intervalo:
   [`docs/rigor-estatistico.md`](docs/rigor-estatistico.md). É **piso de
   regressão**, não autoridade de arquitetura.
-- **Superfície MCP**: cinco ferramentas em dois modos. `search`, `read_note` e
-  `neighbors` respondem **pergunta**; `list_folder` e `outline` — do `J.c-mapa`,
-  30/08/2026 — servem **leitura**: enumerar uma pasta e mapear um documento para
-  o agente que vai ler tudo. Toda tool de leitura devolve cursor explícito. Dois
+- **Superfície MCP**: seis ferramentas em dois modos. `search`, `read_note` e
+  `neighbors` respondem **pergunta**; `list_folder`, `outline` e `get_document`
+  servem **leitura**: enumerar, mapear e ler o texto canônico integralmente.
+  `get_document` entrou no Desktop em 02/09/2026, neste PR, sem carregar encoder.
+  Toda tool de leitura devolve cursor quando há mais conteúdo. Dois
   clientes instalados por comando (Claude Code e Claude Desktop).
 - **Painel** em `127.0.0.1`: criar base, indexar com barra, pesos, glossário,
   diagnóstico de consulta, ensinar quando erra. Fora do caminho de consulta
   (invariante 6).
 
 **Onde o produto não está pronto**, e é o que a régua de ouro manda olhar
-primeiro: a leitura integral `get_document` ainda falta. O **parse store já está
+primeiro: o empacotamento de pasta `pack_folder` ainda falta. A leitura integral
+`get_document` foi implementada neste PR, com testes sintéticos e MCP;
+ver [`docs/jc-leitura-integral.md`](docs/jc-leitura-integral.md).
+O **parse store já está
 ligado aos produtores e ao indexador** (PR #65), com invalidação após instalação
 do LibreOffice (PR #66); o ganho de ≥80% no rebuild ainda não foi medido.
 O watcher com catch-up USN já está entregue. O `Q15` fechou inteiro em
@@ -130,20 +134,20 @@ ser hipótese: o percurso do leigo tem teste. O Office legado
    ligou produtores e indexador ao store. **O ganho de ≥80% no rebuild não foi
    medido** — exige rebuild do sintético com mix de PDF/OLE/OCR. Não refazer a
    integração nem citar a meta como ganho comprovado.
-1. **`J.c-conteúdo` — `get_document`**, que o store destravou. Um aviso medido, e
-   ele mata o atalho óbvio: **não sai dos chunks.** A sobreposição de 200
-   caracteres infla o texto em **+11,1%** (bloco de 14.399 chars → 9 chunks
-   somando 15.999, em 8 emendas), então o aceite *"concatenação das páginas == o
-   canônico"* falharia por construção. Sai do `parse_store.obter`, e o cursor
-   segue o padrão de `acesso/manifesto.py::Pagina`, que já é derivado por teste.
+1. **`J.d` — `pack_folder`**, próximo pacote funcional: manifesto primeiro,
+   política de famílias e orçamento com continuação. `J.c-conteúdo` foi entregue
+   neste PR, no Desktop, em 02/09/2026: sai do Parse Store, nunca dos chunks
+   (+11,1% de sobreposição medidos); cursor opaco vincula versão e base.
+   Leitura sob demanda só para documentos com identidade no registro; sem cache
+   exige original local e raízes. Novo OCR continua reservado para fase futura.
 2. **`J.b2` — o sidecar** é quase só declaração agora: os offsets no Markdown já
    existem em `ingest/canonico.py` e já têm property test sobre 12 documentos
    sorteados. O que falta é o `E4` (spans citáveis) conferir o schema antes de
    congelá-lo, que a especificação pede explicitamente.
 3. **`J.c-mapa.2` — entregue neste PR, em 01/09/2026.** Antecipado por ser o
    pacote menor: `list_folder` une índice e censo de metadados, mostra `so_censo`
-   sem abrir conteúdo e declara quando a enumeração é incompleta. Próxima
-   funcionalidade: `J.c-conteúdo`, sem antecipar o novo motor de OCR.
+   sem abrir conteúdo e declara quando a enumeração é incompleta. Complemento
+   de conteúdo entregue em `J.c-conteúdo`, sem antecipar o novo motor de OCR.
 4. **`F4-R.1` — CONGELADO até o novo notebook.** O regime de máquina observável é pré-requisito da passada de
    calibragem no acervo real: sem ele a `Calibracao` aprende coeficiente de dois
    regimes misturados (22× de diferença) com milhares de observações a favor.
