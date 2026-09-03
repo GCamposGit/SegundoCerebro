@@ -39,6 +39,20 @@ neighbors = 100
 # Não entra aqui: porta de ferramenta ausente mede zero e reporta aprovado.
 
 
+[regressao.desktop-980ti]
+descricao = "i7 Haswell, 8 fios, Windows 11, CPU; duas 980 Ti presentes, passada com PROVIDER=cpu"
+medido_em = "2026-09-02"
+indice_chunks = 1000000
+protocolo = "dourado sintético (perguntas.example.jsonl), um braço por passada, 3 descartadas no aquecimento, 3 passadas independentes"
+margem = "1,15x o pior p95 de 3 passadas independentes; ver docs/porta-de-latencia.md"
+
+[regressao.desktop-980ti.p95]
+# Medido search p95: 7 402, 8 039, 7 632 ms (n=30 cada). Pior 8 039.
+# 1,15x = 9 245; arredondado para baixo, para 9 200.
+search = 9200
+# Guarda de classe, como no notebook: p95 sub-milissegundo a ~1 ms.
+read_note = 50
+
 [regressao.notebook-15w]
 descricao = "i7-1355U, 15 W, 12 fios (10 para a busca), CPU, sem GPU"
 medido_em = "2026-08-24"

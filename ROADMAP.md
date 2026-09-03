@@ -808,7 +808,7 @@ privada do desktop **não** trava nenhum destes:
 | F6-A / R8.1 | `pip install` sem `PYTHONPATH=src`; matriz 3×SO no CI | **desktop** | **1** | ✅ **fechado** (PR #14) |
 | R8.1.b | `tests/test_pacote.py`: achar o script pelo `sysconfig`, e pular fora do CI em vez de falhar | notebook | 3 | sim — não bloqueia nada |
 | C4.5 | Fatia cross-lingual no harness (`mesma-língua` vs `cross-lingual`) | notebook | **1** | ✅ **fechado** — ver [`docs/fatia-cross-lingual.md`](docs/fatia-cross-lingual.md) |
-| R9.3 | Porta de latência, sobre índice inflado | notebook define, **desktop infla o índice** | **1** | ✅ **portas definidas** — ver [`docs/porta-de-latencia.md`](docs/porta-de-latencia.md); falta o índice inflado |
+| R9.3 | Porta de latência, sobre índice inflado | notebook define, **desktop infla o índice** | **1** | ✅ **inflador neste PR** (`index/inflar.py`, perturbação sem encoder); piso `desktop-980ti` 9 200 ms @ 1M trechos. Artefacto gitignorado. Ver [`docs/porta-de-latencia.md`](docs/porta-de-latencia.md) |
 | C1 | Política de particionamento + description gerada do censo | acordo; texto no `ARCHITECTURE.md` | **1** | **sim** — combinar quem escreve |
 | C6 | Família de versões ≠ grupo de formatos (**subordina R1.3**) | notebook (ranking) + desktop (hash/MinHash no censo) | 2 | depois da onda 1 |
 | C3.a | Peso da coluna `caminho` no bm25 | notebook | 2 | ✅ **fechado, hipótese refutada** — ver [`docs/ablacao-c3a-pesos-fts.md`](docs/ablacao-c3a-pesos-fts.md) |
@@ -947,8 +947,9 @@ Três consequências para a fila, e nenhuma delas muda ranking hoje:
 
 O instrumento é `eval/latencia.py`, as portas moram em
 `eval/portas-latencia.toml` e o raciocínio inteiro em
-[`docs/porta-de-latencia.md`](docs/porta-de-latencia.md). Falta só o índice
-inflado de 1M trechos, que é do desktop.
+[`docs/porta-de-latencia.md`](docs/porta-de-latencia.md). O inflador
+(`index/inflar.py`) e o piso `desktop-980ti` (9 200 ms @ 1M trechos) entram
+neste PR; o artefacto `/index-*/` continua gitignorado.
 
 **São duas portas, e essa é a primeira correção que a medição faz na proposta.**
 Uma porta que a máquina reprova no dia em que é escrita não guarda nada — fica
