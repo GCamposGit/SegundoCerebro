@@ -431,8 +431,8 @@ class Indexacao:
 
     modelo_rascunho: str = ""
     dois_passes: bool = False
-    ocr: bool = False
-    """R1.2: after the text waves, OCR scanned PDFs. Off = identical to today."""
+    ocr: bool = True
+    """After the text waves, OCR scanned PDFs. Off is an explicit opt-out."""
 
     @property
     def ativo(self) -> bool:
@@ -897,7 +897,7 @@ def _indexacao(dados: Mapping[str, Any]) -> Indexacao:
     dois = booleano(
         dados.get("dois_passes", False), "indexacao.dois_passes", erro=ErroDeConfig
     )
-    ocr = booleano(dados.get("ocr", False), "indexacao.ocr", erro=ErroDeConfig)
+    ocr = booleano(dados.get("ocr", True), "indexacao.ocr", erro=ErroDeConfig)
     return Indexacao(
         modelo_rascunho=rascunho,
         dois_passes=dois or bool(rascunho),

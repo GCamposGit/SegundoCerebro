@@ -18,8 +18,7 @@ from __future__ import annotations
 import argparse
 from pathlib import Path
 
-from ..config import LimitesDeIndexacao
-from .embeddings import MODELOS
+from ..config import MODELOS_CONHECIDOS, LimitesDeIndexacao
 from .esforco import PERFIS_DE_ESFORCO
 from .orcamento import PRESETS_LEIGO
 
@@ -72,7 +71,7 @@ def construir_parser() -> argparse.ArgumentParser:
     # As sobreposições abaixo têm default None de propósito: `None` é "a base
     # decide", e um default concreto aqui venceria silenciosamente o arquivo.
     parser.add_argument("--indice", type=Path, help="sobrepõe o índice da base")
-    parser.add_argument("--modelo", choices=sorted(MODELOS), help="sobrepõe o modelo da base")
+    parser.add_argument("--modelo", choices=sorted(MODELOS_CONHECIDOS), help="sobrepõe o modelo da base")
     parser.add_argument("--limite", type=int, help="para depois de N documentos processados")
     parser.add_argument("--max-chars", type=int, help="sobrepõe o chunking da base")
     parser.add_argument("--threads", type=int, help="sobrepõe as threads da máquina")
@@ -83,13 +82,8 @@ def construir_parser() -> argparse.ArgumentParser:
         "automatico (cede ao usuário), noturno (tudo), discreto (mínimo). "
         "'leve' recusa rodar na bateria",
     )
-    parser.add_argument(
-        "--ocr",
-        action="store_true",
-        help="R1.2: depois das ondas de texto, OCR nos PDF digitalizados. "
-        "Exige o extra [ocr] (RapidOCR) ou Tesseract. Sem motor a passada "
-        "é idêntica à de hoje",
-    )
+    parser.add_argument("--ocr", action="store_true", help="OCR (já é o padrão)")
+    parser.add_argument("--sem-ocr", action="store_true", dest="sem_ocr", help="pula OCR")
     parser.add_argument(
         "--dois-passes",
         action="store_true",
@@ -99,7 +93,7 @@ def construir_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--modelo-rascunho",
-        choices=sorted(MODELOS),
+        choices=sorted(MODELOS_CONHECIDOS),
         dest="modelo_rascunho",
         help="liga dois passes. MiniLM não cabe na tabela do e5-large (384d vs 1024d); "
         "o rascunho nesses casos é lexical",

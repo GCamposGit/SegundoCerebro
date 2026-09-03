@@ -142,6 +142,10 @@ onnxruntime==1.29.0
     # via
     #   fastembed
     #   pymupdf-layout
+    #   rapidocr-onnxruntime
+opencv-python==5.0.0.93
+    # via
+    #   rapidocr-onnxruntime
 openpyxl==3.1.5
     # via
     #   segundocerebro (pyproject.toml)
@@ -174,6 +178,9 @@ py-rust-stemmers==0.1.8
 pyarrow==25.0.1
     # via
     #   lancedb
+pyclipper==1.4.0
+    # via
+    #   rapidocr-onnxruntime
 pycparser==3.0
     # via
     #   cffi
@@ -225,6 +232,10 @@ pyyaml==6.0.3
     # via
     #   huggingface-hub
     #   pymupdf-layout
+    #   rapidocr-onnxruntime
+rapidocr-onnxruntime==1.4.4
+    # via
+    #   segundocerebro (pyproject.toml)
 referencing==0.37.0
     # via
     #   jsonschema
@@ -236,6 +247,9 @@ rpds-py==2026.6.3
     # via
     #   jsonschema
     #   referencing
+shapely==2.1.2
+    # via
+    #   rapidocr-onnxruntime
 six==1.17.0
     # via
     #   python-dateutil

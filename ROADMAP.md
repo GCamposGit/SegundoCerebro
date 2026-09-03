@@ -2555,8 +2555,9 @@ continua fora desta fase e só volta com demanda concreta em F5.
 
 O parser de PDF já marca `digitalizado` e devolve zero blocos. O OCR é a
 **segunda passada**, depois das quatro ondas de texto — não uma extensão nova,
-então o despachante não muda. Extra `[ocr]` (RapidOCR); sem o extra a indexação
-é bit a bit a de hoje.
+então o despachante não muda. RapidOCR entra nas dependências padrão; sem motor
+a indexação **erra alto**. Extra `[ocr]` é alias. Sem `--sem-ocr`, a fase OCR
+corre depois das ondas de texto.
 
 **O.0 (porta) está no código.** A suíte padrão prova a fila com motor **falso**.
 Isso não mede RapidOCR, dpi, PDF misto nem o dourado. Tratar O.0 como fase
@@ -2576,7 +2577,9 @@ Plano do que falta, com hipótese / efeito mínimo / empate encerra, em
   só se o texto nativo mudar), `ingest/ocr.py`, `index/orcamento.py`
 - **Toca (O.3):** `eval/` do notebook, doc de ablação; nada de `[padrao]`
 - **Não toca:** `retrieve/*`, `parsers/__init__.py` (salvo bump combinado no O.2),
-  `[padrao]`. `ocr = true` **não** vira padrão antes do O.3
+  `[padrao]` de ranking. OCR da indexação **é** padrão desde 02/09/2026
+  ([`docs/ocr-como-padrao.md`](docs/ocr-como-padrao.md)): scan vazio em silêncio
+  não é opção do leigo. O.3 continua sendo o número do dossiê, não a flag.
 - **Saída da fase:** O.1+O.2 verdes na máquina com extra; O.3 medido ou
   declarado “motor não alcança este acervo”. Empate no O.3 deixa `--ocr` opt-in
 

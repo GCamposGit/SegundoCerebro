@@ -43,7 +43,6 @@ from ..ingest.natureza import EXTENSOES_DE_TEXTO_BRUTO
 from .prioridade import ONDAS, indexaveis, onda_de, ordenar as ordenar_fila
 from .prioridade import pasta_de, vigentes as vigentes_de
 from ..logger import get_logger
-from .embeddings import Embedder
 from .gpu_pool import EmbedFila, dispositivos_embed
 from .comando import aguardar as aguardar_comando
 from .comando import limpar as limpar_comando
@@ -166,7 +165,7 @@ def _restante_legivel(estimador: Estimador) -> str:
     return f"{texto} — {detalhe}" if detalhe else texto
 
 
-def _tokens_de(embedder: Embedder, chunks) -> int:  # noqa: ANN001
+def _tokens_de(embedder, chunks) -> int:  # noqa: ANN001
     """Tokens reais do que vai ao encoder — é a grandeza que custa.
 
     O tokenizador é nativo e a contagem sai em milissegundos; usar caracteres
@@ -211,7 +210,7 @@ def _cobertura(store: Store, model_id: str, totais: int) -> dict[str, object]:
 def indexar(
     cfg: Config,
     store: Store,
-    embedder: Embedder,
+    embedder,  # Embedder — not imported here: spawn reimports this module
     *,
     chunk_cfg: ChunkConfig | None = None,
     limite: int | None = None,
@@ -1113,8 +1112,9 @@ def indexar(
             from ..ingest.ocr import motor_de_ocr  # `Q15`: probe que levanta não mata a passada
 
             if motor_de_ocr() is None:
-                log.info(
-                    "OCR pedido mas nenhum motor disponível — pip install segundocerebro[ocr]"
+                log.error(
+                    "OCR faz parte da indexação e nenhum motor carregou — "
+                    "RapidOCR deveria ter vindo com pip install"
                 )
             else:
                 for rel, raiz_nome in store.documentos_para_ocr(OCR_VERSAO):
@@ -1144,9 +1144,7 @@ def indexar(
                     if publicador is not None:
                         publicador.anotar(arquivo=rel, etapa="ocr", falhas=progresso.falhas)
                         publicador.publicar()
-                    # O OCR roda **nesta** thread, não em worker: o
-                    # cronômetro pode medir o parse direto. E é o parse mais
-                    # caro do indexador, então é o que mais interessa medir.
+                    # Sem ram_mb: o teto de parse (1024 MB) mata RapidOCR (F4-O.3).
                     crono_ocr = Cronometro(relogio)
                     resultado = parse_isolado(
                         abs_path,
@@ -1154,7 +1152,6 @@ def indexar(
                         espera=0.5,
                         limite_planilha_mb=limite_planilha_mb,
                         limites_mb=mapa_limites or None,
-                        ram_mb=ram_parse_mb,
                         indice=store.diretorio,
                         ocr=True,
                     )
@@ -1250,7 +1247,6 @@ def indexar(
 def main(argv: list[str] | None = None) -> int:
     parser = construir_parser()
     args = parser.parse_args(argv)
-
     try:
         conf = carregar(args.config)
         base = conf.base(args.base)
@@ -1280,6 +1276,7 @@ def main(argv: list[str] | None = None) -> int:
         log.warning("perfil leve na bateria: ligue na tomada, ou use --perfil normal")
         return 3
 
+    from .embeddings import Embedder
     embedder = Embedder(args.modelo or base.modelo, threads=threads)
     store = Store(indice, embedder.dim)
     log.info(
@@ -1317,7 +1314,7 @@ def main(argv: list[str] | None = None) -> int:
             apenas_onda=args.apenas_onda,
             exigir_exclusoes=args.exigir_exclusoes,
             dois_passes=bool(args.dois_passes or args.modelo_rascunho or conf.indexacao.ativo),
-            ocr=bool(args.ocr or conf.indexacao.ocr),
+            ocr=False if args.sem_ocr else bool(args.ocr or conf.indexacao.ocr),
         )
     except ErroDeConfig as erro:
         log.error("%s", erro)

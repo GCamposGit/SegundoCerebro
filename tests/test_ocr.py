@@ -357,14 +357,14 @@ def test_indexar_misto_com_ocr_junta_as_paginas(tmp_path: Path, monkeypatch) -> 
     store.fechar()
 
 
-def test_config_ocr_desligado_por_padrao(tmp_path: Path) -> None:
+def test_config_ocr_ligado_por_padrao(tmp_path: Path) -> None:
     from segundocerebro.config import carregar
 
     caminho = tmp_path / "config.toml"
     caminho.write_text('[[base]]\nid = "a"\n', encoding="utf-8")
-    assert carregar(caminho, ambiente={}).indexacao.ocr is False
-    caminho.write_text('[indexacao]\nocr = true\n[[base]]\nid = "a"\n', encoding="utf-8")
     assert carregar(caminho, ambiente={}).indexacao.ocr is True
+    caminho.write_text('[indexacao]\nocr = false\n[[base]]\nid = "a"\n', encoding="utf-8")
+    assert carregar(caminho, ambiente={}).indexacao.ocr is False
 
 
 def test_teste_de_ocr_que_indexa_aceita_falha_de_recurso() -> None:

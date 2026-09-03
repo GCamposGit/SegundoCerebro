@@ -33,11 +33,10 @@ lote = 32
 
 # R3.2: busca útil no mesmo dia, vetores finais no passe 2. MiniLM não cabe
 # na tabela do e5-large (384d vs 1024d); o rascunho é parse + FTS.
-# [indexacao]
+[indexacao]
+ocr = true
 # dois_passes = true
 # modelo_rascunho = "minilm"   # liga dois_passes; o rascunho denso só entra se a dim coincidir
-# ocr = true                  # R1.2: depois do texto, OCR nos PDF digitalizados
-                              # exige pip install segundocerebro[ocr]
 
 # ---------------------------------------------------------------------------
 # Herdado por toda base, sobrescrevível dentro de cada uma.

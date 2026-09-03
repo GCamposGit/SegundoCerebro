@@ -51,9 +51,10 @@ cd SegundoCerebro
 py -m pip install -e .
 ```
 
-O último comando demora alguns minutos: ele traz as bibliotecas de leitura de PDF
-e de busca. Sem `git` instalado, use o botão **Code → Download ZIP** na página do
-projeto e descompacte.
+O último comando demora alguns minutos: ele traz as bibliotecas de leitura de PDF,
+de busca e de OCR (PDF digitalizado entra na indexação; não é um passo extra).
+Sem `git` instalado, use o botão **Code → Download ZIP** na página do projeto e
+descompacte.
 
 Os modelos de busca **não** vêm nesse download: eles são baixados na primeira
 indexação, uma vez só, e ficam guardados na pasta `models/`.
@@ -246,13 +247,10 @@ o motivo mais comum é o de baixo.
 
 Preferimos dizer isto do que deixar você descobrir depois.
 
-- **PDF digitalizado.** Sem o extra de OCR, a foto da página fica registrada
-  como vazio — não some em silêncio. Com `pip install segundocerebro[ocr]` e
-  `py -m segundocerebro.index.indexer --ocr`, o RapidOCR lê a imagem
-  **depois** dos documentos que já têm camada de texto. Medido: um
-  identificador impresso numa página-foto volta intacto. Ofício antigo
-  (letra pequena, página mista) ainda não foi medido; não é garantia de
-  que o PDF vira trecho buscável. Sem o extra, o resto da indexação não muda.
+- **PDF digitalizado de ofício antigo.** A indexação tenta OCR sozinha, depois
+  dos documentos que já têm camada de texto. Um identificador impresso numa
+  página-foto volta intacto. Letra pequena ou scan ilegível pode continuar
+  `vazio` — o registro mostra, não some. `--sem-ocr` existe só para medição.
 - **O observador recupera o que você salvou com ele desligado**, no Windows
   em disco NTFS: arquivo novo ou alterado entra ao religar. Arquivo
   **apagado** com o observador desligado só some do índice na próxima

@@ -359,9 +359,13 @@ def parse_isolado(
 
 
 def _detalhe_com_stderr(base: str, cauda: str) -> str:
-    if not cauda:
-        return base
-    return f"{base}: {cauda}"
+    texto = f"{base}: {cauda}" if cauda else base
+    # OpenBLAS abort is a resource death, not a rotten file. The 560 MB Job
+    # Object test classifies; it does not make OCR optional (02/09/2026).
+    if "OpenBLAS" in texto and "Memory allocation" in texto:
+        if not texto.lower().startswith(MOTIVO_RECURSO):
+            return f"{MOTIVO_RECURSO}: {texto}"
+    return texto
 
 
 def _apagar_stderr(caminho: str) -> None:
