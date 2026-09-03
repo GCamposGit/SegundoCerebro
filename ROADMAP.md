@@ -10,9 +10,10 @@ versão alcança o que já está no disco na passada seguinte.
 > (i7-1355U) foi desativado em 01/09; este notebook (i7-14700HX) retomou em
 > 02/09, com acervo e dourado neste disco. As atribuições “desktop” e
 > “notebook” voltam a distribuir trabalho. `F4-R` fechou (R.1 PR #75, R.2 PR #77,
-> R.3 neste PR). `F4-O.3`
-> deixa de estar congelada por falta de máquina: o bloqueio que resta é o da
-> passada `--ocr` no laudo de 28/08, a reabrir aqui. CUDA/`embeddings.py`
+> R.3 PR #78). `F4-O.3` fechou em 02/09: a fila curta mediu os 37 documentos
+> digitalizados e o agregado empatou; o OCR não virou padrão de ranking. A
+> indexação, porém, passou a tentar OCR por padrão no PR #81, porque scan
+> silenciosamente `vazio` é falha de entrada, não escolha de ranking. CUDA/`embeddings.py`
 > continuam do Desktop. [`docs/colaboracao.md`](docs/colaboracao.md) registra a
 > regra.
 
@@ -808,7 +809,7 @@ privada do desktop **não** trava nenhum destes:
 | F6-A / R8.1 | `pip install` sem `PYTHONPATH=src`; matriz 3×SO no CI | **desktop** | **1** | ✅ **fechado** (PR #14) |
 | R8.1.b | `tests/test_pacote.py`: achar o script pelo `sysconfig`, e pular fora do CI em vez de falhar | notebook | 3 | sim — não bloqueia nada |
 | C4.5 | Fatia cross-lingual no harness (`mesma-língua` vs `cross-lingual`) | notebook | **1** | ✅ **fechado** — ver [`docs/fatia-cross-lingual.md`](docs/fatia-cross-lingual.md) |
-| R9.3 | Porta de latência, sobre índice inflado | notebook define, **desktop infla o índice** | **1** | ✅ **portas definidas** — ver [`docs/porta-de-latencia.md`](docs/porta-de-latencia.md); falta o índice inflado |
+| R9.3 | Porta de latência, sobre índice inflado | notebook define, **desktop infla o índice** | **1** | ✅ **inflador neste PR** (`index/inflar.py`, perturbação sem encoder); piso `desktop-980ti` 9 200 ms @ 1M trechos. Artefacto gitignorado. Ver [`docs/porta-de-latencia.md`](docs/porta-de-latencia.md) |
 | C1 | Política de particionamento + description gerada do censo | acordo; texto no `ARCHITECTURE.md` | **1** | **sim** — combinar quem escreve |
 | C6 | Família de versões ≠ grupo de formatos (**subordina R1.3**) | notebook (ranking) + desktop (hash/MinHash no censo) | 2 | depois da onda 1 |
 | C3.a | Peso da coluna `caminho` no bm25 | notebook | 2 | ✅ **fechado, hipótese refutada** — ver [`docs/ablacao-c3a-pesos-fts.md`](docs/ablacao-c3a-pesos-fts.md) |
@@ -822,10 +823,10 @@ privada do desktop **não** trava nenhum destes:
 | C7.b · C7.c | Cartão de modelo de planilha; número é payload no modelo | desktop | 5 | — |
 | C2 + C3.b–d | Glossário automático do corpus + reescrita lexical (mesmo ponto de código) | desktop extrai, notebook mede | 6 | — |
 | F4-L / R1.1 | OLE que mente + conversor de legado | desktop | 6 | ✅ **fechado no PR #37** |
-| F4-O / R1.2 | OCR de PDF digitalizado | **desktop** + notebook (O.3) | 6 | **O.0 ✅** PR #38 · **O.1 neste PR** · O.2/O.3 em [`docs/plano-ocr.md`](docs/plano-ocr.md) |
+| F4-O / R1.2 | OCR de PDF digitalizado | **desktop** + notebook (O.3) | 6 | ✅ **fechado** — motor no PR #38 · O.3 medido no PR #80 · OCR na instalação e na passada padrão no PR #81. [`docs/ocr-como-padrao.md`](docs/ocr-como-padrao.md) |
 | F4-T | Parser de transcrição (`.vtt`/`.srt`/`.sbv`) — a saída nativa de todo gravador de reunião era contada e não indexada | notebook | 6 | ✅ **fechado em 27/08/2026**: fatia `reunião` de **0 para 100** perguntas alcançáveis, 17 → 20 extensões. [`docs/fatia-reuniao-invisivel.md`](docs/fatia-reuniao-invisivel.md) |
-| F4-O.3 | Dourado de OCR no acervo | notebook | 6 | **bloqueada em 28/08/2026** — não pelo dourado nem pelo motor: a passada com `--ocr` quarentena o acervo a 61 s por documento, com 0% de CPU. Laudo: [`docs/ocr-no-acervo-bloqueado.md`](docs/ocr-no-acervo-bloqueado.md) |
-| F4-R | Regime de máquina: a indexação varia 22× por estado do SO que o produto não observa | notebook (`esforco.py` emprestado até o R.3) | 6 | **R.1 ✅ PR #75** · **R.2 ✅ PR #77** · **R.3 neste PR** — mistura refutada; produto é P-only. Laudo: [`docs/afinidade-e-estado-de-maquina.md`](docs/afinidade-e-estado-de-maquina.md) |
+| F4-O.3 | Dourado de OCR no acervo | notebook | 6 | ✅ **fechado em 02/09/2026** — fila curta: 22/37 digitalizados ganharam trecho, mas as três fontes do dossiê continuaram fora do top-5; agregado n=59 empatou. OCR não virou padrão de ranking; a tentativa de OCR na indexação virou padrão no PR #81. [`docs/ocr-o3-dourado.md`](docs/ocr-o3-dourado.md) |
+| F4-R | Regime de máquina: a indexação varia 22× por estado do SO que o produto não observa | notebook (`esforco.py` emprestado até o R.3) | 6 | ✅ **fechado** — R.1 PR #75 · R.2 PR #77 · R.3 PR #78; mistura refutada, produto é P-only. Laudo: [`docs/afinidade-e-estado-de-maquina.md`](docs/afinidade-e-estado-de-maquina.md) |
 | F4-W / R5.1 | Watcher, com camada USN Journal | desktop | 6 | ✅ **fechado** — watcher vivo + catch-up USN |
 | F4-S | SharePoint = pasta sincronizada, só política e tela | notebook | 6 | ✅ **fechado** — placeholder visível no painel, sem hidratar |
 | R6.2+C4.2 · R7.1 · R7.2+C6.a · R6.3 | Rerank v2 · tools · descriptions · tempo/pasta | notebook | 7 | — |
@@ -947,8 +948,9 @@ Três consequências para a fila, e nenhuma delas muda ranking hoje:
 
 O instrumento é `eval/latencia.py`, as portas moram em
 `eval/portas-latencia.toml` e o raciocínio inteiro em
-[`docs/porta-de-latencia.md`](docs/porta-de-latencia.md). Falta só o índice
-inflado de 1M trechos, que é do desktop.
+[`docs/porta-de-latencia.md`](docs/porta-de-latencia.md). O inflador
+(`index/inflar.py`) e o piso `desktop-980ti` (9 200 ms @ 1M trechos) entram
+neste PR; o artefacto `/index-*/` continua gitignorado.
 
 **São duas portas, e essa é a primeira correção que a medição faz na proposta.**
 Uma porta que a máquina reprova no dia em que é escrita não guarda nada — fica

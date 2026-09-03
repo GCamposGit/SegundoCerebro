@@ -263,10 +263,10 @@ Onda 1 do notebook:
    térmico — a faixa reconcilia a linha de base de 1.145 ms que o ROADMAP
    registrava, que estava sem protocolo.
 
-   **Falta o índice inflado de 1M trechos, que é do desktop.** Quando ele
-   existir, `py -m eval.latencia --base <id> --maquina <nome> --porta` mede lá e
-   grava um `[regressao.<maquina>]` próprio — o arquivo já aceita quantas
-   máquinas existirem, e um piso medido num setup **não** vale no outro.
+   **Índice inflado do desktop (02/09/2026).** Método em `index/inflar.py`
+   (perturba vetores já gravados, sem encoder). Piso `desktop-980ti` gravado:
+   `search` p95 9 200 ms @ 1M trechos. O artefacto `/index-*/` continua
+   gitignorado. Um piso medido num setup **não** vale no outro.
 
 Depois da onda 1: `C6` (família de versões ≠ grupo de formatos), `F4-P`+`C3.a`,
 `R6.1`. **Não começar `retrieve/*` antes** — a régua tem de existir primeiro.

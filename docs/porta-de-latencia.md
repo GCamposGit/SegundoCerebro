@@ -210,3 +210,35 @@ py -m eval.latencia --base padrao --maquina notebook-15w --rodadas 3 --porta
 O último sai com código 1 se um piso de regressão for rompido. `--porta` sem
 `--maquina` é recusado: piso sem máquina não é porta, é número solto. Os
 relatórios vão para `docs/metricas-f4-r93-latencia*.md`, gitignorados por padrão.
+
+## Índice inflado — desktop (02/09/2026)
+
+As portas estão definidas. Faltava o índice de 1M trechos. Embeddar 1M
+documentos do zero nesta máquina é ~22 h; o método é **perturbar vetores que
+já existem**, a receita do `R4.1`, sem carregar o encoder.
+
+```bash
+py -m segundocerebro.index.inflar --origem index-sintetico --destino index-r93-1m --n 1000000 --seed 42
+py -m eval.latencia --base <id> --maquina desktop-980ti --rodadas 3 --porta
+```
+
+O destino é `/index-*/`, gitignorado. A guarda é `tests/test_inflar.py`: N
+trechos, chunks = vetores, busca densa ainda devolve, e o módulo não importa
+`fastembed`. Medir o 1M é a passada local; o pacote é o método.
+
+### Piso `desktop-980ti` — 02/09/2026
+
+Três passadas independentes, braço `search`, CPU, `e5-large`, índice inflado
+de 1 000 000 trechos, dourado sintético n=30:
+
+| Passada | p95 `search` | p50 por rodada |
+|---|---:|---|
+| 1 | 7 402 ms | 7 102 → 6 839 → 6 450 ms |
+| 2 | **8 039 ms** | 6 440 → 6 358 → 6 537 ms |
+| 3 | 7 632 ms | 6 573 → 6 416 → 6 452 ms |
+
+Piso: 1,15 × 8 039 = 9 245, arredondado para baixo a **9 200 ms**. Porta de
+produto (300 ms) reprova **24,7× a 26,8×** — é o alvo do `R4.1`. `read_note`
+passa (p95 ≤ 1,2 ms). `neighbors` e `search+rerank` não foram medidos nesta
+leva (sem grafo no inflado; um braço por passada). Relatórios gitignorados:
+`docs/metricas-f4-r93-latencia-desktop*.md`.
