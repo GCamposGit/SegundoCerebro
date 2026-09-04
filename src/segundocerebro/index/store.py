@@ -22,7 +22,6 @@ from __future__ import annotations
 import json
 import os
 import sqlite3
-import re
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
@@ -33,6 +32,7 @@ import numpy as np
 from ..ingest.chunking import Chunk
 from ..logger import get_logger
 from .esquema import ESQUEMA
+from .fts import caminho_pesquisavel, consulta_fts as consulta_fts
 from .quarentena import (
     BACKOFF_QUARENTENA_S as BACKOFF_QUARENTENA_S,
     MAX_TENTATIVAS_QUARENTENA as MAX_TENTATIVAS_QUARENTENA,
@@ -100,7 +100,6 @@ def recusar_se_indexando(diretorio: Path) -> None:
 
 # `ESQUEMA` morava aqui até 30/08/2026; ver `index/esquema.py`.
 
-TERMO = re.compile(r"[0-9A-Za-zÀ-ÿ][0-9A-Za-zÀ-ÿ\-\./_]*")
 TABELA_VETORES = "vetores"
 CAMPO_VETOR = "vetor"
 
@@ -111,23 +110,6 @@ class DimensaoIncompativel(RuntimeError):
 
 def agora() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
-
-
-def caminho_pesquisavel(path: str) -> str:
-    """Path with separators turned into spaces, so FTS tokenises it as words."""
-    return " ".join(path.replace("/", " ").replace("_", " ").replace("\\", " ").split())
-
-
-def consulta_fts(texto: str) -> str:
-    """Turn free text into a safe FTS5 MATCH expression.
-
-    Every term is quoted: `PO-ACME-007` must stay one token instead of becoming
-    `PO NOT ACME NOT 007`, which is how FTS5 reads a bare hyphen.
-    """
-    termos = TERMO.findall(texto)
-    if not termos:
-        return ""
-    return " OR ".join('"' + t.replace('"', '""') + '"' for t in termos)
 
 
 @dataclass(frozen=True)
@@ -182,8 +164,15 @@ class Store:
                 f"sqlite3.threadsafety = {sqlite3.threadsafety}; este código presume 3 "
                 "(serializado) para compartilhar a conexão entre threads"
             )
-        self.con = sqlite3.connect(self.diretorio / "registro.db", check_same_thread=False)
+        registro = self.diretorio / "registro.db"
+        novo_registro = not registro.exists()
+        self.con = sqlite3.connect(registro, check_same_thread=False)
         self.con.row_factory = sqlite3.Row
+        from .fts import configurar_sqlite
+
+        # ``auto_vacuum`` só pode mudar antes de WAL e da primeira tabela. A
+        # ordem é contrato: invertê-la deixa o PRAGMA em 0 sem levantar erro.
+        configurar_sqlite(self.con, novo=novo_registro)
         # WAL: leitor não bloqueia escritor. No journal padrão, um processo de
         # eval com o índice aberto derrubava a indexação com "database is
         # locked" no meio da passada — e o loop de background do LanceDB mantém
@@ -198,6 +187,7 @@ class Store:
 
         self._db = None
         self._tabela = None
+        self._ann_ativo: bool | None = None
 
     COLUNAS_ACRESCENTAVEIS = (
         ("familia_real", "TEXT DEFAULT ''"),
@@ -319,6 +309,18 @@ class Store:
         # loop de background da biblioteca
         self._tabela = None
         self._db = None
+        self._ann_ativo = None
+
+    def garantir_ann(self, n_vetores: int | None = None, *, limiar: int | None = None):  # noqa: ANN201
+        from .ann import garantir_no_store
+
+        return garantir_no_store(self, n_vetores, limiar=limiar)
+
+    def otimizar_fts(self) -> bool:
+        """Une segmentos FTS5 e recupera páginas aos poucos após a passada."""
+        from .fts import otimizar_fts
+
+        return otimizar_fts(self.con)
 
     # --- registro ---------------------------------------------------------
 
@@ -781,58 +783,29 @@ class Store:
     # --- busca ------------------------------------------------------------
 
     def buscar_denso(
-        self, vetor: np.ndarray, k: int, filtro: str | None = None, model_id: str | None = None
+        self,
+        vetor: np.ndarray,
+        k: int,
+        filtro: str | None = None,
+        model_id: str | None = None,
+        *,
+        usar_ann: bool | None = None,
+        nprobes: int | None = None,
+        refine_factor: int | None = None,
     ) -> list[Acerto]:
-        consulta = self.tabela.search(vetor.astype(np.float32), vector_column_name="vetor").metric("cosine")
-        if model_id:
-            # nunca comparar vetores de espaços diferentes na mesma busca
-            escapado = model_id.replace("'", "''")
-            filtro = f"model_id = '{escapado}'" + (f" AND ({filtro})" if filtro else "")
-        if filtro:
-            consulta = consulta.where(filtro, prefilter=True)
-        linhas = consulta.limit(k).to_list()
-        return [
-            Acerto(id=linha["id"], score=1.0 - float(linha.get("_distance", 0.0)), posicao=i)
-            for i, linha in enumerate(linhas, start=1)
-        ]
+        from .ann import buscar_denso
+
+        return buscar_denso(
+            self, vetor, k, filtro, model_id,
+            usar_ann=usar_ann, nprobes=nprobes, refine_factor=refine_factor,
+        )
 
     def buscar_lexical(
         self, texto: str, k: int, pesos_colunas: tuple[float, float, float] | None = None
     ) -> list[Acerto]:
-        """Busca lexical. `pesos_colunas` são os pesos de `texto`, `trilha` e `caminho`.
+        from .fts import buscar_lexical
 
-        `None` mantém `bm25(chunks_fts)` sem argumento — o padrão 1/1/1 do FTS5 e
-        o SQL exato que mediu tudo de F1 a F4. A alternativa (passar 1,1,1
-        sempre) daria o mesmo número em teoria e trocaria o caminho de código
-        medido por um equivalente não medido, o que já custou caro aqui.
-
-        Existe por causa de `C3.a`: com `caminho` valendo 1,0, o nome do arquivo
-        pontua **dentro** do bm25 e **de novo** na fusão, pelo `RanqueadorDeNome`.
-        O mesmo sinal vota duas vezes. Neste acervo, de nome informativo, isso
-        passa; num acervo de `IMG_2034.pdf` é ruído dobrado. O peso é de consulta,
-        não de índice — varrer não reindexa nada.
-        """
-        expressao = consulta_fts(texto)
-        if not expressao:
-            return []
-        if pesos_colunas is None:
-            score = "bm25(chunks_fts)"
-            parametros: tuple[object, ...] = (expressao, k)
-        else:
-            score = "bm25(chunks_fts, ?, ?, ?)"
-            parametros = (*(float(p) for p in pesos_colunas), expressao, k)
-        linhas = self.con.execute(
-            f"""
-            SELECT c.id AS id, {score} AS score
-            FROM chunks_fts JOIN chunks c ON c.rowid = chunks_fts.rowid
-            WHERE chunks_fts MATCH ?
-            ORDER BY score
-            LIMIT ?
-            """,
-            parametros,
-        ).fetchall()
-        # bm25() do SQLite é negativo, mais negativo = melhor
-        return [Acerto(id=l["id"], score=-float(l["score"]), posicao=i) for i, l in enumerate(linhas, start=1)]
+        return buscar_lexical(self, texto, k, pesos_colunas)
 
     def chunk(self, chunk_id: str) -> ChunkArmazenado | None:
         linha = self.con.execute(

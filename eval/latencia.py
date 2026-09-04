@@ -64,6 +64,15 @@ OPERACOES = ("search", "search+rerank", "read_note", "neighbors")
 7. Um harness que medisse zero e reportasse "dentro da porta" para uma
 ferramenta ausente seria pior que a ausência dela."""
 
+COMPONENTES_SEARCH = ("encoder", "denso", "bm25", "nome", "fusão+hidratação")
+"""Partes do braço `search`, medidas dentro da chamada entregue.
+
+O último item é residual por consulta: RRF, ordenação, leitura dos chunks,
+colapso de famílias e montagem da resposta. Separá-lo por subtração mantém a
+instrumentação aditiva — o relatório mede a mesma chamada que a porta, não uma
+segunda implementação parecida com ela.
+"""
+
 
 def percentil(valores, p: float) -> float:  # noqa: ANN001
     """Percentil por posto mais próximo (*nearest-rank*), 1-indexado.
@@ -203,6 +212,77 @@ def _cronometrar(chamada) -> float:  # noqa: ANN001
     return (time.perf_counter() - comecou) * 1000.0
 
 
+class _DecompositorSearch:
+    """Cronometra componentes sem trocar o caminho executado por `buscar_chunks`.
+
+    Os wrappers vivem apenas durante a medição e chamam os métodos originais.
+    Medir cada componente em chamadas separadas aqueceria caches diferentes e
+    repetiria o defeito que fez o primeiro R9.3 rotular outro braço de `search`.
+    """
+
+    def __init__(self, busca, *, relogio=time.perf_counter) -> None:  # noqa: ANN001
+        self.busca = busca
+        self.relogio = relogio
+        self._atual: dict[str, float] | None = None
+        self._valores: dict[str, list[float]] = {nome: [] for nome in COMPONENTES_SEARCH}
+        self._restauracoes: list[tuple[object, str, bool, object | None]] = []
+
+    def _envolver(self, objeto: object, atributo: str, componente: str) -> None:
+        original = getattr(objeto, atributo)
+        tinha_proprio = hasattr(objeto, "__dict__") and atributo in vars(objeto)
+        proprio = vars(objeto).get(atributo) if hasattr(objeto, "__dict__") else None
+        self._restauracoes.append((objeto, atributo, tinha_proprio, proprio))
+
+        def cronometrado(*args, **kwargs):  # noqa: ANN002, ANN003, ANN202
+            comecou = self.relogio()
+            try:
+                return original(*args, **kwargs)
+            finally:
+                if self._atual is not None:
+                    gasto = (self.relogio() - comecou) * 1000.0
+                    self._atual[componente] = self._atual.get(componente, 0.0) + gasto
+
+        setattr(objeto, atributo, cronometrado)
+
+    def __enter__(self) -> "_DecompositorSearch":
+        self._envolver(self.busca.embedder, "embed_consulta", "encoder")
+        self._envolver(self.busca.store, "buscar_denso", "denso")
+        self._envolver(self.busca.store, "buscar_lexical", "bm25")
+        self._envolver(self.busca, "_nome_por_chunk", "nome")
+        return self
+
+    def __exit__(self, *_exc) -> None:  # noqa: ANN002
+        for objeto, atributo, tinha_proprio, proprio in reversed(self._restauracoes):
+            if tinha_proprio:
+                setattr(objeto, atributo, proprio)
+            else:
+                delattr(objeto, atributo)
+        self._restauracoes.clear()
+        self._atual = None
+
+    def iniciar(self) -> None:
+        if self._atual is not None:
+            raise RuntimeError("decomposição de search já iniciada")
+        self._atual = {}
+
+    def encerrar(self, total_ms: float) -> None:
+        if self._atual is None:
+            raise RuntimeError("decomposição de search não iniciada")
+        for nome in COMPONENTES_SEARCH[:-1]:
+            if nome in self._atual:
+                self._valores[nome].append(self._atual[nome])
+        medido = sum(self._atual.values())
+        self._valores["fusão+hidratação"].append(max(0.0, total_ms - medido))
+        self._atual = None
+
+    def amostras(self) -> tuple[Amostra, ...]:
+        return tuple(
+            Amostra(nome, tuple(self._valores[nome]))
+            for nome in COMPONENTES_SEARCH
+            if self._valores[nome]
+        )
+
+
 @dataclass(frozen=True)
 class Medicao:
     """As amostras e o que mais precisa ser dito sobre elas para não enganarem."""
@@ -211,6 +291,7 @@ class Medicao:
     rodadas: int
     braco: str = "search"
     """Qual braço de busca esta passada mediu. Um por passada, ver `medir`."""
+    componentes_search: tuple[Amostra, ...] = ()
     vizinhos_vazios: int = 0
     vizinhos_medidos: int = 0
 
@@ -243,7 +324,15 @@ class Medicao:
         ]
 
 
-def medir(recursos, consultas, *, rodadas: int = RODADAS, busca=None, rotulo: str = "search") -> Medicao:  # noqa: ANN001
+def medir(  # noqa: ANN001
+    recursos,
+    consultas,
+    *,
+    rodadas: int = RODADAS,
+    busca=None,
+    rotulo: str = "search",
+    decompor_search: bool = False,
+) -> Medicao:
     """Mede as operações sobre as consultas do conjunto dourado.
 
     As consultas são as **reais**, e não strings sintéticas, porque a cauda de
@@ -284,40 +373,53 @@ def medir(recursos, consultas, *, rodadas: int = RODADAS, busca=None, rotulo: st
     tem_grafo = bool(store.paths_com_mencoes())
     vizinhos_vazios = vizinhos_medidos = 0
 
-    for _ in range(rodadas):
-        for consulta in consultas:
-            # Cronometrado à mão em vez de por `_cronometrar`, porque aqui o
-            # resultado é insumo das duas medições seguintes.
-            comecou = time.perf_counter()
-            acertos = busca.buscar_chunks(consulta, K_PADRAO)
-            tempos[rotulo].append((time.perf_counter() - comecou) * 1000.0)
-            if not acertos:
-                continue
-
-            alvo = acertos[0]
-            # As duas chamadas, na ordem em que `mcp.server.read_note` as faz:
-            # ele resolve o trecho e só então busca os vizinhos. Medir só a
-            # segunda omitiria uma consulta ao SQLite — pequena, mas a porta
-            # existe para descrever a ferramenta, não uma aproximação dela.
-            def um_read_note(a=alvo) -> None:
-                store.chunk(a.chunk_id)
-                store.vizinhos(a.chunk_id, JANELA_PADRAO)
-
-            tempos["read_note"].append(_cronometrar(um_read_note))
-            if tem_grafo:
-                # Conta os vazios porque `neighbors` rápido e `neighbors` que não
-                # devolve nada são a mesma medição vista de fora — e a segunda
-                # não é uma porta cumprida, é uma porta sem assunto.
+    decompositor = _DecompositorSearch(busca) if decompor_search else None
+    if decompositor is not None:
+        decompositor.__enter__()
+    try:
+        for _ in range(rodadas):
+            for consulta in consultas:
+                # Cronometrado à mão em vez de por `_cronometrar`, porque aqui o
+                # resultado é insumo das duas medições seguintes.
+                if decompositor is not None:
+                    decompositor.iniciar()
                 comecou = time.perf_counter()
-                ligados = andar_no_grafo(store, alvo.path, limite=LIMITE_VIZINHOS)
-                tempos["neighbors"].append((time.perf_counter() - comecou) * 1000.0)
-                vizinhos_medidos += 1
-                vizinhos_vazios += not ligados
+                acertos = busca.buscar_chunks(consulta, K_PADRAO)
+                total_ms = (time.perf_counter() - comecou) * 1000.0
+                tempos[rotulo].append(total_ms)
+                if decompositor is not None:
+                    decompositor.encerrar(total_ms)
+                if not acertos:
+                    continue
+
+                alvo = acertos[0]
+                # As duas chamadas, na ordem em que `mcp.server.read_note` as faz:
+                # ele resolve o trecho e só então busca os vizinhos. Medir só a
+                # segunda omitiria uma consulta ao SQLite — pequena, mas a porta
+                # existe para descrever a ferramenta, não uma aproximação dela.
+                def um_read_note(a=alvo) -> None:
+                    store.chunk(a.chunk_id)
+                    store.vizinhos(a.chunk_id, JANELA_PADRAO)
+
+                tempos["read_note"].append(_cronometrar(um_read_note))
+                if tem_grafo:
+                    # Conta os vazios porque `neighbors` rápido e `neighbors` que não
+                    # devolve nada são a mesma medição vista de fora — e a segunda
+                    # não é uma porta cumprida, é uma porta sem assunto.
+                    comecou = time.perf_counter()
+                    ligados = andar_no_grafo(store, alvo.path, limite=LIMITE_VIZINHOS)
+                    tempos["neighbors"].append((time.perf_counter() - comecou) * 1000.0)
+                    vizinhos_medidos += 1
+                    vizinhos_vazios += not ligados
+    finally:
+        if decompositor is not None:
+            decompositor.__exit__(None, None, None)
 
     return Medicao(
         amostras=tuple(Amostra(op, tuple(tempos[op])) for op in OPERACOES if tempos[op]),
         rodadas=rodadas,
         braco=rotulo,
+        componentes_search=decompositor.amostras() if decompositor is not None else (),
         vizinhos_vazios=vizinhos_vazios,
         vizinhos_medidos=vizinhos_medidos,
     )
@@ -387,6 +489,28 @@ def render(  # noqa: ANN001
             f"| `{a.operacao}` | {a.n} | {num(a.p50)} ms | **{num(a.p95)} ms** "
             f"| {num(a.minimo)} ms | {num(a.maximo)} ms | {num(a.desvio)} ms |"
         )
+    if medicao.componentes_search:
+        linhas += [
+            "",
+            "## Decomposição de `search`",
+            "",
+            "Os componentes são cronômetros dentro da mesma chamada acima; não são braços",
+            "executados à parte. `fusão+hidratação` é o residual por consulta: RRF, ordenação,",
+            "leitura dos chunks, colapso de famílias e montagem da resposta.",
+            "",
+            "| Componente | n | p50 | p95 |",
+            "|---|---:|---:|---:|",
+        ]
+        for componente in medicao.componentes_search:
+            linhas.append(
+                f"| `{componente.operacao}` | {componente.n} | {num(componente.p50)} ms "
+                f"| **{num(componente.p95)} ms** |"
+            )
+        linhas += [
+            "",
+            "Percentis de componentes não são aditivos: a consulta que ocupa o p95 de um",
+            "componente pode não ser a que ocupa o p95 do total.",
+        ]
     deriva = medicao.deriva()
     if deriva:
         sequencia = " → ".join(f"{num(v)} ms" for v in deriva)
@@ -493,6 +617,11 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901
         "medir os dois no mesmo laço contamina o barato em 53%% nesta máquina",
     )
     parser.add_argument(
+        "--decompor-search",
+        action="store_true",
+        help="mede encoder, denso, bm25, nome e fusão+hidratação dentro do braço search",
+    )
+    parser.add_argument(
         "--candidatos",
         type=int,
         help="quantos candidatos o reranker reavalia — é o botão de latência dele. "
@@ -511,6 +640,9 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901
         # desktop e reprova num notebook de 15 W. `--porta` sem `--maquina`
         # produziria um verde ou um vermelho que não significa nada.
         log.error("--porta exige --maquina: piso de regressão é por máquina, não absoluto")
+        return 2
+    if args.decompor_search and args.rerank:
+        log.error("--decompor-search mede o braço search sem reranking; rode um braço por passada")
         return 2
 
     try:
@@ -570,7 +702,14 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901
 
     estat = recursos.store.estatisticas()
     try:
-        medicao = medir(recursos, consultas, rodadas=args.rodadas, busca=braco, rotulo=rotulo)
+        medicao = medir(
+            recursos,
+            consultas,
+            rodadas=args.rodadas,
+            busca=braco,
+            rotulo=rotulo,
+            decompor_search=args.decompor_search,
+        )
     finally:
         recursos.store.fechar()
 

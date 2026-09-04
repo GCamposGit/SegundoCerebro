@@ -818,7 +818,7 @@ privada do desktop **não** trava nenhum destes:
 | R6.1 | Autotune: peso por base, fábrica vira prior | notebook | 2 | mecanismo já; critério de generalização espera o `E1` (era `R9.1`) |
 | C7.a · C7.d | Fórmula sem cache (recálculo LibreOffice) · rota do CSV | **desktop** | 3 | C7.d ✅ PR #34; C7.a ✅ PR #35 |
 | R1.4 · R5.2 · R3.2 | Quarentena · orçamento de recursos · dois passes | **desktop** | 3 | ✅ **fechado** PR #36 |
-| R4.1 · R3.3 | ANN · quantização INT8 | desktop | 4 | depois da porta de latência |
+| R4.1 · R4.2 · R3.3 | ANN · higiene FTS · quantização INT8 | desktop | 4 | ANN/FTS implementados em 03/09; portas de 150/100 ms ainda abertas; INT8 depois |
 | R3.1 + C4.1 + R2.1 | Modelo (com fatia cross-lingual) + contexto no chunk — **um rebuild só** | desktop roda, notebook mede | 5 | depois da régua multi-perfil |
 | C7.b · C7.c | Cartão de modelo de planilha; número é payload no modelo | desktop | 5 | — |
 | C2 + C3.b–d | Glossário automático do corpus + reescrita lexical (mesmo ponto de código) | desktop extrai, notebook mede | 6 | — |
@@ -897,7 +897,7 @@ três não**, e duas delas mudam prioridade.
 | "corpus dev: 434 docs / 11.208 chunks" | **2.156 / 98.326** | O ponto de partida da extrapolação é 8× maior. A direção (1000×) continua de pé |
 | "10–30% dos PDFs são imagem" | **5,6%** — 37 de 665 | `R1.2` (OCR) segue P0 **pelo produto**, não por volume local. O ganho aqui é de 3 perguntas do dourado |
 | "`pyproject.toml` declara `dependencies = []`" | ✅ verdade | `R8.1` confirmado como pré-requisito |
-| "busca vetorial é flat (exata)" | ✅ verdade — nenhum `create_index` no `store.py` | `R4.1` confirmado |
+| "busca vetorial é flat (exata)" | era verdade; R4.1 cria IVF-PQ automaticamente acima de 200k e mantém fallback flat | `R4.1` implementado em 03/09; recall 0,98, p95 denso 349 ms ainda acima da porta |
 | "`.pytest_cache/` versionado" | ❌ **falso** — está no `.gitignore:7` e `git ls-files` não o lista | Item 1 da §10 do dossiê sai |
 | "escritas pelo usuário: o subconjunto mais fraco, recall@1 0,500" | ❌ **é o mais forte: 0,667**, acima do rascunho (0,538) | A motivação de `R2.1` muda: o fraco é `multihop` (0,250) |
 | "perguntas temporais: recall@1 0,500" | ❌ **0,714**, e 1,000 em recall@3/@5/@10 — o melhor tipo | `R6.3` cai de P1 para P2: filtro de tempo é bom para acervo de décadas, mas não resolve fraqueza medida |
@@ -990,9 +990,11 @@ Três coisas que a medição mudou, e que valem além deste pacote:
 `overview` **não entra** nas portas: o dossiê lhe dá 200 ms e ele não existe (é
 `R7.1`, onda 7). Porta de ferramenta ausente mede zero e reporta aprovado.
 
-A próxima medição que falta é a **decomposição de `search`** — quanto é encoder,
-quanto é varredura densa, quanto é bm25 e nome. Sem ela, "ANN resolve" é
-hipótese. É a primeira coisa que `R4.1` deve medir.
+A decomposição de `search` foi medida no milhão em 03/09/2026. Depois do ANN,
+o p95 ficou em 349 ms no denso e 1 708 ms no BM25; nome e fusão ficaram abaixo
+de 10 ms. R4.1 retirou a varredura de dezenas de segundos, mas não fechou sua
+porta de 150 ms; R4.2 consolidou segmentos, mas também não fechou 100 ms. Ver
+[`docs/porta-de-latencia.md`](docs/porta-de-latencia.md).
 
 E uma limitação declarada em vez de escondida: **a porta não roda no CI.** Lá não
 há acervo, índice nem encoder. Ela é local e manual, antes de fundir mudança de

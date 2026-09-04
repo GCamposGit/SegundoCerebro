@@ -1208,6 +1208,11 @@ def indexar(
                 consistencia["chunks"],
                 consistencia["diferenca"],
             )
+    passada_global = passada_completa and prefixo is None and apenas_onda is None
+    if passada_global and not consistencia["diferenca"]:
+        from .manutencao import manter_indices
+
+        manter_indices(store, int(consistencia["vetores"]), progresso.chunks)
     progresso.cobertura = store.cobertura_modelos()
     progresso.quarentena = max(progresso.quarentena, int(store.estatisticas().get("quarentena") or 0))
     if publicador is not None:

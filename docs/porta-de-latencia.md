@@ -185,29 +185,32 @@ neighbors        = 50
 
 ## O que isso decide na fila
 
-- **`R4.1` (ANN) e `R3.3` (INT8) ganham alvo e ordem de grandeza.** A busca densa
-  é **exata e plana** — nenhum `create_index` no `store.py`, conferido no
-  `ROADMAP.md`. A parte do orçamento que escala com o acervo é essa varredura, e
-  o alvo do dossiê é 10× o índice de hoje. Sem mudar a classe do algoritmo, a
-  porta de 300 ms não é alcançável por ajuste.
+- **`R4.1` (ANN) ganhou medida e implementação.** Acima de 200 mil vetores o
+  indexador cria IVF-PQ e retreina depois de 30% de crescimento; a busca exata
+  continua disponível como fallback e referência. No milhão inflado, ANN levou
+  o braço denso a 349–370 ms p95 no caminho entregue. É ganho de classe, mas
+  ainda reprova a meta de 150 ms do pacote.
 - **`R6.2` (rerank v2) tem uma meta impossível, e agora dá para dizer por quê.**
   O pacote pede "30 candidatos em menos de 500 ms em CPU de 4 núcleos". A 761 ms
   por par, 30 candidatos custam ~22,8 s — **46× a meta**. Não é ajuste: é a
   classe do cross-encoder neste hardware. `R6.2` tem de escolher entre GPU (a
   rota da F3.6) ou outra classe de reranqueador.
-- **A próxima medição que falta é a decomposição de `search`.** Quanto dos 2,5 s
-  é encoder, quanto é varredura densa, quanto é bm25 e nome. Sem ela, "ANN
-  resolve" é hipótese. É a primeira coisa que `R4.1` deve medir.
+- **A decomposição mostrou dois gargalos, não um.** Depois do ANN, BM25 ficou em
+  1 708 ms p95 contra 349 ms do denso, 381 ms do encoder, 5 ms do nome e 9 ms
+  da fusão+hidratação. Portanto R4.2 é obrigatório; INT8 sozinho não fecha a
+  porta de produto.
 
 ## Reproduzir
 
 ```bash
 py -m eval.latencia --base padrao --maquina notebook-15w --rodadas 3
 py -m eval.latencia --base padrao --maquina notebook-15w --rodadas 1 --rerank
+py -m eval.latencia --base padrao --maquina notebook-15w --rodadas 3 --decompor-search
 py -m eval.latencia --base padrao --maquina notebook-15w --rodadas 3 --porta
+py -m eval.ann --base padrao --construir --out docs/metricas-f4-r41-ann.md
 ```
 
-O último sai com código 1 se um piso de regressão for rompido. `--porta` sem
+O comando com `--porta` sai com código 1 se um piso de regressão for rompido. `--porta` sem
 `--maquina` é recusado: piso sem máquina não é porta, é número solto. Os
 relatórios vão para `docs/metricas-f4-r93-latencia*.md`, gitignorados por padrão.
 
@@ -242,3 +245,61 @@ produto (300 ms) reprova **24,7× a 26,8×** — é o alvo do `R4.1`. `read_note
 passa (p95 ≤ 1,2 ms). `neighbors` e `search+rerank` não foram medidos nesta
 leva (sem grafo no inflado; um braço por passada). Relatórios gitignorados:
 `docs/metricas-f4-r93-latencia-desktop*.md`.
+
+## R4.1 e R4.2 no milhão — desktop (03/09/2026)
+
+A decomposição foi executada dentro da mesma chamada entregue por `search`.
+Ela mostrou que nome e fusão eram irrelevantes para a cauda; varredura densa e
+FTS respondiam pelo custo. O índice IVF-PQ foi então criado automaticamente com
+4 000 partições e 128 subvetores. A configuração de consulta usa 256 partições
+e reordena exatamente um orçamento constante de 10 mil candidatos — não um
+fator constante que cresceria de 10 mil para 100 mil quando o produto pede 200
+candidatos para a fusão.
+
+| Passada (n=10, 1 rodada) | p95 `search` | encoder | denso | bm25 | nome | fusão+hidratação |
+|---|---:|---:|---:|---:|---:|---:|
+| flat, antes do ANN | 54 319 ms | 446 ms | 34 915 ms | 18 899 ms | 5 ms | 59 ms |
+| ANN, refino proporcional incorreto | 3 738 ms | 295 ms | 1 484 ms | 1 967 ms | 5 ms | 53 ms |
+| ANN, orçamento absoluto de 10 mil | 2 592 ms | 484 ms | **370 ms** | 2 011 ms | 5 ms | 13 ms |
+| após `FTS5 optimize` | **2 379 ms** | 381 ms | **349 ms** | **1 708 ms** | 5 ms | 9 ms |
+
+As passadas sofrem estado térmico e cache, portanto percentis entre linhas não
+são uma ablação pareada. A conclusão robusta é a ordem de grandeza: ANN retirou
+a varredura de dezenas de segundos; BM25 passou a dominar o caminho.
+
+### Guarda de qualidade do ANN
+
+`eval.ann` calcula uma referência flat com `bypass_vector_index` e mede recall@20
+por ID para as mesmas consultas. O dourado de escala disponível tem 10 perguntas,
+não as 100 pedidas pelo dossiê; por isso este resultado permite o padrão local,
+mas **não encerra o pacote**.
+
+- `nprobes=256`, sem refino: recall médio 0,060;
+- `nprobes=256`, refino 100×: recall médio 0,900;
+- `nprobes=256`, refino 500× (10 mil candidatos em k=20): recall médio **0,980**,
+  pior consulta 0,900, p95 denso isolado 288 ms.
+
+O corpus é deliberadamente adversarial para recall por ID: o milhão nasceu de
+apenas **18 vetores-semente**, cada qual replicado ~55 mil vezes com ruído e ID
+novo. Mesmo assim a porta é estrita; réplica semanticamente equivalente não foi
+contada como acerto. A meta de qualidade (≥0,95) passa, a de latência densa
+(<150 ms) ainda não.
+
+### Higiene FTS5
+
+`Store` agora dimensiona `cache_size` e `mmap_size` pela RAM livre; registros
+novos nascem com vacuum incremental. Ao fim de uma passada global consistente,
+o indexador consolida os segmentos FTS e recupera páginas incrementalmente
+quando o banco permite. No registro antigo do milhão, `optimize` levou 3,7 s e
+o p95 do BM25 foi de 2 011 para 1 708 ms nesta sequência. A meta de 100 ms
+reprova. A alternativa `ORDER BY rank` também foi medida de forma pareada e
+refutada: média de 1 592 ms contra 1 279 ms do `bm25()` explícito; não entrou.
+
+O tamanho de transação também foi auditado: o inflador escreve **8 192 chunks
+por commit**, dentro do alvo de 5–10 mil. O indexador real continua confirmando
+por documento, contrato de retomada que limita a perda após queda a um arquivo;
+agrupar documentos só para perseguir o número do checklist pioraria esse limite.
+
+R4.1 e R4.2 ficam, portanto, **implementados mas com as portas de latência
+abertas**. O fallback flat preserva correção; Tantivy continua fora enquanto o
+gatilho documentado de 5M+ não existir.
