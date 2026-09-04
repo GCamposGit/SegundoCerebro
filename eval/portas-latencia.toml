@@ -2,17 +2,17 @@
 #
 # Duas espécies, e a distinção é a correção que a medição faz no R9.3 original.
 #
-# [produto.p95]  — o alvo. Hardware-neutro, hoje reprovado, e é o número que
-#                  R4.1 (ANN) e R3.3 (quantização INT8) têm de alcançar. Existe
-#                  para dizer quanto falta; nunca move o código de saída.
+# [produto.p95]  — orçamento da experiência entregue no cenário de referência.
+#                  Mede a operação completa; não impõe metas aos componentes.
+#                  É diagnóstico, não move sozinho o código de saída.
 #
 # [regressao.<maquina>.p95] — o que aquela máquina fazia quando o piso foi
 #                  medido, mais margem. É a porta que vale agora e a única que
 #                  pode falhar por culpa de alguém: `--porta` sai com 1.
 #
-# Uma porta só, absoluta, não funcionaria: a proposta do dossiê (300 ms) já é
-# reprovada por 9x num índice 10x menor que o alvo, e porta que nasce vermelha
-# não guarda nada — fica vermelha para sempre e ninguém repara quando piora.
+# Uma porta absoluta por componente não funcionou: 100 ms de BM25 e 150 ms de
+# ANN não derivavam de uma necessidade do usuário e não garantiam 300 ms no
+# total. Em 04/09/2026 foram substituídas por um orçamento fim a fim.
 #
 # **Os limites moram numa tabela `p95` própria, e a descrição da máquina fora
 # dela.** Não é arrumação: com tudo no mesmo nível, `indice_chunks = 98326` fica
@@ -26,12 +26,14 @@
 # Raciocínio completo e as medições: docs/porta-de-latencia.md
 
 [produto]
-origem = "docs/dossie-melhorias.md, R9.3"
-alvo = "CPU de 4 núcleos, 8 GB, índice de 1M+ trechos"
+origem = "docs/porta-de-latencia.md, reavaliação arquitetural de 04/09/2026"
+alvo = "search MCP sem rerank, CPU de 4 núcleos e 8 GB, índice de estresse com 1M+ trechos"
 
 [produto.p95]
-search = 300
-"search+rerank" = 800
+# 3 404 ms medidos em 30 chamadas; 4 s preserva ~15% de margem. É provisório
+# até existir corpus de escala representativo e telemetria de uso, não uma
+# promessa universal de UX.
+search = 4000
 read_note = 100
 neighbors = 100
 

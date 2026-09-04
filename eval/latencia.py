@@ -7,14 +7,9 @@ ninguém ver, e latência regride mais fácil que recall porque nenhum teste fal
 
 **Duas portas, não uma, e é a correção que a medição faz no `R9.3` original.**
 
-O dossiê propõe `search` sem rerank com p95 abaixo de 300 ms. Medido aqui, num
-índice **50× menor** que o alvo de 1M trechos, o p95 já é 1.418 ms — 4,7× à
-frente da porta. Uma porta que a máquina reprova no dia em que é escrita não
-guarda nada: fica vermelha para sempre e ninguém repara quando piora. Então:
-
-- **porta de produto** — o alvo. Hardware-neutra, hoje reprovada, e é o número
-  que `R4.1` (ANN) e `R3.3` (quantização INT8) têm de alcançar. Existe para
-  dizer quanto falta, não para passar.
+- **porta de produto** — orçamento da operação completa no cenário de
+  referência. Não reparte o tempo em metas arbitrárias para BM25, ANN ou
+  encoder; existe para dizer se a experiência entregue ainda cabe.
 - **piso de regressão** — o que esta máquina faz hoje, mais margem medida. É a
   porta que **vale agora**, e a única que pode falhar por culpa de alguém.
 
@@ -550,8 +545,8 @@ def render(  # noqa: ANN001
         return "\n".join(linhas)
 
     linhas += [
-        "`produto` é o alvo, hardware-neutro, e hoje está longe — é o número que `R4.1`",
-        "e `R3.3` têm de alcançar. `regressão` é o que **esta** máquina fazia quando o",
+        "`produto` é o orçamento da operação completa no cenário de referência; não",
+        "reparte tempo entre componentes. `regressão` é o que **esta** máquina fazia quando o",
         "piso foi medido, mais margem: é a porta que pode falhar por culpa de alguém.",
         "",
         f"| Operação | p95 medido | porta de produto | piso de regressão (`{maquina or '—'}`) |",

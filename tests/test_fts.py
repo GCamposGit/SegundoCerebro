@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from segundocerebro.index.fts import politica_sqlite
+from segundocerebro.index.fts import consulta_fts, consulta_fts_seletiva, politica_sqlite
 from segundocerebro.index.store import Store
 from tests.falsos import chunk
 
@@ -44,5 +44,61 @@ def test_otimizar_fts_preserva_resultado_e_integridade(tmp_path) -> None:  # noq
         assert store.con.execute(
             "INSERT INTO chunks_fts(chunks_fts) VALUES('integrity-check')"
         ).fetchone() is None
+    finally:
+        store.fechar()
+
+
+def test_busca_adia_hidratacao_sem_mudar_ranking(tmp_path) -> None:  # noqa: ANN001
+    """O top-k sem o JOIN precoce é idêntico ao SQL antigo, inclusive scores."""
+    store = Store(tmp_path / "indice", 8)
+    try:
+        store.gravar_textos(
+            [
+                chunk("c1", "contrato.md", 0, "reajuste anual do contrato"),
+                chunk("c2", "ata.md", 0, "reajuste semestral"),
+                chunk("c3", "anexo.md", 0, "contrato sem relação"),
+            ]
+        )
+        store.commit()
+        expressao = consulta_fts("reajuste contrato")
+        referencia = store.con.execute(
+            """
+            SELECT c.id, bm25(chunks_fts) AS score
+            FROM chunks_fts JOIN chunks c ON c.rowid = chunks_fts.rowid
+            WHERE chunks_fts MATCH ?
+            ORDER BY score
+            LIMIT ?
+            """,
+            (expressao, 3),
+        ).fetchall()
+
+        obtido = store.buscar_lexical("reajuste contrato", 3)
+
+        assert [(a.id, -a.score) for a in obtido] == [
+            (linha["id"], linha["score"]) for linha in referencia
+        ]
+    finally:
+        store.fechar()
+
+
+def test_consulta_poda_so_termo_no_piso_de_idf_e_tem_fallback(tmp_path) -> None:  # noqa: ANN001
+    store = Store(tmp_path / "indice", 8)
+    try:
+        store.gravar_textos(
+            [
+                chunk("c1", "contrato.md", 0, "de contrato"),
+                chunk("c2", "dois.md", 0, "de ata"),
+                chunk("c3", "tres.md", 0, "de pauta"),
+                chunk("c4", "quatro.md", 0, "de norma"),
+                chunk("c5", "cinco.md", 0, "relatório"),
+            ]
+        )
+        store.commit()
+
+        assert consulta_fts_seletiva(store.con, "de contrato") == '"contrato"'
+        assert consulta_fts_seletiva(store.con, "de") == '"de"'
+        assert consulta_fts_seletiva(store.con, "de PO-ACME-007") == '"PO-ACME-007"'
+        assert [a.id for a in store.buscar_lexical("de contrato", 5)] == ["c1"]
+        assert len(store.buscar_lexical("de contrato", 5, podar_ubiquos=False)) == 4
     finally:
         store.fechar()

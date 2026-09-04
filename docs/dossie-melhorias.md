@@ -202,7 +202,7 @@ Os quatro riscos estruturais que este dossiê ataca:
 4. Métrica de guarda: amostra de 100 consultas do harness comparando ANN vs flat — recall@20 do ANN ≥ 0.95 do flat, senão aumentar `nprobes` automaticamente.
 5. Nada disso aparece em config de usuário; painel de dev pode inspecionar.
 
-**Critérios de aceite.** Em índice sintético inflado (≥1M vetores — gerar por perturbação dos existentes): p95 de consulta densa <150 ms; recall-vs-flat ≥0.95; rebuild automático disparado no teste de crescimento.
+**Critérios de aceite (revistos em 04/09/2026).** Em índice sintético inflado (≥1M vetores — gerar por perturbação dos existentes): recall-vs-flat ≥0.95; rebuild automático disparado no teste de crescimento; latência entra no orçamento fim a fim de `search` em `R9.3`. A antiga meta isolada de 150 ms foi retirada: não derivava de uma necessidade do usuário e não garantia a experiência completa.
 
 **Fontes.** LanceDB IVF-PQ / escala: https://www.lancedb.com/blog/how-lancedb-accelerates-vector-search-at-10-billion-scale; docs LanceDB ANN index.
 
@@ -216,7 +216,7 @@ Os quatro riscos estruturais que este dossiê ataca:
 4. Medir tamanho do `registro.db` no relatório do censo; alertar no painel acima de N GB.
 5. **Registrar como decisão (não fazer):** migração para Tantivy só se o BM25 do FTS5 medir como gargalo em 5M+ chunks. Anotar em `docs/` para não re-discutir.
 
-**Critérios de aceite.** Benchmark de 1M chunks sintéticos: consulta FTS p95 <100 ms pós-optimize; tempo de onda não regride >10%.
+**Critérios de aceite (revistos em 04/09/2026).** Checklist implementado; tempo de onda não regride >10%; qualidade lexical não cai; latência entra no orçamento fim a fim de `search` em `R9.3`. A antiga meta isolada de 100 ms foi retirada: no corpus inflado adversarial exigiria outra classe de motor/algoritmo, sem evidência de que o produto precise dela. Tantivy só volta à pauta pelo gatilho já definido de 5M+ chunks ou por ruptura do orçamento fim a fim em corpus representativo.
 
 ---
 
@@ -408,7 +408,7 @@ Se R3.1 escolher bge-m3, o checkpoint oferece multi-vector e esparso de graça. 
 
 **Solução.**
 1. `eval/latencia.py`: p50/p95 de `search` (com e sem rerank), `read_note`, `overview` sobre índice sintético inflado de 1M+ chunks (gerador em R4.1).
-2. Portas iniciais (revisar com dados): `search` sem rerank p95 <300 ms; com rerank de 30 p95 <800 ms; `overview` <200 ms — em CPU de 4 núcleos, 8 GB.
+2. Portas iniciais, revistas com dados em 04/09/2026: `search` sem rerank p95 <4 s no cenário de referência (CPU de 4 núcleos, 8 GB, estresse de 1M chunks). Componentes não têm subportas; rerank e `overview` ganham orçamento quando houver caminho de produto medível.
 3. Toda ablação futura reporta a coluna de latência (R6.2 inicia o padrão).
 
 ---

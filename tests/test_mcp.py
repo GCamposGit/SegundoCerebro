@@ -103,7 +103,14 @@ def chamar(servidor, nome: str, **kwargs) -> dict:  # noqa: ANN001
 
 
 SUPERFICIE = {
-    "search", "read_note", "neighbors", "list_folder", "outline", "get_document", "pack_folder", "overview",
+    "search",
+    "read_note",
+    "neighbors",
+    "list_folder",
+    "outline",
+    "get_document",
+    "pack_folder",
+    "overview",
 }
 """As sete ferramentas, e por que cada grupo está aqui.
 
@@ -137,7 +144,9 @@ def test_nenhuma_ferramenta_gera_texto(servidor) -> None:  # noqa: ANN001
 
     assert not (nomes & proibidas)
     for t in ferramentas(servidor).values():
-        assert not any(p in (t.description or "").lower() for p in ("gera", "resume", "responde a pergunta"))
+        assert not any(
+            p in (t.description or "").lower() for p in ("gera", "resume", "responde a pergunta")
+        )
 
 
 def test_toda_ferramenta_descreve_quando_usar(servidor) -> None:  # noqa: ANN001
@@ -271,7 +280,7 @@ def test_sem_base_a_superficie_nao_muda(tmp_path: Path) -> None:
 
 
 def test_search_anexa_vizinhos_sem_misturar_com_o_trecho(servidor) -> None:  # noqa: ANN001
-    """"A resposta estava no parágrafo seguinte" — mas a procedência é do trecho.
+    """ "A resposta estava no parágrafo seguinte" — mas a procedência é do trecho.
 
     O vizinho vai em `antes`/`depois`, nunca dentro de `texto`: misturar faria o
     cliente citar como achado um texto que o ranqueador nunca pontuou.
@@ -296,7 +305,9 @@ def test_contexto_tem_teto(servidor) -> None:  # noqa: ANN001
     from segundocerebro.mcp.server import CONTEXTO_MAX
 
     generoso = chamar(servidor, "search", consulta="contrato", k=1, contexto=99)["trechos"][0]
-    no_teto = chamar(servidor, "search", consulta="contrato", k=1, contexto=CONTEXTO_MAX)["trechos"][0]
+    no_teto = chamar(servidor, "search", consulta="contrato", k=1, contexto=CONTEXTO_MAX)[
+        "trechos"
+    ][0]
     assert generoso.get("antes", "") == no_teto.get("antes", "")
     assert generoso.get("depois", "") == no_teto.get("depois", "")
 
@@ -314,7 +325,9 @@ def test_k_e_janela_saem_da_base(tmp_path: Path) -> None:
     from segundocerebro.config import Busca
 
     base = _base(id="a", indice=tmp_path / "i", busca=Busca(k=3, k_max=5, janela=2, janela_max=4))
-    ferrs = ferramentas(construir(Recursos(indice=tmp_path / "i", modelo="falso", threads=1, base=base)))
+    ferrs = ferramentas(
+        construir(Recursos(indice=tmp_path / "i", modelo="falso", threads=1, base=base))
+    )
 
     assert ferrs["search"].input_schema["properties"]["k"]["default"] == 3
     assert ferrs["read_note"].input_schema["properties"]["janela"]["default"] == 2
@@ -543,10 +556,22 @@ def test_overview_com_datas_reais_formata_periodo(tmp_path: Path) -> None:
     store = Store(tmp_path / "indice_com_datas", dim=DIM)
     emb = EmbedderFalso()
     store.registrar_documento(
-        path="Doc1.txt", raiz="r", tamanho=10, mtime=1704067200.0, status="ok", n_chunks=1, model_id=emb.model_id
+        path="Doc1.txt",
+        raiz="r",
+        tamanho=10,
+        mtime=1704067200.0,
+        status="ok",
+        n_chunks=1,
+        model_id=emb.model_id,
     )
     store.registrar_documento(
-        path="Doc2.txt", raiz="r", tamanho=10, mtime=1735689600.0, status="ok", n_chunks=1, model_id=emb.model_id
+        path="Doc2.txt",
+        raiz="r",
+        tamanho=10,
+        mtime=1735689600.0,
+        status="ok",
+        n_chunks=1,
+        model_id=emb.model_id,
     )
     store.commit()
 
@@ -591,6 +616,3 @@ def test_overview_nao_expoe_caminhos_absolutos(servidor) -> None:  # noqa: ANN00
     for item in dados["pastas_raiz"]:
         p = item["pasta"]
         assert not p.startswith(("/", "\\", "C:", "D:"))
-
-
-

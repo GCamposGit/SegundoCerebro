@@ -184,6 +184,7 @@ class BuscaHibrida:
         peso_lexical: float = PESO_LEXICAL,
         peso_nome: float = PESO_NOME,
         pesos_fts: tuple[float, float, float] | None = None,
+        podar_ubiquos: bool = True,
         agrupar_familias: bool = AGRUPAR_FAMILIAS,
         nome_por_fonte: bool = NOME_POR_FONTE,
         glossario: Glossario | None = None,
@@ -201,16 +202,14 @@ class BuscaHibrida:
         self.peso_denso = peso_denso
         self.peso_lexical = peso_lexical
         self.peso_nome = peso_nome
-        # Pesos de coluna do bm25 (`texto`, `trilha`, `caminho`). `None` = padrão
-        # 1/1/1 do FTS5, que é o SQL medido de F1 a F4. Ver `C3.a` em
-        # `Store.buscar_lexical` e `config.Pesos.colunas_fts`.
+        # Pesos de coluna do BM25; `None` preserva o 1/1/1 medido em C3.a.
         self.pesos_fts = pesos_fts
+        self.podar_ubiquos = podar_ubiquos
         self.agrupar_familias = agrupar_familias
         self.nome_por_fonte = nome_por_fonte
         # O denso **não** recebe a expansão de propósito: acrescentar sinônimo ao
         # texto move o vetor da consulta para a média dos termos, e o embedding
-        # assimétrico do e5 já resolve sinônimo sozinho. Quem precisa da expansão
-        # é quem casa termo com termo — o bm25 e o nome de arquivo.
+        # assimétrico do e5 já resolve sinônimo; só bm25 e nome precisam da expansão.
         self.glossario = glossario or Glossario.vazio()
         self.reranker = reranker
         self._ranqueador_nome: RanqueadorDeNome | None = None
@@ -326,6 +325,7 @@ class BuscaHibrida:
                 self.candidatos,
                 self.pesos_fts,
                 filtro_path=prefixo or None,
+                podar_ubiquos=self.podar_ubiquos,
             )
             rankings.append([a.id for a in acertos])
             pesos.append(self.peso_lexical)

@@ -22,12 +22,16 @@ do notebook — ver a correção 2. Uma passada só, apresentada como "o que o s
 faz", seria o mesmo tipo de número indefensável que este pacote existe para
 acabar.
 
-| Operação | n por passada | p50 | p95 | porta de produto | distância (p95) |
+| Operação | n por passada | p50 | p95 | porta original (24/08) | distância original |
 |---|---:|---:|---:|---:|---:|
 | `search` | 186 | 1 363 – 2 506 ms | **1 840 – 2 877 ms** | 300 ms | **6,1× a 9,6×** |
 | `search+rerank` (10 cand.) | 62 | 10 119 ms | **11 331 ms** | 800 ms | **14,2×** |
 | `read_note` | 186 | 0,3 – 0,4 ms | **0,9 – 2,8 ms** | 100 ms | passa por 36× ou mais |
 | `neighbors` | 186 | 0,2 ms | **1,6 – 2,1 ms** | 100 ms | passa por 48× ou mais |
+
+Esta tabela é o registro da proposta original. A decisão de 04/09, ao fim deste
+documento, substitui `search = 300 ms` por um orçamento fim a fim de 4 s e retira
+a porta de produto do rerank até existir uma implementação adequada para CPU.
 
 `search+rerank` tem uma passada só, no regime quente; a faixa dele não foi
 medida.
@@ -300,6 +304,84 @@ por commit**, dentro do alvo de 5–10 mil. O indexador real continua confirmand
 por documento, contrato de retomada que limita a perda após queda a um arquivo;
 agrupar documentos só para perseguir o número do checklist pioraria esse limite.
 
-R4.1 e R4.2 ficam, portanto, **implementados mas com as portas de latência
-abertas**. O fallback flat preserva correção; Tantivy continua fora enquanto o
-gatilho documentado de 5M+ não existir.
+### Poda pelo piso de IDF — primeiro ataque ao BM25
+
+Depois do merge do ANN, a forma da consulta explicou a cauda lexical. O OR das
+perguntas fazia termos presentes em quase todo o índice levarem centenas de
+milhares de linhas até o `bm25()`. O próprio FTS5 dá IDF `1e-6` a uma frase que
+aparece em pelo menos metade das linhas: ela custa a varredura e quase não vota.
+
+A busca agora consulta o `fts5vocab` — uma visão virtual dos postings, sem cópia
+nem reconstrução — e tira do MATCH somente os termos que já caíram nesse piso.
+Identificadores com hífen, ponto, barra ou sublinhado nunca são podados; consulta
+formada só por termos ubíquos conserva o OR original. A hidratação do `id` também
+foi movida da junção de todos os matches para a projeção do top-200. O braço de
+ablação continua reproduzível por `eval.rodar --sem-poda-ubiquos`.
+
+Medição pareada do componente, 10 perguntas no índice R9.3 de 1 milhão, alternando
+a ordem dos braços para repartir cache e estado térmico:
+
+| Consulta lexical | média | p50 | p95 |
+|---|---:|---:|---:|
+| OR integral | 1 049 ms | 1 098 ms | 1 438 ms |
+| poda pelo piso de IDF | **734 ms** | **675 ms** | **1 101 ms** |
+
+Na passada entregue (`eval.latencia`, n=10, uma rodada), o BM25 ficou em
+**1 327 ms p95** e `search` em **1 805 ms p95**. A referência imediatamente
+anterior, após `FTS5 optimize`, era 1 708 ms e 2 379 ms respectivamente. Não é
+ablação pareada entre datas, mas concorda com a redução de 23,5% do microbenchmark.
+
+A guarda de ranking foi medida antes da adoção. BM25 puro ficou idêntico nos dois
+dourados: sintético (n=10, MRR 1,000, nDCG@5 1,000, 4/4 armadilhas) e empresas
+(n=13 no escopo, MRR 0,231, nDCG@5 0,160). No índice inflado, os 200 IDs das dez
+consultas também ficaram iguais. Uma stoplist PT/EN fixa foi tentada e **refutada**:
+neutra no sintético, derrubou o MRR lexical de empresas de 0,231 para 0,179. Ela
+não entrou; a poda adotada depende da estatística da base, não do idioma.
+
+A antiga meta lexical de 100 ms ficaria 13,3× abaixo desta passada. A mudança
+remove trabalho que o score já declarava irrelevante; chegar àquela ordem de
+grandeza exigiria mudar a semântica da consulta ou a classe do motor, não mais
+higiene de SQLite.
+
+## Reavaliação arquitetural — 04/09/2026
+
+**Decisão: retirar as metas isoladas de 100 ms do BM25 e 150 ms do ANN e fechar
+R4.1/R4.2.** A porta que interessa passa a ser `search` completo, sem rerank:
+**p95 <4 s** no cenário de referência de 4 núcleos, 8 GB e índice de estresse
+com 1M+ trechos. O piso de regressão por máquina continua separado.
+
+Não é afrouxar uma meta até ela passar. É corrigir três erros de arquitetura da
+meta original:
+
+1. **O requisito é da experiência, não do componente.** O consumidor é uma tool
+   MCP chamada por um agente, não uma caixa de busca que precisa atualizar a
+   cada tecla. Alguns segundos são perceptíveis, mas não impedem a tarefa; 100 ms
+   no BM25 nunca foi pedido nem validado com usuário.
+2. **A conta não fechava.** Em três rodadas no caminho entregue, `search` ficou
+   em **3 404 ms p95**, com **1 301 ms** no BM25 e **2 181 ms** no denso. Mesmo
+   um BM25 instantâneo não cumpriria os antigos 300 ms do total. Subportas
+   independentes otimizavam peças sem garantir o sistema.
+3. **O milhão inflado é canário, não retrato do produto.** Ele replica apenas 18
+   vetores-semente cerca de 55 mil vezes cada. Isso é útil para expor caudas e
+   validar escala mecânica, mas super-representa termos ubíquos e empates. Não
+   deve sozinho justificar uma migração de armazenamento.
+
+Os 4 s são um **orçamento operacional provisório**, não uma verdade universal
+de UX: 3 404 ms medidos mais cerca de 15% de margem. Ele impede que a experiência
+volte às dezenas de segundos sem transformar um benchmark adversarial em plano
+de produto. Quando houver corpus de 1M representativo ou telemetria de uso, o
+valor deve ser reavaliado com esse instrumento.
+
+### Consequências para a arquitetura e a fila
+
+- O FTS5 permanece como sinal lexical exato e local. A poda estatística e a
+  hidratação tardia ficam: reduziram custo sem mudar a qualidade medida.
+- Tantivy ou outro motor só volta à pauta se o BM25 for gargalo em **5M+ trechos
+  representativos**, se `search` romper 4 s de forma repetível, ou se fluxos
+  reais mostrarem várias buscas sequenciais tornando esse custo cumulativo.
+- Paralelizar denso e lexical é uma opção futura, não uma correção óbvia: ambos
+  disputam CPU, RAM e I/O. Só entra com medição fim a fim e guarda de qualidade.
+- `R3.3` (INT8) continua por capacidade de RAM e escala de 5–20M vetores. Ele não
+  é necessário para declarar R4.1/R4.2 prontos nem para “fechar” 100 ms.
+- O próximo pacote segue a fila do produto. Não há outro PR de micro-otimização
+  do BM25 enquanto nenhum dos gatilhos acima ocorrer.

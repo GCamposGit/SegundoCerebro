@@ -43,7 +43,12 @@ def indice(tmp_path: Path):  # noqa: ANN201
     store = Store(tmp_path / "indice", DIM)
     emb = EmbedderFalso()
     chunks = [
-        chunk("c1", "politica.md", 0, "O PO-ACME-007 define o uso aceitável de inteligência artificial."),
+        chunk(
+            "c1",
+            "politica.md",
+            0,
+            "O PO-ACME-007 define o uso aceitável de inteligência artificial.",
+        ),
         chunk("c2", "politica.md", 1, "A classificação de risco usa três níveis."),
         chunk("c3", "contrato.md", 0, "Contrato 4600009999 com a Nimbus Tecnologia."),
         chunk("c4", "outro.md", 0, "Texto sem relação alguma com o resto do acervo."),
@@ -174,7 +179,9 @@ def test_nome_promove_documento_que_o_bm25_afoga(indice) -> None:  # noqa: ANN00
     # concorrentes cujo TEXTO repete os termos da consulta
     for i in range(4):
         extras.append(chunk(f"d{i}", f"notas {i}.md", 0, "Northline KPI " * 20))
-    store.gravar_chunks(extras, emb.embed_passagens([c.text for c in extras]), mtime=1.0, model_id=emb.model_id)
+    store.gravar_chunks(
+        extras, emb.embed_passagens([c.text for c in extras]), mtime=1.0, model_id=emb.model_id
+    )
     store.commit()
 
     sem_nome = BuscaHibrida(store, emb, usar_denso=False, usar_nome=False)
@@ -200,7 +207,9 @@ def test_nome_entra_no_caminho_de_trecho_com_um_trecho_por_documento(indice) -> 
     store, emb = indice
     alvo = "Relatório Northline KPI.md"
     extras = [chunk(f"n{i}", alvo, i, "Conteúdo genérico, sem repetir o termo.") for i in range(6)]
-    store.gravar_chunks(extras, emb.embed_passagens([c.text for c in extras]), mtime=1.0, model_id=emb.model_id)
+    store.gravar_chunks(
+        extras, emb.embed_passagens([c.text for c in extras]), mtime=1.0, model_id=emb.model_id
+    )
     store.commit()
 
     so_nome = BuscaHibrida(store, emb, usar_denso=False, usar_lexical=False, usar_nome=True)
@@ -226,7 +235,9 @@ def test_nome_reforca_o_trecho_que_a_fusao_ja_elegeu(indice) -> None:  # noqa: A
         chunk("m0", alvo, 0, "Sumário executivo, sem os termos."),
         chunk("m1", alvo, 1, "Northline KPI trimestral consolidado."),
     ]
-    store.gravar_chunks(extras, emb.embed_passagens([c.text for c in extras]), mtime=1.0, model_id=emb.model_id)
+    store.gravar_chunks(
+        extras, emb.embed_passagens([c.text for c in extras]), mtime=1.0, model_id=emb.model_id
+    )
     store.commit()
 
     busca = BuscaHibrida(store, emb, usar_denso=False, usar_lexical=True, usar_nome=True)
@@ -316,11 +327,15 @@ def test_a_bandeira_tira_a_transcricao_do_topo_e_deixa_o_documento(indice) -> No
         chunk("t0", transcricao, 0, "fala sem os termos da consulta"),
         chunk("e0", escritorio, 0, "texto sem os termos da consulta"),
     ]
-    store.gravar_chunks(extras, emb.embed_passagens([c.text for c in extras]), mtime=1.0, model_id=emb.model_id)
+    store.gravar_chunks(
+        extras, emb.embed_passagens([c.text for c in extras]), mtime=1.0, model_id=emb.model_id
+    )
     store.commit()
 
     def alcancados(por_fonte: bool) -> set[str]:
-        busca = BuscaHibrida(store, emb, usar_denso=False, usar_lexical=False, nome_por_fonte=por_fonte)
+        busca = BuscaHibrida(
+            store, emb, usar_denso=False, usar_lexical=False, nome_por_fonte=por_fonte
+        )
         por_chunk = {a.path for a in busca.buscar_chunks("Northline KPI", 10)}
         por_doc = {h.path for h in busca.search("Northline KPI", 10)}
         assert por_chunk == por_doc, "os dois caminhos têm de concordar sobre quem o nome alcança"
@@ -416,11 +431,17 @@ def test_buscar_chunks_e_search_com_filtro_de_pasta(tmp_path: Path) -> None:
     store = Store(tmp_path / "indice_pastas", DIM)
     emb = EmbedderFalso()
     chunks = [
-        chunk("f1", "Projetos/Alfa/relatorio.md", 0, "Relatório técnico do projeto Alfa com métricas."),
-        chunk("f2", "Projetos/Beta/relatorio.md", 0, "Relatório técnico do projeto Beta com métricas."),
+        chunk(
+            "f1", "Projetos/Alfa/relatorio.md", 0, "Relatório técnico do projeto Alfa com métricas."
+        ),
+        chunk(
+            "f2", "Projetos/Beta/relatorio.md", 0, "Relatório técnico do projeto Beta com métricas."
+        ),
         chunk("f3", "Geral/aviso.md", 0, "Aviso geral sem métricas de projeto."),
     ]
-    store.gravar_chunks(chunks, emb.embed_passagens([c.text for c in chunks]), mtime=1.0, model_id=emb.model_id)
+    store.gravar_chunks(
+        chunks, emb.embed_passagens([c.text for c in chunks]), mtime=1.0, model_id=emb.model_id
+    )
     store.commit()
 
     busca = BuscaHibrida(store, emb)
@@ -449,12 +470,26 @@ def test_buscar_chunks_e_search_incluir_versoes_antigas(tmp_path: Path) -> None:
         chunk("v1", "Doc_v1.docx", 0, "Especificação técnica e requisitos v1."),
         chunk("v2", "Doc_v2.docx", 0, "Especificação técnica e requisitos v2."),
     ]
-    store.gravar_chunks(chunks, emb.embed_passagens([c.text for c in chunks]), mtime=1.0, model_id=emb.model_id)
-    store.registrar_documento(
-        path="Doc_v1.docx", raiz="r", tamanho=10, mtime=100.0, status="ok", n_chunks=1, model_id=emb.model_id
+    store.gravar_chunks(
+        chunks, emb.embed_passagens([c.text for c in chunks]), mtime=1.0, model_id=emb.model_id
     )
     store.registrar_documento(
-        path="Doc_v2.docx", raiz="r", tamanho=10, mtime=200.0, status="ok", n_chunks=1, model_id=emb.model_id
+        path="Doc_v1.docx",
+        raiz="r",
+        tamanho=10,
+        mtime=100.0,
+        status="ok",
+        n_chunks=1,
+        model_id=emb.model_id,
+    )
+    store.registrar_documento(
+        path="Doc_v2.docx",
+        raiz="r",
+        tamanho=10,
+        mtime=200.0,
+        status="ok",
+        n_chunks=1,
+        model_id=emb.model_id,
     )
     store.commit()
 
@@ -478,4 +513,3 @@ def test_buscar_chunks_e_search_incluir_versoes_antigas(tmp_path: Path) -> None:
     paths_search = {h.path for h in todas_search}
     assert "Doc_v1.docx" in paths_search and "Doc_v2.docx" in paths_search
     store.fechar()
-
