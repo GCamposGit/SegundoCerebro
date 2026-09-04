@@ -143,6 +143,17 @@ def test_memo_separa_pesos_de_coluna_diferentes(indice) -> None:  # noqa: ANN001
     assert sem_caminho == [a.id for a in store.buscar_lexical("politica", 5, (1.0, 1.0, 0.0))]
 
 
+def test_memo_separa_poda_de_termos_ubiquos(indice) -> None:  # noqa: ANN001
+    store, emb = indice
+    memo = MemoDeBusca(store, emb)
+
+    memo.store.buscar_lexical("politica", 5, podar_ubiquos=True)
+    memo.store.buscar_lexical("politica", 5, podar_ubiquos=False)
+
+    assert memo.store.buscas == 2
+    assert memo.store.acertos == 0
+
+
 def test_memo_delega_o_que_nao_e_busca(indice) -> None:  # noqa: ANN001
     """`__getattr__` em vez de lista de métodos: o proxy não pode envelhecer."""
     store, emb = indice

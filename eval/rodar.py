@@ -124,6 +124,7 @@ def _montar(args, cfg):  # noqa: ANN001
         peso_denso=args.peso_denso if args.peso_denso is not None else pesos.denso,
         peso_lexical=pesos.lexical,
         peso_nome=args.peso_nome if args.peso_nome is not None else pesos.nome,
+        podar_ubiquos=not args.sem_poda_ubiquos,
         nome_por_fonte=args.nome_por_fonte,
         glossario=Glossario.de_arquivo(args.glossario) if args.glossario else None,
         reranker=reranker,
@@ -138,6 +139,7 @@ def _montar(args, cfg):  # noqa: ANN001
         # que uma medição de 17/08 passou por confirmação sem confirmar nada.
         f"Reranking: {reranker.id if reranker else '**desligado**'}.\n"
         f"Glossário de siglas: {args.glossario if args.glossario else '**nenhum**'}.\n"
+        f"Poda de termos no piso de IDF: {'**desligada**' if args.sem_poda_ubiquos else '**ligada**'}.\n"
         "As métricas são no nível de **documento**: o conjunto dourado aponta arquivos, "
         "e cada documento é ranqueado pelo seu melhor trecho."
     )
@@ -266,6 +268,11 @@ def main(argv: list[str] | None = None) -> int:
         action="store_true",
         help="desliga o ranqueador por nome de arquivo, deixando só o sinal de conteúdo — "
         "é o braço que mostra quanto do resultado vem do índice e quanto vem do nome",
+    )
+    parser.add_argument(
+        "--sem-poda-ubiquos",
+        action="store_true",
+        help="conserva no BM25 termos presentes em metade da base — braço de ablação",
     )
     parser.add_argument(
         "--glossario",

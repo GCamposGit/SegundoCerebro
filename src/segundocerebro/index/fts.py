@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
-import sqlite3
 import re
+import sqlite3
+import unicodedata
 from dataclasses import dataclass
 
 MIB = 1024 * 1024
 CACHE_PADRAO_MB = 64
 MMAP_PADRAO_MB = 256
 TERMO = re.compile(r"[0-9A-Za-zÀ-ÿ][0-9A-Za-zÀ-ÿ\-\./_]*")
+SEPARADORES_DE_FRASE = frozenset("-./_")
 
 
 @dataclass(frozen=True)
@@ -29,6 +31,49 @@ def consulta_fts(texto: str) -> str:
     if not termos:
         return ""
     return " OR ".join('"' + termo.replace('"', '""') + '"' for termo in termos)
+
+
+def _termo_do_vocabulario(termo: str) -> str:
+    """Aproxima a normalização de ``unicode61 remove_diacritics 2`` para um token."""
+    return "".join(
+        caractere
+        for caractere in unicodedata.normalize("NFKD", termo.casefold())
+        if not unicodedata.combining(caractere)
+    )
+
+
+def consulta_fts_seletiva(con: sqlite3.Connection, texto: str) -> str:
+    """Remove só termos cujo IDF o FTS5 já reduz ao piso de 1e-6.
+
+    No BM25 nativo, uma frase presente em pelo menos metade das linhas recebe
+    IDF 1e-6. Ela quase não decide a ordem, mas num OR ainda faz o motor visitar
+    a maior parte do índice. ``fts5vocab`` permite reconhecê-la sem stoplist por
+    idioma. Identificadores com separadores ficam intactos porque são frases no
+    tokenizer; se tudo for ubíquo, a consulta original é preservada.
+    """
+    termos = TERMO.findall(texto)
+    if len(termos) < 2:
+        return consulta_fts(texto)
+    total = int(con.execute("SELECT count(*) FROM chunks").fetchone()[0])
+    if not total:
+        return consulta_fts(texto)
+
+    frequencias: dict[str, int] = {}
+    escolhidos: list[str] = []
+    for termo in termos:
+        if any(separador in termo for separador in SEPARADORES_DE_FRASE):
+            escolhidos.append(termo)
+            continue
+        normalizado = _termo_do_vocabulario(termo)
+        if normalizado not in frequencias:
+            linha = con.execute(
+                "SELECT doc FROM chunks_fts_vocab WHERE term = ?", (normalizado,)
+            ).fetchone()
+            frequencias[normalizado] = int(linha[0]) if linha is not None else 0
+        if 2 * frequencias[normalizado] < total:
+            escolhidos.append(termo)
+
+    return consulta_fts(" ".join(escolhidos or termos))
 
 
 def politica_sqlite(ram_livre_mb: int = 0) -> PoliticaSQLite:
@@ -79,11 +124,15 @@ def otimizar_fts(con: sqlite3.Connection) -> bool:
     return incremental
 
 
-def buscar_lexical(store, texto: str, k: int, pesos_colunas=None) -> list:  # noqa: ANN001
+def buscar_lexical(  # noqa: ANN001
+    store, texto: str, k: int, pesos_colunas=None, *, podar_ubiquos: bool = True
+) -> list:
     """Executa o ranking FTS5; ``Store`` conserva apenas a fachada pública."""
     from .store import Acerto
 
-    expressao = consulta_fts(texto)
+    expressao = (
+        consulta_fts_seletiva(store.con, texto) if podar_ubiquos else consulta_fts(texto)
+    )
     if not expressao:
         return []
     if pesos_colunas is None:
@@ -92,10 +141,18 @@ def buscar_lexical(store, texto: str, k: int, pesos_colunas=None) -> list:  # no
     else:
         score = "bm25(chunks_fts, ?, ?, ?)"
         parametros = (*(float(p) for p in pesos_colunas), expressao, k)
+    # O ``id`` mora na tabela externa ``chunks``, mas ele não participa nem do
+    # MATCH nem da ordenação. Um JOIN direto faz o SQLite consultar ``chunks``
+    # para **todo** acerto antes de descartar os que ficaram fora do top-k — no
+    # índice R9.3 isso eram até 1 milhão de PK lookups por pergunta. A subconsulta
+    # escalar fica na projeção e o SQLite só a avalia para as linhas retidas pelo
+    # LIMIT. É uma única instrução (snapshot consistente) e mantém score e ordem.
     linhas = store.con.execute(
         f"""
-        SELECT c.id AS id, {score} AS score
-        FROM chunks_fts JOIN chunks c ON c.rowid = chunks_fts.rowid
+        SELECT (
+            SELECT c.id FROM chunks c WHERE c.rowid = chunks_fts.rowid
+        ) AS id, {score} AS score
+        FROM chunks_fts
         WHERE chunks_fts MATCH ?
         ORDER BY score
         LIMIT ?
@@ -103,6 +160,7 @@ def buscar_lexical(store, texto: str, k: int, pesos_colunas=None) -> list:  # no
         parametros,
     ).fetchall()
     return [
-        Acerto(id=linha["id"], score=-float(linha["score"]), posicao=i)
+        Acerto(id=str(linha["id"]), score=-float(linha["score"]), posicao=i)
         for i, linha in enumerate(linhas, start=1)
+        if linha["id"] is not None
     ]

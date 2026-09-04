@@ -82,6 +82,12 @@ CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(
     tokenize='unicode61 remove_diacritics 2'
 );
 
+-- Vocabulário virtual: expõe frequência documental sem duplicar os postings.
+-- A busca usa isto para não varrer termos cujo IDF o próprio FTS5 reduz a
+-- 1e-6 por aparecerem em pelo menos metade dos chunks. É leitura dinâmica do
+-- índice, não uma tabela derivada que precise de trigger ou reconstrução.
+CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts_vocab USING fts5vocab(chunks_fts, 'row');
+
 CREATE TRIGGER IF NOT EXISTS chunks_ai AFTER INSERT ON chunks BEGIN
     INSERT INTO chunks_fts(rowid, texto, trilha, caminho)
     VALUES (new.rowid, new.texto, new.trilha, new.caminho);

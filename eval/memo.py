@@ -92,11 +92,20 @@ class _StoreComMemo:
         )
 
     def buscar_lexical(
-        self, texto: str, k: int, pesos_colunas: tuple[float, float, float] | None = None
+        self,
+        texto: str,
+        k: int,
+        pesos_colunas: tuple[float, float, float] | None = None,
+        *,
+        podar_ubiquos: bool = True,
     ) -> list:
-        chave = (texto, k, pesos_colunas)
+        chave = (texto, k, pesos_colunas, podar_ubiquos)
         return self._lembrar(
-            self._lexical, chave, lambda: self._store.buscar_lexical(texto, k, pesos_colunas)
+            self._lexical,
+            chave,
+            lambda: self._store.buscar_lexical(
+                texto, k, pesos_colunas, podar_ubiquos=podar_ubiquos
+            ),
         )
 
     def _lembrar(self, cache: dict, chave: tuple, calcular) -> list:  # noqa: ANN001

@@ -818,7 +818,7 @@ privada do desktop **não** trava nenhum destes:
 | R6.1 | Autotune: peso por base, fábrica vira prior | notebook | 2 | mecanismo já; critério de generalização espera o `E1` (era `R9.1`) |
 | C7.a · C7.d | Fórmula sem cache (recálculo LibreOffice) · rota do CSV | **desktop** | 3 | C7.d ✅ PR #34; C7.a ✅ PR #35 |
 | R1.4 · R5.2 · R3.2 | Quarentena · orçamento de recursos · dois passes | **desktop** | 3 | ✅ **fechado** PR #36 |
-| R4.1 · R4.2 · R3.3 | ANN · higiene FTS · quantização INT8 | desktop | 4 | ANN/FTS implementados em 03/09; portas de 150/100 ms ainda abertas; INT8 depois |
+| R4.1 · R4.2 · R3.3 | ANN · higiene FTS · quantização INT8 | desktop | 4 | ✅ **R4.1/R4.2 fechados em 04/09** — metas isoladas de 150/100 ms retiradas; `search` completo p95 3 404 ms no estresse de 1M, dentro do orçamento revisto de 4 s. INT8 segue por capacidade de 5–20M, não para fechar latência fictícia |
 | R3.1 + C4.1 + R2.1 | Modelo (com fatia cross-lingual) + contexto no chunk — **um rebuild só** | desktop roda, notebook mede | 5 | depois da régua multi-perfil |
 | C7.b · C7.c | Cartão de modelo de planilha; número é payload no modelo | desktop | 5 | — |
 | C2 + C3.b–d | Glossário automático do corpus + reescrita lexical (mesmo ponto de código) | desktop extrai, notebook mede | 6 | — |
@@ -953,19 +953,23 @@ O instrumento é `eval/latencia.py`, as portas moram em
 neste PR; o artefacto `/index-*/` continua gitignorado.
 
 **São duas portas, e essa é a primeira correção que a medição faz na proposta.**
-Uma porta que a máquina reprova no dia em que é escrita não guarda nada — fica
-vermelha para sempre e ninguém repara quando piora. Então: `produto` é o alvo
-hardware-neutro, hoje reprovado, que `R4.1` e `R3.3` têm de alcançar; `regressão`
-é o que **cada máquina nomeada** faz hoje, mais margem, e é a única que falha.
+`produto` é o orçamento da operação completa no cenário de referência;
+`regressão` é o que **cada máquina nomeada** faz hoje, mais margem, e é a única
+que falha. Em 04/09, a revisão arquitetural retirou metas isoladas de componente:
+elas não derivavam do uso e não garantiam a latência do `search` entregue.
 
 Medido na condição C, índice de 98.326 trechos, braço isolado, CPU de 15 W:
 
-| Operação | p50 | p95 | porta de produto | distância |
+| Operação | p50 | p95 | porta original (24/08) | distância original |
 |---|---:|---:|---:|---:|
 | `search` | 1.363 – 2.506 ms | **1.840 – 2.877 ms** | 300 ms | **6,1× a 9,6×** |
 | `search+rerank` (10 cand.) | 10.119 ms | **11.331 ms** | 800 ms | **14,2×** |
 | `read_note` | 0,3 – 0,4 ms | 0,9 – 2,8 ms | 100 ms | passa por 36× |
 | `neighbors` | 0,2 ms | 1,6 – 2,1 ms | 100 ms | passa por 48× |
+
+Esta tabela preserva o diagnóstico de 24/08. A revisão de 04/09 substituiu os
+300 ms de `search` pelo orçamento fim a fim de 4 s; o rerank fica sem porta de
+produto enquanto não houver uma implementação de CPU adequada.
 
 **Todo o orçamento de latência é `search`** — os outros dois passam por mais de
 uma ordem de grandeza em qualquer regime.
@@ -990,11 +994,11 @@ Três coisas que a medição mudou, e que valem além deste pacote:
 `overview` **não entra** nas portas: o dossiê lhe dá 200 ms e ele não existe (é
 `R7.1`, onda 7). Porta de ferramenta ausente mede zero e reporta aprovado.
 
-A decomposição de `search` foi medida no milhão em 03/09/2026. Depois do ANN,
-o p95 ficou em 349 ms no denso e 1 708 ms no BM25; nome e fusão ficaram abaixo
-de 10 ms. R4.1 retirou a varredura de dezenas de segundos, mas não fechou sua
-porta de 150 ms; R4.2 consolidou segmentos, mas também não fechou 100 ms. Ver
-[`docs/porta-de-latencia.md`](docs/porta-de-latencia.md).
+A decomposição de `search` foi medida no milhão. Depois do ANN e da poda lexical,
+uma passada de três rodadas em 04/09 ficou em 3 404 ms p95 no total, 2 181 ms no
+denso e 1 301 ms no BM25. Os percentis de componentes não são aditivos. R4.1 e
+R4.2 estão fechados: o orçamento que vale agora é 4 s para a operação completa;
+150/100 ms deixam de ser dívida. Ver [`docs/porta-de-latencia.md`](docs/porta-de-latencia.md).
 
 E uma limitação declarada em vez de escondida: **a porta não roda no CI.** Lá não
 há acervo, índice nem encoder. Ela é local e manual, antes de fundir mudança de

@@ -369,6 +369,7 @@ def _montar(nome: str, args, cfg, papel: str = "depois"):  # noqa: ANN001
         peso_denso = args.peso_denso
         peso_nome = args.peso_nome
         nome_por_fonte = False
+        sem_poda_ubiquos = False
         glossario = args.glossario
 
     # `--peso-nome-depois` é a irmã de `--rerank-depois`, e existe pela mesma
@@ -422,7 +423,7 @@ _CAMPOS_DE_MONTAGEM = frozenset(
     {
         "retriever", "base_cfg", "prefixo", "indice", "modelo", "threads",
         "candidatos", "sem_nome", "peso_denso", "peso_nome", "glossario",
-        "rerank", "sem_rerank", "nome_por_fonte",
+        "rerank", "sem_rerank", "nome_por_fonte", "sem_poda_ubiquos",
     }
 )
 """O contrato entre `_montar` daqui e `rodar._montar`, conferido em teste."""
