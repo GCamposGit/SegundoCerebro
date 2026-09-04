@@ -181,7 +181,9 @@ ser hipótese: o percurso do leigo tem teste. O Office legado
    vez" — é decisão de política de repositório com efeito cruzado, e a regra 8
    manda declarar, não fazer. O notebook recomenda ligar. Do `Q2` sobram
    lockfile e extras.
-
+7. **`PR-F1` — em curso neste Notebook (03/09/2026):** Filtros por subpasta (`pasta`)
+   e controle de versões antigas (`incluir_versoes_antigas`) no `search` MCP. Destrava
+   busca focada em pastas e auditoria de minutas históricas sem conflito com o Desktop.
 > **`Q15.a` e `F4-D.2` fecharam em 31/08/2026** e saíram desta lista. O `Q15.a`
 > só ficou certo depois de **medir a sequência**: a primeira versão do conserto
 > arrumava um caso que já funcionava, e o teste dela passava com o conserto

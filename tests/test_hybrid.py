@@ -409,3 +409,73 @@ def test_o_lote_devolve_o_mesmo_que_a_consulta_por_item(indice) -> None:  # noqa
         "politica.md": store.ids_de_chunks("politica.md"),
         "contrato.md": store.ids_de_chunks("contrato.md"),
     }
+
+
+def test_buscar_chunks_e_search_com_filtro_de_pasta(tmp_path: Path) -> None:
+    """Verifica se buscar_chunks e search respeitam o filtro de prefixo de pasta."""
+    store = Store(tmp_path / "indice_pastas", DIM)
+    emb = EmbedderFalso()
+    chunks = [
+        chunk("f1", "Projetos/Alfa/relatorio.md", 0, "Relatório técnico do projeto Alfa com métricas."),
+        chunk("f2", "Projetos/Beta/relatorio.md", 0, "Relatório técnico do projeto Beta com métricas."),
+        chunk("f3", "Geral/aviso.md", 0, "Aviso geral sem métricas de projeto."),
+    ]
+    store.gravar_chunks(chunks, emb.embed_passagens([c.text for c in chunks]), mtime=1.0, model_id=emb.model_id)
+    store.commit()
+
+    busca = BuscaHibrida(store, emb)
+
+    # buscar_chunks com pasta
+    acertos_alfa = busca.buscar_chunks("relatório técnico métricas", k=5, pasta="Projetos/Alfa")
+    assert len(acertos_alfa) == 1
+    assert acertos_alfa[0].path == "Projetos/Alfa/relatorio.md"
+
+    # search com pasta
+    docs_beta = busca.search("relatório técnico métricas", k=5, pasta="Projetos/Beta")
+    assert len(docs_beta) == 1
+    assert docs_beta[0].path == "Projetos/Beta/relatorio.md"
+
+    # pasta inexistente
+    assert busca.buscar_chunks("relatório", k=5, pasta="Projetos/Gamma") == []
+    assert busca.search("relatório", k=5, pasta="Projetos/Gamma") == []
+    store.fechar()
+
+
+def test_buscar_chunks_e_search_incluir_versoes_antigas(tmp_path: Path) -> None:
+    """Sem flag, a família é colapsada no mais novo; com flag, todas as versões sobrevivem."""
+    store = Store(tmp_path / "indice_versoes_unit", DIM)
+    emb = EmbedderFalso()
+    chunks = [
+        chunk("v1", "Doc_v1.docx", 0, "Especificação técnica e requisitos v1."),
+        chunk("v2", "Doc_v2.docx", 0, "Especificação técnica e requisitos v2."),
+    ]
+    store.gravar_chunks(chunks, emb.embed_passagens([c.text for c in chunks]), mtime=1.0, model_id=emb.model_id)
+    store.registrar_documento(
+        path="Doc_v1.docx", raiz="r", tamanho=10, mtime=100.0, status="ok", n_chunks=1, model_id=emb.model_id
+    )
+    store.registrar_documento(
+        path="Doc_v2.docx", raiz="r", tamanho=10, mtime=200.0, status="ok", n_chunks=1, model_id=emb.model_id
+    )
+    store.commit()
+
+    busca = BuscaHibrida(store, emb)
+
+    # buscar_chunks: padrão omite v1
+    padrao_chunks = busca.buscar_chunks("especificação técnica", k=5)
+    assert [a.path for a in padrao_chunks] == ["Doc_v2.docx"]
+
+    # buscar_chunks: incluir_versoes_antigas=True traz v1 e v2
+    todas_chunks = busca.buscar_chunks("especificação técnica", k=5, incluir_versoes_antigas=True)
+    paths_chunks = {a.path for a in todas_chunks}
+    assert "Doc_v1.docx" in paths_chunks and "Doc_v2.docx" in paths_chunks
+
+    # search: padrão omite v1
+    padrao_search = busca.search("especificação técnica", k=5)
+    assert [h.path for h in padrao_search] == ["Doc_v2.docx"]
+
+    # search: incluir_versoes_antigas=True traz v1 e v2
+    todas_search = busca.search("especificação técnica", k=5, incluir_versoes_antigas=True)
+    paths_search = {h.path for h in todas_search}
+    assert "Doc_v1.docx" in paths_search and "Doc_v2.docx" in paths_search
+    store.fechar()
+

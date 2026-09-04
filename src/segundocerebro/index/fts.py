@@ -79,24 +79,28 @@ def otimizar_fts(con: sqlite3.Connection) -> bool:
     return incremental
 
 
-def buscar_lexical(store, texto: str, k: int, pesos_colunas=None) -> list:  # noqa: ANN001
+def buscar_lexical(
+    store, texto: str, k: int, pesos_colunas=None, filtro_path: str | None = None
+) -> list:  # noqa: ANN001
     """Executa o ranking FTS5; ``Store`` conserva apenas a fachada pública."""
     from .store import Acerto
 
     expressao = consulta_fts(texto)
     if not expressao:
         return []
+    where_path = " AND (c.path = ? OR c.path LIKE ?)" if filtro_path else ""
+    extra: tuple[object, ...] = (filtro_path, f"{filtro_path}/%") if filtro_path else ()
     if pesos_colunas is None:
         score = "bm25(chunks_fts)"
-        parametros: tuple[object, ...] = (expressao, k)
+        parametros: tuple[object, ...] = (expressao, *extra, k)
     else:
         score = "bm25(chunks_fts, ?, ?, ?)"
-        parametros = (*(float(p) for p in pesos_colunas), expressao, k)
+        parametros = (*(float(p) for p in pesos_colunas), expressao, *extra, k)
     linhas = store.con.execute(
         f"""
         SELECT c.id AS id, {score} AS score
         FROM chunks_fts JOIN chunks c ON c.rowid = chunks_fts.rowid
-        WHERE chunks_fts MATCH ?
+        WHERE chunks_fts MATCH ?{where_path}
         ORDER BY score
         LIMIT ?
         """,

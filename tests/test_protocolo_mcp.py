@@ -246,7 +246,13 @@ def test_o_esquema_diz_ao_cliente_como_chamar(do_produto: dict[str, Any]) -> Non
     esquemas = {nome: f.input_schema for nome, f in do_produto["ferramentas"].items()}
 
     assert esquemas["search"]["required"] == ["consulta"]
-    assert set(esquemas["search"]["properties"]) == {"consulta", "k", "contexto"}
+    assert set(esquemas["search"]["properties"]) == {
+        "consulta",
+        "k",
+        "contexto",
+        "pasta",
+        "incluir_versoes_antigas",
+    }
     assert esquemas["read_note"]["required"] == ["id"]
     assert set(esquemas["read_note"]["properties"]) == {"id", "janela"}
     assert esquemas["neighbors"]["required"] == ["arquivo"]

@@ -418,3 +418,103 @@ def test_neighbors_respeita_o_teto_do_limite(servidor) -> None:  # noqa: ANN001
     assert ferrs["neighbors"].input_schema["properties"]["limite"]["default"] == 5
     dados = chamar(servidor, "neighbors", arquivo="qualquer.md", limite=9999)
     assert dados["vizinhos"] == []
+
+
+# --- filtros e modo de auditoria do search (PR-F1) ----------------------------
+
+
+def test_search_com_filtro_de_pasta_restringe_acertos(servidor) -> None:  # noqa: ANN001
+    """Restringe a busca apenas aos documentos contidos no prefixo de pasta."""
+    achados = chamar(servidor, "search", consulta="governança", pasta="Politica de IA")
+    assert achados["encontrados"] > 0
+    assert all(t["arquivo"].startswith("Politica de IA/") for t in achados["trechos"])
+
+
+def test_search_com_pasta_inexistente_devolve_vazio(servidor) -> None:  # noqa: ANN001
+    """Pasta sem documentos devolve lista limpa e zero encontrados."""
+    achados = chamar(servidor, "search", consulta="governança", pasta="Projetos/Desconhecido")
+    assert achados["encontrados"] == 0
+    assert achados["trechos"] == []
+
+
+def test_search_normaliza_separador_de_pasta_windows(servidor) -> None:  # noqa: ANN001
+    """Barras invertidas ou barras no final são tratadas de forma transparente."""
+    achados = chamar(servidor, "search", consulta="governança", pasta="Politica de IA\\")
+    assert achados["encontrados"] > 0
+    assert all(t["arquivo"].startswith("Politica de IA/") for t in achados["trechos"])
+
+
+def test_search_incluir_versoes_antigas_preserva_minutas_superadas(tmp_path: Path) -> None:
+    """Sem flag, a versão superada é omitida pelo colapso de famílias; com flag, ambas vêm."""
+    from segundocerebro.index.store import Store
+    from segundocerebro.ingest.chunking import Chunk
+    from segundocerebro.ingest.document import BlockKind
+    from segundocerebro.retrieve.hybrid import BuscaHibrida
+
+    emb = EmbedderFalso()
+    store = Store(tmp_path / "indice_versoes", dim=emb.dim)
+    chunks = [
+        Chunk(
+            id="v1#1",
+            doc_path="Contratos/Minuta_v1.docx",
+            ordinal=1,
+            heading_path=("Contrato",),
+            locator="p. 1",
+            kind=BlockKind.TEXT,
+            text="Cláusula de confidencialidade e rescisão comercial v1.",
+        ),
+        Chunk(
+            id="v2#1",
+            doc_path="Contratos/Minuta_v2.docx",
+            ordinal=1,
+            heading_path=("Contrato",),
+            locator="p. 1",
+            kind=BlockKind.TEXT,
+            text="Cláusula de confidencialidade e rescisão comercial v2.",
+        ),
+    ]
+    store.gravar_chunks(chunks, emb.embed_passagens([c.text for c in chunks]), 0.0, emb.model_id)
+    store.registrar_documento(
+        path="Contratos/Minuta_v1.docx",
+        raiz="r",
+        tamanho=100,
+        mtime=1000.0,
+        status="ok",
+        n_chunks=1,
+        model_id=emb.model_id,
+    )
+    store.registrar_documento(
+        path="Contratos/Minuta_v2.docx",
+        raiz="r",
+        tamanho=100,
+        mtime=2000.0,
+        status="ok",
+        n_chunks=1,
+        model_id=emb.model_id,
+    )
+    store.commit()
+
+    recursos = Recursos(indice=tmp_path / "indice_versoes", modelo="falso", threads=1)
+    recursos._store = store
+    recursos._busca = BuscaHibrida(store, emb)
+    srv = construir(recursos)
+
+    # Por padrão (incluir_versoes_antigas=False): colapsa e devolve apenas v2 (mtime maior)
+    padrao = chamar(srv, "search", consulta="confidencialidade", pasta="Contratos")
+    arquivos_padrao = {t["arquivo"] for t in padrao["trechos"]}
+    assert "Contratos/Minuta_v2.docx" in arquivos_padrao
+    assert "Contratos/Minuta_v1.docx" not in arquivos_padrao
+
+    # Com auditoria histórica (incluir_versoes_antigas=True): devolve v1 e v2
+    auditoria = chamar(
+        srv,
+        "search",
+        consulta="confidencialidade",
+        pasta="Contratos",
+        incluir_versoes_antigas=True,
+    )
+    arquivos_auditoria = {t["arquivo"] for t in auditoria["trechos"]}
+    assert "Contratos/Minuta_v1.docx" in arquivos_auditoria
+    assert "Contratos/Minuta_v2.docx" in arquivos_auditoria
+    store.fechar()
+
