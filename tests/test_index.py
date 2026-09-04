@@ -15,6 +15,7 @@ from __future__ import annotations
 import argparse
 import json
 from pathlib import Path
+from types import SimpleNamespace
 
 import numpy as np
 import pytest
@@ -343,6 +344,28 @@ def test_progresso_pode_ser_desligado(tmp_path: Path) -> None:
 
     assert progresso.indexados == 2
     assert ler(tmp_path / "indice") is None
+    store.fechar()
+
+
+def test_passada_global_faz_manutencao_fts_e_ann_automaticamente(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A política de ANN roda sem botão depois de uma passada completa e consistente."""
+    cfg = corpus(tmp_path / "raiz")
+    store = Store(tmp_path / "indice", DIM)
+    conferidos: list[int] = []
+    fts_otimizado: list[bool] = []
+
+    def conferir(_store: Store, n_vetores: int):  # noqa: ANN202
+        conferidos.append(n_vetores)
+        return SimpleNamespace(criar=False)
+
+    monkeypatch.setattr(Store, "garantir_ann", conferir)
+    monkeypatch.setattr(Store, "otimizar_fts", lambda _store: fts_otimizado.append(True))
+    indexar(cfg, store, EmbedderFalso(), publicar=False)
+
+    assert conferidos == [store.estatisticas()["chunks"]]
+    assert fts_otimizado == [True]
     store.fechar()
 
 

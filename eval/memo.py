@@ -68,12 +68,28 @@ class _StoreComMemo:
         k: int,
         filtro: str | None = None,
         model_id: str | None = None,
+        *,
+        usar_ann: bool | None = None,
+        nprobes: int | None = None,
+        refine_factor: int | None = None,
     ) -> list:
         # Chave pelos bytes do vetor, não pela identidade do objeto: o embedder
         # com memo devolve o mesmo objeto, mas o sem memo não, e a chave tem de
         # ser a mesma nos dois casos para o teste de equivalência valer algo.
-        chave = (vetor.tobytes(), k, filtro, model_id)
-        return self._lembrar(self._denso, chave, lambda: self._store.buscar_denso(vetor, k, filtro, model_id))
+        chave = (vetor.tobytes(), k, filtro, model_id, usar_ann, nprobes, refine_factor)
+        return self._lembrar(
+            self._denso,
+            chave,
+            lambda: self._store.buscar_denso(
+                vetor,
+                k,
+                filtro,
+                model_id,
+                usar_ann=usar_ann,
+                nprobes=nprobes,
+                refine_factor=refine_factor,
+            ),
+        )
 
     def buscar_lexical(
         self, texto: str, k: int, pesos_colunas: tuple[float, float, float] | None = None

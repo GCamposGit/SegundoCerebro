@@ -13,10 +13,12 @@ from pathlib import Path
 import pytest
 
 from eval.latencia import (
+    COMPONENTES_SEARCH,
     OPERACOES,
     Ambiente,
     Amostra,
     Medicao,
+    _DecompositorSearch,
     carregar_portas,
     conferir,
     limites_de,
@@ -72,6 +74,61 @@ def test_p50_e_p95_da_amostra() -> None:
 def test_desvio_de_uma_amostra_so_e_zero() -> None:
     """`statistics.stdev` estoura com n=1, e n=1 acontece: uma consulta só."""
     assert Amostra("search", (5.0,)).desvio == 0.0
+
+
+def test_decompositor_mede_a_chamada_real_e_restaura_os_metodos() -> None:
+    class Embedder:
+        def embed_consulta(self, texto):  # noqa: ANN001, ANN201
+            return texto
+
+    class Store:
+        def buscar_denso(self, vetor):  # noqa: ANN001, ANN201
+            return vetor
+
+        def buscar_lexical(self, texto):  # noqa: ANN001, ANN201
+            return texto
+
+    class Busca:
+        def __init__(self) -> None:
+            self.embedder = Embedder()
+            self.store = Store()
+
+        def _nome_por_chunk(self, consulta, pontos):  # noqa: ANN001, ANN201
+            return consulta, pontos
+
+    busca = Busca()
+    originais = (
+        busca.embedder.embed_consulta,
+        busca.store.buscar_denso,
+        busca.store.buscar_lexical,
+        busca._nome_por_chunk,
+    )
+    instantes = iter((0.000, 0.002, 0.002, 0.007, 0.007, 0.010, 0.010, 0.011))
+    decompositor = _DecompositorSearch(busca, relogio=lambda: next(instantes))
+
+    with decompositor:
+        decompositor.iniciar()
+        busca.embedder.embed_consulta("q")
+        busca.store.buscar_denso("v")
+        busca.store.buscar_lexical("q")
+        busca._nome_por_chunk("q", {})
+        decompositor.encerrar(20.0)
+
+    assert (
+        busca.embedder.embed_consulta,
+        busca.store.buscar_denso,
+        busca.store.buscar_lexical,
+        busca._nome_por_chunk,
+    ) == originais
+    por_nome = {amostra.operacao: amostra.ms for amostra in decompositor.amostras()}
+    assert tuple(por_nome) == COMPONENTES_SEARCH
+    assert por_nome == {
+        "encoder": pytest.approx((2.0,)),
+        "denso": pytest.approx((5.0,)),
+        "bm25": pytest.approx((3.0,)),
+        "nome": pytest.approx((1.0,)),
+        "fusão+hidratação": pytest.approx((9.0,)),
+    }
 
 
 # --- as duas portas ---------------------------------------------------------
@@ -167,6 +224,22 @@ def test_relatorio_marca_piso_rompido_como_falha() -> None:
     assert "❌" in texto
 
 
+def test_relatorio_mostra_decomposicao_sem_dizer_que_percentis_somam() -> None:
+    medicao = _medicao(
+        Amostra("search", (20.0, 30.0)),
+        componentes_search=(
+            Amostra("encoder", (2.0, 3.0)),
+            Amostra("denso", (10.0, 20.0)),
+            Amostra("fusão+hidratação", (8.0, 7.0)),
+        ),
+    )
+    texto = render(medicao, AMBIENTE, [], {}, "")
+    assert "## Decomposição de `search`" in texto
+    assert "| `encoder` | 2 |" in texto
+    assert "| `denso` | 2 |" in texto
+    assert "Percentis de componentes não são aditivos" in texto
+
+
 def test_relatorio_conta_os_neighbors_vazios() -> None:
     """`neighbors` rápido e `neighbors` sem assunto são a mesma medição vista de fora."""
     texto = render(
@@ -251,3 +324,7 @@ def test_porta_sem_maquina_e_recusada() -> None:
     """Piso sem máquina não é porta, é número solto: o mesmo p95 aprova num
     desktop e reprova num notebook de 15 W."""
     assert main(["--porta"]) == 2
+
+
+def test_decomposicao_com_rerank_e_recusada() -> None:
+    assert main(["--decompor-search", "--rerank"]) == 2
