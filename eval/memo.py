@@ -96,15 +96,20 @@ class _StoreComMemo:
         texto: str,
         k: int,
         pesos_colunas: tuple[float, float, float] | None = None,
+        filtro_path: str | None = None,
         *,
         podar_ubiquos: bool = True,
     ) -> list:
-        chave = (texto, k, pesos_colunas, podar_ubiquos)
+        chave = (texto, k, pesos_colunas, filtro_path, podar_ubiquos)
         return self._lembrar(
             self._lexical,
             chave,
             lambda: self._store.buscar_lexical(
-                texto, k, pesos_colunas, podar_ubiquos=podar_ubiquos
+                texto,
+                k,
+                pesos_colunas,
+                filtro_path=filtro_path,
+                podar_ubiquos=podar_ubiquos,
             ),
         )
 

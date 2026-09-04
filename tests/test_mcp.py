@@ -103,7 +103,14 @@ def chamar(servidor, nome: str, **kwargs) -> dict:  # noqa: ANN001
 
 
 SUPERFICIE = {
-    "search", "read_note", "neighbors", "list_folder", "outline", "get_document", "pack_folder",
+    "search",
+    "read_note",
+    "neighbors",
+    "list_folder",
+    "outline",
+    "get_document",
+    "pack_folder",
+    "overview",
 }
 """As sete ferramentas, e por que cada grupo está aqui.
 
@@ -137,7 +144,9 @@ def test_nenhuma_ferramenta_gera_texto(servidor) -> None:  # noqa: ANN001
 
     assert not (nomes & proibidas)
     for t in ferramentas(servidor).values():
-        assert not any(p in (t.description or "").lower() for p in ("gera", "resume", "responde a pergunta"))
+        assert not any(
+            p in (t.description or "").lower() for p in ("gera", "resume", "responde a pergunta")
+        )
 
 
 def test_toda_ferramenta_descreve_quando_usar(servidor) -> None:  # noqa: ANN001
@@ -271,7 +280,7 @@ def test_sem_base_a_superficie_nao_muda(tmp_path: Path) -> None:
 
 
 def test_search_anexa_vizinhos_sem_misturar_com_o_trecho(servidor) -> None:  # noqa: ANN001
-    """"A resposta estava no parágrafo seguinte" — mas a procedência é do trecho.
+    """ "A resposta estava no parágrafo seguinte" — mas a procedência é do trecho.
 
     O vizinho vai em `antes`/`depois`, nunca dentro de `texto`: misturar faria o
     cliente citar como achado um texto que o ranqueador nunca pontuou.
@@ -296,7 +305,9 @@ def test_contexto_tem_teto(servidor) -> None:  # noqa: ANN001
     from segundocerebro.mcp.server import CONTEXTO_MAX
 
     generoso = chamar(servidor, "search", consulta="contrato", k=1, contexto=99)["trechos"][0]
-    no_teto = chamar(servidor, "search", consulta="contrato", k=1, contexto=CONTEXTO_MAX)["trechos"][0]
+    no_teto = chamar(servidor, "search", consulta="contrato", k=1, contexto=CONTEXTO_MAX)[
+        "trechos"
+    ][0]
     assert generoso.get("antes", "") == no_teto.get("antes", "")
     assert generoso.get("depois", "") == no_teto.get("depois", "")
 
@@ -314,7 +325,9 @@ def test_k_e_janela_saem_da_base(tmp_path: Path) -> None:
     from segundocerebro.config import Busca
 
     base = _base(id="a", indice=tmp_path / "i", busca=Busca(k=3, k_max=5, janela=2, janela_max=4))
-    ferrs = ferramentas(construir(Recursos(indice=tmp_path / "i", modelo="falso", threads=1, base=base)))
+    ferrs = ferramentas(
+        construir(Recursos(indice=tmp_path / "i", modelo="falso", threads=1, base=base))
+    )
 
     assert ferrs["search"].input_schema["properties"]["k"]["default"] == 3
     assert ferrs["read_note"].input_schema["properties"]["janela"]["default"] == 2
@@ -418,3 +431,188 @@ def test_neighbors_respeita_o_teto_do_limite(servidor) -> None:  # noqa: ANN001
     assert ferrs["neighbors"].input_schema["properties"]["limite"]["default"] == 5
     dados = chamar(servidor, "neighbors", arquivo="qualquer.md", limite=9999)
     assert dados["vizinhos"] == []
+
+
+# --- filtros e modo de auditoria do search (PR-F1) ----------------------------
+
+
+def test_search_com_filtro_de_pasta_restringe_acertos(servidor) -> None:  # noqa: ANN001
+    """Restringe a busca apenas aos documentos contidos no prefixo de pasta."""
+    achados = chamar(servidor, "search", consulta="governança", pasta="Politica de IA")
+    assert achados["encontrados"] > 0
+    assert all(t["arquivo"].startswith("Politica de IA/") for t in achados["trechos"])
+
+
+def test_search_com_pasta_inexistente_devolve_vazio(servidor) -> None:  # noqa: ANN001
+    """Pasta sem documentos devolve lista limpa e zero encontrados."""
+    achados = chamar(servidor, "search", consulta="governança", pasta="Projetos/Desconhecido")
+    assert achados["encontrados"] == 0
+    assert achados["trechos"] == []
+
+
+def test_search_normaliza_separador_de_pasta_windows(servidor) -> None:  # noqa: ANN001
+    """Barras invertidas ou barras no final são tratadas de forma transparente."""
+    achados = chamar(servidor, "search", consulta="governança", pasta="Politica de IA\\")
+    assert achados["encontrados"] > 0
+    assert all(t["arquivo"].startswith("Politica de IA/") for t in achados["trechos"])
+
+
+def test_search_incluir_versoes_antigas_preserva_minutas_superadas(tmp_path: Path) -> None:
+    """Sem flag, a versão superada é omitida pelo colapso de famílias; com flag, ambas vêm."""
+    from segundocerebro.index.store import Store
+    from segundocerebro.ingest.chunking import Chunk
+    from segundocerebro.ingest.document import BlockKind
+    from segundocerebro.retrieve.hybrid import BuscaHibrida
+
+    emb = EmbedderFalso()
+    store = Store(tmp_path / "indice_versoes", dim=emb.dim)
+    chunks = [
+        Chunk(
+            id="v1#1",
+            doc_path="Contratos/Minuta_v1.docx",
+            ordinal=1,
+            heading_path=("Contrato",),
+            locator="p. 1",
+            kind=BlockKind.TEXT,
+            text="Cláusula de confidencialidade e rescisão comercial v1.",
+        ),
+        Chunk(
+            id="v2#1",
+            doc_path="Contratos/Minuta_v2.docx",
+            ordinal=1,
+            heading_path=("Contrato",),
+            locator="p. 1",
+            kind=BlockKind.TEXT,
+            text="Cláusula de confidencialidade e rescisão comercial v2.",
+        ),
+    ]
+    store.gravar_chunks(chunks, emb.embed_passagens([c.text for c in chunks]), 0.0, emb.model_id)
+    store.registrar_documento(
+        path="Contratos/Minuta_v1.docx",
+        raiz="r",
+        tamanho=100,
+        mtime=1000.0,
+        status="ok",
+        n_chunks=1,
+        model_id=emb.model_id,
+    )
+    store.registrar_documento(
+        path="Contratos/Minuta_v2.docx",
+        raiz="r",
+        tamanho=100,
+        mtime=2000.0,
+        status="ok",
+        n_chunks=1,
+        model_id=emb.model_id,
+    )
+    store.commit()
+
+    recursos = Recursos(indice=tmp_path / "indice_versoes", modelo="falso", threads=1)
+    recursos._store = store
+    recursos._busca = BuscaHibrida(store, emb)
+    srv = construir(recursos)
+
+    # Por padrão (incluir_versoes_antigas=False): colapsa e devolve apenas v2 (mtime maior)
+    padrao = chamar(srv, "search", consulta="confidencialidade", pasta="Contratos")
+    arquivos_padrao = {t["arquivo"] for t in padrao["trechos"]}
+    assert "Contratos/Minuta_v2.docx" in arquivos_padrao
+    assert "Contratos/Minuta_v1.docx" not in arquivos_padrao
+
+    # Com auditoria histórica (incluir_versoes_antigas=True): devolve v1 e v2
+    auditoria = chamar(
+        srv,
+        "search",
+        consulta="confidencialidade",
+        pasta="Contratos",
+        incluir_versoes_antigas=True,
+    )
+    arquivos_auditoria = {t["arquivo"] for t in auditoria["trechos"]}
+    assert "Contratos/Minuta_v1.docx" in arquivos_auditoria
+    assert "Contratos/Minuta_v2.docx" in arquivos_auditoria
+    store.fechar()
+
+
+# --- overview (R7.1) ---------------------------------------------------------
+
+
+def test_overview_retorna_resumo_completo_da_base(servidor) -> None:  # noqa: ANN001
+    """overview devolve documento total, chunks, formatos e pastas da base de teste."""
+    dados = chamar(servidor, "overview")
+    assert dados["documentos_total"] > 0
+    assert dados["chunks_total"] > 0
+    assert "mais_antigo" in dados["periodo"]
+    assert "mais_recente" in dados["periodo"]
+    assert "taxa_indexacao" in dados["status"]
+    assert any(f["extensao"] == ".docx" for f in dados["formatos"])
+    assert any(p["pasta"] == "Politica de IA" for p in dados["pastas_raiz"])
+
+
+def test_overview_com_datas_reais_formata_periodo(tmp_path: Path) -> None:
+    """Documentos com mtime real produzem datas ISO no período."""
+    from segundocerebro.index.store import Store
+    from segundocerebro.retrieve.hybrid import BuscaHibrida
+    from tests.falsos import DIM, EmbedderFalso
+
+    store = Store(tmp_path / "indice_com_datas", dim=DIM)
+    emb = EmbedderFalso()
+    store.registrar_documento(
+        path="Doc1.txt",
+        raiz="r",
+        tamanho=10,
+        mtime=1704067200.0,
+        status="ok",
+        n_chunks=1,
+        model_id=emb.model_id,
+    )
+    store.registrar_documento(
+        path="Doc2.txt",
+        raiz="r",
+        tamanho=10,
+        mtime=1735689600.0,
+        status="ok",
+        n_chunks=1,
+        model_id=emb.model_id,
+    )
+    store.commit()
+
+    recursos = Recursos(indice=tmp_path / "indice_com_datas", modelo="falso", threads=1)
+    recursos._store = store
+    recursos._busca = BuscaHibrida(store, emb)
+    srv = construir(recursos)
+
+    dados = chamar(srv, "overview")
+    assert dados["periodo"]["mais_antigo"] == "2024-01-01"
+    assert dados["periodo"]["mais_recente"] == "2025-01-01"
+    store.fechar()
+
+
+def test_overview_em_base_vazia_retorna_zeros(tmp_path: Path) -> None:
+    """Base vazia não falha nem divide por zero: entrega zeros estruturados."""
+    from segundocerebro.index.store import Store
+    from segundocerebro.retrieve.hybrid import BuscaHibrida
+    from tests.falsos import DIM, EmbedderFalso
+
+    store = Store(tmp_path / "indice_vazio", dim=DIM)
+    emb = EmbedderFalso()
+    recursos = Recursos(indice=tmp_path / "indice_vazio", modelo="falso", threads=1)
+    recursos._store = store
+    recursos._busca = BuscaHibrida(store, emb)
+    srv = construir(recursos)
+
+    dados = chamar(srv, "overview")
+    assert dados["documentos_total"] == 0
+    assert dados["chunks_total"] == 0
+    assert dados["periodo"]["mais_antigo"] is None
+    assert dados["periodo"]["mais_recente"] is None
+    assert dados["status"]["taxa_indexacao"] == 0.0
+    assert dados["formatos"] == []
+    assert dados["pastas_raiz"] == []
+    store.fechar()
+
+
+def test_overview_nao_expoe_caminhos_absolutos(servidor) -> None:  # noqa: ANN001
+    """Nenhum caminho com barra invertida absoluta ou letra de unidade vaza."""
+    dados = chamar(servidor, "overview")
+    for item in dados["pastas_raiz"]:
+        p = item["pasta"]
+        assert not p.startswith(("/", "\\", "C:", "D:"))

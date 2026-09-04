@@ -55,6 +55,7 @@ config.toml.*
 Thumbs.db
 desktop.ini
 .DS_Store
+.claude/
 
 # Índice local gerado — só na raiz. Sem a barra inicial, este padrão também
 # casaria src/segundocerebro/index/ e deixaria o pacote fora do repositório,

@@ -829,7 +829,8 @@ privada do desktop **não** trava nenhum destes:
 | F4-R | Regime de máquina: a indexação varia 22× por estado do SO que o produto não observa | notebook (`esforco.py` emprestado até o R.3) | 6 | ✅ **fechado** — R.1 PR #75 · R.2 PR #77 · R.3 PR #78; mistura refutada, produto é P-only. Laudo: [`docs/afinidade-e-estado-de-maquina.md`](docs/afinidade-e-estado-de-maquina.md) |
 | F4-W / R5.1 | Watcher, com camada USN Journal | desktop | 6 | ✅ **fechado** — watcher vivo + catch-up USN |
 | F4-S | SharePoint = pasta sincronizada, só política e tela | notebook | 6 | ✅ **fechado** — placeholder visível no painel, sem hidratar |
-| R6.2+C4.2 · R7.1 · R7.2+C6.a · R6.3 | Rerank v2 · tools · descriptions · tempo/pasta | notebook | 7 | — |
+| **PR-F1** (R7.1/R6.3) | Filtros de pasta (`pasta`) e controle de auditoria de versões antigas no `search` | notebook | 1 | ✅ **fechado** em 04/09/2026 |
+| **R7.1 (overview)** | Tool MCP `overview()` para orientação e panorama estatístico (<200 ms) | notebook | 1 | ✅ **fechado** em 04/09/2026 |
 | F6-B / R8.2 | Primeira base sem terminal, MCPB, com a UX de C1 | quem não estiver no painel | 8 | depois de F6-A |
 | **J.b1** | `doc_id` público por conteúdo, índice em `documentos.sha256`, URI `sc://`, regra de preferência entre os **223 caminhos duplicados** | notebook | **1** | ✅ fechado em 30/08/2026 |
 | **J.c-mapa** | `outline` + `list_folder`; complemento `J.c-mapa.2` inclui `so_censo` | Desktop ativo | **1** | mapa ✅ em 30/08; `so_censo` entregue neste PR, em 01/09 |

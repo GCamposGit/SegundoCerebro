@@ -125,7 +125,13 @@ def otimizar_fts(con: sqlite3.Connection) -> bool:
 
 
 def buscar_lexical(  # noqa: ANN001
-    store, texto: str, k: int, pesos_colunas=None, *, podar_ubiquos: bool = True
+    store,
+    texto: str,
+    k: int,
+    pesos_colunas=None,
+    filtro_path: str | None = None,
+    *,
+    podar_ubiquos: bool = True,
 ) -> list:
     """Executa o ranking FTS5; ``Store`` conserva apenas a fachada pública."""
     from .store import Acerto
@@ -135,30 +141,41 @@ def buscar_lexical(  # noqa: ANN001
     )
     if not expressao:
         return []
+    extra: tuple[object, ...] = (filtro_path, f"{filtro_path}/%") if filtro_path else ()
     if pesos_colunas is None:
         score = "bm25(chunks_fts)"
-        parametros: tuple[object, ...] = (expressao, k)
+        parametros: tuple[object, ...] = (expressao, *extra, k)
     else:
         score = "bm25(chunks_fts, ?, ?, ?)"
-        parametros = (*(float(p) for p in pesos_colunas), expressao, k)
+        parametros = (*(float(p) for p in pesos_colunas), expressao, *extra, k)
     # O ``id`` mora na tabela externa ``chunks``, mas ele não participa nem do
-    # MATCH nem da ordenação. Um JOIN direto faz o SQLite consultar ``chunks``
-    # para **todo** acerto antes de descartar os que ficaram fora do top-k — no
-    # índice R9.3 isso eram até 1 milhão de PK lookups por pergunta. A subconsulta
-    # escalar fica na projeção e o SQLite só a avalia para as linhas retidas pelo
-    # LIMIT. É uma única instrução (snapshot consistente) e mantém score e ordem.
-    linhas = store.con.execute(
-        f"""
-        SELECT (
-            SELECT c.id FROM chunks c WHERE c.rowid = chunks_fts.rowid
-        ) AS id, {score} AS score
-        FROM chunks_fts
-        WHERE chunks_fts MATCH ?
-        ORDER BY score
-        LIMIT ?
-        """,
-        parametros,
-    ).fetchall()
+    # MATCH nem da ordenação. A subconsulta escalar mantém a hidratação do id
+    # limitada ao resultado; quando há filtro por pasta, o JOIN expõe `path`
+    # para o predicado antes do LIMIT.
+    if filtro_path:
+        linhas = store.con.execute(
+            f"""
+            SELECT c.id AS id, {score} AS score
+            FROM chunks_fts JOIN chunks c ON c.rowid = chunks_fts.rowid
+            WHERE chunks_fts MATCH ? AND (c.path = ? OR c.path LIKE ?)
+            ORDER BY score
+            LIMIT ?
+            """,
+            parametros,
+        ).fetchall()
+    else:
+        linhas = store.con.execute(
+            f"""
+            SELECT (
+                SELECT c.id FROM chunks c WHERE c.rowid = chunks_fts.rowid
+            ) AS id, {score} AS score
+            FROM chunks_fts
+            WHERE chunks_fts MATCH ?
+            ORDER BY score
+            LIMIT ?
+            """,
+            parametros,
+        ).fetchall()
     return [
         Acerto(id=str(linha["id"]), score=-float(linha["score"]), posicao=i)
         for i, linha in enumerate(linhas, start=1)

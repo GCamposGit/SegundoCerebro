@@ -805,13 +805,19 @@ class Store:
         texto: str,
         k: int,
         pesos_colunas: tuple[float, float, float] | None = None,
+        filtro_path: str | None = None,
         *,
         podar_ubiquos: bool = True,
     ) -> list[Acerto]:
         from .fts import buscar_lexical
 
         return buscar_lexical(
-            self, texto, k, pesos_colunas, podar_ubiquos=podar_ubiquos
+            self,
+            texto,
+            k,
+            pesos_colunas,
+            filtro_path=filtro_path,
+            podar_ubiquos=podar_ubiquos,
         )
 
     def chunk(self, chunk_id: str) -> ChunkArmazenado | None:

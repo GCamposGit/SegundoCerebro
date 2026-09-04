@@ -3,7 +3,7 @@
 The latency door is defined (`eval/latencia.py`, `eval/portas-latencia.toml`).
 What was missing is the 1M-chunk index. Embedding 1M documents from scratch is
 a 22 h job on this desktop. R4.1's recipe is to perturb vectors that already
-exist: no encoder, minutes not hours, and the artefact is gitignored
+exist: no encoder, minutes not hours, and the generated index is gitignored
 (`/index-*/`).
 
 The method is this module. The 1M file is a local measurement, not a commit.
