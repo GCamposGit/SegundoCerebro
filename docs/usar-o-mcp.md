@@ -87,7 +87,9 @@ Sobre o `--instalar`: ele só existe para cliente cujo caminho **e** formato for
 conferidos. O VS Code fica fora de propósito — o `mcp.json` dele chama a seção
 `servers`, não `mcpServers`, e o trecho gerado aqui não serve para ele.
 
-## As sete ferramentas
+## As oito ferramentas
+
+**`overview()`** — panorama estatístico da base de conhecimento: total de documentos e trechos indexados, período temporal coberto (datas mais antiga e mais recente), formatos mais comuns, principais pastas de primeiro nível, taxa de sucesso da indexação e documentos digitalizados pendentes de OCR. Boa para chamar no início de uma sessão para orientar buscas ou planos de leitura.
 
 **`search(consulta, k=8, contexto=1)`** — trechos por significado e por termo
 exato, fundidos por RRF. Devolve, para cada trecho: `id`, `arquivo`, `secao`,

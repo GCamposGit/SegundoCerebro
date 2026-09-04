@@ -89,9 +89,9 @@ Onde o sistema está, em cinco linhas:
   O caminho entregue está em **0,551 / 0,696** desde a `F4-P`. Com intervalo:
   [`docs/rigor-estatistico.md`](docs/rigor-estatistico.md). É **piso de
   regressão**, não autoridade de arquitetura.
-- **Superfície MCP**: sete ferramentas em dois modos. `search`, `read_note` e
-  `neighbors` respondem **pergunta**; `list_folder`, `outline`, `get_document` e
-  `pack_folder` servem **leitura**: enumerar, mapear, ler e empacotar pasta.
+- **Superfície MCP**: oito ferramentas. `overview` traz panorama inicial da base (R7.1);
+  `search`, `read_note` e `neighbors` respondem **pergunta**; `list_folder`, `outline`,
+  `get_document` e `pack_folder` servem **leitura**: enumerar, mapear, ler e empacotar pasta.
   `pack_folder` entrou no Desktop em 02/09/2026, neste PR. Toda tool de leitura
   devolve cursor quando há mais conteúdo. Dois clientes instalados por comando
   (Claude Code e Claude Desktop).
@@ -181,9 +181,12 @@ ser hipótese: o percurso do leigo tem teste. O Office legado
    vez" — é decisão de política de repositório com efeito cruzado, e a regra 8
    manda declarar, não fazer. O notebook recomenda ligar. Do `Q2` sobram
    lockfile e extras.
-7. **`PR-F1` — em curso neste Notebook (03/09/2026):** Filtros por subpasta (`pasta`)
+7. **`PR-F1` — fechado em 04/09/2026:** Filtros por subpasta (`pasta`)
    e controle de versões antigas (`incluir_versoes_antigas`) no `search` MCP. Destrava
    busca focada em pastas e auditoria de minutas históricas sem conflito com o Desktop.
+8. **`R7.1` (overview) — entregue em 04/09/2026:** Ferramenta MCP `overview()` para
+   orientação inicial do agente sobre o acervo (SQL puro, <200 ms, dados estruturados
+   de formatos, pastas, datas, taxa de indexação e OCR).
 > **`Q15.a` e `F4-D.2` fecharam em 31/08/2026** e saíram desta lista. O `Q15.a`
 > só ficou certo depois de **medir a sequência**: a primeira versão do conserto
 > arrumava um caso que já funcionava, e o teste dela passava com o conserto

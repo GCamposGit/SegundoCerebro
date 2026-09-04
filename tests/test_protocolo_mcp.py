@@ -61,7 +61,7 @@ REPO = Path(__file__).resolve().parents[1]
 DRIVER = REPO / "tests" / "servidor_falso.py"
 
 FERRAMENTAS = {
-    "search", "read_note", "neighbors", "list_folder", "outline", "get_document", "pack_folder",
+    "search", "read_note", "neighbors", "list_folder", "outline", "get_document", "pack_folder", "overview",
 }
 """A superfície inteira, declarada aqui de novo e de propósito.
 
@@ -264,6 +264,7 @@ def test_o_esquema_diz_ao_cliente_como_chamar(do_produto: dict[str, Any]) -> Non
         "pasta", "budget_chars", "cursor", "politica", "ids", "recursivo",
     }
     assert do_produto["ferramentas"]["pack_folder"].annotations.read_only_hint is True
+    assert set(esquemas["overview"].get("properties", {})) == set()
 
 
 # --- 2. as três ferramentas por cima do cano de verdade ----------------------
@@ -457,6 +458,7 @@ NUMERAIS = {
     5: "cinco ferramentas",
     6: "seis ferramentas",
     7: "sete ferramentas",
+    8: "oito ferramentas",
 }
 """Como o título da seção conta as ferramentas. Só os casos que podem existir."""
 

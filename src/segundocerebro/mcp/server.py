@@ -47,6 +47,7 @@ from ..logger import get_logger
 from ..retrieve.hybrid import BuscaHibrida
 from .busca import registrar as registrar_busca
 from .leitura import registrar as registrar_leitura
+from .overview import registrar as registrar_overview
 
 log = get_logger("mcp.server")
 
@@ -184,6 +185,7 @@ def construir(recursos: Recursos) -> MCPServer:
     )
     registrar_busca(servidor, recursos, limites)
     registrar_leitura(servidor, recursos, limites)
+    registrar_overview(servidor, recursos)
     return servidor
 
 

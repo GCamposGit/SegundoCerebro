@@ -103,7 +103,7 @@ def chamar(servidor, nome: str, **kwargs) -> dict:  # noqa: ANN001
 
 
 SUPERFICIE = {
-    "search", "read_note", "neighbors", "list_folder", "outline", "get_document", "pack_folder",
+    "search", "read_note", "neighbors", "list_folder", "outline", "get_document", "pack_folder", "overview",
 }
 """As sete ferramentas, e por que cada grupo está aqui.
 
@@ -517,4 +517,80 @@ def test_search_incluir_versoes_antigas_preserva_minutas_superadas(tmp_path: Pat
     assert "Contratos/Minuta_v1.docx" in arquivos_auditoria
     assert "Contratos/Minuta_v2.docx" in arquivos_auditoria
     store.fechar()
+
+
+# --- overview (R7.1) ---------------------------------------------------------
+
+
+def test_overview_retorna_resumo_completo_da_base(servidor) -> None:  # noqa: ANN001
+    """overview devolve documento total, chunks, formatos e pastas da base de teste."""
+    dados = chamar(servidor, "overview")
+    assert dados["documentos_total"] > 0
+    assert dados["chunks_total"] > 0
+    assert "mais_antigo" in dados["periodo"]
+    assert "mais_recente" in dados["periodo"]
+    assert "taxa_indexacao" in dados["status"]
+    assert any(f["extensao"] == ".docx" for f in dados["formatos"])
+    assert any(p["pasta"] == "Politica de IA" for p in dados["pastas_raiz"])
+
+
+def test_overview_com_datas_reais_formata_periodo(tmp_path: Path) -> None:
+    """Documentos com mtime real produzem datas ISO no período."""
+    from segundocerebro.index.store import Store
+    from segundocerebro.retrieve.hybrid import BuscaHibrida
+    from tests.falsos import DIM, EmbedderFalso
+
+    store = Store(tmp_path / "indice_com_datas", dim=DIM)
+    emb = EmbedderFalso()
+    store.registrar_documento(
+        path="Doc1.txt", raiz="r", tamanho=10, mtime=1704067200.0, status="ok", n_chunks=1, model_id=emb.model_id
+    )
+    store.registrar_documento(
+        path="Doc2.txt", raiz="r", tamanho=10, mtime=1735689600.0, status="ok", n_chunks=1, model_id=emb.model_id
+    )
+    store.commit()
+
+    recursos = Recursos(indice=tmp_path / "indice_com_datas", modelo="falso", threads=1)
+    recursos._store = store
+    recursos._busca = BuscaHibrida(store, emb)
+    srv = construir(recursos)
+
+    dados = chamar(srv, "overview")
+    assert dados["periodo"]["mais_antigo"] == "2024-01-01"
+    assert dados["periodo"]["mais_recente"] == "2025-01-01"
+    store.fechar()
+
+
+def test_overview_em_base_vazia_retorna_zeros(tmp_path: Path) -> None:
+    """Base vazia não falha nem divide por zero: entrega zeros estruturados."""
+    from segundocerebro.index.store import Store
+    from segundocerebro.retrieve.hybrid import BuscaHibrida
+    from tests.falsos import DIM, EmbedderFalso
+
+    store = Store(tmp_path / "indice_vazio", dim=DIM)
+    emb = EmbedderFalso()
+    recursos = Recursos(indice=tmp_path / "indice_vazio", modelo="falso", threads=1)
+    recursos._store = store
+    recursos._busca = BuscaHibrida(store, emb)
+    srv = construir(recursos)
+
+    dados = chamar(srv, "overview")
+    assert dados["documentos_total"] == 0
+    assert dados["chunks_total"] == 0
+    assert dados["periodo"]["mais_antigo"] is None
+    assert dados["periodo"]["mais_recente"] is None
+    assert dados["status"]["taxa_indexacao"] == 0.0
+    assert dados["formatos"] == []
+    assert dados["pastas_raiz"] == []
+    store.fechar()
+
+
+def test_overview_nao_expoe_caminhos_absolutos(servidor) -> None:  # noqa: ANN001
+    """Nenhum caminho com barra invertida absoluta ou letra de unidade vaza."""
+    dados = chamar(servidor, "overview")
+    for item in dados["pastas_raiz"]:
+        p = item["pasta"]
+        assert not p.startswith(("/", "\\", "C:", "D:"))
+
+
 
