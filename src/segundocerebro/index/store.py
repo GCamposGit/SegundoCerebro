@@ -801,11 +801,15 @@ class Store:
         )
 
     def buscar_lexical(
-        self, texto: str, k: int, pesos_colunas: tuple[float, float, float] | None = None
+        self,
+        texto: str,
+        k: int,
+        pesos_colunas: tuple[float, float, float] | None = None,
+        filtro_path: str | None = None,
     ) -> list[Acerto]:
         from .fts import buscar_lexical
 
-        return buscar_lexical(self, texto, k, pesos_colunas)
+        return buscar_lexical(self, texto, k, pesos_colunas, filtro_path=filtro_path)
 
     def chunk(self, chunk_id: str) -> ChunkArmazenado | None:
         linha = self.con.execute(

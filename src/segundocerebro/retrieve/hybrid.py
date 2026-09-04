@@ -302,22 +302,30 @@ class BuscaHibrida:
         sufixo = " (RRF)" if len(partes) > 1 else ""
         return f"{'+'.join(partes)}{sufixo} · {self.embedder.spec.id}"
 
-    def _rankings_de_chunk(self, consulta: str) -> tuple[list[list[str]], list[float], set[str], set[str]]:
+    def _rankings_de_chunk(
+        self, consulta: str, prefixo: str = ""
+    ) -> tuple[list[list[str]], list[float], set[str], set[str]]:
         rankings: list[list[str]] = []
         pesos: list[float] = []
         de_denso: set[str] = set()
         de_lexical: set[str] = set()
-
+        escapado = prefixo.replace("'", "''")
+        filtro_denso = f"(path = '{escapado}' OR path LIKE '{escapado}/%')" if prefixo else None
         if self.usar_denso:
             vetor = self.embedder.embed_consulta(consulta)
-            acertos = self.store.buscar_denso(vetor, self.candidatos, model_id=self.embedder.model_id)
+            acertos = self.store.buscar_denso(
+                vetor, self.candidatos, filtro=filtro_denso, model_id=self.embedder.model_id
+            )
             rankings.append([a.id for a in acertos])
             pesos.append(self.peso_denso)
             de_denso = {a.id for a in acertos}
 
         if self.usar_lexical:
             acertos = self.store.buscar_lexical(
-                self.glossario.expandir(consulta), self.candidatos, self.pesos_fts
+                self.glossario.expandir(consulta),
+                self.candidatos,
+                self.pesos_fts,
+                filtro_path=prefixo or None,
             )
             rankings.append([a.id for a in acertos])
             pesos.append(self.peso_lexical)
@@ -335,22 +343,8 @@ class BuscaHibrida:
             return self.peso_nome
         return PESO_NOME_POR_GRUPO.get(grupo_de_fonte(caminho), self.peso_nome)
 
-    def _nome_por_doc(self, consulta: str) -> dict[str, float]:
-        """A contribuição RRF do ranqueador de nome, por documento — fonte única.
-
-        Os dois caminhos de recuperação consomem isto: `search` soma direto ao
-        seu ranking de documentos, e `_nome_por_chunk` reparte para trechos. Era
-        código duplicado até a `F4-P.1`, e duplicado é como o sinal de nome ficou
-        cinco fases faltando num dos dois lados sem ninguém reparar
-        (`eval/entregue.py`). Uma origem, dois consumidores — o mesmo desenho que
-        `retrieve/fonte.py` recebeu no mesmo pacote.
-
-        Somar aqui em vez de passar mais um ranking para `rrf` é o que permite
-        **peso por item**: `rrf` pondera um ranking inteiro, e o `F4-P.1` precisa
-        ponderar cada documento pelo grupo dele. A conta é idêntica à do `rrf`
-        (`peso / (k + posição)`), então com `nome_por_fonte` desligado o número
-        não muda — e há teste que exige isso.
-        """
+    def _nome_por_doc(self, consulta: str, prefixo: str = "") -> dict[str, float]:
+        """A contribuição RRF do ranqueador de nome, por documento — fonte única."""
         if not (self.usar_nome and self.peso_nome):
             return {}
 
@@ -359,46 +353,25 @@ class BuscaHibrida:
         for posicao, (rel, _) in enumerate(
             self.ranqueador_nome.ranquear(expandida, self.candidatos), start=1
         ):
+            if prefixo and not (rel == prefixo or rel.startswith(prefixo + "/")):
+                continue
             peso = self.peso_do_nome(rel)
             if not peso:
                 continue
             pontos[rel] = peso / (self.k_rrf + posicao)
         return pontos
 
-    def _nome_por_chunk(self, consulta: str, do_poco: dict[str, float]) -> dict[str, float]:
-        """O ranqueador de nome trazido para o nível de trecho — um trecho por documento.
-
-        O nome pontua **documento**, e era por isso que `search` era o único
-        caminho onde ele participava: em `buscar_chunks` não havia posição de
-        trecho honesta para dar a ele (`eval/entregue.py`). A consequência estava
-        medida — o peso do nome é inerte no caminho que o cliente executa, e três
-        das doze perguntas cross-lingual do dourado nunca são alcançadas por ele.
-
-        Espalhar a contribuição por **todos** os trechos do documento seria a
-        tradução ingênua, e está errada: o documento com mais trechos ganharia
-        mais voz, quando o que o nome diz é a posição do documento e nada sobre o
-        tamanho dele.
-
-        A regra aqui é o espelho exato da que `search` usa para colapsar. Lá o
-        documento fica com a posição do seu melhor trecho; aqui o documento
-        entrega **um** trecho — o melhor que a fusão já tem dele, e o primeiro do
-        documento quando a fusão não tem nenhum. Esse segundo caso é justamente o
-        que o pacote existe para consertar: o documento que só o nome alcança. O
-        primeiro trecho é onde estão o cabeçalho e o título, que é o que um
-        casamento por nome de arquivo está de fato afirmando.
-        """
-        por_documento = self._nome_por_doc(consulta)
-        # Um `SELECT ... WHERE path IN (...)` no lugar de um por documento: o
-        # ranqueador de nome devolve `candidatos` documentos, e eram ~79 idas ao
-        # banco por consulta no acervo corporativo.
+    def _nome_por_chunk(
+        self, consulta: str, do_poco: dict[str, float], prefixo: str = ""
+    ) -> dict[str, float]:
+        """O ranqueador de nome trazido para o nível de trecho — um trecho por documento."""
+        por_documento = self._nome_por_doc(consulta, prefixo)
         ids_por_documento = self.store.ids_de_chunks_por_path(list(por_documento))
 
         pontos: dict[str, float] = {}
         for rel, contribuicao in por_documento.items():
             ids = ids_por_documento.get(rel, [])
             if not ids:
-                # Documento no registro sem nenhum chunk: invisível para a fusão,
-                # e o nome não é passe para entrar sem conteúdo indexado.
                 continue
             no_poco = [c for c in ids if c in do_poco]
             representante = max(no_poco, key=do_poco.__getitem__) if no_poco else ids[0]
@@ -440,26 +413,24 @@ class BuscaHibrida:
             )
         return saida
 
-    def buscar_chunks(self, consulta: str, k: int, contexto: int = 0) -> list[ChunkAcerto]:
-        rankings, pesos, de_denso, de_lexical = self._rankings_de_chunk(consulta)
+    def buscar_chunks(
+        self, consulta: str, k: int, contexto: int = 0, pasta: str = "", incluir_versoes_antigas: bool = False
+    ) -> list[ChunkAcerto]:
+        prefixo = pasta.strip().replace("\\", "/").strip("/")
+        rankings, pesos, de_denso, de_lexical = self._rankings_de_chunk(consulta, prefixo)
         pontos = rrf(rankings, self.k_rrf, pesos)
 
-        # O nome entra **depois** da fusão do poço, e não como mais um ranking:
-        # ele precisa saber qual trecho de cada documento a fusão já elegeu para
-        # não duplicar o documento no ranking de trechos.
-        de_nome = self._nome_por_chunk(consulta, pontos)
+        de_nome = self._nome_por_chunk(consulta, pontos, prefixo)
         for chunk_id, ponto in de_nome.items():
             pontos[chunk_id] = pontos.get(chunk_id, 0.0) + ponto
 
         ordenados = sorted(pontos.items(), key=lambda kv: (-kv[1], kv[0]))
-
-        # Os metadados de todo o poço numa ida só. Era uma consulta por trecho, e
-        # o poço tem `candidatos` itens por ranqueador — 350 `execute()` por
-        # consulta medidos no acervo corporativo em 29/08/2026, contra 6 agora.
         armazenados = self.store.chunks_por_id([c for c, _ in ordenados])
 
         descartados = (
-            self._irmaos_superados(ordenados, armazenados) if self.agrupar_familias else {}
+            self._irmaos_superados(ordenados, armazenados)
+            if (self.agrupar_familias and not incluir_versoes_antigas)
+            else {}
         )
         ordenados = [(c, s) for c, s in ordenados if c not in descartados]
         ordenados = ordenados[: max(k, self._quantos_buscar)]
@@ -471,19 +442,12 @@ class BuscaHibrida:
                 log.warning("chunk %s está no vetorial mas não no registro", chunk_id)
                 continue
             origem = "+".join(
-                p
-                for p, s in (("denso", de_denso), ("lexical", de_lexical), ("nome", de_nome))
-                if chunk_id in s
+                p for p, s in (("denso", de_denso), ("lexical", de_lexical), ("nome", de_nome)) if chunk_id in s
             )
             saida.append(
                 ChunkAcerto(
-                    chunk_id=chunk_id,
-                    path=armazenado.path,
-                    score=score,
-                    trilha=armazenado.trilha,
-                    locator=armazenado.locator,
-                    texto=armazenado.texto,
-                    origem=origem,
+                    chunk_id=chunk_id, path=armazenado.path, score=score, trilha=armazenado.trilha,
+                    locator=armazenado.locator, texto=armazenado.texto, origem=origem,
                 )
             )
 
@@ -532,33 +496,21 @@ class BuscaHibrida:
             superados.update(p for p in membros if p != vigente)
         return {c for c, path in do_chunk.items() if path in superados}
 
-    def search(self, consulta: str, k: int) -> list:
-        """Documents ranked by fusion at the document level.
-
-        Each chunk ranking is collapsed to documents first (a document takes its
-        best chunk's position), then those rankings are fused and the file-name
-        contribution (`_nome_por_doc`) is added on top.
-
-        This used to be the *only* path where the file-name ranker participated,
-        for the reason stated in `eval/entregue.py`: it scores documents, and
-        there was no honest chunk position to give it. `_nome_por_chunk` now
-        supplies one — a single chunk per document, mirroring this collapse — so
-        the signal exists on the path the MCP client actually executes. This
-        method stays the historical series (F0 → F4 was measured here).
-
-        `Hit` used to be imported here from `eval.harness`, which made this
-        method — the whole historical series — raise `ModuleNotFoundError` on an
-        installed package, because `pyproject.toml` ships `src/` and nothing
-        else. It lives in `retrieve/contrato.py` since 29/08/2026.
-        """
-        rankings_chunk, pesos, _, _ = self._rankings_de_chunk(consulta)
+    def search(
+        self,
+        consulta: str,
+        k: int,
+        pasta: str = "",
+        incluir_versoes_antigas: bool = False,
+    ) -> list:
+        """Documents ranked by fusion at the document level."""
+        prefixo = pasta.strip().replace("\\", "/").strip("/")
+        rankings_chunk, pesos, _, _ = self._rankings_de_chunk(consulta, prefixo)
 
         rankings_doc: list[list[str]] = []
         pesos_doc: list[float] = []
         melhor_chunk: dict[str, str] = {}
 
-        # Todo o poço numa ida ao banco, antes de colapsar. Eram `candidatos`
-        # consultas por ranqueador — o mesmo N+1 de `buscar_chunks`.
         armazenados = self.store.chunks_por_id([c for ranking in rankings_chunk for c in ranking])
 
         for ranking, peso in zip(rankings_chunk, pesos):
@@ -575,18 +527,11 @@ class BuscaHibrida:
 
         pontos = rrf(rankings_doc, self.k_rrf, pesos_doc)
 
-        # A mesma origem que `buscar_chunks` consome, somada aqui em vez de
-        # entrar como mais um ranking em `rrf`. A conta é a que `rrf` faria; o
-        # que muda é poder ponderar **por documento**, que é o que o `F4-P.1`
-        # precisa e que um peso de ranking inteiro não expressa.
-        for rel, contribuicao in self._nome_por_doc(consulta).items():
+        for rel, contribuicao in self._nome_por_doc(consulta, prefixo).items():
             pontos[rel] = pontos.get(rel, 0.0) + contribuicao
         ordenados = sorted(pontos.items(), key=lambda kv: (-kv[1], kv[0]))
 
-        if self.agrupar_familias:
-            # Antes do corte em k, e é aí que está o ganho: colapsar depois só
-            # esvaziaria o top-k, enquanto colapsar antes promove o vigente para
-            # a posição que o irmão antigo tinha conquistado.
+        if self.agrupar_familias and not incluir_versoes_antigas:
             colapsado, _ = colapsar([p for p, _ in ordenados], self.mtimes)
             por_path = dict(ordenados)
             ordenados = [(p, por_path[p]) for p in colapsado]
@@ -594,15 +539,10 @@ class BuscaHibrida:
         ordenados = ordenados[: max(k, self._quantos_buscar)]
 
         if self.reranker is not None:
-            # Reranquear **depois** do colapso de famílias: o cross-encoder não
-            # tem como saber qual de cinco cópias é a vigente — isso é metadado —
-            # e gastar candidatos com irmãs idênticas desperdiça o orçamento caro.
             def _texto(par: tuple[str, float]) -> str:
                 chunk_id = melhor_chunk.get(par[0])
                 armazenado = armazenados.get(chunk_id) if chunk_id else None
                 if armazenado is None:
-                    # Documento que entrou só pelo ranqueador de nome: não tem
-                    # chunk no poço. O nome é o que existe, e é sinal legítimo.
                     return texto_para_rerank(par[0], "", "")
                 return texto_para_rerank(armazenado.path, armazenado.trilha, armazenado.texto)
 
