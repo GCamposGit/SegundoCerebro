@@ -119,3 +119,10 @@ Quando um documento cita um relatório que você não tem, o que falta é o núm
 não o raciocínio. O raciocínio está no documento de ablação **consolidado**, e
 esses são versionados: são 10 em `docs/`. Os 8 `ablacao-*` que ficam fora do Git
 são as passadas por braço que os 10 consolidam.
+
+## Revisão fundamental de 04/09/2026
+
+- [Diagnóstico e recomendações](revisao-fundamentos-2026-09-04.md)
+- [Pacotes executáveis](plano-fundamentos-execucao.md)
+- [Procedimento de desenvolvimento eficiente](desenvolvimento-eficiente.md)
+- [Validação e limites da revisão](validacao-revisao-fundamentos.md)

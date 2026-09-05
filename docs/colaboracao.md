@@ -1,7 +1,7 @@
 # Colaboração — desktop (Grok) e notebook (Claude Code)
 
 Dois setups, um repositório. Este arquivo é a **única** fonte das regras.
-As skills só dizem *quem você é* e apontam para cá.
+As skills orientam a operação e apontam para cá. O [procedimento compartilhado](desenvolvimento-eficiente.md) define contexto mínimo, isolamento, validação e handoff; esta página mantém donos e regras de produto.
 
 > **Estado vigente desde 02/09/2026.** O notebook original (i7-1355U) foi
 > desativado em 01/09. Este notebook (i7-14700HX, 8P+12E) retomou em 02/09, com
@@ -104,7 +104,7 @@ localmente nos dois setups e só confundem: `git branch -vv` mostra
 
  Ritmo, dos dois lados:
 
-1. `git pull origin main`
+1. Conferir branch, SHA e árvore limpa antes de integrar atualizações. Não executar `git pull origin main` indiscriminadamente dentro de uma branch; seguir o procedimento compartilhado para isolar trabalho concorrente.
 2. trabalhar **só** na sua branch
 3. push e abrir/atualizar o PR
 4. esperar o CI (Windows, CPU, **sem** GPU e **sem** `perguntas.jsonl`)

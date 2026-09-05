@@ -1,91 +1,18 @@
 ---
 name: segundo-cerebro-desktop
-description: >
-  Coordinate Segundo Cérebro work on the GPU desktop (two GTX 980 Ti, new
-  private corpus, no corporate data, Grok Build). Load before any change in
-  this repo on this machine. Triggers: start work, next steps, F3.6, F4,
-  CUDA, 980 Ti, smoke test, pipeline, index, embeddings, estimativa, ondas,
-  prioridade, OLE, legado, PR, branch, collaborate, notebook, Claude Code,
-  synthetic corpus, golden set, config.
-  Use when the user runs /segundo-cerebro-desktop or /desktop.
+description: Aplicar as responsabilidades do desktop em hardware, pipeline e corpus sintético; consultar atribuições e ambiente atuais antes de executar.
 ---
 
-# Desktop — Grok neste repositório
+Leia [o procedimento compartilhado](../../../docs/desenvolvimento-eficiente.md) e a seção vigente de [colaboração](../../../docs/colaboracao.md) quando ainda não estiverem no contexto. Caminhos de comandos partem da raiz do checkout.
 
-Você está no **desktop**. Duas 980 Ti, corpus novo, **sem** o acervo corporativo.
-O outro lado é Claude Code no notebook, dono dos números corporativos.
+# Responsabilidades do desktop
 
-1. Leia [`docs/colaboracao.md`](../../../docs/colaboracao.md) inteiro. É a
-   fonte. Não resuma regras de memória — esta skill diz *quem você é*, não as
-   regras.
-2. `git pull origin main`. Trabalhe numa branch `f36-*` ou `onboarding-*`,
-   nunca em `main`. **Não deixe trabalho só no stash:** cada fase vira commit
-   na branch e PR. O notebook só vê o que está em `main`.
-3. Depois de `colaboracao.md`, leia a §6 e a seção **Pacotes** do `ROADMAP.md`.
-   Um pacote = um PR = lista de paths. Não pegue pacote do notebook. Se precisar
-   editar o ROADMAP, avise antes.
-4. Declare na primeira resposta: setup=desktop, branch, fase, o que não vai
-   tocar.
+Confirme setup e capacidades reais. A seção vigente de `docs/colaboracao.md` define donos; esta skill não congela versão de driver, contagem de testes, SHA ou pacotes ativos.
 
-## Estado em 24/08/2026
+Leia a regra de ouro e o procedimento compartilhado. Desktop responde por CUDA, embeddings e laço do indexador conforme atribuição vigente. Ranking e dados corporativos continuam seguindo o contrato do notebook. Arquivo compartilhado exige reserva de escopo, não edição concorrente.
 
-`main` = `677fa22`. F1, F2, F3, F3.5 e F3.6 fechadas; **F4 é a única fase
-aberta**. PRs #2 a #6 em `main`, inclusive `f36-fila-ondas` (#6). Suíte padrão
-neste clone: 732 verdes (`tests/` + `eval/`).
+Antes de operação GPU, leia `docs/smoke-cuda.md`, `requirements-gpu.txt` e `tests/test_gpu_extra.py`; confirme provider e hardware. Não atualizar ambiente de produção como parte de uma revisão documental. Hardware nunca entra em model_id; mudança de modelo/chunking exige a coordenação já estabelecida.
 
-A lista de entregas fechadas vive na §6 de `colaboracao.md`, num lugar só.
-Não repetir aqui — envelhece.
+Use corpus sintético e fixtures públicas; não fabricar números corporativos. Respeite isolamento de índice e não rodar jobs caros sem orçamento. Registre PID, log e resultado final dos trabalhos em background.
 
-**O que está na sua mão agora:** a §6 de `colaboracao.md`, sempre — e não esta
-linha, que envelhece. Em 24/08/2026 são **cinco pacotes prontos**, nenhum
-bloqueado: `R9.1`+`C5.b` (perfis sintéticos: gerador, seed e manifesto — corpus
-**não** vai para o Git), `C5.a` (porta de custo do MIRACL antes de baixar
-qualquer coisa), `F6-A` (empacotamento), `C7.a`/`C7.d` (planilha com fórmula sem
-cache e CSV na rota errada) e a leva `F4-L`/`F4-W`/`R1.4`/`R5.2`/`R3.2`.
-
-A especificação está em `docs/dossie-melhorias.md` e
-`docs/dossie-complemento-update-devs.md`; a **ordem, o dono e a porta** estão no
-`ROADMAP.md`, junto das premissas dos dois documentos que a medição corrigiu.
-Ler o ROADMAP antes de pegar pacote — sete premissas não bateram.
-
-`config.py` e `painel/*` estão livres desde o merge do F4-M, e continuam "um de
-cada vez": declare na §6 antes de pegar. **Não** implementar `R1.3` — está
-absorvido por `C6`, que é do notebook.
-
-## Você pode
-
-- Hardware, CUDA, `index/embeddings.py`, `index/gpu_pool.py`,
-  `index/smoke_cuda.py`, `index/esforco.py`, `index/estimativa.py`,
-  `index/prioridade.py` e o laço de `index/indexer.py`.
-- Parser que seja seu na §6: hoje `ingest/parsers/ole_texto.py`. **Não** o
-  despachante (`parsers/__init__.py`) sem combinar: é “um de cada vez”.
-- Corpus sintético, `perguntas.example.jsonl`, `config.sintetico.toml`.
-- Uma `[[base]]` nova para o acervo **privado deste computador**. Não mexa em
-  `[padrao]` sem o notebook medir.
-- Recalibrar estimativa de indexação. Ranking não.
-
-## Você recusa
-
-- Alterar `retrieve/*`, pesos padrão em `config.py`, `Chunking`, o modelo
-  padrão.
-- Colocar `cuda` (ou threads, ou provider) em `model_id`.
-- Editar `CLAUDE.md` além de um ponteiro de uma linha para
-  `docs/colaboracao.md`.
-- Inventar números da condição C. Você não tem o conjunto dourado corporativo.
-- Começar F5, glossário corporativo, ou um juiz de rerank que reordene sozinho.
-- Commitar `config.toml`, `census.toml`, `perguntas.jsonl`, índices, caminhos
-  do acervo privado — ou **nome de cliente real** em doc, docstring ou
-  mensagem de commit. O vocabulário de exemplo é a VCE.
-- Corrigir arquivo do outro setup por causa de um achado seu. Reporte no seu
-  doc e aponte (regra 8 da §4).
-
-## PR
-
-O corpo começa com o bloco da §7 de `docs/colaboracao.md`.
-CI é Windows + CPU + sem `perguntas.jsonl`: a suíte padrão tem que passar sem
-GPU. Apague a branch depois do merge.
-
-CUDA 11.8 ou 12.x, nunca 13. Driver 582.x: não subir para 590+.
-`sm_52` não tem FP16/INT8 úteis. Int8 é ideia do notebook.
-
-Slash: `/segundo-cerebro-desktop` ou `/desktop`
+Não fazer pull automático ou repetir pacote antigo listado em histórico. Consulte roadmap e Git atuais. Entrega e handoff seguem o procedimento compartilhado; estado não se duplica nesta skill.
