@@ -99,6 +99,16 @@ def chamar(servidor, nome: str, **kwargs) -> dict:  # noqa: ANN001
     return resultado.structured_content
 
 
+def chamar_erro(servidor, nome: str, **kwargs) -> dict:  # noqa: ANN001
+    """Chama a ferramenta e garante que devolveu erro operacional com is_error=True."""
+    import asyncio
+
+    resultado = asyncio.run(servidor.call_tool(nome, kwargs))
+    assert resultado.is_error, resultado
+    return resultado.structured_content
+
+
+
 # --- o contrato da superfície -----------------------------------------------
 
 
@@ -176,8 +186,10 @@ def test_search_respeita_o_teto_de_k(servidor) -> None:  # noqa: ANN001
 
 
 def test_search_com_consulta_vazia_nao_explode(servidor) -> None:  # noqa: ANN001
-    saida = chamar(servidor, "search", consulta="   ")
+    saida = chamar_erro(servidor, "search", consulta="   ")
     assert saida["trechos"] == [] and "erro" in saida
+    assert saida.get("codigo") == "consulta_vazia"
+
 
 
 def test_search_com_filtros_temporais(servidor) -> None:  # noqa: ANN001
@@ -283,10 +295,12 @@ def test_read_note_com_janela_zero_traz_so_o_pedido(servidor) -> None:  # noqa: 
 
 def test_read_note_de_id_inexistente_diz_o_que_houve(servidor) -> None:  # noqa: ANN001
     """Erro explícito em vez de lista vazia: lista vazia é indistinguível de 'não tem nada'."""
-    saida = chamar(servidor, "read_note", id="nao-existe#9")
+    saida = chamar_erro(servidor, "read_note", id="nao-existe#9")
 
     assert saida["trechos"] == []
     assert "não encontrado" in saida["erro"]
+    assert saida.get("codigo") == "trecho_nao_encontrado"
+
 
 
 def test_o_id_de_search_serve_para_read_note(servidor) -> None:  # noqa: ANN001
@@ -505,9 +519,11 @@ def test_neighbors_devolve_id_que_serve_para_read_note(tmp_path: Path) -> None:
 
 
 def test_neighbors_com_arquivo_vazio_nao_explode(servidor) -> None:  # noqa: ANN001
-    dados = chamar(servidor, "neighbors", arquivo="   ")
+    dados = chamar_erro(servidor, "neighbors", arquivo="   ")
     assert dados["vizinhos"] == []
     assert "erro" in dados
+    assert dados.get("codigo") == "arquivo_vazio"
+
 
 
 def test_neighbors_respeita_o_teto_do_limite(servidor) -> None:  # noqa: ANN001

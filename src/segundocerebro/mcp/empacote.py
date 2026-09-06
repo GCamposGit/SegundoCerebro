@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
-import json
 from typing import Any
 
-from mcp.types import CallToolResult, TextContent, ToolAnnotations
+from mcp.types import CallToolResult, ToolAnnotations
 
 from ..acesso.empacote import CHARS_PADRAO, empacotar
 from ..acesso.original import ErroLeitura
+
+from .respostas import erro_operacional, sucesso
 
 DESCRICAO = (
     "Empacota uma pasta em um bundle Markdown: primeiro o manifesto, depois os "
@@ -48,14 +49,12 @@ def registrar(servidor, recursos, obter, limites=None) -> None:  # noqa: ANN001
                 cursor=cursor, politica=politica, ids=ids, recursivo=bool(recursivo),
                 base=id_da_base, censo_cfg=censo_cfg,
             )
+            return sucesso(saida)
         except ErroLeitura as erro:
-            saida = {"erro": str(erro), "codigo": erro.codigo}
+            return erro_operacional(str(erro), erro.codigo)
         except OSError:
-            saida = {
-                "erro": "Original ou cache indisponível. Confira acesso ao disco e às raízes da base.",
-                "codigo": "acesso_indisponivel",
-            }
-        return CallToolResult(
-            content=[TextContent(type="text", text=json.dumps(saida, ensure_ascii=False))],
-            structured_content=saida, is_error="erro" in saida,
-        )
+            return erro_operacional(
+                "Original ou cache indisponível. Confira acesso ao disco e às raízes da base.",
+                "acesso_indisponivel",
+            )
+

@@ -119,17 +119,21 @@ def conversar(params: StdioServerParameters, roteiro) -> Any:  # noqa: ANN001
     return asyncio.run(_falar())
 
 
-def carga(resultado) -> dict[str, Any]:  # noqa: ANN001
+def carga(resultado, espera_erro: bool = False) -> dict[str, Any]:  # noqa: ANN001
     """O que o cliente lê — e os dois caminhos por onde ele pode ler.
 
     Cliente antigo lê `content[0].text`; cliente novo lê `structured_content`. Os
     dois têm de dizer a mesma coisa, senão o comportamento depende da versão do
     cliente que o usuário instalou.
     """
-    assert not resultado.is_error, resultado
+    if espera_erro:
+        assert resultado.is_error, resultado
+    else:
+        assert not resultado.is_error, resultado
     do_texto = json.loads(resultado.content[0].text)
     assert do_texto == resultado.structured_content
     return do_texto
+
 
 
 def _id_do_topo(resultado) -> str:  # noqa: ANN001
@@ -313,10 +317,22 @@ def do_servidor_falso(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Any
             "lido": await sessao.call_tool("read_note", {"id": id_do_alvo, "janela": 1}),
             "vizinhos": await sessao.call_tool("neighbors", {"arquivo": PLANO}),
             "consulta_vazia": await sessao.call_tool("search", {"consulta": "   "}),
+            "search_sem_acertos": await sessao.call_tool(
+                "search", {"consulta": "governança", "pasta": "Projetos/Desconhecido"}
+            ),
+            "read_note_inexistente": await sessao.call_tool(
+
+                "read_note", {"id": "inexistente#9"}
+            ),
+            "neighbors_vazio": await sessao.call_tool("neighbors", {"arquivo": "   "}),
+            "outline_invalido": await sessao.call_tool(
+                "outline", {"documento": "sc://outra_base/doc#1"}
+            ),
             "iso": await sessao.call_tool("search", {"consulta": "certificação ISO 42001", "k": 3}),
         }
 
     return conversar(params, roteiro)
+
 
 
 def test_search_devolve_procedencia_pelo_protocolo(do_servidor_falso: dict[str, Any]) -> None:
@@ -385,15 +401,50 @@ def test_neighbors_devolve_o_porque_pelo_protocolo(do_servidor_falso: dict[str, 
 def test_erro_de_ferramenta_chega_como_dado_e_nao_como_falha_de_protocolo(
     do_servidor_falso: dict[str, Any],
 ) -> None:
-    """Consulta vazia é resposta, não exceção.
+    """Consulta vazia é erro operacional com is_error=True, não falha de transporte JSON-RPC.
 
     Se virasse erro de JSON-RPC, o cliente mostraria "a ferramenta falhou" e o
-    modelo não teria com que se corrigir. O erro tem de ser conteúdo legível.
+    modelo não teria com que se corrigir. O erro tem de ter is_error=True e conteúdo legível.
     """
     resultado = do_servidor_falso["consulta_vazia"]
 
+    assert resultado.is_error
+    assert carga(resultado, espera_erro=True) == {
+        "erro": "consulta vazia",
+        "codigo": "consulta_vazia",
+        "trechos": [],
+    }
+
+
+def test_consulta_sem_acertos_permanece_sucesso_pelo_protocolo(
+    do_servidor_falso: dict[str, Any],
+) -> None:
+    """Consulta legítima sem resultados não é erro operacional (is_error=False)."""
+    resultado = do_servidor_falso["search_sem_acertos"]
+
     assert not resultado.is_error
-    assert carga(resultado) == {"erro": "consulta vazia", "trechos": []}
+    payload = carga(resultado)
+    assert payload["encontrados"] == 0
+    assert payload["trechos"] == []
+
+
+def test_erros_operacionais_tem_is_error_e_codigo_estavel_pelo_protocolo(
+    do_servidor_falso: dict[str, Any],
+) -> None:
+    """ID ausente, arquivo vazio e base divergente produzem is_error=True e códigos de máquina."""
+    res_rn = do_servidor_falso["read_note_inexistente"]
+    assert res_rn.is_error
+    assert carga(res_rn, espera_erro=True)["codigo"] == "trecho_nao_encontrado"
+
+    res_nei = do_servidor_falso["neighbors_vazio"]
+    assert res_nei.is_error
+    assert carga(res_nei, espera_erro=True)["codigo"] == "arquivo_vazio"
+
+    res_out = do_servidor_falso["outline_invalido"]
+    assert res_out.is_error
+    assert carga(res_out, espera_erro=True)["codigo"] in ("base_divergente", "referencia_invalida")
+
+
 
 
 # --- 3. qual caminho de recuperação a ferramenta executa ---------------------
