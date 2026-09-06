@@ -92,7 +92,8 @@ Onde o sistema está, em cinco linhas:
 - **Superfície MCP**: oito ferramentas. `overview` traz panorama inicial da base (R7.1);
   `search`, `read_note` e `neighbors` respondem **pergunta**; `list_folder`, `outline`,
   `get_document` e `pack_folder` servem **leitura**: enumerar, mapear, ler e empacotar pasta.
-  `pack_folder` entrou no Desktop em 02/09/2026, neste PR. Toda tool de leitura
+  `search` suporta filtros de escopo (`pasta`), auditoria (`incluir_versoes_antigas`) e
+  filtros temporais (`depois_de` e `antes_de` em ISO, R6.3). Toda tool de leitura
   devolve cursor quando há mais conteúdo. Dois clientes instalados por comando
   (Claude Code e Claude Desktop).
 - **Painel** em `127.0.0.1`: criar base, indexar com barra, pesos, glossário,
@@ -187,6 +188,9 @@ ser hipótese: o percurso do leigo tem teste. O Office legado
 8. **`R7.1` (overview) — entregue em 04/09/2026:** Ferramenta MCP `overview()` para
    orientação inicial do agente sobre o acervo (SQL puro, <200 ms, dados estruturados
    de formatos, pastas, datas, taxa de indexação e OCR).
+9. **`R6.3` (filtros temporais) — entregue em 05/09/2026:** Filtros temporais (`depois_de`
+   e `antes_de` em ISO: YYYY, YYYY-MM, YYYY-MM-DD) na ferramenta MCP `search` e no pipeline
+   híbrido (FTS5 com join condicional e LanceDB). Destrava recortes temporais com precisão.
 > **`Q15.a` e `F4-D.2` fecharam em 31/08/2026** e saíram desta lista. O `Q15.a`
 > só ficou certo depois de **medir a sequência**: a primeira versão do conserto
 > arrumava um caso que já funcionava, e o teste dela passava com o conserto

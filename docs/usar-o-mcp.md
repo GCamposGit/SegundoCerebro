@@ -91,11 +91,13 @@ conferidos. O VS Code fica fora de propósito — o `mcp.json` dele chama a seç
 
 **`overview()`** — panorama estatístico da base de conhecimento: total de documentos e trechos indexados, período temporal coberto (datas mais antiga e mais recente), formatos mais comuns, principais pastas de primeiro nível, taxa de sucesso da indexação e documentos digitalizados pendentes de OCR. Boa para chamar no início de uma sessão para orientar buscas ou planos de leitura.
 
-**`search(consulta, k=8, contexto=1)`** — trechos por significado e por termo
+**`search(consulta, k=8, contexto=1, pasta="", incluir_versoes_antigas=False, depois_de="", antes_de="")`** — trechos por significado e por termo
 exato, fundidos por RRF. Devolve, para cada trecho: `id`, `arquivo`, `secao`,
 `onde`, `texto`, `score` e `achado_por` (qual ranqueador o encontrou: denso,
 lexical ou os dois). O `contexto` anexa vizinhos em `antes` e `depois`, para o
-caso "a resposta estava no parágrafo seguinte".
+caso "a resposta estava no parágrafo seguinte". Aceita `pasta` para restringir a
+uma subpasta, `incluir_versoes_antigas=True` para não descartar versões superadas
+de uma família, e filtros temporais `depois_de` e `antes_de` no formato ISO (`YYYY` ou `YYYY-MM-DD`).
 
 **`read_note(id, janela=1)`** — o trecho pedido mais os vizinhos do mesmo
 documento, para ler o contexto em volta. O `id` é o que veio da `search`.

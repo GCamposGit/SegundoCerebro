@@ -180,6 +180,27 @@ def test_search_com_consulta_vazia_nao_explode(servidor) -> None:  # noqa: ANN00
     assert saida["trechos"] == [] and "erro" in saida
 
 
+def test_search_com_filtros_temporais(servidor) -> None:  # noqa: ANN001
+    """search respeita filtros depois_de e antes_de via chamada MCP."""
+    saida_fora = chamar(
+        servidor,
+        "search",
+        consulta="governança",
+        depois_de="2020",
+    )
+    assert saida_fora["encontrados"] == 0
+    assert saida_fora["trechos"] == []
+
+    saida_dentro = chamar(
+        servidor,
+        "search",
+        consulta="governança",
+        antes_de="1975",
+    )
+    assert saida_dentro["encontrados"] > 0
+    assert len(saida_dentro["trechos"]) > 0
+
+
 # --- read_note ---------------------------------------------------------------
 
 

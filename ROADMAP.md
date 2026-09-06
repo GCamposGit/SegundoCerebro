@@ -833,6 +833,7 @@ privada do desktop **não** trava nenhum destes:
 | F4-S | SharePoint = pasta sincronizada, só política e tela | notebook | 6 | ✅ **fechado** — placeholder visível no painel, sem hidratar |
 | **PR-F1** (R7.1/R6.3) | Filtros de pasta (`pasta`) e controle de auditoria de versões antigas no `search` | notebook | 1 | ✅ **fechado** em 04/09/2026 |
 | **R7.1 (overview)** | Tool MCP `overview()` para orientação e panorama estatístico (<200 ms) | notebook | 1 | ✅ **fechado** em 04/09/2026 |
+| **R6.3 (tempo)** | Filtros temporais `depois_de` e `antes_de` no `search` MCP e busca híbrida | notebook | 1 | ✅ **fechado** em 05/09/2026 |
 | F6-B / R8.2 | Primeira base sem terminal, MCPB, com a UX de C1 | quem não estiver no painel | 8 | depois de F6-A |
 | **J.b1** | `doc_id` público por conteúdo, índice em `documentos.sha256`, URI `sc://`, regra de preferência entre os **223 caminhos duplicados** | notebook | **1** | ✅ fechado em 30/08/2026 |
 | **J.c-mapa** | `outline` + `list_folder`; complemento `J.c-mapa.2` inclui `so_censo` | Desktop ativo | **1** | mapa ✅ em 30/08; `so_censo` entregue neste PR, em 01/09 |

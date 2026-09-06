@@ -252,6 +252,8 @@ def test_o_esquema_diz_ao_cliente_como_chamar(do_produto: dict[str, Any]) -> Non
         "contexto",
         "pasta",
         "incluir_versoes_antigas",
+        "depois_de",
+        "antes_de",
     }
     assert esquemas["read_note"]["required"] == ["id"]
     assert set(esquemas["read_note"]["properties"]) == {"id", "janela"}
