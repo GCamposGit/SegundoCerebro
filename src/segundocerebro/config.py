@@ -115,30 +115,19 @@ class Pesos:
     fts_texto: float = 1.0
     fts_trilha: float = 1.0
     fts_caminho: float = 1.0
-    """Pesos de coluna do `bm25()`, **dentro** do ranqueador lexical.
-
-    Não são um quarto, quinto e sexto ranqueador: são a distribuição de voz
-    entre as três colunas do FTS5 (`texto`, `trilha`, `caminho`) que hoje sai
-    1/1/1, o padrão do SQLite. Ficam aqui porque quem lê `[base.pesos]` quer ver
-    num lugar só tudo que decide ordem.
-
-    `caminho` é o motivo de existirem (`C3.a`): valendo 1,0, o nome do arquivo
-    pontua dentro do bm25 **e** de novo na fusão pelo peso `nome`. O mesmo sinal
-    vota duas vezes, e num acervo de nomes ruins (`IMG_2034.pdf`) isso é ruído
-    dobrado. Os três em 1,0 preservam o SQL exato que mediu F1 a F4 — ver
-    `Store.buscar_lexical`.
-
-    São pesos de consulta: mudá-los **não** reindexa nada."""
+    # Procedência do autotune (R6.1): nulo quando fábrica, preenchido quando calibrado.
+    ajustado_em: str | None = None
+    n_perguntas: int | None = None
+    mrr: float | None = None
 
     def validar(self, onde: str) -> None:
-        _conferir_tipos(self, onde, "peso")
+        _conferir_tipos(
+            self, onde, "peso",
+            campos=("denso", "lexical", "nome", "fts_texto", "fts_trilha", "fts_caminho"),
+        )
         for campo, valor in (
-            ("denso", self.denso),
-            ("lexical", self.lexical),
-            ("nome", self.nome),
-            ("fts_texto", self.fts_texto),
-            ("fts_trilha", self.fts_trilha),
-            ("fts_caminho", self.fts_caminho),
+            ("denso", self.denso), ("lexical", self.lexical), ("nome", self.nome),
+            ("fts_texto", self.fts_texto), ("fts_trilha", self.fts_trilha), ("fts_caminho", self.fts_caminho),
         ):
             if valor < 0:
                 raise ErroDeConfig(f"{onde}: peso '{campo}' não pode ser negativo ({valor})")
@@ -149,6 +138,16 @@ class Pesos:
                 f"{onde}: o ranqueador lexical está ativo (peso {self.lexical:g}) e as três "
                 "colunas do bm25 estão em zero — ele não ordenaria nada"
             )
+        if self.ajustado_em is not None and not isinstance(self.ajustado_em, str):
+            raise ErroDeConfig(f"{onde}: 'ajustado_em' precisa ser texto com data/hora")
+        if self.n_perguntas is not None and (
+            isinstance(self.n_perguntas, bool) or not isinstance(self.n_perguntas, int) or self.n_perguntas < 0
+        ):
+            raise ErroDeConfig(f"{onde}: 'n_perguntas' precisa ser inteiro não negativo")
+        if self.mrr is not None and (
+            isinstance(self.mrr, bool) or not isinstance(self.mrr, (int, float)) or not (0.0 <= self.mrr <= 1.0)
+        ):
+            raise ErroDeConfig(f"{onde}: 'mrr' precisa ser número entre 0.0 e 1.0")
 
     @property
     def colunas_fts(self) -> tuple[float, float, float] | None:
