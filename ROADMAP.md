@@ -817,7 +817,7 @@ privada do desktop **não** trava nenhum destes:
 | C3.a | Peso da coluna `caminho` no bm25 | notebook | 2 | ✅ **fechado, hipótese refutada** — ver [`docs/ablacao-c3a-pesos-fts.md`](docs/ablacao-c3a-pesos-fts.md) |
 | F4-P.0 | O eval mede o caminho entregue (`buscar_chunks`), aditivo | notebook | 2 | ✅ **fechado** — ver [`docs/ablacao-caminho-entregue.md`](docs/ablacao-caminho-entregue.md) |
 | F4-P | **Reconciliar os dois caminhos** — encolhido ao **defeito** em 25/08: aceite binário, sem varredura de peso | notebook | 2 | ✅ **fechado, aceite cumprido** — ver [`docs/ablacao-f4p-nome-no-entregue.md`](docs/ablacao-f4p-nome-no-entregue.md) |
-| R6.1 | Autotune: peso por base, fábrica vira prior | notebook | 2 | mecanismo já; critério de generalização espera o `E1` (era `R9.1`) |
+| R6.1 | Autotune: peso por base, fábrica vira prior | notebook | 2 | ✅ **mecanismo entregue** — amostragem heurística (`amostrar_perguntas`), varredura canônica de 37 triplos RRF, guarda-corpos contra sobreajuste e persistência de procedência em `config.toml`. Ver [`docs/ablacao-autotune-r61.md`](docs/ablacao-autotune-r61.md). Critério de generalização amplo espera benchmark multi-perfil `R9.1`. |
 | C7.a · C7.d | Fórmula sem cache (recálculo LibreOffice) · rota do CSV | **desktop** | 3 | C7.d ✅ PR #34; C7.a ✅ PR #35 |
 | R1.4 · R5.2 · R3.2 | Quarentena · orçamento de recursos · dois passes | **desktop** | 3 | ✅ **fechado** PR #36 |
 | R4.1 · R4.2 · R3.3 | ANN · higiene FTS · quantização INT8 | desktop | 4 | ✅ **R4.1/R4.2 fechados em 04/09** — metas isoladas de 150/100 ms retiradas; `search` completo p95 3 404 ms no estresse de 1M, dentro do orçamento revisto de 4 s. INT8 segue por capacidade de 5–20M, não para fechar latência fictícia |
@@ -1297,7 +1297,7 @@ interseção medida: 3 das 11 perguntas de reunião são cross-lingual.
 | Onda | Pacotes | Por que aqui |
 |---|---|---|
 | **1** | `R9.1`+`C5.b` (gerador, seed, manifesto) · `C4.5` (fatia cross-lingual no harness) · `R9.3` (porta de latência) · `C5.a` (porta de custo do MIRACL) · `R8.1`/`F6-A` (empacotamento) · `C1` (política de particionamento + description por censo) | **Instrumento e política antes de conclusão.** Nenhum decide ranking |
-| **2** | ~~`C3.a`~~ (peso da coluna `caminho` — **fechado, refutado**) · `F4-P` (peso por tipo de fonte, teto medido de +0,020) · `C6` (família de versões ≠ grupo de formatos) · `R6.1` (autotune) | O ranking deixa de ter número global — e `C6` vem antes de `R1.3` |
+| **2** | ~~`C3.a`~~ (peso da coluna `caminho` — **fechado, refutado**) · `F4-P` (peso por tipo de fonte, teto medido de +0,020) · `C6` (família de versões ≠ grupo de formatos) · `R6.1` (autotune — mecanismo entregue) | O ranking deixa de ter número global — e `C6` vem antes de `R1.3` |
 | **3** | `C7.a`+`C7.d` (fórmula sem cache, rota do CSV) · `R1.4` (quarentena) · `R5.2` (orçamento) · `R3.2` (dois passes) | Perda silenciosa de conteúdo e sobrevivência em máquina desconhecida |
 | **4** | `R4.1` (ANN) · `R3.3` (quantização) | Escala, contra a porta da onda 1 |
 | **4½** | `J.a`+`J.f` (Parse Store e o indexador lendo dele) | **Acrescentado em 30/08.** Tem de vir **antes** da onda 5: é ela que paga rebuild, e sem o store paga o parse duas vezes |

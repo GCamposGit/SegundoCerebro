@@ -77,6 +77,7 @@ eval/golden/empresas.jsonl
 # licao de `docs/metricas-*.md` e de `config.toml.*`: lista por nome falha em
 # silencio no arquivo seguinte.
 eval/golden/perguntas.jsonl.*
+*autotune*.jsonl
 
 # Relatório por pergunta **sempre** cita nome de arquivo do acervo — é o que ele
 # é. Por isso `docs/metricas-*.md` é padrão e não lista: lista por nome falha em
@@ -85,6 +86,7 @@ eval/golden/perguntas.jsonl.*
 # Se algum dia um relatório de métrica for genérico o bastante para publicar,
 # ele entra por exceção explícita (`!docs/metricas-nome.md`), com o motivo.
 docs/metricas-*.md
+docs/autotune-*.md
 
 # Dicionário de siglas do acervo real: um mapa curado do vocabulário interno da
 # empresa, que é mais sensível que qualquer relatório derivado dele. O exemplo
