@@ -24,6 +24,7 @@ from segundocerebro.census import Config, DeclaredExclusions, RoleExclusion, Roo
 from segundocerebro.config import ErroDeConfig
 from segundocerebro.ingest.chunking import CHUNKER_VERSION, ChunkConfig
 from segundocerebro.index.indexer import _deve_ativar_mcp, indexar
+from segundocerebro.index.identidade_entrada import ColisaoDeCaminho
 from segundocerebro.index.store import Store, consulta_fts
 
 from tests.falsos import DIM, EmbedderFalso, chunk, config_de_raiz, corpus
@@ -944,3 +945,218 @@ def test_exigir_exclusoes_nao_atrapalha_regra_que_funciona(tmp_path: Path) -> No
     store.fechar()
 
     assert progresso.indexados == 1
+
+
+# --- FND-01a: recusa de colisão de caminhos antes de escrever ------------------
+
+
+def test_colisao_de_caminhos_demonstracao_vulnerabilidade_anterior(tmp_path: Path) -> None:
+    """Requirement 1 de FND-01a: demonstra que sem a guarda, o Store terminava com uma só linha.
+
+    Dois arquivos homônimos em raízes distintas sobrescreviam-se mutuamente no SQLite
+    devido ao ON CONFLICT(path), inclusive se o hash for idêntico.
+    """
+    store = Store(tmp_path / "indice", DIM)
+    # Raiz A
+    store.registrar_documento(
+        path="contrato.md",
+        raiz="raiz_a",
+        tamanho=100,
+        mtime=1.0,
+        sha256="hash_a" * 8,
+        status="ok",
+    )
+    store.commit()
+    assert store.estatisticas()["documentos"] == 1
+    raiz_doc_a = store.con.execute("SELECT raiz FROM documentos WHERE path = 'contrato.md'").fetchone()[0]
+    assert raiz_doc_a == "raiz_a"
+
+    # Raiz B registra mesmo path (conteúdo diferente)
+    store.registrar_documento(
+        path="contrato.md",
+        raiz="raiz_b",
+        tamanho=200,
+        mtime=2.0,
+        sha256="hash_b" * 8,
+        status="ok",
+    )
+    store.commit()
+    # O Store antigo terminava com uma única linha, da raiz B
+    assert store.estatisticas()["documentos"] == 1
+    raiz_doc_b = store.con.execute("SELECT raiz FROM documentos WHERE path = 'contrato.md'").fetchone()[0]
+    assert raiz_doc_b == "raiz_b"
+
+    # Caso com mesmo hash em raízes distintas
+    store.registrar_documento(
+        path="mesmo_hash.md",
+        raiz="raiz_a",
+        tamanho=50,
+        mtime=1.0,
+        sha256="mesmo_hash" * 6,
+        status="ok",
+    )
+    store.registrar_documento(
+        path="mesmo_hash.md",
+        raiz="raiz_b",
+        tamanho=50,
+        mtime=2.0,
+        sha256="mesmo_hash" * 6,
+        status="ok",
+    )
+    store.commit()
+    raiz_hash = store.con.execute("SELECT raiz FROM documentos WHERE path = 'mesmo_hash.md'").fetchone()[0]
+    assert raiz_hash == "raiz_b"
+    store.fechar()
+
+
+def test_indexar_recusa_colisao_duas_raizes(tmp_path: Path) -> None:
+    """FND-01a: recusa a passada antes de qualquer escrita quando há homônimos."""
+    raiz_a = tmp_path / "raiz_a"
+    raiz_b = tmp_path / "raiz_b"
+    raiz_a.mkdir()
+    raiz_b.mkdir()
+    (raiz_a / "contrato.md").write_text("# Contrato A\nconteudo a\n", encoding="utf-8")
+    (raiz_b / "contrato.md").write_text("# Contrato B\nconteudo b\n", encoding="utf-8")
+
+    cfg = Config(roots=[RootSpec(name="raiz_a", path=raiz_a), RootSpec(name="raiz_b", path=raiz_b)])
+    store = Store(tmp_path / "indice", DIM)
+    emb = EmbedderFalso()
+
+    with pytest.raises(ColisaoDeCaminho) as exc_info:
+        indexar(cfg, store, emb, parse_workers=1)
+
+    msg = str(exc_info.value)
+    assert "contrato.md" in msg
+    assert "raiz_a" in msg
+    assert "raiz_b" in msg
+    assert "bases distintas" in msg
+    assert "config.toml" in msg
+
+    # Integridade comprovada: nenhum documento gerou embeddings, nenhum foi gravado
+    assert emb.chamadas == 0
+    assert store.estatisticas()["documentos"] == 0
+
+    # Estado de execução registrado explicitamente como 'recusada'
+    status_exec = store.con.execute("SELECT status FROM execucoes ORDER BY id DESC LIMIT 1").fetchone()[0]
+    assert status_exec == "recusada"
+    store.fechar()
+
+
+def test_indexar_recusa_colisao_ordem_invertida(tmp_path: Path) -> None:
+    """A recusa não favorece a primeira nem a última raiz silenciosamente."""
+    raiz_a = tmp_path / "raiz_a"
+    raiz_b = tmp_path / "raiz_b"
+    raiz_a.mkdir()
+    raiz_b.mkdir()
+    (raiz_a / "nota.txt").write_text("nota a\n", encoding="utf-8")
+    (raiz_b / "nota.txt").write_text("nota b\n", encoding="utf-8")
+
+    cfg = Config(roots=[RootSpec(name="raiz_b", path=raiz_b), RootSpec(name="raiz_a", path=raiz_a)])
+    store = Store(tmp_path / "indice", DIM)
+
+    with pytest.raises(ColisaoDeCaminho):
+        indexar(cfg, store, EmbedderFalso(), parse_workers=1)
+    store.fechar()
+
+
+def test_indexar_recusa_colisao_mesmo_hash(tmp_path: Path) -> None:
+    """Mesmo conteúdo/hash em raízes distintas também é recusado para evitar colisão de procedência."""
+    raiz_a = tmp_path / "raiz_a"
+    raiz_b = tmp_path / "raiz_b"
+    raiz_a.mkdir()
+    raiz_b.mkdir()
+    conteudo = "# Idêntico\nmesmo conteúdo em ambas as raízes\n"
+    (raiz_a / "identico.md").write_text(conteudo, encoding="utf-8")
+    (raiz_b / "identico.md").write_text(conteudo, encoding="utf-8")
+
+    cfg = Config(roots=[RootSpec(name="raiz_a", path=raiz_a), RootSpec(name="raiz_b", path=raiz_b)])
+    store = Store(tmp_path / "indice", DIM)
+
+    with pytest.raises(ColisaoDeCaminho):
+        indexar(cfg, store, EmbedderFalso(), parse_workers=1)
+    store.fechar()
+
+
+def test_indexar_recusa_colisao_contra_indice_pre_existente(tmp_path: Path) -> None:
+    """Conflito entre raiz atual e raiz já registrada no Store recusa sem apagar nada."""
+    raiz_a = tmp_path / "raiz_a"
+    raiz_b = tmp_path / "raiz_b"
+    raiz_a.mkdir()
+    raiz_b.mkdir()
+    (raiz_a / "contrato.md").write_text("# Contrato A\n", encoding="utf-8")
+    (raiz_b / "contrato.md").write_text("# Contrato B\n", encoding="utf-8")
+
+    store = Store(tmp_path / "indice", DIM)
+    # 1. Indexa raiz A normalmente
+    cfg_a = Config(roots=[RootSpec(name="raiz_a", path=raiz_a)])
+    progresso_a = indexar(cfg_a, store, EmbedderFalso(), parse_workers=1)
+    assert progresso_a.indexados == 1
+    assert store.estatisticas()["documentos"] == 1
+    raiz_antes = store.con.execute("SELECT raiz FROM documentos WHERE path = 'contrato.md'").fetchone()[0]
+    assert raiz_antes == "raiz_a"
+
+    # 2. Tenta indexar raiz B com o mesmo contrato.md
+    cfg_b = Config(roots=[RootSpec(name="raiz_b", path=raiz_b)])
+    with pytest.raises(ColisaoDeCaminho) as exc_info:
+        indexar(cfg_b, store, EmbedderFalso(), parse_workers=1)
+
+    assert "raiz_b" in str(exc_info.value)
+    assert "raiz_a" in str(exc_info.value)
+
+    # 3. Estado anterior permaneceu intocado; reconciliação de remoção NÃO disparou
+    assert store.estatisticas()["documentos"] == 1
+    raiz_depois = store.con.execute("SELECT raiz FROM documentos WHERE path = 'contrato.md'").fetchone()[0]
+    assert raiz_depois == "raiz_a"
+    store.fechar()
+
+
+def test_indexar_recusa_colisao_com_prefixo(tmp_path: Path) -> None:
+    """Passada incremental com --prefixo detecta conflito se o prefixo alcançar o homônimo."""
+    raiz_a = tmp_path / "raiz_a"
+    raiz_b = tmp_path / "raiz_b"
+    (raiz_a / "sub").mkdir(parents=True)
+    (raiz_b / "sub").mkdir(parents=True)
+    (raiz_a / "sub" / "doc.md").write_text("# Doc A\n", encoding="utf-8")
+    (raiz_b / "sub" / "doc.md").write_text("# Doc B\n", encoding="utf-8")
+
+    cfg = Config(roots=[RootSpec(name="raiz_a", path=raiz_a), RootSpec(name="raiz_b", path=raiz_b)])
+    store = Store(tmp_path / "indice", DIM)
+
+    with pytest.raises(ColisaoDeCaminho):
+        indexar(cfg, store, EmbedderFalso(), parse_workers=1, prefixo="sub")
+    store.fechar()
+
+
+def test_indexar_duas_raizes_sem_homonimos_sucesso(tmp_path: Path) -> None:
+    """Bases sem colisão preservam comportamento normal de indexação."""
+    raiz_a = tmp_path / "raiz_a"
+    raiz_b = tmp_path / "raiz_b"
+    raiz_a.mkdir()
+    raiz_b.mkdir()
+    (raiz_a / "doc_a.md").write_text("# Doc A\n", encoding="utf-8")
+    (raiz_b / "doc_b.md").write_text("# Doc B\n", encoding="utf-8")
+
+    cfg = Config(roots=[RootSpec(name="raiz_a", path=raiz_a), RootSpec(name="raiz_b", path=raiz_b)])
+    store = Store(tmp_path / "indice", DIM)
+
+    progresso = indexar(cfg, store, EmbedderFalso(), parse_workers=1)
+    assert progresso.indexados == 2
+    assert store.estatisticas()["documentos"] == 2
+    store.fechar()
+
+
+def test_indexar_raiz_vazia_sem_colisao_sucesso(tmp_path: Path) -> None:
+    raiz_a = tmp_path / "raiz_a"
+    raiz_b = tmp_path / "raiz_b"
+    raiz_a.mkdir()
+    raiz_b.mkdir()
+    (raiz_a / "doc_a.md").write_text("# Doc A\n", encoding="utf-8")
+
+    cfg = Config(roots=[RootSpec(name="raiz_a", path=raiz_a), RootSpec(name="raiz_b", path=raiz_b)])
+    store = Store(tmp_path / "indice", DIM)
+
+    progresso = indexar(cfg, store, EmbedderFalso(), parse_workers=1)
+    assert progresso.indexados == 1
+    assert store.estatisticas()["documentos"] == 1
+    store.fechar()
+
