@@ -26,6 +26,10 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
+from typing import TYPE_CHECKING, Any
+
+if TYPE_CHECKING:
+    from .integridade import DiagnosticoIntegridade
 
 import numpy as np
 
@@ -1083,21 +1087,17 @@ class Store:
             "quarentena": self.con.execute("SELECT count(*) FROM quarentena").fetchone()[0],
         }
 
-    def verificar_consistencia(self) -> dict[str, int]:
-        """Compare registry and vector table — a mismatch is silent corruption.
+    def verificar_consistencia(self) -> dict[str, Any]:
+        """Compara integridade entre SQLite e LanceDB por identidade (FND-02a)."""
+        from .integridade import verificar_consistencia
 
-        Found in practice: two indexers running against the same directory wrote
-        13.458 vectors for 7.214 chunks. WAL let SQLite tolerate the concurrency,
-        LanceDB has no such protection, and `remover + add` interleaved duplicated
-        every vector. Dense search then returns the same chunk twice and inflates
-        the fusion. Nothing errored — it just measured wrong.
-        """
-        chunks = self.con.execute("SELECT count(*) FROM chunks").fetchone()[0]
-        try:
-            vetores = self.tabela.count_rows()
-        except Exception:  # noqa: BLE001 — sem tabela ainda
-            vetores = 0
-        return {"chunks": chunks, "vetores": vetores, "diferenca": vetores - chunks}
+        return verificar_consistencia(self)
+
+    def diagnosticar_integridade(self, lote: int = 1000) -> DiagnosticoIntegridade:
+        """Diagnóstico paginado e detalhado de integridade entre stores (FND-02a)."""
+        from .integridade import diagnosticar_integridade
+
+        return diagnosticar_integridade(self, lote=lote)
 
     def paths_indexados(self) -> Iterable[str]:
         for linha in self.con.execute("SELECT path FROM documentos"):
