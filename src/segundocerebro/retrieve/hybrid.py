@@ -31,6 +31,7 @@ from .fonte import REUNIAO, grupo_de_fonte
 from .glossario import Glossario
 from .rerank import texto_para_rerank
 from .nomes import RanqueadorDeNome
+from .tempo import converter_limites_temporais
 
 log = get_logger("retrieve.hybrid")
 
@@ -302,14 +303,27 @@ class BuscaHibrida:
         return f"{'+'.join(partes)}{sufixo} · {self.embedder.spec.id}"
 
     def _rankings_de_chunk(
-        self, consulta: str, prefixo: str = ""
+        self,
+        consulta: str,
+        prefixo: str = "",
+        mtime_min: float | None = None,
+        mtime_max: float | None = None,
     ) -> tuple[list[list[str]], list[float], set[str], set[str]]:
         rankings: list[list[str]] = []
         pesos: list[float] = []
         de_denso: set[str] = set()
         de_lexical: set[str] = set()
-        escapado = prefixo.replace("'", "''")
-        filtro_denso = f"(path = '{escapado}' OR path LIKE '{escapado}/%')" if prefixo else None
+
+        filtros_densos: list[str] = []
+        if prefixo:
+            escapado = prefixo.replace("'", "''")
+            filtros_densos.append(f"(path = '{escapado}' OR path LIKE '{escapado}/%')")
+        if mtime_min is not None:
+            filtros_densos.append(f"mtime >= {mtime_min}")
+        if mtime_max is not None:
+            filtros_densos.append(f"mtime <= {mtime_max}")
+        filtro_denso = " AND ".join(filtros_densos) if filtros_densos else None
+
         if self.usar_denso:
             vetor = self.embedder.embed_consulta(consulta)
             acertos = self.store.buscar_denso(
@@ -325,6 +339,8 @@ class BuscaHibrida:
                 self.candidatos,
                 self.pesos_fts,
                 filtro_path=prefixo or None,
+                mtime_min=mtime_min,
+                mtime_max=mtime_max,
                 podar_ubiquos=self.podar_ubiquos,
             )
             rankings.append([a.id for a in acertos])
@@ -343,7 +359,13 @@ class BuscaHibrida:
             return self.peso_nome
         return PESO_NOME_POR_GRUPO.get(grupo_de_fonte(caminho), self.peso_nome)
 
-    def _nome_por_doc(self, consulta: str, prefixo: str = "") -> dict[str, float]:
+    def _nome_por_doc(
+        self,
+        consulta: str,
+        prefixo: str = "",
+        mtime_min: float | None = None,
+        mtime_max: float | None = None,
+    ) -> dict[str, float]:
         """A contribuição RRF do ranqueador de nome, por documento — fonte única."""
         if not (self.usar_nome and self.peso_nome):
             return {}
@@ -355,6 +377,13 @@ class BuscaHibrida:
         ):
             if prefixo and not (rel == prefixo or rel.startswith(prefixo + "/")):
                 continue
+            if mtime_min is not None or mtime_max is not None:
+                doc_mtime = self.mtimes.get(rel)
+                if doc_mtime is not None:
+                    if mtime_min is not None and doc_mtime < mtime_min:
+                        continue
+                    if mtime_max is not None and doc_mtime > mtime_max:
+                        continue
             peso = self.peso_do_nome(rel)
             if not peso:
                 continue
@@ -362,10 +391,17 @@ class BuscaHibrida:
         return pontos
 
     def _nome_por_chunk(
-        self, consulta: str, do_poco: dict[str, float], prefixo: str = ""
+        self,
+        consulta: str,
+        do_poco: dict[str, float],
+        prefixo: str = "",
+        mtime_min: float | None = None,
+        mtime_max: float | None = None,
     ) -> dict[str, float]:
         """O ranqueador de nome trazido para o nível de trecho — um trecho por documento."""
-        por_documento = self._nome_por_doc(consulta, prefixo)
+        por_documento = self._nome_por_doc(
+            consulta, prefixo=prefixo, mtime_min=mtime_min, mtime_max=mtime_max
+        )
         ids_por_documento = self.store.ids_de_chunks_por_path(list(por_documento))
 
         pontos: dict[str, float] = {}
@@ -414,13 +450,25 @@ class BuscaHibrida:
         return saida
 
     def buscar_chunks(
-        self, consulta: str, k: int, contexto: int = 0, pasta: str = "", incluir_versoes_antigas: bool = False
+        self,
+        consulta: str,
+        k: int,
+        contexto: int = 0,
+        pasta: str = "",
+        incluir_versoes_antigas: bool = False,
+        depois_de: str = "",
+        antes_de: str = "",
     ) -> list[ChunkAcerto]:
         prefixo = pasta.strip().replace("\\", "/").strip("/")
-        rankings, pesos, de_denso, de_lexical = self._rankings_de_chunk(consulta, prefixo)
+        mtime_min, mtime_max = converter_limites_temporais(depois_de, antes_de)
+        rankings, pesos, de_denso, de_lexical = self._rankings_de_chunk(
+            consulta, prefixo, mtime_min=mtime_min, mtime_max=mtime_max
+        )
         pontos = rrf(rankings, self.k_rrf, pesos)
 
-        de_nome = self._nome_por_chunk(consulta, pontos, prefixo)
+        de_nome = self._nome_por_chunk(
+            consulta, pontos, prefixo, mtime_min=mtime_min, mtime_max=mtime_max
+        )
         for chunk_id, ponto in de_nome.items():
             pontos[chunk_id] = pontos.get(chunk_id, 0.0) + ponto
 
@@ -502,10 +550,15 @@ class BuscaHibrida:
         k: int,
         pasta: str = "",
         incluir_versoes_antigas: bool = False,
+        depois_de: str = "",
+        antes_de: str = "",
     ) -> list:
         """Documents ranked by fusion at the document level."""
         prefixo = pasta.strip().replace("\\", "/").strip("/")
-        rankings_chunk, pesos, _, _ = self._rankings_de_chunk(consulta, prefixo)
+        mtime_min, mtime_max = converter_limites_temporais(depois_de, antes_de)
+        rankings_chunk, pesos, _, _ = self._rankings_de_chunk(
+            consulta, prefixo, mtime_min=mtime_min, mtime_max=mtime_max
+        )
 
         rankings_doc: list[list[str]] = []
         pesos_doc: list[float] = []
@@ -527,7 +580,9 @@ class BuscaHibrida:
 
         pontos = rrf(rankings_doc, self.k_rrf, pesos_doc)
 
-        for rel, contribuicao in self._nome_por_doc(consulta, prefixo).items():
+        for rel, contribuicao in self._nome_por_doc(
+            consulta, prefixo, mtime_min=mtime_min, mtime_max=mtime_max
+        ).items():
             pontos[rel] = pontos.get(rel, 0.0) + contribuicao
         ordenados = sorted(pontos.items(), key=lambda kv: (-kv[1], kv[0]))
 

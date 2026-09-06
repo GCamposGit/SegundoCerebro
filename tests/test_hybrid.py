@@ -513,3 +513,45 @@ def test_buscar_chunks_e_search_incluir_versoes_antigas(tmp_path: Path) -> None:
     paths_search = {h.path for h in todas_search}
     assert "Doc_v1.docx" in paths_search and "Doc_v2.docx" in paths_search
     store.fechar()
+
+
+def test_buscar_chunks_e_search_com_filtro_temporal(tmp_path: Path) -> None:
+    """Verifica se buscar_chunks e search respeitam os filtros depois_de e antes_de."""
+    store = Store(tmp_path / "indice_tempo", DIM)
+    emb = EmbedderFalso()
+    t2023 = 1685577600.0
+    t2024 = 1717200000.0
+    t2025 = 1748736000.0
+
+    c23 = [chunk("c23", "Doc2023.md", 0, "Diretrizes de sustentabilidade de 2023.")]
+    c24 = [chunk("c24", "Doc2024.md", 0, "Diretrizes de sustentabilidade de 2024.")]
+    c25 = [chunk("c25", "Doc2025.md", 0, "Diretrizes de sustentabilidade de 2025.")]
+
+    store.gravar_chunks(c23, emb.embed_passagens([c.text for c in c23]), mtime=t2023, model_id=emb.model_id)
+    store.registrar_documento(
+        path="Doc2023.md", raiz="r", tamanho=10, mtime=t2023, status="ok", n_chunks=1, model_id=emb.model_id
+    )
+    store.gravar_chunks(c24, emb.embed_passagens([c.text for c in c24]), mtime=t2024, model_id=emb.model_id)
+    store.registrar_documento(
+        path="Doc2024.md", raiz="r", tamanho=10, mtime=t2024, status="ok", n_chunks=1, model_id=emb.model_id
+    )
+    store.gravar_chunks(c25, emb.embed_passagens([c.text for c in c25]), mtime=t2025, model_id=emb.model_id)
+    store.registrar_documento(
+        path="Doc2025.md", raiz="r", tamanho=10, mtime=t2025, status="ok", n_chunks=1, model_id=emb.model_id
+    )
+    store.commit()
+
+    busca = BuscaHibrida(store, emb)
+
+    hits_2024 = busca.search("sustentabilidade", k=5, depois_de="2024", antes_de="2024")
+    assert [h.path for h in hits_2024] == ["Doc2024.md"]
+
+    hits_depois = busca.search("sustentabilidade", k=5, depois_de="2024-01-01")
+    assert {h.path for h in hits_depois} == {"Doc2024.md", "Doc2025.md"}
+
+    chunks_antes = busca.buscar_chunks("sustentabilidade", k=5, antes_de="2024-12-31")
+    assert {c.path for c in chunks_antes} == {"Doc2023.md", "Doc2024.md"}
+
+    assert busca.search("sustentabilidade", k=5, depois_de="2026") == []
+    store.fechar()
+

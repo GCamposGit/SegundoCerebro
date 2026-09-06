@@ -17,6 +17,15 @@ MAX_VIZINHOS_TETO = 25
 CONTEXTO_PADRAO = 1
 CONTEXTO_MAX = 3
 
+DESCRICAO_SEARCH = (
+    "Busca trechos na base de conhecimento por significado e por termo exato. "
+    "Devolve passagens com arquivo, seção e localizador. Boa para perguntas "
+    "sobre o conteúdo de documentos, contratos, políticas, propostas e planilhas. "
+    "Use pasta para restringir os resultados a uma subpasta específica da base. "
+    "Use depois_de e antes_de para filtrar por período (formato ISO YYYY ou YYYY-MM-DD). "
+    "Use incluir_versoes_antigas=True para auditoria de minutas e comparação histórica."
+)
+
 
 def _procedencia(chunk: Any) -> dict[str, Any]:
     """Identidade estável e procedência do trecho."""
@@ -33,21 +42,15 @@ def _registrar_search(servidor: Any, recursos: Any, limites: Any) -> None:
     k_max = limites.k_max if limites else K_MAX
     contexto_padrao = getattr(limites, "contexto", CONTEXTO_PADRAO) if limites else CONTEXTO_PADRAO
 
-    @servidor.tool(
-        description=(
-            "Busca trechos na base de conhecimento por significado e por termo exato. "
-            "Devolve passagens com arquivo, seção e localizador. Boa para perguntas "
-            "sobre o conteúdo de documentos, contratos, políticas, propostas e planilhas. "
-            "Use pasta para restringir os resultados a uma subpasta específica da base. "
-            "Use incluir_versoes_antigas=True para auditoria de minutas e comparação histórica."
-        )
-    )
+    @servidor.tool(description=DESCRICAO_SEARCH)
     def search(
         consulta: str,
         k: int = k_padrao,
         contexto: int = contexto_padrao,
         pasta: str = "",
         incluir_versoes_antigas: bool = False,
+        depois_de: str = "",
+        antes_de: str = "",
     ) -> dict[str, Any]:
         """Args:
         consulta: pergunta ou termos em linguagem natural.
@@ -55,6 +58,8 @@ def _registrar_search(servidor: Any, recursos: Any, limites: Any) -> None:
         contexto: quantos trechos vizinhos anexar a cada acerto (0 a 3).
         pasta: caminho relativo da pasta para filtrar a busca (ex: 'Contratos' ou 'Projetos/X').
         incluir_versoes_antigas: se True, não descarta versões superadas de uma família.
+        depois_de: data ISO inicial (ex: '2024' ou '2024-01-01') para restringir a busca.
+        antes_de: data ISO final (ex: '2024' ou '2024-12-31') para restringir a busca.
         """
         if not consulta.strip():
             return {"erro": "consulta vazia", "trechos": []}
@@ -67,6 +72,8 @@ def _registrar_search(servidor: Any, recursos: Any, limites: Any) -> None:
             contexto=contexto,
             pasta=pasta,
             incluir_versoes_antigas=incluir_versoes_antigas,
+            depois_de=depois_de,
+            antes_de=antes_de,
         )
         trechos = []
         for a in acertos:

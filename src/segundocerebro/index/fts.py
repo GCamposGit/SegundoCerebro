@@ -124,12 +124,63 @@ def otimizar_fts(con: sqlite3.Connection) -> bool:
     return incremental
 
 
+def _buscar_lexical_com_filtros(  # noqa: ANN001
+    store,
+    expressao: str,
+    k: int,
+    pesos_colunas: tuple[float, float, float] | None,
+    filtro_path: str | None,
+    mtime_min: float | None,
+    mtime_max: float | None,
+) -> list[sqlite3.Row]:
+    joins = ["chunks_fts", "JOIN chunks c ON c.rowid = chunks_fts.rowid"]
+    where_clausulas = ["chunks_fts MATCH ?"]
+    parametros_match: list[object] = [expressao]
+    parametros_filtro: list[object] = []
+
+    if filtro_path:
+        where_clausulas.append("(c.path = ? OR c.path LIKE ?)")
+        parametros_filtro.extend([filtro_path, f"{filtro_path}/%"])
+
+    if mtime_min is not None or mtime_max is not None:
+        joins.append("JOIN documentos d ON d.path = c.path")
+        if mtime_min is not None:
+            where_clausulas.append("d.mtime >= ?")
+            parametros_filtro.append(float(mtime_min))
+        if mtime_max is not None:
+            where_clausulas.append("d.mtime <= ?")
+            parametros_filtro.append(float(mtime_max))
+
+    where_sql = " AND ".join(where_clausulas)
+    from_sql = " ".join(joins)
+
+    if pesos_colunas is None:
+        score = "bm25(chunks_fts)"
+        parametros = (*parametros_match, *parametros_filtro, k)
+    else:
+        score = "bm25(chunks_fts, ?, ?, ?)"
+        parametros = (*(float(p) for p in pesos_colunas), *parametros_match, *parametros_filtro, k)
+
+    return store.con.execute(
+        f"""
+        SELECT c.id AS id, {score} AS score
+        FROM {from_sql}
+        WHERE {where_sql}
+        ORDER BY score
+        LIMIT ?
+        """,
+        parametros,
+    ).fetchall()
+
+
 def buscar_lexical(  # noqa: ANN001
     store,
     texto: str,
     k: int,
-    pesos_colunas=None,
+    pesos_colunas: tuple[float, float, float] | None = None,
     filtro_path: str | None = None,
+    mtime_min: float | None = None,
+    mtime_max: float | None = None,
     *,
     podar_ubiquos: bool = True,
 ) -> list:
@@ -141,29 +192,22 @@ def buscar_lexical(  # noqa: ANN001
     )
     if not expressao:
         return []
-    extra: tuple[object, ...] = (filtro_path, f"{filtro_path}/%") if filtro_path else ()
-    if pesos_colunas is None:
-        score = "bm25(chunks_fts)"
-        parametros: tuple[object, ...] = (expressao, *extra, k)
+
+    tem_filtro = bool(filtro_path or mtime_min is not None or mtime_max is not None)
+    if tem_filtro:
+        linhas = _buscar_lexical_com_filtros(
+            store, expressao, k, pesos_colunas, filtro_path, mtime_min, mtime_max
+        )
     else:
-        score = "bm25(chunks_fts, ?, ?, ?)"
-        parametros = (*(float(p) for p in pesos_colunas), expressao, *extra, k)
-    # O ``id`` mora na tabela externa ``chunks``, mas ele não participa nem do
-    # MATCH nem da ordenação. A subconsulta escalar mantém a hidratação do id
-    # limitada ao resultado; quando há filtro por pasta, o JOIN expõe `path`
-    # para o predicado antes do LIMIT.
-    if filtro_path:
-        linhas = store.con.execute(
-            f"""
-            SELECT c.id AS id, {score} AS score
-            FROM chunks_fts JOIN chunks c ON c.rowid = chunks_fts.rowid
-            WHERE chunks_fts MATCH ? AND (c.path = ? OR c.path LIKE ?)
-            ORDER BY score
-            LIMIT ?
-            """,
-            parametros,
-        ).fetchall()
-    else:
+        # O ``id`` mora na tabela externa ``chunks``, mas ele não participa nem do
+        # MATCH nem da ordenação. A subconsulta escalar mantém a hidratação do id
+        # limitada ao resultado após o LIMIT quando não há predicados adicionais.
+        if pesos_colunas is None:
+            score = "bm25(chunks_fts)"
+            parametros = (expressao, k)
+        else:
+            score = "bm25(chunks_fts, ?, ?, ?)"
+            parametros = (*(float(p) for p in pesos_colunas), expressao, k)
         linhas = store.con.execute(
             f"""
             SELECT (
@@ -176,6 +220,7 @@ def buscar_lexical(  # noqa: ANN001
             """,
             parametros,
         ).fetchall()
+
     return [
         Acerto(id=str(linha["id"]), score=-float(linha["score"]), posicao=i)
         for i, linha in enumerate(linhas, start=1)
