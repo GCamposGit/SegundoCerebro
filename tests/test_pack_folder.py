@@ -204,3 +204,67 @@ def test_ferramenta_mcp_devolve_is_error_e_o_bundle(store) -> None:
     erro = espiao.tools["pack_folder"](pasta=PROJETO, politica="melhor")
     assert erro.is_error
     assert erro.structured_content["codigo"] == "politica_invalida"
+
+
+class _LeitorEspiao:
+    def __init__(self, leitor_real: LeitorDocumento) -> None:
+        self.real = leitor_real
+        self.chamadas: list[str] = []
+
+    def carregar_documento(self, doc):  # noqa: ANN001, ANN201
+        self.chamadas.append(doc.caminho)
+        return self.real.carregar_documento(doc)
+
+
+def test_primeira_pagina_pequena_nao_carrega_mil_documentos(store) -> None:
+    """FND-03a: Pasta com 1.000 documentos não faz 1.000 leituras para a 1ª página."""
+    _projeto(store, n=1000)
+    leitor_real = _leitor(store)
+    espiao = _LeitorEspiao(leitor_real)
+
+    saida = empacotar(store, PROJETO, leitor=espiao, budget_chars=400, politica="canonicos")
+
+    assert not saida["completo"]
+    assert saida["total"] == 1000
+    assert len(saida["incluidos"]) >= 1
+    # Verifica que apenas os documentos que couberam na primeira página foram lidos (<= 5 docs, NUNCA 1000)
+    assert len(espiao.chamadas) <= 5
+    assert len(espiao.chamadas) < 1000
+
+
+def test_orcamento_invalido_tem_zero_leituras(store) -> None:
+    """FND-03a: Orçamento inválido falha antes de enumerar/carregar qualquer documento."""
+    _projeto(store, n=5)
+    leitor_real = _leitor(store)
+    espiao = _LeitorEspiao(leitor_real)
+
+    try:
+        empacotar(store, PROJETO, leitor=espiao, budget_chars=-1)
+        raise AssertionError("Deveria falhar com orcamento_invalido")
+    except ErroLeitura as erro:
+        assert erro.codigo == "orcamento_invalido"
+
+    assert len(espiao.chamadas) == 0
+
+
+def test_continuacao_por_cursor_nao_reprocessa_anteriores(store) -> None:
+    """FND-03a: Ao avançar com o cursor, documentos já empacotados não são relidos."""
+    _projeto(store, n=20)
+    leitor_real = _leitor(store)
+    espiao_p1 = _LeitorEspiao(leitor_real)
+
+    pag1 = empacotar(store, PROJETO, leitor=espiao_p1, budget_chars=300, politica="canonicos")
+    assert not pag1["completo"]
+    cursor1 = pag1["cursor_proximo"]
+    lidos_pag1 = set(espiao_p1.chamadas)
+    assert len(lidos_pag1) >= 1
+
+    espiao_p2 = _LeitorEspiao(leitor_real)
+    pag2 = empacotar(store, PROJETO, leitor=espiao_p2, budget_chars=300, cursor=cursor1, politica="canonicos")
+    assert len(pag2["incluidos"]) >= 1
+
+    # Nenhum arquivo já incluído na página 1 deve ser relido na página 2
+    for arq in espiao_p2.chamadas:
+        assert arq not in pag1["incluidos"]
+    assert "Projetos/Gama/NN-VCE-000.md" not in espiao_p2.chamadas
+
