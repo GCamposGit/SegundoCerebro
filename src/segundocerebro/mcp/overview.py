@@ -4,7 +4,10 @@ from __future__ import annotations
 
 from typing import Any
 
+from mcp.types import CallToolResult
+
 from ..acesso.overview import resumo_base
+from .respostas import sucesso
 
 DESCRICAO_OVERVIEW = (
     "Panorama estatístico da base de conhecimento: total de documentos e trechos indexados, "
@@ -20,6 +23,7 @@ def registrar(servidor: Any, recursos: Any) -> None:
     base_id = getattr(base, "id", "") or ""
 
     @servidor.tool(description=DESCRICAO_OVERVIEW)
-    def overview() -> dict[str, Any]:
+    def overview() -> CallToolResult:
         """Devolve panorama estatístico estruturado da base de conhecimento."""
-        return resumo_base(recursos.store, base_id=base_id)
+        return sucesso(resumo_base(recursos.store, base_id=base_id))
+

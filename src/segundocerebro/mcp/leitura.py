@@ -27,13 +27,15 @@ Invariantes que este arquivo não pode violar, e nenhuma delas é opinião:
 from __future__ import annotations
 
 from threading import Lock
-from typing import Any
+
+from mcp.types import CallToolResult
 
 from ..acesso import manifesto
 from ..acesso.documento import LeitorDocumento
 from ..acesso.identidade import conferir_base, interpretar
 from .documento import registrar as registrar_documento
 from .empacote import registrar as registrar_empacote
+from .respostas import erro_operacional, sucesso
 
 DESCRICAO_LIST_FOLDER = (
     "Enumera os documentos de uma pasta da base: raiz, id estável quando já há hash, "
@@ -56,19 +58,12 @@ DESCRICAO_OUTLINE = (
 
 
 def _referencia(documento: str, id_da_base: str):  # noqa: ANN202
-    """A referência pedida, ou a recusa pronta para devolver ao cliente.
-
-    Fora de `registrar` porque a conferência de base é regra de arquitetura
-    (invariante 7) e não detalhe de uma tool: a próxima ferramenta que aceitar
-    `sc://` chama a mesma função em vez de reimplementar a conferência — que é
-    como "duas guardas para a mesma coisa em dois ramos" nasce neste repositório.
-    """
     referencia = interpretar(documento)
     if referencia.erro:
-        return None, {"erro": referencia.erro, "secoes": []}
+        return None, {"erro": referencia.erro, "codigo": "referencia_invalida", "secoes": []}
     divergencia = conferir_base(referencia, id_da_base)
     if divergencia:
-        return None, {"erro": divergencia, "secoes": []}
+        return None, {"erro": divergencia, "codigo": "base_divergente", "secoes": []}
     return referencia, None
 
 
@@ -88,16 +83,12 @@ def registrar(servidor, recursos, limites=None) -> None:  # noqa: ANN001
 
     registrar_documento(servidor, recursos, obter)
     registrar_empacote(servidor, recursos, obter, limites)
-    _registrar_mapa(servidor, recursos, limites)
+    _registrar_list_folder(servidor, recursos, limites)
+    _registrar_outline(servidor, recursos)
 
 
-def _registrar_mapa(servidor, recursos, limites=None) -> None:  # noqa: ANN001
-    """Acrescenta as tools de mapa ao servidor já construído.
-
-    Recebe o servidor em vez de devolver um: a superfície MCP é uma só, e um
-    segundo servidor para as tools novas seria duas superfícies para a mesma
-    base — a anti-recomendação 5 do pacote J aplicada ao transporte.
-    """
+def _registrar_list_folder(servidor, recursos, limites=None) -> None:  # noqa: ANN001
+    """Acrescenta list_folder ao servidor MCP."""
     base = getattr(recursos, "base", None)
     id_da_base = getattr(base, "id", "") or ""
     censo_cfg = base.censo() if callable(getattr(base, "censo", None)) else None
@@ -109,7 +100,7 @@ def _registrar_mapa(servidor, recursos, limites=None) -> None:  # noqa: ANN001
         recursivo: bool = False,
         cursor: int = 0,
         max_itens: int = manifesto.LIMITE_ITENS,
-    ) -> dict[str, Any]:
+    ) -> CallToolResult:
         """Args:
         pasta: caminho relativo à raiz da base, como aparece no campo `arquivo` de
             `search`. Vazio lista a raiz.
@@ -118,22 +109,32 @@ def _registrar_mapa(servidor, recursos, limites=None) -> None:  # noqa: ANN001
         max_itens: quantos documentos devolver por página.
         """
         limite = max(1, min(int(max_itens), max_itens_teto))
-        return manifesto.manifesto(
-            recursos.store,
-            pasta,
-            recursivo=bool(recursivo),
-            cursor=int(cursor or 0),
-            limite=limite,
-            base=id_da_base,
-            censo_cfg=censo_cfg,
-        )
+        try:
+            res = manifesto.manifesto(
+                recursos.store,
+                pasta,
+                recursivo=bool(recursivo),
+                cursor=int(cursor or 0),
+                limite=limite,
+                base=id_da_base,
+                censo_cfg=censo_cfg,
+            )
+            return sucesso(res)
+        except Exception as exc:  # noqa: BLE001
+            return erro_operacional(str(exc), "pasta_invalida")
+
+
+def _registrar_outline(servidor, recursos) -> None:  # noqa: ANN001
+    """Acrescenta outline ao servidor MCP."""
+    base = getattr(recursos, "base", None)
+    id_da_base = getattr(base, "id", "") or ""
 
     @servidor.tool(description=DESCRICAO_OUTLINE)
     def outline(
         documento: str,
         cursor: int = 0,
         max_secoes: int = manifesto.LIMITE_SECOES,
-    ) -> dict[str, Any]:
+    ) -> CallToolResult:
         """Args:
         documento: caminho, `id` de `list_folder`, ou URI `sc://<base>/<id>`.
         cursor: de onde continuar, vindo de `cursor_proximo`.
@@ -141,13 +142,20 @@ def _registrar_mapa(servidor, recursos, limites=None) -> None:  # noqa: ANN001
         """
         referencia, recusa = _referencia(documento, id_da_base)
         if recusa is not None:
-            return recusa
+            return erro_operacional(recusa["erro"], recusa.get("codigo", "referencia_invalida"), {"secoes": []})
 
         limite = max(1, min(int(max_secoes), manifesto.LIMITE_SECOES_MAX))
-        return manifesto.mapa(
-            recursos.store,
-            referencia,
-            cursor=int(cursor or 0),
-            limite=limite,
-            base=id_da_base,
-        )
+        try:
+            res = manifesto.mapa(
+                recursos.store,
+                referencia,
+                cursor=int(cursor or 0),
+                limite=limite,
+                base=id_da_base,
+            )
+            if "erro" in res:
+                return erro_operacional(res["erro"], "documento_nao_encontrado", res)
+            return sucesso(res)
+        except Exception as exc:  # noqa: BLE001
+            return erro_operacional(str(exc), "documento_invalido", {"secoes": []})
+

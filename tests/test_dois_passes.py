@@ -79,3 +79,30 @@ def test_config_indexacao_liga_dois_passes(tmp_path: Path) -> None:
     cfg = carregar(caminho, ambiente={})
     assert cfg.indexacao.modelo_rascunho == "minilm"
     assert cfg.indexacao.ativo
+
+
+def test_passe_1_lexical_sem_vetor_nao_acusa_corrupcao(tmp_path: Path) -> None:
+    """FND-02a: No passe 1 (rascunho lexical), model_id='' é pendência legítima, não corrupção."""
+    from tests.falsos import chunk
+
+    store = Store(tmp_path / "indice", DIM)
+    c = chunk("c1", "doc.md", 0, "Texto rascunho apenas lexical.")
+    store.gravar_textos([c])
+    store.registrar_documento(
+        path="doc.md", raiz="r", tamanho=20, mtime=1.0, sha256="s", status="ok", n_chunks=1, model_id=""
+    )
+    store.commit()
+
+    diag = store.diagnosticar_integridade()
+    assert diag.integro is True
+    assert diag.status == "rascunho_pendente"
+    assert diag.pendentes_rascunho == 1
+    assert diag.faltantes == 0
+    assert diag.orfaos == 0
+
+    cons = store.verificar_consistencia()
+    assert cons["integro"] is True
+    assert cons["status"] == "rascunho_pendente"
+    assert cons["pendentes_rascunho"] == 1
+    store.fechar()
+
