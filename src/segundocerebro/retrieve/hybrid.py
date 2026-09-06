@@ -25,8 +25,8 @@ from dataclasses import dataclass, replace
 from ..index.embeddings import Embedder
 from ..index.store import ChunkArmazenado, Store
 from ..logger import get_logger
-from .contrato import Hit
-from .familias import chave_de_familia, colapsar
+from .contrato import ChunkAcerto, Hit
+from .familias import Familia, colapsar, superados_de_ranking
 from .fonte import REUNIAO, grupo_de_fonte
 from .glossario import Glossario
 from .rerank import texto_para_rerank
@@ -121,26 +121,6 @@ do mesmo arquivo ocupam posições seguidas, então 50 chunks podem colapsar em
 poucos documentos distintos e recall@20 fica limitado pelo tamanho do poço, não
 pela qualidade do ranqueamento. Custa pouco: LanceDB e FTS5 respondem em
 milissegundos."""
-
-
-@dataclass(frozen=True)
-class ChunkAcerto:
-    chunk_id: str
-    path: str
-    score: float
-    trilha: str
-    locator: str
-    texto: str
-    origem: str
-    """Which rankers found it: `denso`, `lexical` or `denso+lexical`."""
-    antes: str = ""
-    depois: str = ""
-    """Vizinhos do mesmo documento, quando o cliente pede contexto.
-
-    Ficam **fora** de `texto` de propósito. O chunk que casou com a consulta é o
-    que tem procedência — id, seção e localizador apontam para ele. Misturar o
-    vizinho no mesmo campo faria o cliente citar como achado um texto que o
-    ranqueador nunca pontuou."""
 
 
 def rrf(
@@ -475,27 +455,29 @@ class BuscaHibrida:
         ordenados = sorted(pontos.items(), key=lambda kv: (-kv[1], kv[0]))
         armazenados = self.store.chunks_por_id([c for c, _ in ordenados])
 
-        descartados = (
+        descartados, mapa_familias = (
             self._irmaos_superados(ordenados, armazenados)
             if (self.agrupar_familias and not incluir_versoes_antigas)
-            else {}
+            else (set(), {})
         )
         ordenados = [(c, s) for c, s in ordenados if c not in descartados]
         ordenados = ordenados[: max(k, self._quantos_buscar)]
 
         saida: list[ChunkAcerto] = []
         for chunk_id, score in ordenados:
-            armazenado = armazenados.get(chunk_id)
-            if armazenado is None:  # índice e registro fora de sincronia
+            if not (arm := armazenados.get(chunk_id)):
                 log.warning("chunk %s está no vetorial mas não no registro", chunk_id)
                 continue
             origem = "+".join(
                 p for p, s in (("denso", de_denso), ("lexical", de_lexical), ("nome", de_nome)) if chunk_id in s
             )
+            fam = mapa_familias.get(arm.path)
+            ant = fam.anteriores if fam else ()
             saida.append(
                 ChunkAcerto(
-                    chunk_id=chunk_id, path=armazenado.path, score=score, trilha=armazenado.trilha,
-                    locator=armazenado.locator, texto=armazenado.texto, origem=origem,
+                    chunk_id=chunk_id, path=arm.path, score=score, trilha=arm.trilha,
+                    locator=arm.locator, texto=arm.texto, origem=origem,
+                    anteriores=ant, formatos=(fam.formatos if fam else ()), versoes=1 + len(ant),
                 )
             )
 
@@ -511,38 +493,29 @@ class BuscaHibrida:
         self,
         ordenados: Sequence[tuple[str, float]],
         armazenados: dict[str, ChunkArmazenado] | None = None,
-    ) -> set[str]:
-        """Chunks de versões antigas **quando a vigente também foi recuperada**.
+    ) -> tuple[set[str], dict[str, Familia]]:
+        """Chunks de versões antigas ou formatos alternativos superados no ranking.
 
         Sem isto, o ganho medido em `search` não chegaria à superfície MCP, que
-        devolve passagens e não documentos — seria medir uma coisa e entregar
-        outra, que é exatamente o acoplamento que a F3.5 existe para impedir.
-
-        A condição importa: só descarta o irmão antigo se o vigente estiver no
-        mesmo ranking. Quando só a versão velha casou com a consulta, devolvê-la
-        é melhor que devolver nada — e a procedência dirá que há uma mais nova.
+        devolve passagens e não documentos.
         """
         if armazenados is None:
             armazenados = self.store.chunks_por_id([c for c, _ in ordenados])
 
-        por_familia: dict[str, list[str]] = {}
+        caminhos: list[str] = []
+        vistos: set[str] = set()
         do_chunk: dict[str, str] = {}
         for chunk_id, _ in ordenados:
             armazenado = armazenados.get(chunk_id)
             if armazenado is None:
                 continue
-            chave = chave_de_familia(armazenado.path)
             do_chunk[chunk_id] = armazenado.path
-            if armazenado.path not in por_familia.setdefault(chave, []):
-                por_familia[chave].append(armazenado.path)
+            if armazenado.path not in vistos:
+                vistos.add(armazenado.path)
+                caminhos.append(armazenado.path)
 
-        superados: set[str] = set()
-        for chave, membros in por_familia.items():
-            if len(membros) < 2:
-                continue
-            vigente = colapsar(membros, self.mtimes)[0][0]
-            superados.update(p for p in membros if p != vigente)
-        return {c for c, path in do_chunk.items() if path in superados}
+        superados, mapa = superados_de_ranking(caminhos, self.mtimes, agrupar_formatos=True)
+        return {c for c, path in do_chunk.items() if path in superados}, mapa
 
     def search(
         self,
@@ -586,8 +559,11 @@ class BuscaHibrida:
             pontos[rel] = pontos.get(rel, 0.0) + contribuicao
         ordenados = sorted(pontos.items(), key=lambda kv: (-kv[1], kv[0]))
 
+        mapa_familias = {}
         if self.agrupar_familias and not incluir_versoes_antigas:
-            colapsado, _ = colapsar([p for p, _ in ordenados], self.mtimes)
+            colapsado, mapa_familias = colapsar(
+                [p for p, _ in ordenados], self.mtimes, agrupar_formatos=True
+            )
             por_path = dict(ordenados)
             ordenados = [(p, por_path[p]) for p in colapsado]
 
@@ -609,5 +585,18 @@ class BuscaHibrida:
         for path, score in ordenados:
             chunk_id = melhor_chunk.get(path)
             armazenado = armazenados.get(chunk_id) if chunk_id else None
-            saida.append(Hit(path=path, score=score, trecho=(armazenado.texto[:300] if armazenado else "")))
+            fam = mapa_familias.get(path)
+            anteriores = fam.anteriores if fam else ()
+            formatos = fam.formatos if fam else ()
+            versoes = (1 + len(anteriores)) if fam else 1
+            saida.append(
+                Hit(
+                    path=path,
+                    score=score,
+                    trecho=(armazenado.texto[:300] if armazenado else ""),
+                    anteriores=anteriores,
+                    formatos=formatos,
+                    versoes=versoes,
+                )
+            )
         return saida

@@ -93,8 +93,11 @@ conferidos. O VS Code fica fora de propósito — o `mcp.json` dele chama a seç
 
 **`search(consulta, k=8, contexto=1, pasta="", incluir_versoes_antigas=False, depois_de="", antes_de="")`** — trechos por significado e por termo
 exato, fundidos por RRF. Devolve, para cada trecho: `id`, `arquivo`, `secao`,
-`onde`, `texto`, `score` e `achado_por` (qual ranqueador o encontrou: denso,
-lexical ou os dois). O `contexto` anexa vizinhos em `antes` e `depois`, para o
+`onde`, `texto`, `score`, `achado_por` (qual ranqueador o encontrou: denso,
+lexical ou os dois) e `versoes` (número de versões da família). Quando há versões
+superadas ou formatos alternativos colapsados, inclui listas `anteriores` e `formatos`
+com `id`, `arquivo` e `data` para o agente comparar minutas com `read_note` ou `neighbors`.
+O `contexto` anexa vizinhos em `antes` e `depois`, para o
 caso "a resposta estava no parágrafo seguinte". Aceita `pasta` para restringir a
 uma subpasta, `incluir_versoes_antigas=True` para não descartar versões superadas
 de uma família, e filtros temporais `depois_de` e `antes_de` no formato ISO (`YYYY` ou `YYYY-MM-DD`).

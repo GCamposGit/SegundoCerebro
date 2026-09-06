@@ -495,24 +495,66 @@ def test_buscar_chunks_e_search_incluir_versoes_antigas(tmp_path: Path) -> None:
 
     busca = BuscaHibrida(store, emb)
 
-    # buscar_chunks: padrão omite v1
+    # buscar_chunks: padrão omite v1, anota em anteriores e conta versoes
     padrao_chunks = busca.buscar_chunks("especificação técnica", k=5)
     assert [a.path for a in padrao_chunks] == ["Doc_v2.docx"]
+    assert padrao_chunks[0].anteriores == ("Doc_v1.docx",)
+    assert padrao_chunks[0].versoes == 2
+    assert padrao_chunks[0].formatos == ()
 
     # buscar_chunks: incluir_versoes_antigas=True traz v1 e v2
     todas_chunks = busca.buscar_chunks("especificação técnica", k=5, incluir_versoes_antigas=True)
     paths_chunks = {a.path for a in todas_chunks}
     assert "Doc_v1.docx" in paths_chunks and "Doc_v2.docx" in paths_chunks
 
-    # search: padrão omite v1
+    # search: padrão omite v1, anota em anteriores e conta versoes
     padrao_search = busca.search("especificação técnica", k=5)
     assert [h.path for h in padrao_search] == ["Doc_v2.docx"]
+    assert padrao_search[0].anteriores == ("Doc_v1.docx",)
+    assert padrao_search[0].versoes == 2
+    assert padrao_search[0].formatos == ()
 
     # search: incluir_versoes_antigas=True traz v1 e v2
     todas_search = busca.search("especificação técnica", k=5, incluir_versoes_antigas=True)
     paths_search = {h.path for h in todas_search}
     assert "Doc_v1.docx" in paths_search and "Doc_v2.docx" in paths_search
     store.fechar()
+
+
+def test_buscar_chunks_e_search_com_colapso_de_formatos(tmp_path: Path) -> None:
+    """C6.c: múltiplos formatos do mesmo documento colapsam para 1 slot; o melhor ranqueado vence."""
+    store = Store(tmp_path / "indice_formatos_unit", DIM)
+    emb = EmbedderFalso()
+    chunks = [
+        chunk("pptx1", "Apresentacao.pptx", 0, "Apresentação estratégica de IA corporativa."),
+        chunk("pdf1", "Apresentacao.pdf", 0, "Apresentação estratégica de IA corporativa."),
+    ]
+    store.gravar_chunks(
+        chunks, emb.embed_passagens([c.text for c in chunks]), mtime=100.0, model_id=emb.model_id
+    )
+    store.registrar_documento(
+        path="Apresentacao.pptx", raiz="r", tamanho=20, mtime=100.0, status="ok", n_chunks=1, model_id=emb.model_id
+    )
+    # PDF exportado mais tarde, mas mesmo conteúdo
+    store.registrar_documento(
+        path="Apresentacao.pdf", raiz="r", tamanho=15, mtime=200.0, status="ok", n_chunks=1, model_id=emb.model_id
+    )
+    store.commit()
+
+    busca = BuscaHibrida(store, emb)
+    acertos = busca.buscar_chunks("estratégica", k=5)
+    assert len(acertos) == 1
+    vencedor = acertos[0]
+    # O outro formato vai para formatos
+    assert len(vencedor.formatos) == 1
+    assert {vencedor.path, vencedor.formatos[0]} == {"Apresentacao.pptx", "Apresentacao.pdf"}
+
+    hits = busca.search("estratégica", k=5)
+    assert len(hits) == 1
+    assert len(hits[0].formatos) == 1
+    assert {hits[0].path, hits[0].formatos[0]} == {"Apresentacao.pptx", "Apresentacao.pdf"}
+    store.fechar()
+
 
 
 def test_buscar_chunks_e_search_com_filtro_temporal(tmp_path: Path) -> None:

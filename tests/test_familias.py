@@ -10,7 +10,15 @@ from __future__ import annotations
 
 import pytest
 
-from segundocerebro.retrieve.familias import chave_de_familia, colapsar, familias_de, versao_de
+from segundocerebro.retrieve.familias import (
+    chave_de_familia,
+    chave_de_formato,
+    colapsar,
+    colapsar_formatos,
+    familias_de,
+    superados_de_ranking,
+    versao_de,
+)
 
 PASTA = "01. Inteligência Artificial/Política de IA"
 
@@ -173,3 +181,60 @@ def test_agrupamento_para_inspecao() -> None:
     familias = familias_de([f"{PASTA}/Doc_v1.docx", f"{PASTA}/Doc_v2.docx", f"{PASTA}/Outro.docx"])
     assert len(familias) == 2
     assert sorted(len(v) for v in familias.values()) == [1, 2]
+
+
+def test_chave_de_formato_ignora_extensao() -> None:
+    pptx = chave_de_formato(f"{PASTA}/Apresentação IA RDE Dec-2025.pptx")
+    pdf = chave_de_formato(f"{PASTA}/Apresentação IA RDE Dec-2025.pdf")
+    assert pptx == pdf
+    outra_pasta = chave_de_formato("Outra Pasta/Apresentação IA RDE Dec-2025.pptx")
+    assert pptx != outra_pasta
+
+
+def test_colapso_de_formatos_mais_bem_ranqueado_vence_slot_g045() -> None:
+    """C6.c: o formato mais bem ranqueado ganha o slot único no top-k."""
+    pptx = f"{PASTA}/Apresentação IA RDE Dec-2025.pptx"
+    pdf = f"{PASTA}/Apresentação IA RDE Dec-2025.pdf"
+
+    # PPTX ranqueado antes vence e PDF vira formato alternativo
+    vencedores1, mapa1 = colapsar_formatos([pptx, pdf])
+    assert vencedores1 == [pptx]
+    assert mapa1[pptx].formatos == (pdf,)
+
+    # PDF ranqueado antes vence e PPTX vira formato alternativo
+    vencedores2, mapa2 = colapsar_formatos([pdf, pptx])
+    assert vencedores2 == [pdf]
+    assert mapa2[pdf].formatos == (pptx,)
+
+
+def test_colapsar_dois_estagios_versoes_depois_formatos() -> None:
+    """C6: versões colapsam por vigência; formatos distintos colapsam por ranking."""
+    v1_pptx = f"{PASTA}/Deck_v1.pptx"
+    v2_pptx = f"{PASTA}/Deck_v2.pptx"
+    v2_pdf = f"{PASTA}/Deck_v2.pdf"
+
+    mtimes = {
+        v1_pptx: 1_700_000_000.0,
+        v2_pptx: 1_800_000_000.0,
+        v2_pdf: 1_850_000_000.0,
+    }
+    ranking = [v1_pptx, v2_pdf, v2_pptx]
+
+    colapsados, mapa = colapsar(ranking, mtimes, agrupar_formatos=True)
+    assert colapsados == [v2_pptx]
+    fam = mapa[v2_pptx]
+    assert fam.anteriores == (v1_pptx,)
+    assert fam.formatos == (v2_pdf,)
+
+
+def test_superados_de_ranking() -> None:
+    a = f"{PASTA}/Doc_v1.docx"
+    b = f"{PASTA}/Doc_v2.docx"
+    c = f"{PASTA}/Doc_v2.pdf"
+    mtimes = {a: 1.0, b: 2.0, c: 2.0}
+    superados, mapa = superados_de_ranking([b, c, a], mtimes, agrupar_formatos=True)
+    assert superados == {c, a}
+    assert b not in superados
+    assert mapa[b].anteriores == (a,)
+    assert mapa[b].formatos == (c,)
+

@@ -813,7 +813,7 @@ privada do desktop **não** trava nenhum destes:
 | C4.5 | Fatia cross-lingual no harness (`mesma-língua` vs `cross-lingual`) | notebook | **1** | ✅ **fechado** — ver [`docs/fatia-cross-lingual.md`](docs/fatia-cross-lingual.md) |
 | R9.3 | Porta de latência, sobre índice inflado | notebook define, **desktop infla o índice** | **1** | ✅ **inflador neste PR** (`index/inflar.py`, perturbação sem encoder); piso `desktop-980ti` 9 200 ms @ 1M trechos. Artefacto gitignorado. Ver [`docs/porta-de-latencia.md`](docs/porta-de-latencia.md) |
 | C1 | Política de particionamento + description gerada do censo | acordo; texto no `ARCHITECTURE.md` | **1** | **sim** — combinar quem escreve |
-| C6 | Família de versões ≠ grupo de formatos (**subordina R1.3**) | notebook (ranking) + desktop (hash/MinHash no censo) | 2 | depois da onda 1 |
+| C6 | Família de versões ≠ grupo de formatos (**subordina R1.3**) | notebook (ranking) + desktop (hash/MinHash no censo) | 2 | ✅ **fechado no ranking** — dois estágios (versões por vigência, formatos por ranking mais alto), `versoes`, `anteriores` e `formatos` expostos no MCP `search`. Casos-guarda g010/g045 verdes. |
 | C3.a | Peso da coluna `caminho` no bm25 | notebook | 2 | ✅ **fechado, hipótese refutada** — ver [`docs/ablacao-c3a-pesos-fts.md`](docs/ablacao-c3a-pesos-fts.md) |
 | F4-P.0 | O eval mede o caminho entregue (`buscar_chunks`), aditivo | notebook | 2 | ✅ **fechado** — ver [`docs/ablacao-caminho-entregue.md`](docs/ablacao-caminho-entregue.md) |
 | F4-P | **Reconciliar os dois caminhos** — encolhido ao **defeito** em 25/08: aceite binário, sem varredura de peso | notebook | 2 | ✅ **fechado, aceite cumprido** — ver [`docs/ablacao-f4p-nome-no-entregue.md`](docs/ablacao-f4p-nome-no-entregue.md) |
