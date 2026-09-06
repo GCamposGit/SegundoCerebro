@@ -1160,3 +1160,124 @@ def test_indexar_raiz_vazia_sem_colisao_sucesso(tmp_path: Path) -> None:
     assert store.estatisticas()["documentos"] == 1
     store.fechar()
 
+
+def test_integridade_detecta_divergencia_mesma_cardinalidade(tmp_path: Path) -> None:
+    """FND-02a: SQLite {a, b} e LanceDB {a, c} têm contagens iguais, mas estado divergente."""
+    from segundocerebro.ingest.chunking import Chunk
+    from segundocerebro.ingest.document import BlockKind
+
+    store = Store(tmp_path / "indice", DIM)
+    c1 = Chunk(id="a", doc_path="doc.md", ordinal=0, heading_path=(), locator="", kind=BlockKind.TEXT, text="texto 1")
+    c2 = Chunk(id="b", doc_path="doc.md", ordinal=1, heading_path=(), locator="", kind=BlockKind.TEXT, text="texto 2")
+    c3 = Chunk(id="c", doc_path="doc.md", ordinal=2, heading_path=(), locator="", kind=BlockKind.TEXT, text="texto 3")
+
+    store.gravar_textos([c1, c2])
+    store.registrar_documento(
+        path="doc.md", raiz="r", tamanho=10, mtime=1.0, sha256="s", status="ok", n_chunks=2, model_id="falso:8"
+    )
+    store.commit()
+
+    emb = EmbedderFalso()
+    # Grava no LanceDB vetores a e c (b está faltando, c é órfão no SQLite)
+    store.gravar_vetores([c1, c3], emb.embed_passagens(["t1", "t3"]), 1.0, "falso:8")
+
+    diag = store.diagnosticar_integridade()
+    assert not diag.integro
+    assert diag.status == "divergente"
+    assert diag.chunks_sqlite == 2
+    assert diag.vetores_lancedb == 2
+    assert diag.orfaos == 1
+    assert "c" in diag.ids_orfaos
+    assert diag.faltantes == 1
+    assert "b" in diag.ids_faltantes
+    assert diag.duplicados == 0
+
+    cons = store.verificar_consistencia()
+    assert cons["diferenca"] == 0  # contagem cega não pegaria
+    assert cons["integro"] is False
+    assert cons["orfaos"] == 1
+    assert cons["faltantes"] == 1
+    store.fechar()
+
+
+def test_integridade_detecta_duplicatas_no_lancedb(tmp_path: Path) -> None:
+    """FND-02a: Vetores duplicados no LanceDB são detectados."""
+    from segundocerebro.ingest.chunking import Chunk
+    from segundocerebro.ingest.document import BlockKind
+
+    store = Store(tmp_path / "indice", DIM)
+    c1 = Chunk(id="a", doc_path="doc.md", ordinal=0, heading_path=(), locator="", kind=BlockKind.TEXT, text="texto 1")
+    store.gravar_textos([c1])
+    store.registrar_documento(
+        path="doc.md", raiz="r", tamanho=10, mtime=1.0, sha256="s", status="ok", n_chunks=1, model_id="falso:8"
+    )
+    store.commit()
+
+    emb = EmbedderFalso()
+    store.gravar_vetores([c1], emb.embed_passagens(["t1"]), 1.0, "falso:8")
+    # Injeta duplicata diretamente no LanceDB
+    store.gravar_vetores([c1], emb.embed_passagens(["t1"]), 1.0, "falso:8")
+
+    diag = store.diagnosticar_integridade()
+    assert not diag.integro
+    assert diag.duplicados == 1
+    assert "a" in diag.ids_duplicados
+    store.fechar()
+
+
+def test_integridade_detecta_modelo_divergente(tmp_path: Path) -> None:
+    """FND-02a: Chunk com model_id no LanceDB diferente do documento no SQLite."""
+    from segundocerebro.ingest.chunking import Chunk
+    from segundocerebro.ingest.document import BlockKind
+
+    store = Store(tmp_path / "indice", DIM)
+    c1 = Chunk(id="a", doc_path="doc.md", ordinal=0, heading_path=(), locator="", kind=BlockKind.TEXT, text="texto 1")
+    store.gravar_textos([c1])
+    store.registrar_documento(
+        path="doc.md", raiz="r", tamanho=10, mtime=1.0, sha256="s", status="ok", n_chunks=1, model_id="modelo-sqlite"
+    )
+    store.commit()
+
+    emb = EmbedderFalso()
+    store.gravar_chunks([c1], emb.embed_passagens(["t1"]), 1.0, "modelo-divergente")
+
+    diag = store.diagnosticar_integridade()
+    assert not diag.integro
+    assert diag.modelos_divergentes == 1
+    store.fechar()
+
+
+def test_integridade_lancedb_erro_io_fica_indisponivel(tmp_path: Path, monkeypatch) -> None:
+    """FND-02a: Falha de I/O no LanceDB resulta em lancedb_disponivel=False, não 0 vetores."""
+    from segundocerebro.ingest.chunking import Chunk
+    from segundocerebro.ingest.document import BlockKind
+
+    store = Store(tmp_path / "indice", DIM)
+    c1 = Chunk(id="a", doc_path="doc.md", ordinal=0, heading_path=(), locator="", kind=BlockKind.TEXT, text="texto 1")
+    store.gravar_textos([c1])
+    store.registrar_documento(
+        path="doc.md", raiz="r", tamanho=10, mtime=1.0, sha256="s", status="ok", n_chunks=1, model_id="falso:8"
+    )
+    store.commit()
+
+    def falhar_conexao(*args, **kwargs):
+        raise OSError("Disco inacessível")
+
+    import lancedb
+
+    monkeypatch.setattr(lancedb, "connect", falhar_conexao)
+    store._db = None
+    store._tabela = None
+
+    diag = store.diagnosticar_integridade()
+    assert not diag.integro
+    assert not diag.lancedb_disponivel
+    assert diag.status == "indisponivel"
+    assert "Disco inacessível" in diag.detalhe
+
+    cons = store.verificar_consistencia()
+    assert cons["lancedb_disponivel"] is False
+    assert cons["status"] == "indisponivel"
+    store.fechar()
+
+
