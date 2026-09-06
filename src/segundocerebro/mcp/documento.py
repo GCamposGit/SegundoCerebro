@@ -2,15 +2,16 @@
 
 from __future__ import annotations
 
-import json
 from collections.abc import Callable
 from threading import Lock
 
-from mcp.types import CallToolResult, TextContent, ToolAnnotations
+from mcp.types import CallToolResult, ToolAnnotations
 
 from ..acesso.documento import LeitorDocumento
 from ..acesso.original import ErroLeitura
 from ..acesso.pagina_documento import CHARS_PADRAO
+
+from .respostas import erro_operacional, sucesso
 
 DESCRICAO = (
     "Lê todo o texto canônico extraído de um documento, em páginas, sem sobreposição "
@@ -51,12 +52,12 @@ def registrar(
         """documento: caminho/id/URI; cursor: continuação opaca; max_chars: orçamento."""
         try:
             saida = leitor().ler(documento, cursor, max_chars)
+            return sucesso(saida)
         except ErroLeitura as erro:
-            saida = {"erro": str(erro), "codigo": erro.codigo}
+            return erro_operacional(str(erro), erro.codigo)
         except OSError:
-            saida = {"erro": "Original ou cache indisponível. Confira acesso ao disco e às raízes da base.",
-                     "codigo": "acesso_indisponivel"}
-        return CallToolResult(
-            content=[TextContent(type="text", text=json.dumps(saida, ensure_ascii=False))],
-            structured_content=saida, is_error="erro" in saida,
-        )
+            return erro_operacional(
+                "Original ou cache indisponível. Confira acesso ao disco e às raízes da base.",
+                "acesso_indisponivel",
+            )
+

@@ -7,7 +7,14 @@ Separado de `mcp/server.py` para respeitar a governança modular de
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+from mcp.types import CallToolResult
+
+from .respostas import erro_operacional, sucesso
+
+if TYPE_CHECKING:
+    pass
 
 K_PADRAO = 8
 K_MAX = 50
@@ -94,7 +101,7 @@ def _registrar_search(servidor: Any, recursos: Any, limites: Any) -> None:
         antes_de: data ISO final (ex: '2024' ou '2024-12-31') para restringir a busca.
         """
         if not consulta.strip():
-            return {"erro": "consulta vazia", "trechos": []}
+            return erro_operacional("consulta vazia", "consulta_vazia", {"trechos": []})
         k = max(1, min(int(k), k_max))
         contexto = max(0, min(int(contexto), CONTEXTO_MAX))
 
@@ -125,7 +132,7 @@ def _registrar_search(servidor: Any, recursos: Any, limites: Any) -> None:
             if hasattr(a, "formatos") and a.formatos:
                 item["formatos"] = [_resumo_item(p, recursos) for p in a.formatos]
             trechos.append(item)
-        return {"consulta": consulta, "encontrados": len(acertos), "trechos": trechos}
+        return sucesso({"consulta": consulta, "encontrados": len(acertos), "trechos": trechos})
 
 
 
@@ -140,7 +147,7 @@ def _registrar_read_note(servidor: Any, recursos: Any, limites: Any) -> None:
             "quando faltar o contexto em volta."
         )
     )
-    def read_note(id: str, janela: int = janela_padrao) -> dict[str, Any]:
+    def read_note(id: str, janela: int = janela_padrao) -> CallToolResult:
         """Args:
         id: identificador vindo de `search`.
         janela: quantos trechos trazer de cada lado (0 a 5).
@@ -148,16 +155,16 @@ def _registrar_read_note(servidor: Any, recursos: Any, limites: Any) -> None:
         janela = max(0, min(int(janela), janela_max))
         alvo = recursos.store.chunk(id)
         if alvo is None:
-            return {"erro": f"trecho não encontrado: {id}", "trechos": []}
+            return erro_operacional(f"trecho não encontrado: {id}", "trecho_nao_encontrado", {"id": id, "trechos": []})
 
         vizinhos = recursos.store.vizinhos(id, janela) if janela else [alvo]
-        return {
+        return sucesso({
             **_procedencia(alvo),
             "documento": alvo.path,
             "trechos": [
                 {**_procedencia(c), "texto": c.texto, "e_o_pedido": c.id == id} for c in vizinhos
             ],
-        }
+        })
 
 
 def _registrar_neighbors(servidor: Any, recursos: Any) -> None:
@@ -170,7 +177,7 @@ def _registrar_neighbors(servidor: Any, recursos: Any) -> None:
             "em outra pasta com outro vocabulário. Devolve **por que** cada um está ligado."
         )
     )
-    def neighbors(arquivo: str, limite: int = MAX_VIZINHOS_PADRAO) -> dict[str, Any]:
+    def neighbors(arquivo: str, limite: int = MAX_VIZINHOS_PADRAO) -> CallToolResult:
         """Args:
         arquivo: caminho vindo do campo `arquivo` de `search`.
         limite: quantos documentos ligados devolver (1 a 25).
@@ -178,12 +185,12 @@ def _registrar_neighbors(servidor: Any, recursos: Any) -> None:
         from ..retrieve.grafo import vizinhos as andar_no_grafo
 
         if not arquivo.strip():
-            return {"erro": "arquivo vazio", "vizinhos": []}
+            return erro_operacional("arquivo vazio", "arquivo_vazio", {"vizinhos": []})
         limite = max(1, min(int(limite), MAX_VIZINHOS_TETO))
 
         store = recursos.store
         if not store.paths_com_mencoes():
-            return {
+            return sucesso({
                 "arquivo": arquivo,
                 "encontrados": 0,
                 "vizinhos": [],
@@ -191,10 +198,10 @@ def _registrar_neighbors(servidor: Any, recursos: Any) -> None:
                     "o grafo derivado desta base está vazio: rode "
                     "`py -m segundocerebro.retrieve.grafo --base <id>` para construí-lo"
                 ),
-            }
+            })
 
         achados = andar_no_grafo(store, arquivo, limite=limite)
-        return {
+        return sucesso({
             "arquivo": arquivo,
             "encontrados": len(achados),
             "vizinhos": [
@@ -213,7 +220,7 @@ def _registrar_neighbors(servidor: Any, recursos: Any) -> None:
                 }
                 for v in achados
             ],
-        }
+        })
 
 
 def registrar(servidor: Any, recursos: Any, limites: Any = None) -> None:
