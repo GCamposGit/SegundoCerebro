@@ -16,9 +16,17 @@ virarem teste (`docs/plano-pacote-j.md` §3.2 e §3.3):
 
 from __future__ import annotations
 
+from pathlib import Path
+
 import pytest
 
 from segundocerebro.acesso import identidade, registro
+from segundocerebro.census import FileEntry, RootSpec
+from segundocerebro.index.identidade_entrada import (
+    ConflitoDeCaminho,
+    detectar_colisoes,
+    formatar_mensagem_colisao,
+)
 from segundocerebro.index.store import Store
 
 HASH_A = "a" * 64
@@ -268,3 +276,135 @@ def test_nenhuma_consulta_manda_mais_parametros_do_que_o_sqlite_aceita(store: St
         f"uma consulta mandou {maior} parâmetros de uma vez. Passe por `_em_lotes` — "
         "o teto do SQLite é da build, não nosso."
     )
+
+
+# --- FND-01a: colisão de caminhos relativos na entrada -------------------------
+
+
+def _entry_falso(root: RootSpec, rel: str, size: int = 10, mtime: float = 100.0) -> FileEntry:
+    return FileEntry(
+        root=root,
+        path=str(root.path / rel),
+        rel=rel,
+        size=size,
+        mtime=mtime,
+        depth=rel.count("/"),
+        top_folder=rel.split("/")[0] if "/" in rel else "(raiz)",
+        attrs=0,
+    )
+
+
+def test_detectar_colisao_intra_passada_duas_raizes() -> None:
+    r1 = RootSpec(name="raiz_a", path=Path("C:/acervo_a"))
+    r2 = RootSpec(name="raiz_b", path=Path("C:/acervo_b"))
+    enum = [
+        (r1, [_entry_falso(r1, "contrato.md")]),
+        (r2, [_entry_falso(r2, "contrato.md")]),
+    ]
+    conflitos = detectar_colisoes(enum)
+    assert len(conflitos) == 1
+    c = conflitos[0]
+    assert c.caminho_rel == "contrato.md"
+    assert c.raizes == ("raiz_a", "raiz_b")
+    assert c.origem == "passada"
+
+
+def test_detectar_colisao_ordem_invertida_das_raizes() -> None:
+    r1 = RootSpec(name="raiz_a", path=Path("C:/acervo_a"))
+    r2 = RootSpec(name="raiz_b", path=Path("C:/acervo_b"))
+    enum_direto = [
+        (r1, [_entry_falso(r1, "doc.pdf")]),
+        (r2, [_entry_falso(r2, "doc.pdf")]),
+    ]
+    enum_invertido = [
+        (r2, [_entry_falso(r2, "doc.pdf")]),
+        (r1, [_entry_falso(r1, "doc.pdf")]),
+    ]
+    c_direto = detectar_colisoes(enum_direto)
+    c_invertido = detectar_colisoes(enum_invertido)
+    assert len(c_direto) == 1 and len(c_invertido) == 1
+    assert c_direto[0].caminho_rel == "doc.pdf"
+    assert c_invertido[0].caminho_rel == "doc.pdf"
+
+
+def test_detectar_colisao_mesmo_hash() -> None:
+    """Mesmo conteúdo/tamanho em raízes distintas não autoriza sobrescrita silenciosa."""
+    r1 = RootSpec(name="r1", path=Path("C:/r1"))
+    r2 = RootSpec(name="r2", path=Path("C:/r2"))
+    enum = [
+        (r1, [_entry_falso(r1, "mesmo.md", size=42, mtime=1.0)]),
+        (r2, [_entry_falso(r2, "mesmo.md", size=42, mtime=1.0)]),
+    ]
+    conflitos = detectar_colisoes(enum)
+    assert len(conflitos) == 1
+    assert conflitos[0].caminho_rel == "mesmo.md"
+
+
+def test_duas_raizes_sem_homonimos_nao_tem_colisao() -> None:
+    r1 = RootSpec(name="r1", path=Path("C:/r1"))
+    r2 = RootSpec(name="r2", path=Path("C:/r2"))
+    enum = [
+        (r1, [_entry_falso(r1, "doc1.md")]),
+        (r2, [_entry_falso(r2, "doc2.md")]),
+    ]
+    assert detectar_colisoes(enum) == []
+
+
+def test_raiz_vazia_ao_lado_de_raiz_preenchida_nao_tem_colisao() -> None:
+    r1 = RootSpec(name="r1", path=Path("C:/r1"))
+    r2 = RootSpec(name="r2", path=Path("C:/r2"))
+    enum = [
+        (r1, [_entry_falso(r1, "doc1.md")]),
+        (r2, []),
+    ]
+    assert detectar_colisoes(enum) == []
+
+
+def test_detectar_colisao_inter_passada_contra_store(store: Store) -> None:
+    registrar(store, "contrato.md", HASH_A, 100.0)  # raiz gravada é 'acervo'
+    r2 = RootSpec(name="outra_raiz", path=Path("C:/outra"))
+    enum = [(r2, [_entry_falso(r2, "contrato.md")])]
+
+    conflitos = detectar_colisoes(enum, store)
+    assert len(conflitos) == 1
+    assert conflitos[0].caminho_rel == "contrato.md"
+    assert conflitos[0].origem == "indice"
+    assert "outra_raiz" in conflitos[0].raizes
+    assert "acervo" in conflitos[0].raizes
+
+
+def test_reindexar_mesma_raiz_nao_cria_falsa_colisao(store: Store) -> None:
+    registrar(store, "contrato.md", HASH_A, 100.0)  # raiz gravada é 'acervo'
+    r1 = RootSpec(name="acervo", path=Path("C:/acervo"))
+    enum = [(r1, [_entry_falso(r1, "contrato.md")])]
+
+    assert detectar_colisoes(enum, store) == []
+
+
+def test_detectar_colisao_com_prefixo(store: Store) -> None:
+    registrar(store, "sub/contrato.md", HASH_A, 100.0)  # raiz 'acervo'
+    r2 = RootSpec(name="raiz_b", path=Path("C:/b"))
+
+    # Dentro do prefixo: detecta colisão
+    enum_prefixo = [(r2, [_entry_falso(r2, "sub/contrato.md")])]
+    conflitos = detectar_colisoes(enum_prefixo, store, prefixo="sub")
+    assert len(conflitos) == 1
+
+    # Fora do prefixo / outro arquivo: sem colisão
+    enum_outro = [(r2, [_entry_falso(r2, "outro/doc.md")])]
+    assert detectar_colisoes(enum_outro, store, prefixo="outro") == []
+
+
+def test_formatar_mensagem_colisao_acionavel() -> None:
+    c = ConflitoDeCaminho(
+        caminho_rel="contrato.md",
+        raizes=("raiz_a", "raiz_b"),
+        origem="passada",
+    )
+    msg = formatar_mensagem_colisao([c])
+    assert "contrato.md" in msg
+    assert "'raiz_a'" in msg
+    assert "'raiz_b'" in msg
+    assert "config.toml" in msg
+    assert "bases distintas" in msg
+

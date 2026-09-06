@@ -67,17 +67,13 @@ from .resultado import Progresso
 from .store import ChunkArmazenado, Store
 from .trava import TravaDeIndice as TravaDeIndice
 from .trava import TravaOcupada as TravaOcupada
+from .identidade_entrada import ColisaoDeCaminho as ColisaoDeCaminho, conferir_colisoes
 from .travas import NOME_DA_TRAVA as NOME_DA_TRAVA  # reexport histórico: painel e testes o pedem daqui
 
 log = get_logger("index.indexer")
 
 LOTE_EMBEDDING = 32
 INTERVALO_LOG = 25
-
-
-
-
-
 
 
 class _Interrupcao:
@@ -305,16 +301,15 @@ def indexar(
     if exclusoes["inertes"] and exigir_exclusoes:
         store.encerrar_execucao(execucao, 0, 0, "recusada")
         raise ErroDeConfig(
-            "recusando indexar: "
-            + str(len(exclusoes["inertes"]))
-            + " exclusão(ões) declarada(s) não casou com nada. Corrija a regra ou rode "
-            "sem --exigir-exclusoes para indexar com ela inerte"
+            f"recusando indexar: {len(exclusoes['inertes'])} exclusão(ões) declarada(s) não casou com nada. "
+            "Corrija a regra ou rode sem --exigir-exclusoes para indexar com ela inerte"
         )
     if exclusoes["por_regra"]:
         log.info(
             "exclusões por regra: %s",
             " · ".join(f"{k} = {v}" for k, v in sorted(exclusoes["por_regra"].items())),
         )
+    conferir_colisoes(enumerados, store, prefixo=prefixo, execucao=execucao)
     for _root, arquivos in enumerados:
         for arquivo in arquivos:
             vistos.add(arquivo.rel)
