@@ -28,6 +28,32 @@ class Hit:
     path: str
     score: float = 0.0
     trecho: str = ""
+    anteriores: tuple[str, ...] = ()
+    formatos: tuple[str, ...] = ()
+    versoes: int = 1
+
+
+@dataclass(frozen=True)
+class ChunkAcerto:
+    chunk_id: str
+    path: str
+    score: float
+    trilha: str
+    locator: str
+    texto: str
+    origem: str
+    """Which rankers found it: `denso`, `lexical` or `denso+lexical`."""
+    antes: str = ""
+    depois: str = ""
+    """Vizinhos do mesmo documento, quando o cliente pede contexto.
+
+    Ficam fora de texto de propósito. O chunk que casou com a consulta é o
+    que tem procedência. Misturar o vizinho no mesmo campo faria o cliente
+    citar como achado um texto que o ranqueador nunca pontuou.
+    """
+    anteriores: tuple[str, ...] = ()
+    formatos: tuple[str, ...] = ()
+    versoes: int = 1
 
 
 class Retriever(Protocol):

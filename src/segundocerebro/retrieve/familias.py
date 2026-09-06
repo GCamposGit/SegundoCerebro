@@ -74,16 +74,8 @@ def versao_de(rel: str) -> tuple[int, ...] | None:
     return tuple(int(p) for p in re.split(r"[._]", achados[-1]))
 
 
-def chave_de_familia(rel: str) -> str:
-    """Pasta + extensão + nome sem marcadores de versão.
-
-    **A extensão entra na chave**, e isso foi medido: sem ela,
-    `Apresentação IA RDE Dec-2025.pdf` e `.pptx` — o mesmo conteúdo exportado
-    duas vezes, mesma data — viravam uma família só, e o desempate escolhia um
-    formato ao acaso. A pergunta `g045` caiu do 1º lugar para fora do ranking por
-    isso. Duplicata entre formatos é outro problema, com outra resposta certa:
-    quem pede o deck quer o deck, não o PDF dele.
-    """
+def _tronco_sem_marcadores(rel: str) -> tuple[str, str, str]:
+    """Extrai (pasta, extensao, tronco_limpo) removendo marcadores em loop."""
     partes = rel.replace("\\", "/").split("/")
     pasta, nome = "/".join(partes[:-1]), partes[-1]
     tronco, extensao = (nome.rsplit(".", 1) + [""])[:2] if "." in nome else (nome, "")
@@ -96,7 +88,73 @@ def chave_de_familia(rel: str) -> str:
             tronco = marcador.sub("", tronco)
 
     tronco = SEPARADORES.sub(" ", normalizar(tronco)).strip()
-    return f"{normalizar(pasta)}::{normalizar(extensao)}::{tronco or normalizar(nome)}"
+    return normalizar(pasta), normalizar(extensao), (tronco or normalizar(nome))
+
+
+def chave_de_familia(rel: str) -> str:
+    """Pasta + extensão + nome sem marcadores de versão.
+
+    **A extensão entra na chave**, e isso foi medido: sem ela,
+    `Apresentação IA RDE Dec-2025.pdf` e `.pptx` — o mesmo conteúdo exportado
+    duas vezes, mesma data — viravam uma família só, e o desempate escolhia um
+    formato ao acaso. A pergunta `g045` caiu do 1º lugar para fora do ranking por
+    isso. Duplicata entre formatos é outro problema, com outra resposta certa:
+    quem pede o deck quer o deck, não o PDF dele.
+    """
+    pasta, extensao, tronco = _tronco_sem_marcadores(rel)
+    return f"{pasta}::{extensao}::{tronco}"
+
+
+def chave_de_formato(rel: str) -> str:
+    """Pasta + nome sem marcadores de versão, ignorando a extensão (C6).
+
+    Usado no agrupamento de formatos alternativos do mesmo documento
+    (ex: .pptx e .pdf do mesmo deck).
+    """
+    pasta, _, tronco = _tronco_sem_marcadores(rel)
+    return f"{pasta}::{tronco}"
+
+
+@dataclass(frozen=True)
+class GrupoFormato:
+    chave: str
+    principal: str
+    """O formato mais bem ranqueado entre os recuperados — o que ganha o slot."""
+    formatos: tuple[str, ...]
+    """Os formatos alternativos do mesmo documento, em ordem de ranqueamento."""
+    posicao: int
+    """Posição do representante principal no ranking original."""
+
+
+def colapsar_formatos(
+    ranking: Sequence[str],
+) -> tuple[list[str], dict[str, GrupoFormato]]:
+    """Colapsa múltiplos formatos do mesmo documento (mesmo tronco e pasta).
+
+    Política C6.c: **um slot no top-k**, representante = **o mais bem ranqueado**
+    (a primeira ocorrência na lista ordenada pelo recuperador). Os outros
+    formatos viram `formatos` alternativos associados ao principal.
+    Preserva g045: se o PPTX ranqueou melhor que o PDF, o PPTX ganha o slot
+    e o PDF fica como formato alternativo.
+    """
+    grupos: dict[str, list[str]] = {}
+    posicoes: dict[str, int] = {}
+    for posicao, path in enumerate(ranking):
+        chave = chave_de_formato(path)
+        grupos.setdefault(chave, []).append(path)
+        posicoes.setdefault(chave, posicao)
+
+    resultado: dict[str, GrupoFormato] = {}
+    for chave, membros in grupos.items():
+        resultado[chave] = GrupoFormato(
+            chave=chave,
+            principal=membros[0],
+            formatos=tuple(membros[1:]),
+            posicao=posicoes[chave],
+        )
+
+    ordenados = sorted(resultado.values(), key=lambda g: g.posicao)
+    return [g.principal for g in ordenados], {g.principal: g for g in ordenados}
 
 
 @dataclass(frozen=True)
@@ -108,16 +166,53 @@ class Familia:
     """Os outros, em ordem de data. Vão no retorno como procedência, não somem."""
     posicao: int
     """Melhor posição que a família ocupava antes do colapso."""
+    formatos: tuple[str, ...] = ()
+    """Formatos alternativos do mesmo documento em outros containers."""
+
+
+def _colapsar_formatos_de_familias(
+    ordenadas_versao: Sequence[Familia],
+) -> tuple[list[str], dict[str, Familia]]:
+    """Estágio 2 de colapso: agrupa famílias de diferentes formatos pelo mais bem ranqueado."""
+    grupos_fmt: dict[str, list[Familia]] = {}
+    for fam in ordenadas_versao:
+        chave_fmt = chave_de_formato(fam.vigente)
+        grupos_fmt.setdefault(chave_fmt, []).append(fam)
+
+    resultado_final: dict[str, Familia] = {}
+    for membros_fmt in grupos_fmt.values():
+        vencedor = membros_fmt[0]
+        outros_formatos = tuple(f.vigente for f in membros_fmt[1:])
+        todas_anteriores = list(vencedor.anteriores)
+        for f in membros_fmt[1:]:
+            for ant in f.anteriores:
+                if ant not in todas_anteriores:
+                    todas_anteriores.append(ant)
+        resultado_final[vencedor.vigente] = Familia(
+            chave=vencedor.chave,
+            vigente=vencedor.vigente,
+            anteriores=tuple(todas_anteriores),
+            posicao=vencedor.posicao,
+            formatos=outros_formatos,
+        )
+
+    ordenadas_final = sorted(resultado_final.values(), key=lambda f: f.posicao)
+    return [f.vigente for f in ordenadas_final], {f.vigente: f for f in ordenadas_final}
 
 
 def colapsar(
-    ranking: Sequence[str], mtimes: Mapping[str, float]
+    ranking: Sequence[str],
+    mtimes: Mapping[str, float],
+    *,
+    agrupar_formatos: bool = True,
 ) -> tuple[list[str], dict[str, Familia]]:
-    """Collapse a ranked list of paths, one slot per family.
+    """Collapse a ranked list of paths, one slot per family (and format group if C6).
 
-    A família herda a **melhor posição** de qualquer membro e é representada pelo
-    **mais recente** deles. É a combinação que resolve o `g010`: se o irmão
-    antigo ranqueou melhor, a família fica com a posição dele e devolve o vigente.
+    Dois estágios (C6):
+    1. Família de versões (mesma pasta e extensão): o mais recente (por vigência)
+       herda a melhor posição entre seus irmãos e acumula as anteriores.
+    2. Grupo de formatos (mesma pasta, formatos distintos): o mais bem ranqueado
+       ganha o slot único e acumula os outros formatos em `formatos`.
 
     Ordem estável: quem não tem irmão no ranking passa intacto.
     """
@@ -128,18 +223,34 @@ def colapsar(
         familias.setdefault(chave, []).append(path)
         posicoes.setdefault(chave, posicao)
 
-    resultado: dict[str, Familia] = {}
+    resultado_versao: dict[str, Familia] = {}
     for chave, membros in familias.items():
-        ordenados = por_vigencia(membros, mtimes)
-        resultado[chave] = Familia(
+        ordenados_vigencia = por_vigencia(membros, mtimes)
+        resultado_versao[chave] = Familia(
             chave=chave,
-            vigente=ordenados[0],
-            anteriores=tuple(ordenados[1:]),
+            vigente=ordenados_vigencia[0],
+            anteriores=tuple(ordenados_vigencia[1:]),
             posicao=posicoes[chave],
         )
 
-    ordenadas = sorted(resultado.values(), key=lambda f: f.posicao)
-    return [f.vigente for f in ordenadas], {f.vigente: f for f in ordenadas}
+    ordenadas_versao = sorted(resultado_versao.values(), key=lambda f: f.posicao)
+    if not agrupar_formatos:
+        return [f.vigente for f in ordenadas_versao], {f.vigente: f for f in ordenadas_versao}
+    return _colapsar_formatos_de_familias(ordenadas_versao)
+
+
+
+def superados_de_ranking(
+    caminhos_ordenados: Sequence[str],
+    mtimes: Mapping[str, float],
+    *,
+    agrupar_formatos: bool = True,
+) -> tuple[set[str], dict[str, Familia]]:
+    """Identifica caminhos superados por versões mais recentes ou formatos mais bem ranqueados."""
+    vencedores, mapa = colapsar(caminhos_ordenados, mtimes, agrupar_formatos=agrupar_formatos)
+    conjunto_vencedores = set(vencedores)
+    superados = {p for p in caminhos_ordenados if p not in conjunto_vencedores}
+    return superados, mapa
 
 
 def por_vigencia(membros: Sequence[str], mtimes: Mapping[str, float]) -> list[str]:

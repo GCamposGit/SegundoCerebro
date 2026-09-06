@@ -201,6 +201,70 @@ def test_search_com_filtros_temporais(servidor) -> None:  # noqa: ANN001
     assert len(saida_dentro["trechos"]) > 0
 
 
+def test_search_com_familias_e_formatos(tmp_path: Path) -> None:
+    """C6: search expõe versoes, anteriores (com id, data, caminho) e formatos."""
+    from segundocerebro.index.store import Store
+    from segundocerebro.ingest.chunking import Chunk
+    from segundocerebro.ingest.document import BlockKind
+    from segundocerebro.retrieve.hybrid import BuscaHibrida
+
+    emb = EmbedderFalso()
+    store = Store(tmp_path / "indice_c6", dim=emb.dim)
+
+    chunks = [
+        Chunk(
+            id="c_v1", doc_path="IA/Plano_v1.docx", ordinal=1,
+            heading_path=("Plano",), locator="p. 1", kind=BlockKind.TEXT,
+            text="Estratégia corporativa de IA versão 1.",
+        ),
+        Chunk(
+            id="c_v2", doc_path="IA/Plano_v2.docx", ordinal=1,
+            heading_path=("Plano",), locator="p. 1", kind=BlockKind.TEXT,
+            text="Estratégia corporativa de IA versão 2.",
+        ),
+        Chunk(
+            id="c_pdf", doc_path="IA/Plano_v2.pdf", ordinal=1,
+            heading_path=("Plano",), locator="p. 1", kind=BlockKind.TEXT,
+            text="Estratégia corporativa de IA versão 2 em PDF.",
+        ),
+    ]
+    store.gravar_chunks(chunks, emb.embed_passagens([c.text for c in chunks]), 100.0, emb.model_id)
+    store.registrar_documento(
+        path="IA/Plano_v1.docx", raiz="r", tamanho=10, mtime=100.0, status="ok", n_chunks=1, model_id=emb.model_id
+    )
+    store.registrar_documento(
+        path="IA/Plano_v2.docx", raiz="r", tamanho=12, mtime=200.0, status="ok", n_chunks=1, model_id=emb.model_id
+    )
+    store.registrar_documento(
+        path="IA/Plano_v2.pdf", raiz="r", tamanho=15, mtime=200.0, status="ok", n_chunks=1, model_id=emb.model_id
+    )
+    store.commit()
+
+    recursos = Recursos(indice=tmp_path / "indice_c6", modelo="falso", threads=1)
+    recursos._store = store
+    recursos._busca = BuscaHibrida(store, emb)
+    srv = construir(recursos)
+
+    saida = chamar(srv, "search", consulta="estratégia corporativa", k=5)
+    assert saida["encontrados"] == 1
+    t = saida["trechos"][0]
+    assert t["versoes"] == 2
+    assert "anteriores" in t
+    assert len(t["anteriores"]) == 1
+    ant = t["anteriores"][0]
+    assert ant["arquivo"] == "IA/Plano_v1.docx"
+    assert ant["caminho"] == "IA/Plano_v1.docx"
+    assert ant["id"] == "c_v1"
+    assert ant["data"]
+
+    assert "formatos" in t
+    assert len(t["formatos"]) == 1
+    fmt = t["formatos"][0]
+    assert fmt["caminho"] in ("IA/Plano_v2.docx", "IA/Plano_v2.pdf")
+    assert fmt["id"] in ("c_v2", "c_pdf")
+    store.fechar()
+
+
 # --- read_note ---------------------------------------------------------------
 
 

@@ -6,6 +6,7 @@ Separado de `mcp/server.py` para respeitar a governança modular de
 
 from __future__ import annotations
 
+from datetime import datetime, timezone
 from typing import Any
 
 K_PADRAO = 8
@@ -21,6 +22,8 @@ DESCRICAO_SEARCH = (
     "Busca trechos na base de conhecimento por significado e por termo exato. "
     "Devolve passagens com arquivo, seção e localizador. Boa para perguntas "
     "sobre o conteúdo de documentos, contratos, políticas, propostas e planilhas. "
+    "Resultados colapsam versões do mesmo documento: para comparar versões, "
+    "leia os ids listados em `anteriores` com `read_note`. "
     "Use pasta para restringir os resultados a uma subpasta específica da base. "
     "Use depois_de e antes_de para filtrar por período (formato ISO YYYY ou YYYY-MM-DD). "
     "Use incluir_versoes_antigas=True para auditoria de minutas e comparação histórica."
@@ -34,6 +37,35 @@ def _procedencia(chunk: Any) -> dict[str, Any]:
         "arquivo": chunk.path,
         "secao": chunk.trilha or "",
         "onde": chunk.locator or "",
+    }
+
+
+def _resumo_item(caminho: str, recursos: Any) -> dict[str, str]:
+    """Procedência de versão anterior ou formato alternativo para `read_note`/`neighbors`."""
+    data = ""
+    busca = getattr(recursos, "busca", None)
+    mtime = busca.mtimes.get(caminho) if busca else None
+    if mtime:
+        try:
+            data = datetime.fromtimestamp(mtime, tz=timezone.utc).strftime("%Y-%m-%d")
+        except (OSError, ValueError):
+            data = ""
+    chunk_id = ""
+    store = getattr(recursos, "store", None)
+    if store is not None:
+        try:
+            ids = store.ids_de_chunks(caminho)
+            if ids:
+                chunk_id = ids[0]
+        except Exception:  # noqa: BLE001
+            chunk_id = ""
+    extensao = caminho.rsplit(".", 1)[-1].lower() if "." in caminho else ""
+    return {
+        "id": chunk_id,
+        "arquivo": caminho,
+        "caminho": caminho,
+        "data": data,
+        "formato": extensao,
     }
 
 
@@ -82,13 +114,19 @@ def _registrar_search(servidor: Any, recursos: Any, limites: Any) -> None:
                 "texto": a.texto,
                 "score": round(a.score, 5),
                 "achado_por": a.origem or "nome",
+                "versoes": getattr(a, "versoes", 1),
             }
             if a.antes:
                 item["antes"] = a.antes
             if a.depois:
                 item["depois"] = a.depois
+            if hasattr(a, "anteriores") and a.anteriores:
+                item["anteriores"] = [_resumo_item(p, recursos) for p in a.anteriores]
+            if hasattr(a, "formatos") and a.formatos:
+                item["formatos"] = [_resumo_item(p, recursos) for p in a.formatos]
             trechos.append(item)
         return {"consulta": consulta, "encontrados": len(acertos), "trechos": trechos}
+
 
 
 def _registrar_read_note(servidor: Any, recursos: Any, limites: Any) -> None:
