@@ -32,9 +32,8 @@ def test_ci_roda_lint_types_e_coverage() -> None:
 def test_ci_pytest_instala_do_lock() -> None:
     """Q2: the pytest job must not resolve floating ranges on a Tuesday.
 
-    install-smoke keeps `pip install -e .` — that job proves the package
-    installs from pyproject on three OSes. The Windows suite is the one that
-    has to be the same set next month.
+    install-smoke is the wheel path (FND-09a). The Windows suite is the one
+    that has to be the same set next month, and that job still uses the lock.
     """
     yml = (REPO / ".github" / "workflows" / "tests.yml").read_text(encoding="utf-8")
     assert "pip install -r requirements.txt" in yml, (
@@ -43,3 +42,14 @@ def test_ci_pytest_instala_do_lock() -> None:
     assert "pip install -e . --no-deps" in yml, (
         "job pytest tem de instalar o pacote sem resolver de novo por cima do lock"
     )
+
+
+def test_ci_install_smoke_usa_wheel_fora_do_checkout() -> None:
+    """FND-09a: install-smoke is the wheel, not an editable checkout."""
+    yml = (REPO / ".github" / "workflows" / "tests.yml").read_text(encoding="utf-8")
+    _, _, fumo = yml.partition("install-smoke:")
+    assert fumo, "job install-smoke sumiu"
+    assert "scripts/smoke_wheel.py" in fumo
+    assert "pip wheel --no-deps" in fumo
+    assert "pip install -e ." not in fumo
+    assert "runner.temp" in fumo
