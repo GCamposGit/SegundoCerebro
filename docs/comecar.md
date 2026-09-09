@@ -225,6 +225,17 @@ Três coisas que vale saber pedir:
 
 ## Quando não funciona
 
+Antes de tentar adivinhar a causa, rode:
+
+```bash
+py -m segundocerebro.index.diagnostico --base trabalho
+```
+
+O diagnóstico usa apenas configuração e metadados e responde com a causa e a
+próxima ação. Com a indexação parada, acrescente `--profundo` para comparar o
+registro com os vetores. Para pedir ajuda sem enviar caminhos, consultas ou
+tokens, acrescente `--exportar-suporte`.
+
 | O que você vê | O que é | O que fazer |
 |---|---|---|
 | `'segundocerebro-painel' não é reconhecido` | o atalho não está no PATH | use `py -m segundocerebro.painel` (veja o passo 2) |
