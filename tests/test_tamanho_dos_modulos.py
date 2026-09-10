@@ -37,7 +37,7 @@ ACIMA_DO_TETO: dict[str, int] = {
     "index/indexer.py": 1368,
     "index/store.py": 1137,
     "config.py": 1081,
-    "painel/app.py": 981,
+    "painel/app.py": 956,
     "census.py": 978,
     "index/calibracao.py": 897,
     "ingest/parsers/sheets.py": 870,
@@ -64,7 +64,7 @@ com razão de mudar própria — não a linha nova que entra."""
 
 FUNCOES_ACIMA_DO_TETO: dict[str, int] = {
     "index/indexer.py::indexar": 1042,
-    "painel/app.py::criar_app": 815,
+    "painel/app.py::criar_app": 790,
     "index/indexer.py::aplicar": 273,
     "ingest/reader.py::parse_file": 150,
     "mcp/server.py::construir": 144,

@@ -49,8 +49,8 @@ from ..config_escrita import gravar
 from ..index.travas import NOME_DA_TRAVA, NOME_DO_OBSERVADOR
 from ..logger import get_logger
 from ..retrieve.glossario import ErroDeGlossario, Glossario
-from .erros import MedicaoIndisponivel
 from .exportar import rota_exportar
+from .medir_rota import rota_medir
 from .sessao import (  # noqa: F401 — fachada: testes e Q12 leem estes nomes aqui
     PORTA_PADRAO,
     caminho_da_sessao,
@@ -226,33 +226,6 @@ def criar_app(
                 ],
             }
         )
-
-    async def medir(request: Request) -> JSONResponse:
-        if not autorizado(request):
-            return JSONResponse({"erro": "token inválido"}, status_code=403)
-        corpo = await request.json()
-        try:
-            conf = _config()
-            base = _base(conf, corpo)
-            pesos, busca = _ajuste_de(corpo, base)
-        except (ErroDeConfig, ValueError) as erro:
-            return JSONResponse({"erro": str(erro)}, status_code=400)
-
-        if (base.indice / NOME_DA_TRAVA).exists():
-            # Medir contra um índice sendo reescrito mede um alvo em movimento.
-            return JSONResponse(
-                {"erro": f"a base '{base.id}' está sendo indexada — medir agora daria número instável"},
-                status_code=409,
-            )
-
-        try:
-            resultado = medidor(base, pesos, busca)
-        except MedicaoIndisponivel as erro:
-            # Instalação sem `eval/`: falta a régua, não o produto. 503 e o
-            # motivo em português, no lugar do ModuleNotFoundError cru.
-            return JSONResponse({"erro": str(erro)}, status_code=503)
-        medicoes.registrar(base.id, pesos, busca, resultado)
-        return JSONResponse({"base": base.id, "medicao": resultado})
 
     async def salvar(request: Request) -> JSONResponse:
         if not autorizado(request):
@@ -942,7 +915,9 @@ def criar_app(
             Route("/api/registro", registro),
             Route("/api/conectar", conectar, methods=["POST"]),
             Route("/api/exportar", rota_exportar(autorizado, _config, _base), methods=["POST"]),
-            Route("/api/medir", medir, methods=["POST"]),
+            Route("/api/medir", rota_medir(
+                autorizado, _config, _base, _ajuste_de, medidor, medicoes,
+            ), methods=["POST"]),
             Route("/api/salvar", salvar, methods=["POST"]),
             Route("/api/diagnostico", diagnostico, methods=["POST"]),
             Route("/api/dourado", dourado, methods=["POST"]),
