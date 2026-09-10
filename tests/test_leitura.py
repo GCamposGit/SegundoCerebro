@@ -15,6 +15,7 @@ Tool nova em `mcp/leitura.py` sem caso declarado aqui reprova.
 
 from __future__ import annotations
 
+import os
 import random
 from pathlib import Path
 from typing import Any
@@ -517,3 +518,146 @@ def test_servidor_sem_base_declarada_aceita_caminho_e_id_nu(indice: Store) -> No
     tools = ferramentas_de_leitura(indice, base_id="")
     assert tools["outline"](documento="Projetos/Alfa/Plano_v2.docx")["secoes"]
     assert tools["outline"](documento="b" * 12)["secoes"]
+
+
+# --- FND-04: continuidade detectável -----------------------------------------
+
+
+def _doc(store: Store, caminho: str, sha: str, mtime: float, status: str = "ok") -> None:
+    store.registrar_documento(
+        path=caminho, raiz="acervo", tamanho=1, mtime=mtime, sha256=sha,
+        status=status, n_chunks=0, model_id="falso:8", chunker="v1", parser="p1",
+    )
+
+
+def _paginar_opaco(tool, pasta: str, max_itens: int) -> list[Any]:  # noqa: ANN001
+    colhidos: list[Any] = []
+    cursor: int | str = 0
+    for _ in range(50):
+        saida = tool(pasta=pasta, max_itens=max_itens, cursor=cursor, cursor_opaco=True)
+        assert not saida.is_error, saida
+        colhidos.extend(saida["itens"])
+        cursor = saida.get("cursor_proximo")
+        if cursor is None:
+            return colhidos
+    raise AssertionError("paginação opaca não terminou")
+
+
+def test_cursor_inteiro_legado_nao_garante_snapshot(indice: Store) -> None:
+    """FND-04: o inteiro permanece, e inserção entre páginas não recusa."""
+    tool = ferramentas_de_leitura(indice)["list_folder"]
+    primeira = tool(pasta=PASTA, max_itens=2)
+    assert type(primeira["cursor_proximo"]) is int
+    _doc(indice, "Projetos/Alfa/Aaa.md", "1" * 64, 50.0)
+    indice.commit()
+    segunda = tool(pasta=PASTA, cursor=primeira["cursor_proximo"], max_itens=2)
+    assert not segunda.is_error
+    assert segunda["itens"]
+
+
+def test_opaco_sem_mudanca_cada_ocorrencia_uma_vez(indice: Store) -> None:
+    tool = ferramentas_de_leitura(indice)["list_folder"]
+    assert "cursor_opaco" in tool.__annotations__
+    inteiro = _paginar_opaco(tool, PASTA, 1)
+    arquivos = [i["arquivo"] for i in inteiro]
+    assert arquivos == sorted(arquivos)
+    assert len(arquivos) == len(set(arquivos))
+    assert arquivos == [i["arquivo"] for i in tool(pasta=PASTA, max_itens=100)["itens"]]
+
+
+def test_opaco_insercao_entre_paginas_desatualiza(indice: Store) -> None:
+    tool = ferramentas_de_leitura(indice)["list_folder"]
+    primeira = tool(pasta=PASTA, max_itens=1, cursor_opaco=True)
+    assert type(primeira["cursor_proximo"]) is str
+    _doc(indice, "Projetos/Alfa/Aaa.md", "1" * 64, 50.0)
+    indice.commit()
+    segunda = tool(pasta=PASTA, cursor=primeira["cursor_proximo"], cursor_opaco=True)
+    assert segunda.is_error
+    assert segunda["codigo"] == "cursor_desatualizado"
+    reinicio = [i["arquivo"] for i in _paginar_opaco(tool, PASTA, 1)]
+    assert "Projetos/Alfa/Aaa.md" in reinicio
+    assert len(reinicio) == len(set(reinicio))
+
+
+def test_opaco_exclusao_desatualiza(indice: Store) -> None:
+    tool = ferramentas_de_leitura(indice)["list_folder"]
+    primeira = tool(pasta=PASTA, max_itens=1, cursor_opaco=True)
+    indice.esquecer_documento("Projetos/Alfa/Escaneado.pdf")
+    indice.commit()
+    segunda = tool(pasta=PASTA, cursor=primeira["cursor_proximo"])
+    assert segunda.is_error
+    assert segunda["codigo"] == "cursor_desatualizado"
+
+
+def test_opaco_renomear_desatualiza(indice: Store) -> None:
+    tool = ferramentas_de_leitura(indice)["list_folder"]
+    primeira = tool(pasta=PASTA, max_itens=1, cursor_opaco=True)
+    indice.esquecer_documento("Projetos/Alfa/Plano_v1.docx")
+    _doc(indice, "Projetos/Alfa/Plano_v1-ren.md", "a" * 64, 300.0)
+    indice.commit()
+    segunda = tool(pasta=PASTA, cursor=primeira["cursor_proximo"])
+    assert segunda.is_error
+    assert segunda["codigo"] == "cursor_desatualizado"
+
+
+def test_opaco_status_desatualiza(indice: Store) -> None:
+    tool = ferramentas_de_leitura(indice)["list_folder"]
+    primeira = tool(pasta=PASTA, max_itens=1, cursor_opaco=True)
+    _doc(indice, "Projetos/Alfa/Plano_v2.docx", "b" * 64, 400.0, status="erro")
+    indice.commit()
+    segunda = tool(pasta=PASTA, cursor=primeira["cursor_proximo"])
+    assert segunda.is_error
+    assert segunda["codigo"] == "cursor_desatualizado"
+
+
+def test_opaco_base_errada_desatualiza(indice: Store) -> None:
+    primeira = ferramentas_de_leitura(indice, base_id="corp")["list_folder"](
+        pasta=PASTA, max_itens=1, cursor_opaco=True,
+    )
+    segunda = ferramentas_de_leitura(indice, base_id="outra")["list_folder"](
+        pasta=PASTA, cursor=primeira["cursor_proximo"],
+    )
+    assert segunda.is_error
+    assert segunda["codigo"] == "cursor_desatualizado"
+
+
+def test_permissao_negada_nao_finge_completude(
+    indice: Store, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    raiz = tmp_path / "acervo"
+    (raiz / "Projetos" / "Alfa").mkdir(parents=True)
+    cfg = CensoConfig(roots=[RootSpec(name="acervo", path=raiz)])
+    real = os.scandir
+
+    def recusa(path):  # noqa: ANN001, ANN202
+        texto = str(path).replace("\\", "/")
+        if "Projetos/Alfa" in texto or texto.endswith("Alfa"):
+            raise PermissionError("acesso negado")
+        return real(path)
+
+    monkeypatch.setattr("os.scandir", recusa)
+    saida = ferramentas_de_leitura(indice, censo_cfg=cfg)["list_folder"](
+        pasta=PASTA, cursor_opaco=True,
+    )
+    assert not saida.is_error
+    assert saida["itens"], "índice conhecido não some quando o disco recusa"
+    assert "incompleta" in saida["aviso_censo"]
+    assert saida["cobertura_completa"] is False
+    assert str(tmp_path) not in str(saida.structured_content)
+
+
+def test_travessia_nao_visita_a_raiz_inteira(indice: Store, tmp_path: Path) -> None:
+    """Pasta pequena dentro de raiz grande não paga o censo do resto."""
+    raiz = tmp_path / "acervo"
+    alfa = raiz / "Projetos" / "Alfa"
+    beta = raiz / "Projetos" / "Beta"
+    alfa.mkdir(parents=True)
+    beta.mkdir(parents=True)
+    (alfa / "Novo.txt").write_text("x", encoding="utf-8")
+    for i in range(80):
+        (beta / f"n{i:02d}.txt").write_text("y", encoding="utf-8")
+    cfg = CensoConfig(roots=[RootSpec(name="acervo", path=raiz)])
+    saida = ferramentas_de_leitura(indice, censo_cfg=cfg)["list_folder"](pasta=PASTA)
+    assert saida["visita_censo"]["arquivos"] < 20
+    assert any(i["arquivo"].endswith("Novo.txt") for i in saida["itens"])
+    assert not any("/Beta/" in i["arquivo"] for i in saida["itens"])

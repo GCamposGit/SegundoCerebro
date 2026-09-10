@@ -33,6 +33,7 @@ from mcp.types import CallToolResult
 from ..acesso import manifesto
 from ..acesso.documento import LeitorDocumento
 from ..acesso.identidade import conferir_base, interpretar
+from ..acesso.original import ErroLeitura
 from .documento import registrar as registrar_documento
 from .empacote import registrar as registrar_empacote
 from .respostas import erro_operacional, sucesso
@@ -45,7 +46,9 @@ DESCRICAO_LIST_FOLDER = (
     "`list_folder` para saber o que existe, `outline` nos maiores para decidir o que vale "
     "ler, `pack_folder` para cobrir a pasta sob orçamento, e `search` para perguntas "
     "pontuais. A ordem é por caminho e nunca por relevância. Devolve `cursor_proximo` "
-    "quando há mais. Se o acervo mudar entre páginas, reinicie com cursor=0."
+    "quando há mais. cursor_opaco=true (opt-in) carrega revisão da enumeração: se o "
+    "acervo mudar entre páginas, a continuação recusa com cursor_desatualizado — "
+    "reinicie sem cursor. O cursor inteiro é legado e não garante snapshot."
 )
 
 DESCRICAO_OUTLINE = (
@@ -98,15 +101,17 @@ def _registrar_list_folder(servidor, recursos, limites=None) -> None:  # noqa: A
     def list_folder(
         pasta: str = "",
         recursivo: bool = False,
-        cursor: int = 0,
+        cursor: int | str = 0,
         max_itens: int = manifesto.LIMITE_ITENS,
+        cursor_opaco: bool = False,
     ) -> CallToolResult:
         """Args:
         pasta: caminho relativo à raiz da base, como aparece no campo `arquivo` de
             `search`. Vazio lista a raiz.
         recursivo: incluir as subpastas.
-        cursor: de onde continuar, vindo de `cursor_proximo`.
+        cursor: de onde continuar, vindo de `cursor_proximo`. Inteiro é legado.
         max_itens: quantos documentos devolver por página.
+        cursor_opaco: continuação com revisão; recusa se a pasta mudou.
         """
         limite = max(1, min(int(max_itens), max_itens_teto))
         try:
@@ -114,14 +119,15 @@ def _registrar_list_folder(servidor, recursos, limites=None) -> None:  # noqa: A
                 recursos.store,
                 pasta,
                 recursivo=bool(recursivo),
-                cursor=int(cursor or 0),
+                cursor=cursor,
                 limite=limite,
                 base=id_da_base,
                 censo_cfg=censo_cfg,
+                cursor_opaco=cursor_opaco,
             )
             return sucesso(res)
-        except Exception as exc:  # noqa: BLE001
-            return erro_operacional(str(exc), "pasta_invalida")
+        except ErroLeitura as erro:
+            return erro_operacional(str(erro), erro.codigo)
 
 
 def _registrar_outline(servidor, recursos) -> None:  # noqa: ANN001
