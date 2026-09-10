@@ -362,7 +362,7 @@ const CORTES = [
   ["csv", "CSV"],
   ["md", "Markdown (.md)"],
 ];
-let bases = [], perfis = [], medicaoAtual = null, assinaturaMedida = null, baseDaBarra = null;
+let bases = [], perfis = [], medicaoAtual = null, assinaturaMedida = null, baseDaBarra = null, revisaoConfig = "";
 let maquinaEstado = {}, limitesFabrica = {}, limitesRecomendados = {};
 let siglasVisiveis = false;
 
@@ -375,7 +375,11 @@ async function api(rota, corpo) {
   }
   const r = await fetch(rota, opcoes);
   const dados = await r.json().catch(() => ({ erro: "resposta ilegível" }));
-  if (!r.ok) throw new Error(dados.erro || `erro ${r.status}`);
+  if (!r.ok) {
+    const erro = new Error(dados.erro || `erro ${r.status}`);
+    erro.acao = dados.acao;
+    throw erro;
+  }
   return dados;
 }
 
@@ -390,7 +394,9 @@ const pesosAtuais = () => ({
 // `rerank` é classe grátis — recarrega sem reindexar — então entra no ajuste
 // junto dos pesos, e por isso participa da assinatura que destrava o Salvar.
 const buscaAtual = () => ({ rerank: +$("pRerank").value || null });
-const ajusteAtual = () => ({ base: $("base").value, pesos: pesosAtuais(), busca: buscaAtual() });
+const ajusteAtual = () => ({
+  base: $("base").value, pesos: pesosAtuais(), busca: buscaAtual(), revisao: revisaoConfig,
+});
 const assinatura = () =>
   JSON.stringify(pesosAtuais()) + JSON.stringify(buscaAtual()) + "|" + $("base").value;
 const baseAtual = () => bases.find((b) => b.id === $("base").value);
@@ -480,10 +486,14 @@ $("medir").onclick = async () => {
 $("salvar").onclick = async () => {
   recado("");
   try {
-    await api("/api/salvar", ajusteAtual());
+    const r = await api("/api/salvar", ajusteAtual());
+    if (r.revisao) revisaoConfig = r.revisao;
     recado("Salvo. A busca passa a usar esta configuração.", "ok");
     await carregarEstado();
-  } catch (e) { recado(e.message); }
+  } catch (e) {
+    recado(e.message);
+    if (e.acao === "recarregar") await carregarEstado();
+  }
 };
 
 $("diagnosticar").onclick = async () => {
@@ -993,6 +1003,7 @@ function desenharRecursos(id, plano) {
 
 async function carregarEstado() {
   const e = await api("/api/estado");
+  revisaoConfig = e.revisao || "";
   bases = e.bases;
   maquinaEstado = e.maquina || {};
   // Sem tabela embutida de propósito (Q12, 29/08/2026): esta era a quarta cópia

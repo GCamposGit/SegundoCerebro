@@ -9,6 +9,7 @@ divergem em silêncio se nada as amarrar. Ele é essa amarra.
 from __future__ import annotations
 
 import logging
+from dataclasses import replace
 from pathlib import Path
 
 import pytest
@@ -28,7 +29,7 @@ from segundocerebro.config import (
     Pesos,
     carregar,
 )
-from segundocerebro.config_escrita import gravar
+from segundocerebro.config_escrita import ConflitoDeConfig, gravar, revisao_de
 
 SEM_AMBIENTE: dict[str, str] = {}
 
@@ -948,6 +949,107 @@ def test_gravar_nao_deixa_arquivo_pela_metade(tmp_path):
 
     assert carregar(destino, ambiente=SEM_AMBIENTE).base().id == "b"
     assert not list(tmp_path.glob("*.tmp"))
+
+
+def _gravar_em_processo(args: tuple[str, str, str]) -> str:
+    """Alvo de spawn: duas instâncias, não dois threads no mesmo interpretador."""
+    from pathlib import Path
+
+    from segundocerebro.config import Base, Config
+    from segundocerebro.config_escrita import ConflitoDeConfig, gravar
+
+    caminho, ident, revisao = args
+    try:
+        gravar(
+            Config(bases=(Base(id=ident, indice=Path(ident)),)),
+            Path(caminho),
+            revisao_esperada=revisao,
+        )
+        return "ok"
+    except ConflitoDeConfig:
+        return "conflito"
+
+
+def test_revisao_velha_nao_sobrescreve(tmp_path: Path) -> None:
+    destino = tmp_path / "c.toml"
+    gravar(Config(bases=(Base(id="a"),)), destino)
+    velha = revisao_de(destino)
+    gravar(Config(bases=(Base(id="b"),)), destino, revisao_esperada=velha)
+    with pytest.raises(ConflitoDeConfig) as erro:
+        gravar(Config(bases=(Base(id="c"),)), destino, revisao_esperada=velha)
+    assert erro.value.codigo == "conflito"
+    assert erro.value.acao == "recarregar"
+    assert carregar(destino, ambiente=SEM_AMBIENTE).base().id == "b"
+
+
+def test_duas_bases_alteradas_a_segunda_nao_apaga_a_primeira(tmp_path: Path) -> None:
+    destino = tmp_path / "c.toml"
+    gravar(
+        Config(bases=(Base(id="trabalho", indice=Path("it")), Base(id="pessoal", indice=Path("ip")))),
+        destino,
+    )
+    cfg = carregar(destino, ambiente=SEM_AMBIENTE)
+    rev = revisao_de(destino)
+    da_a = tuple(
+        replace(b, pesos=Pesos(lexical=0.5)) if b.id == "trabalho" else b for b in cfg.bases
+    )
+    da_b = tuple(
+        replace(b, pesos=Pesos(lexical=0.6)) if b.id == "pessoal" else b for b in cfg.bases
+    )
+    gravar(replace(cfg, bases=da_a), destino, revisao_esperada=rev)
+    with pytest.raises(ConflitoDeConfig):
+        gravar(replace(cfg, bases=da_b), destino, revisao_esperada=rev)
+    depois = carregar(destino, ambiente=SEM_AMBIENTE)
+    assert depois.base("trabalho").pesos.lexical == 0.5
+    assert depois.base("pessoal").pesos == Pesos()
+
+
+def test_primeiro_salvamento_concorrente_so_um_vence(tmp_path: Path) -> None:
+    import multiprocessing
+
+    destino = tmp_path / "c.toml"
+    gravar(Config(bases=(Base(id="semente", indice=Path("semente")),)), destino)
+    rev = revisao_de(destino)
+    ctx = multiprocessing.get_context("spawn")
+    with ctx.Pool(2) as pool:
+        saidas = pool.map(_gravar_em_processo, [
+            (str(destino), "alfa", rev),
+            (str(destino), "beta", rev),
+        ])
+    assert saidas.count("ok") == 1
+    assert saidas.count("conflito") == 1
+    vencedor = carregar(destino, ambiente=SEM_AMBIENTE).base().id
+    assert vencedor in {"alfa", "beta"}
+
+
+def test_falha_de_replace_preserva_original_e_tmp_alheio(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    destino = tmp_path / "c.toml"
+    gravar(Config(bases=(Base(id="a"),)), destino)
+    original = destino.read_bytes()
+    alheio = tmp_path / "c.toml.outro.tmp"
+    alheio.write_text("nao mexer", encoding="utf-8")
+
+    def boom(_src: str, _dst: str) -> None:
+        raise OSError("disco cheio")
+
+    monkeypatch.setattr("segundocerebro.config_escrita.os.replace", boom)
+    with pytest.raises(OSError, match="disco cheio"):
+        gravar(Config(bases=(Base(id="b"),)), destino)
+    assert destino.read_bytes() == original
+    assert alheio.read_text(encoding="utf-8") == "nao mexer"
+    nossos = [p for p in tmp_path.glob("c.toml.*.tmp") if p != alheio]
+    assert nossos == []
+
+
+def test_gravar_preserva_unicode(tmp_path: Path) -> None:
+    destino = tmp_path / "c.toml"
+    cfg = Config(bases=(Base(id="a", descricao="Área de Trabalho — Várzea"),))
+    nova = gravar(cfg, destino)
+    assert "Área de Trabalho — Várzea" in destino.read_text(encoding="utf-8")
+    assert revisao_de(destino) == nova
+    gravar(cfg, destino, revisao_esperada=nova)
 
 
 # --------------------------------------------------------------------------- #

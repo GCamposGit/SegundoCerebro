@@ -45,12 +45,13 @@ from ..config import (
     Pesos,
     carregar,
 )
-from ..config_escrita import gravar
+from ..config_escrita import gravar, revisao_de
 from ..index.travas import NOME_DA_TRAVA, NOME_DO_OBSERVADOR
 from ..logger import get_logger
 from ..retrieve.glossario import ErroDeGlossario, Glossario
 from .exportar import rota_exportar
 from .medir_rota import rota_medir
+from .salvar_rota import rota_salvar
 from .sessao import (  # noqa: F401 — fachada: testes e Q12 leem estes nomes aqui
     PORTA_PADRAO,
     caminho_da_sessao,
@@ -200,6 +201,7 @@ def criar_app(
         return JSONResponse(
             {
                 "config": str(caminho_config),
+                "revisao": revisao_de(caminho_config),
                 "maquina": maquina,
                 "limites_recomendados": LIMITES_RECOMENDADOS.como_json(),
                 "limites_fabrica": LimitesDeIndexacao().como_json(),
@@ -226,37 +228,6 @@ def criar_app(
                 ],
             }
         )
-
-    async def salvar(request: Request) -> JSONResponse:
-        if not autorizado(request):
-            return JSONResponse({"erro": "token inválido"}, status_code=403)
-        corpo = await request.json()
-        try:
-            conf = _config()
-            base = _base(conf, corpo)
-            pesos, busca = _ajuste_de(corpo, base)
-        except (ErroDeConfig, ValueError) as erro:
-            return JSONResponse({"erro": str(erro)}, status_code=400)
-
-        medicao = medicoes.de(base.id, pesos, busca)
-        if medicao is None:
-            # Invariante 4. A tela também desabilita o botão, mas a tela é
-            # sugestão; a regra é aqui.
-            return JSONResponse(
-                {"erro": "esta configuração ainda não foi medida — meça antes de salvar"},
-                status_code=409,
-            )
-
-        novas = tuple(
-            replace(b, pesos=pesos, busca=busca) if b.id == base.id else b for b in conf.bases
-        )
-        try:
-            gravar(replace(conf, bases=novas), caminho_config)
-        except ErroDeConfig as erro:
-            return JSONResponse({"erro": str(erro)}, status_code=400)
-
-        log.info("base '%s' salva em %s", base.id, caminho_config)
-        return JSONResponse({"base": base.id, "salvo": True, "medicao": medicao})
 
     async def diagnostico(request: Request) -> JSONResponse:
         """Por que este documento veio em primeiro — a pergunta real de quem ajusta.
@@ -918,7 +889,9 @@ def criar_app(
             Route("/api/medir", rota_medir(
                 autorizado, _config, _base, _ajuste_de, medidor, medicoes,
             ), methods=["POST"]),
-            Route("/api/salvar", salvar, methods=["POST"]),
+            Route("/api/salvar", rota_salvar(
+                autorizado, _config, _base, _ajuste_de, medicoes, caminho_config,
+            ), methods=["POST"]),
             Route("/api/diagnostico", diagnostico, methods=["POST"]),
             Route("/api/dourado", dourado, methods=["POST"]),
             Route("/api/glossario", glossario, methods=["GET", "POST"]),

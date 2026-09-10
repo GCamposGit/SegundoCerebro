@@ -1162,11 +1162,38 @@ def test_exportar_recusa_destino_dentro_da_raiz(cliente, caminho: Path) -> None:
     assert not (raiz / "vault").exists()
 
 
+def test_estado_expoe_revisao_da_config(cliente) -> None:
+    dados = cliente.get("/api/estado", headers=cabecalho()).json()
+    assert "revisao" in dados
+    assert isinstance(dados["revisao"], str)
+
+
+def test_salvar_com_revisao_velha_pede_recarregar(cliente, caminho: Path) -> None:
+    corpo = ajuste(lexical=0.5)
+    assert cliente.post("/api/medir", json=corpo, headers=cabecalho()).status_code == 200
+    rev = cliente.get("/api/estado", headers=cabecalho()).json()["revisao"]
+    primeira = cliente.post("/api/salvar", json={**corpo, "revisao": rev}, headers=cabecalho())
+    assert primeira.status_code == 200
+    assert primeira.json()["revisao"]
+    segunda = cliente.post("/api/salvar", json={**corpo, "revisao": rev}, headers=cabecalho())
+    assert segunda.status_code == 409
+    assert segunda.json()["codigo"] == "conflito"
+    assert segunda.json()["acao"] == "recarregar"
+    assert "Recarregue" in segunda.json()["erro"]
+    assert carregar(caminho, ambiente={}).base("trabalho").pesos.lexical == 0.5
+
+
 def test_a_tela_oferece_exportar_o_vault() -> None:
     html = Path("src/segundocerebro/painel/index.html").read_text(encoding="utf-8")
     assert 'id="exportarVault"' in html
     assert 'id="destinoVault"' in html
     assert "/api/exportar" in html
+
+
+def test_a_tela_recarrega_no_conflito_de_config() -> None:
+    html = Path("src/segundocerebro/painel/index.html").read_text(encoding="utf-8")
+    assert "revisaoConfig" in html
+    assert 'e.acao === "recarregar"' in html
 
 
 # --- FND-05: painel responsivo durante operação longa -------------------------
