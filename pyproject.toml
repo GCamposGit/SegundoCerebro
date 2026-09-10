@@ -85,6 +85,7 @@ segundocerebro-painel = "segundocerebro.painel.__main__:main"
 segundocerebro-indexar = "segundocerebro.index.indexer:main"
 segundocerebro-observar = "segundocerebro.index.watcher:main"
 segundocerebro-exportar = "segundocerebro.acesso.exportar:main"
+segundocerebro-diagnosticar = "segundocerebro.index.diagnostico:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

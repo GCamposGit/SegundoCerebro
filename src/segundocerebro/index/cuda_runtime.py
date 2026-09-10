@@ -32,6 +32,7 @@ ORT_GPU_PINADO = (1, 18, 0)
 ORT_CUDNN9 = (1, 19, 0)
 ORT_CUDA13 = (1, 27, 0)
 DRIVER_MAXWELL_LIMITE = 590
+TIMEOUT_SONDA_GPU_S = 5
 
 OK = "ok"
 SEM_GPU = "sem_gpu"
@@ -179,8 +180,9 @@ def listar_gpus() -> list[dict[str, str]]:
             check=False,
             capture_output=True,
             text=True,
+            timeout=TIMEOUT_SONDA_GPU_S,
         )
-    except FileNotFoundError:
+    except (FileNotFoundError, subprocess.TimeoutExpired):
         return []
     if bruto.returncode != 0:
         return []

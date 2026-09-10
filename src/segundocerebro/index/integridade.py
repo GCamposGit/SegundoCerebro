@@ -10,6 +10,7 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from collections.abc import Callable
 from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
@@ -17,6 +18,12 @@ if TYPE_CHECKING:
 
 TABELA_VETORES = "chunks"
 log = logging.getLogger(__name__)
+Cancelar = Callable[[], bool]
+Progresso = Callable[[int, int], None]
+
+
+class IntegridadeCancelada(RuntimeError):
+    """A inspeção profunda foi interrompida a pedido do chamador."""
 
 
 @dataclass(frozen=True)
@@ -75,11 +82,11 @@ def _tabelas_no_db(db: Any) -> list[str]:
             return list(res.tables)
         if isinstance(res, list):
             return res
-    except Exception:  # noqa: BLE001
+    except Exception:  # noqa: BLE001 — probe de API do LanceDB: list_tables ausente em cliente antigo
         pass
     try:
         return db.table_names()
-    except Exception:  # noqa: BLE001
+    except Exception:  # noqa: BLE001 — probe de API do LanceDB: table_names também pode falhar
         return []
 
 
@@ -87,6 +94,9 @@ def _escanear_vetores(
     tbl: Any,
     sqlite_map: dict[str, str],
     lote: int,
+    *,
+    cancelar: Cancelar | None = None,
+    progresso: Progresso | None = None,
 ) -> tuple[set[str], set[str], set[str], int]:
     """Varre a tabela LanceDB em lotes sem carregar a coluna vetorial pesada."""
     vistos: set[str] = set()
@@ -96,6 +106,8 @@ def _escanear_vetores(
     total = tbl.count_rows()
 
     for offset in range(0, total, lote):
+        if cancelar is not None and cancelar():
+            raise IntegridadeCancelada
         lim = min(lote, total - offset)
         lote_arrow = (
             tbl.search()
@@ -118,6 +130,8 @@ def _escanear_vetores(
                 sq_model = sqlite_map[vid]
                 if sq_model and vmodel and sq_model != vmodel:
                     modelos_divergentes += 1
+        if progresso is not None:
+            progresso(offset + lim, total)
 
     return vistos, duplicados, orfaos, modelos_divergentes
 
@@ -171,7 +185,7 @@ def _abrir_tabela(store: Store) -> tuple[Any | None, str | None]:
         if TABELA_VETORES not in tabelas:
             return None, None
         return db.open_table(TABELA_VETORES), None
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001 — I/O do LanceDB vira diagnóstico indisponível, não crash
         return None, str(exc)
 
 
@@ -207,11 +221,17 @@ def _determinar_status(
     return "ok"
 
 
-def diagnosticar_integridade(store: Store, lote: int = 1000) -> DiagnosticoIntegridade:
+def diagnosticar_integridade(
+    store: Store,
+    lote: int = 1000,
+    *,
+    cancelar: Cancelar | None = None,
+    progresso: Progresso | None = None,
+) -> DiagnosticoIntegridade:
     """Executa diagnóstico somente-leitura e paginado de integridade entre stores."""
     try:
         sqlite_map = _coletar_sqlite(store)
-    except Exception as exc:  # noqa: BLE001
+    except Exception as exc:  # noqa: BLE001 — SQLite ilegível vira diagnóstico indisponível, não crash
         return DiagnosticoIntegridade(
             integro=False, status="indisponivel", chunks_sqlite=0, vetores_lancedb=0,
             orfaos=0, faltantes=0, duplicados=0, modelos_divergentes=0, pendentes_rascunho=0,
@@ -229,8 +249,20 @@ def diagnosticar_integridade(store: Store, lote: int = 1000) -> DiagnosticoInteg
         return _avaliar_sem_tabela(sqlite_map)
 
     try:
-        vistos, duplicados, orfaos, mod_div = _escanear_vetores(tbl, sqlite_map, max(1, lote))
-    except Exception as exc:  # noqa: BLE001
+        vistos, duplicados, orfaos, mod_div = _escanear_vetores(
+            tbl,
+            sqlite_map,
+            max(1, lote),
+            cancelar=cancelar,
+            progresso=progresso,
+        )
+    except IntegridadeCancelada:
+        return DiagnosticoIntegridade(
+            integro=False, status="cancelado", chunks_sqlite=len(sqlite_map), vetores_lancedb=-1,
+            orfaos=0, faltantes=0, duplicados=0, modelos_divergentes=0, pendentes_rascunho=0,
+            lancedb_disponivel=True, detalhe="Diagnóstico profundo cancelado pelo usuário",
+        )
+    except Exception as exc:  # noqa: BLE001 — varredura do LanceDB vira diagnóstico indisponível, não crash
         return DiagnosticoIntegridade(
             integro=False, status="indisponivel", chunks_sqlite=len(sqlite_map), vetores_lancedb=-1,
             orfaos=0, faltantes=0, duplicados=0, modelos_divergentes=0, pendentes_rascunho=0,
