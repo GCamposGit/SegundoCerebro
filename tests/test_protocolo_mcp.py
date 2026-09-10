@@ -266,6 +266,9 @@ def test_o_esquema_diz_ao_cliente_como_chamar(do_produto: dict[str, Any]) -> Non
     assert esquemas["get_document"]["required"] == ["documento"]
     assert set(esquemas["get_document"]["properties"]) == {"documento", "cursor", "max_chars"}
     assert do_produto["ferramentas"]["get_document"].annotations.read_only_hint is True
+    assert set(esquemas["list_folder"]["properties"]) == {
+        "pasta", "recursivo", "cursor", "max_itens", "cursor_opaco",
+    }
     assert set(esquemas["pack_folder"]["properties"]) == {
         "pasta", "budget_chars", "cursor", "politica", "ids", "recursivo",
     }

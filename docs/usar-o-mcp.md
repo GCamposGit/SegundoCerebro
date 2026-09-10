@@ -114,7 +114,7 @@ As três acima servem o modo **pergunta**: você pergunta, o servidor devolve os
 trechos que respondem. As quatro seguintes servem o modo **leitura** — quando a
 tarefa não é "onde está X" e sim "escreva um relatório sobre esta pasta".
 
-**`list_folder(pasta="", recursivo=False, cursor=0, max_itens=100)`** — o que
+**`list_folder(pasta="", recursivo=False, cursor=0, max_itens=100, cursor_opaco=false)`** — o que
 existe numa pasta: por documento, a `raiz`, um `id` estável quando já há hash, o tipo, a data, quantos
 caracteres de texto ele tem indexados, se é a versão vigente da família e o
 status (`indexado`, `quarentena`, `sem_texto`, `formato_nao_lido`, `so_censo`).
@@ -124,9 +124,11 @@ Esses arquivos aparecem como `so_censo`, sem id e com motivo. Caminhos relativos
 iguais em raízes diferentes são entradas distintas. A ordem é por caminho e raiz,
 **nunca** por relevância. Quando há mais itens que o
 orçamento, o retorno traz `cursor_proximo` e `restante`: a ferramenta nunca corta
-em silêncio. A enumeração é ao vivo: se o acervo mudar entre páginas, reinicie
-com `cursor=0`. Sem raízes declaradas, o campo `fronteira` avisa que só há dados do
-índice; falhas de enumeração vêm em `aviso_censo`, sem fingir cobertura completa.
+em silêncio. O cursor inteiro é legado e não garante snapshot. `cursor_opaco=true`
+(opt-in) carrega revisão da enumeração: se o acervo mudar entre páginas, a
+continuação recusa com `cursor_desatualizado` — reinicie sem cursor. Sem raízes
+declaradas, o campo `fronteira` avisa que só há dados do índice; falhas de
+enumeração vêm em `aviso_censo`, sem fingir cobertura completa.
 
 **`outline(documento, cursor=0, max_secoes=80)`** — o mapa de um documento sem
 gastar contexto lendo o documento: as seções na ordem do texto, onde cada uma

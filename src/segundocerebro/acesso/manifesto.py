@@ -28,7 +28,9 @@ from .. import census as census_mod
 from ..index.store import Store
 from ..retrieve.familias import chave_de_familia, por_vigencia
 from . import registro
+from .censo_escopo import iter_escopo
 from .identidade import Referencia, montar_uri, motivo_sem_id
+from .manifesto_cursor import conferir, emitir, flag_opaco, interpretar, revisao
 
 LIMITE_ITENS = 100
 LIMITE_ITENS_MAX = 500
@@ -170,21 +172,26 @@ def _complementar_com_censo(
     pasta: str,
     *,
     recursivo: bool,
-) -> tuple[list[registro.Documento], list[str]]:
+) -> tuple[list[registro.Documento], list[str], int]:
     """Acrescenta o que está no disco e ainda não ganhou linha no índice.
 
     O censo só usa ``scandir``/``stat``. Portanto esta união não abre conteúdo,
     não hidrata placeholder de nuvem e não inventa ``doc_id``: sem leitura não
-    há hash. A lista continua no mesmo espaço de caminhos relativos do índice.
+    há hash. A travessia começa no prefixo da pasta, não na raiz inteira.
     """
     saida = list(documentos)
     if cfg is None:
-        return saida, []
+        return saida, [], 0
 
     conhecidos = {(doc.raiz, doc.caminho) for doc in saida}
     censo = census_mod.Census()
+    visitados = 0
     for raiz in cfg.roots:
-        for arquivo in census_mod.iter_files(raiz, cfg, sink=censo):
+        arquivos, visita = iter_escopo(
+            raiz, cfg, pasta, recursivo=recursivo, sink=censo,
+        )
+        visitados += visita.arquivos
+        for arquivo in arquivos:
             identidade = (arquivo.root.name, arquivo.rel)
             if identidade in conhecidos or not registro.esta_na_pasta(
                 arquivo.rel, pasta, recursivo=recursivo
@@ -203,18 +210,24 @@ def _complementar_com_censo(
             )
             conhecidos.add(identidade)
     saida.sort(key=lambda doc: (doc.caminho, doc.raiz))
-    return saida, censo.errors
+    return saida, censo.errors, visitados
 
 
 def _declarar_fronteira(
-    saida: dict[str, Any], *, com_censo: bool, erros_censo: Sequence[str]
+    saida: dict[str, Any], *, com_censo: bool, erros_censo: Sequence[str], opaco: bool,
 ) -> None:
     if com_censo:
+        continuidade = (
+            "A enumeração é ao vivo com revisão: se o acervo mudar entre páginas, "
+            "a continuação recusa com cursor_desatualizado. Reinicie sem cursor."
+            if opaco else
+            "A enumeração é ao vivo: se o acervo mudar entre páginas, reinicie com cursor=0. "
+            "O cursor inteiro é legado e não garante snapshot."
+        )
         saida["fronteira"] = (
             "este manifesto une metadados do disco ao estado do índice e da quarentena, "
             "respeitando as exclusões do censo e sem seguir links de diretório. "
-            "`so_censo` indica arquivo ainda não lido pela indexação. A enumeração é "
-            "ao vivo: se o acervo mudar entre páginas, reinicie com cursor=0."
+            f"`so_censo` indica arquivo ainda não lido pela indexação. {continuidade}"
         )
     else:
         saida["fronteira"] = (
@@ -227,6 +240,9 @@ def _declarar_fronteira(
             f"{len(erros_censo)} falha(s) na enumeração; a lista pode estar incompleta. "
             "Confira permissões ou disponibilidade da unidade."
         )
+        saida["cobertura_completa"] = False
+    elif opaco:
+        saida["cobertura_completa"] = True
 
 
 def listar(
@@ -239,7 +255,10 @@ def listar(
     """Todos os documentos da pasta, índice e censo, na ordem estável do manifesto."""
     censo_cfg = censo_cfg if censo_cfg and censo_cfg.roots else None
     documentos = registro.documentos_da_pasta(store, pasta, recursivo=recursivo)
-    return _complementar_com_censo(documentos, censo_cfg, pasta, recursivo=recursivo)
+    docs, erros, _visita = _complementar_com_censo(
+        documentos, censo_cfg, pasta, recursivo=recursivo,
+    )
+    return docs, erros
 
 
 def manifesto(
@@ -247,24 +266,31 @@ def manifesto(
     pasta: str,
     *,
     recursivo: bool = False,
-    cursor: int = 0,
+    cursor: int | str = 0,
     limite: int = LIMITE_ITENS,
     base: str = "",
     censo_cfg: census_mod.Config | None = None,
+    cursor_opaco: bool = False,
 ) -> dict[str, Any]:
     """O que existe nesta pasta, em ordem de caminho e com o que falta declarado."""
-    documentos, erros_censo = listar(store, pasta, recursivo=recursivo, censo_cfg=censo_cfg)
+    opaco = flag_opaco(cursor_opaco)
+    posicao, esperada = interpretar(cursor)
+    censo_cfg = censo_cfg if censo_cfg and censo_cfg.roots else None
+    indexados = registro.documentos_da_pasta(store, pasta, recursivo=recursivo)
+    documentos, erros_censo, visitados = _complementar_com_censo(
+        indexados, censo_cfg, pasta, recursivo=recursivo,
+    )
+    atual = revisao(base, pasta, recursivo, documentos, len(erros_censo))
+    conferir(esperada, atual)
+    opaco = opaco or esperada is not None
     quarentena = registro.quarentena_da_pasta(store, pasta, recursivo=recursivo)
 
-    pagina = paginar(documentos, cursor, limite)
-    caminhos = [d.caminho for d in pagina.itens]
-    tamanhos = registro.texto_por_documento(store, caminhos)
+    pagina = paginar(documentos, posicao, limite)
+    tamanhos = registro.texto_por_documento(store, [d.caminho for d in pagina.itens])
     canonico = vigentes(documentos)
-
     itens = [
         _item(
-            doc,
-            base=base,
+            doc, base=base,
             chars=0 if doc.status == "so_censo" else tamanhos.get(doc.caminho, (0, 0))[0],
             trechos=0 if doc.status == "so_censo" else tamanhos.get(doc.caminho, (0, 0))[1],
             vigente=(doc.raiz, doc.caminho) in canonico,
@@ -272,20 +298,23 @@ def manifesto(
         )
         for doc in pagina.itens
     ]
-
     saida: dict[str, Any] = {
         "pasta": registro.normalizar_prefixo(pasta).rstrip("/") or "(raiz da base)",
-        "recursivo": recursivo,
-        **pagina.envelope(),
-        "itens": itens,
+        "recursivo": recursivo, **pagina.envelope(), "itens": itens,
     }
+    if opaco and pagina.cursor_proximo is not None:
+        saida["cursor_proximo"] = emitir(atual, pagina.cursor_proximo)
     if not documentos:
         saida["aviso"] = (
             "nenhum documento encontrado sob esta pasta. Confira o caminho como ele aparece "
             "no campo `arquivo` de `search` — o manifesto usa o caminho relativo à raiz da "
             "base, não o caminho absoluto da máquina."
         )
-    _declarar_fronteira(saida, com_censo=censo_cfg is not None, erros_censo=erros_censo)
+    _declarar_fronteira(
+        saida, com_censo=censo_cfg is not None, erros_censo=erros_censo, opaco=opaco,
+    )
+    if censo_cfg is not None:
+        saida["visita_censo"] = {"arquivos": visitados}
     return saida
 
 
