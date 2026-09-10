@@ -16,10 +16,14 @@ DESCRICAO = (
     "documentos canônicos inteiros. Use depois de list_folder quando a tarefa for "
     "ler a pasta — 'escreva um relatório sobre o projeto X'. politica=canonicos "
     "(padrão) traz um membro por família de versões; todos traz cada arquivo; "
-    "apenas_listados exige ids. Orçamento estourado corta em fronteira de "
-    "documento, nunca no meio, e devolve cursor_proximo. Continue até "
-    "completo=true; não trate a primeira página como a pasta inteira. Não "
-    "sintetiza e não ordena por relevância. Cite o arquivo original."
+    "apenas_listados exige ids. budget_chars conta caracteres Unicode do Markdown, "
+    "não tokens. Orçamento estourado corta em fronteira de documento, nunca no "
+    "meio, e devolve cursor_proximo. estrito=true (opt-in) nunca deixa o Markdown "
+    "passar do orçamento: documento maior que a página é encaminhado a "
+    "get_document, com id e próximo passo, e o cursor avança. O padrão continua "
+    "o de J.d — o primeiro da página pode exceder. Continue até completo=true; "
+    "não trate a primeira página como a pasta inteira. Não sintetiza e não ordena "
+    "por relevância. Cite o arquivo original."
 )
 
 
@@ -39,15 +43,17 @@ def registrar(servidor, recursos, obter, limites=None) -> None:  # noqa: ANN001
         politica: str = "canonicos",
         ids: list[str] | None = None,
         recursivo: bool = False,
+        estrito: bool = False,
     ) -> CallToolResult:
         """pasta: caminho relativo; budget_chars: teto Unicode; cursor: continuação;
-        politica: canonicos|todos|apenas_listados; ids: filtro; recursivo: subpastas."""
+        politica: canonicos|todos|apenas_listados; ids: filtro; recursivo: subpastas;
+        estrito: Markdown nunca excede o teto; documento maior vai a get_document."""
         try:
             limite = min(int(budget_chars), teto) if teto else budget_chars
             saida: dict[str, Any] = empacotar(
                 recursos.store, pasta, leitor=obter(), budget_chars=limite,
                 cursor=cursor, politica=politica, ids=ids, recursivo=bool(recursivo),
-                base=id_da_base, censo_cfg=censo_cfg,
+                base=id_da_base, censo_cfg=censo_cfg, estrito=estrito,
             )
             return sucesso(saida)
         except ErroLeitura as erro:

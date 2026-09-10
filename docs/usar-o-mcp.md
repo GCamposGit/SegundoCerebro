@@ -167,14 +167,17 @@ devem passar pelo indexador. `limitacoes_extracao`, `aviso_ocr` e `fronteira`
 distinguem texto extraído de reprodução completa de imagens, tabelas e páginas.
 Erros de execução retornam `isError=true` com código e orientação.
 
-**`pack_folder(pasta="", budget_chars=8000, cursor=null, politica="canonicos", ids=null, recursivo=false)`**
+**`pack_folder(pasta="", budget_chars=8000, cursor=null, politica="canonicos", ids=null, recursivo=false, estrito=false)`**
 — bundle Markdown da pasta: primeiro o manifesto, depois os documentos canônicos
 inteiros. `politica=canonicos` traz um membro por família de versões (a vigente);
-`todos` traz cada arquivo; `apenas_listados` exige `ids`. Quando o orçamento
-estoura, o corte é na **fronteira de documento**, nunca no meio, e o retorno
-traz `cursor_proximo`. Continue até `completo=true`. Não resume e não ranqueia.
-Arquivo só no censo, sem hash ou sem canônico aparece em `omitidos`, com motivo.
-Cite `arquivo` e `raiz` do separador, nunca o cache.
+`todos` traz cada arquivo; `apenas_listados` exige `ids`. `budget_chars` conta
+caracteres Unicode, não tokens. Quando o orçamento estoura, o corte é na
+**fronteira de documento**, nunca no meio, e o retorno traz `cursor_proximo`.
+`estrito=true` (opt-in) nunca deixa o Markdown passar do teto: documento maior
+que a página vai para `get_document`, com id e próximo passo. Continue até
+`completo=true`. Não resume e não ranqueia. Arquivo só no censo, sem hash ou
+sem canônico aparece em `omitidos`, com motivo. Cite `arquivo` e `raiz` do
+separador, nunca o cache.
 
 O padrão de uso: **`list_folder` para saber o que existe → `outline` para mapear
 → `pack_folder` para cobrir a pasta sob orçamento, ou `get_document` para um
