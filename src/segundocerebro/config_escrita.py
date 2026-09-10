@@ -15,8 +15,12 @@ consumidor de produto; o resto é teste.
 
 from __future__ import annotations
 
+import os
+import tempfile
+from contextlib import contextmanager
+from hashlib import sha256
 from pathlib import Path
-from typing import Any
+from typing import Any, Iterator
 
 from .census import DEFAULT_EXCLUDE_DIRS, DEFAULT_EXCLUDE_GLOBS
 from .config import (
@@ -31,7 +35,19 @@ from .config import (
     Pesos,
 )
 
-__all__ = ["como_toml", "gravar"]
+
+class ConflitoDeConfig(ErroDeConfig):
+    """Outro escritor já gravou esta revisão. Recarregar, não sobrescrever."""
+
+    codigo = "conflito"
+    acao = "recarregar"
+
+    def __init__(self) -> None:
+        super().__init__(
+            "A configuração mudou em outro lugar. Recarregue e salve de novo."
+        )
+
+__all__ = ["ConflitoDeConfig", "como_toml", "gravar", "revisao_de"]
 
 
 def como_toml(cfg: Config, raiz: Path | None = None) -> dict[str, Any]:
@@ -124,7 +140,69 @@ def como_toml(cfg: Config, raiz: Path | None = None) -> dict[str, Any]:
     return dados
 
 
-def gravar(cfg: Config, caminho: Path) -> None:
+def revisao_de(caminho: Path) -> str:
+    """Hash dos bytes no disco. Arquivo ausente é revisão vazia, não erro."""
+    if not caminho.is_file():
+        return ""
+    return sha256(caminho.read_bytes()).hexdigest()
+
+
+@contextmanager
+def _trava(caminho: Path) -> Iterator[None]:
+    """Trava no mesmo diretório: duas instâncias do painel não se atropelam."""
+    trava = caminho.parent / f"{caminho.name}.lock"
+    caminho.parent.mkdir(parents=True, exist_ok=True)
+    fh = open(trava, "ab+")
+    travou = False
+    try:
+        if os.name == "nt":
+            import msvcrt
+
+            if fh.tell() == 0:
+                fh.write(b"\0")
+                fh.flush()
+            fh.seek(0)
+            msvcrt.locking(fh.fileno(), msvcrt.LK_LOCK, 1)
+        else:
+            import fcntl
+
+            fcntl.flock(fh.fileno(), fcntl.LOCK_EX)
+        travou = True
+        yield
+    finally:
+        try:
+            if travou and os.name == "nt":
+                import msvcrt
+
+                fh.seek(0)
+                msvcrt.locking(fh.fileno(), msvcrt.LK_UNLCK, 1)
+            elif travou:
+                import fcntl
+
+                fcntl.flock(fh.fileno(), fcntl.LOCK_UN)
+        finally:
+            fh.close()
+
+
+def _escrever_atomico(caminho: Path, dados: dict[str, Any]) -> None:
+    import tomli_w
+
+    fd, tmp = tempfile.mkstemp(
+        prefix=f"{caminho.name}.", suffix=".tmp", dir=str(caminho.parent),
+    )
+    try:
+        with os.fdopen(fd, "wb") as fh:
+            tomli_w.dump(dados, fh)
+        os.replace(tmp, caminho)
+    except BaseException:
+        try:
+            os.unlink(tmp)
+        except OSError:
+            pass
+        raise
+
+
+def gravar(cfg: Config, caminho: Path, *, revisao_esperada: str | None = None) -> str:
     """Grava a configuração, de forma que reler devolva o mesmo objeto.
 
     É a metade que falta para o painel: a invariante 4 exige medir antes de
@@ -132,11 +210,13 @@ def gravar(cfg: Config, caminho: Path) -> None:
     caminho do Windows à mão é onde escritor de TOML caseiro erra, e um erro
     desses corrompe a configuração do usuário em silêncio.
 
-    Escrita atômica: um `.tmp` ao lado e um `replace`. Configuração meio escrita
-    por queda de energia é pior que configuração velha.
+    Escrita atômica: temporário exclusivo no mesmo filesystem e `os.replace`.
+    `revisao_esperada` é opt-in (FND-06): hash dos bytes lidos; `None` preserva
+    os consumidores que não fazem CAS. Configuração meio escrita por queda de
+    energia é pior que configuração velha.
     """
     try:
-        import tomli_w
+        import tomli_w  # noqa: F401
     except ModuleNotFoundError as erro:  # pragma: no cover - depende do ambiente
         raise ErroDeConfig(
             "gravar configuração exige o pacote `tomli-w` (pip install tomli-w) — "
@@ -144,8 +224,9 @@ def gravar(cfg: Config, caminho: Path) -> None:
         ) from erro
 
     cfg.validar()
-    caminho.parent.mkdir(parents=True, exist_ok=True)
-    temporario = caminho.with_suffix(caminho.suffix + ".tmp")
-    with temporario.open("wb") as fh:
-        tomli_w.dump(como_toml(cfg, caminho.parent), fh)
-    temporario.replace(caminho)
+    with _trava(caminho):
+        atual = revisao_de(caminho)
+        if revisao_esperada is not None and atual != revisao_esperada:
+            raise ConflitoDeConfig()
+        _escrever_atomico(caminho, como_toml(cfg, caminho.parent))
+        return revisao_de(caminho)
