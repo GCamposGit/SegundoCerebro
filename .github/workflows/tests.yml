@@ -58,10 +58,9 @@ jobs:
         # Floor is measured, then −2 p.p. (Q1). Do not raise it toward 100.
         run: python -m pytest tests/ eval/ -q --cov=segundocerebro --cov-report=xml --cov-fail-under=80
 
-  # R8.1: the layperson path is `pip install` + one command, on any OS.
-  # Full pytest stays on Windows — the corpus and the long-path/cloud
-  # attribute tests are of that machine. This job only proves the wheel
-  # imports and the entry point answers --help without PYTHONPATH.
+  # FND-09a: the layperson path is the wheel, not `pip install -e .`.
+  # Full pytest stays on Windows. This job builds a wheel, installs it in a
+  # venv outside the checkout, and runs scripts/smoke_wheel.py.
   install-smoke:
     runs-on: ${{ matrix.os }}
     strategy:
@@ -78,20 +77,28 @@ jobs:
           python-version: ${{ matrix.python-version }}
           cache: "pip"
 
-      - name: Install package
-        run: pip install -e .
+      - name: Build wheel
+        run: python -m pip wheel --no-deps -w "${{ runner.temp }}/sc-wheel" .
 
-      - name: Import without PYTHONPATH
+      - name: Venv outside checkout
+        shell: bash
+        run: |
+          python -m venv "${{ runner.temp }}/sc-smoke"
+          if [ -x "${{ runner.temp }}/sc-smoke/Scripts/python.exe" ]; then
+            PY="${{ runner.temp }}/sc-smoke/Scripts/python.exe"
+          else
+            PY="${{ runner.temp }}/sc-smoke/bin/python"
+          fi
+          "$PY" -m pip install --upgrade pip
+          "$PY" -m pip install "${{ runner.temp }}/sc-wheel/"*.whl
+
+      - name: Smoke wheel
         shell: bash
         run: |
           unset PYTHONPATH
-          python -c "import segundocerebro; from segundocerebro.mcp.server import main"
-
-      - name: Entry point --help
-        shell: bash
-        run: |
-          unset PYTHONPATH
-          segundocerebro-mcp --help
-          segundocerebro-painel --help
-          segundocerebro-indexar --help
-          segundocerebro-censo --help
+          if [ -x "${{ runner.temp }}/sc-smoke/Scripts/python.exe" ]; then
+            PY="${{ runner.temp }}/sc-smoke/Scripts/python.exe"
+          else
+            PY="${{ runner.temp }}/sc-smoke/bin/python"
+          fi
+          python scripts/smoke_wheel.py --python "$PY" --cwd "${{ runner.temp }}/sc-cwd"
