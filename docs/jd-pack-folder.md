@@ -21,11 +21,20 @@ Qualquer falha bloqueia o pacote. Não há hipótese de ganho de retrieval.
 
 ## O que a tool faz
 
-`pack_folder(pasta="", budget_chars=8000, cursor=null, politica="canonicos", ids=null, recursivo=false)`
+`pack_folder(pasta="", budget_chars=8000, cursor=null, politica="canonicos", ids=null, recursivo=false, estrito=false)`
 devolve um bundle Markdown **manifesto primeiro**, depois os canônicos inteiros.
-Orçamento estourado corta na fronteira de documento: se o próximo não cabe no
-que resta, vai para a página seguinte; se é o primeiro da página, entra inteiro
-mesmo acima do orçamento. Nunca fatia o Markdown de um arquivo.
+`budget_chars` conta caracteres Unicode do Markdown, não tokens. Orçamento
+estourado corta na fronteira de documento: se o próximo não cabe no que resta,
+vai para a página seguinte; se é o primeiro da página, entra inteiro mesmo acima
+do orçamento. Nunca fatia o Markdown de um arquivo.
+
+`estrito=true` (FND-03b, opt-in) muda esse contrato: o Markdown da página **nunca**
+ultrapassa `budget_chars`. Documento maior que a página não entra no bundle nem é
+marcado como lido — vai em `encaminhados` com `id`, motivo e `proximo_passo=get_document`.
+O cursor avança; a cobertura conta o encaminhado. Manifesto e omitidos paginam;
+itens têm teto próprio, separado do orçamento de caracteres. Se o envelope mínimo
+do manifesto já não cabe, a chamada falha com `orcamento_insuficiente` **antes** de
+carregar conteúdo. O padrão `estrito=false` preserva o legado de J.d.
 
 Políticas:
 
@@ -37,9 +46,11 @@ Políticas:
 Arquivo `so_censo`, sem hash ou sem canônico não entra no bundle: aparece em
 `omitidos` com motivo. A família não some.
 
-O cursor é opaco (`pf:1`), ligado à pasta, política, seleção e chaves de parse.
-Se a pasta mudar, pede reinício. `total` e `restante` contam documentos
-packáveis, não caracteres.
+O cursor é opaco (`pf:1` no legado, `pf:2` no modo estrito), ligado à pasta,
+política, seleção, modo e chaves de parse. Se a pasta ou o modo mudar, pede
+reinício. No legado, `total` e `restante` contam documentos packáveis. No estrito
+contam packáveis **e** omitidos ainda não reportados — encaminhados já entram na
+cobertura. Não são tokens.
 
 ## O que não faz
 

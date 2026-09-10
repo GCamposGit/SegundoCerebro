@@ -6,6 +6,7 @@ sumário, depois os canônicos inteiros, orçamento em caracteres Unicode,
 continuação por cursor. Nunca corta no meio de um documento, nunca ranqueia,
 nunca resume. Quem escreve o paper é o cliente.
 FND-03a: desacopla manifesto de leitura integral; orçamento e limites por chamada.
+FND-03b: modo estrito opt-in; documento maior que a página vai para get_document.
 """
 
 from __future__ import annotations
@@ -13,13 +14,19 @@ from __future__ import annotations
 import base64
 import binascii
 import json
-from dataclasses import dataclass
 from hashlib import sha256
 from typing import Any
 
 from ..index.store import Store
-from ..ingest.parse_store import Chave
 from .documento import LeitorDocumento
+from .empacote_pagina import (
+    ITENS_POR_PAGINA,
+    PaginaEstrita,
+    _Pronto,
+    _omissao,
+    carregar_pagina_legado,
+    montar_estrita,
+)
 from .identidade import montar_uri
 from .manifesto import listar, vigentes
 from .original import ErroLeitura
@@ -29,40 +36,40 @@ POLITICAS = ("canonicos", "todos", "apenas_listados")
 CHARS_PADRAO = 8_000
 MAX_CHARS = 32_000
 CURSOR_MAX = 256
-DOCS_POR_CHAMADA_MAX = 100
 
 
-@dataclass(frozen=True)
-class _Pronto:
-    doc: Documento
-    markdown: str
-    chave: Chave
-
-
-def _decodificar(cursor: str | None) -> tuple[str, int] | None:
+def _decodificar(cursor: str | None, estrito: bool) -> tuple[str, int, int] | None:
     if cursor is None:
         return None
     try:
         if not isinstance(cursor, str) or not 1 <= len(cursor) <= CURSOR_MAX:
             raise ValueError
         dados = json.loads(base64.b64decode(cursor, altchars=b"-_", validate=True))
-        if (
-            not isinstance(dados, list)
-            or len(dados) != 3
-            or dados[0] != "pf:1"
-            or not isinstance(dados[1], str)
-            or len(dados[1]) != 64
-            or type(dados[2]) is not int
-            or dados[2] < 0
-        ):
+        if not isinstance(dados, list) or not dados:
             raise ValueError
-        return dados[1], dados[2]
+        marca, esperado = ("pf:2", 4) if estrito else ("pf:1", 3)
+        if len(dados) != esperado or dados[0] != marca:
+            raise ValueError
+        if not isinstance(dados[1], str) or len(dados[1]) != 64:
+            raise ValueError
+        if type(dados[2]) is not int or dados[2] < 0:
+            raise ValueError
+        omitidos = 0
+        if estrito:
+            if type(dados[3]) is not int or dados[3] < 0:
+                raise ValueError
+            omitidos = dados[3]
+        return dados[1], dados[2], omitidos
     except (ValueError, TypeError, binascii.Error, UnicodeDecodeError):
         raise ErroLeitura("cursor_invalido", "Cursor inválido. Reinicie o pacote sem cursor.") from None
 
 
-def _cursor(versao: str, inicio: int) -> str:
-    dados = json.dumps(["pf:1", versao, inicio], separators=(",", ":")).encode()
+def _cursor(versao: str, inicio: int, inicio_omitidos: int = 0, estrito: bool = False) -> str:
+    if estrito:
+        payload: list[Any] = ["pf:2", versao, inicio, inicio_omitidos]
+    else:
+        payload = ["pf:1", versao, inicio]
+    dados = json.dumps(payload, separators=(",", ":")).encode()
     return base64.urlsafe_b64encode(dados).decode("ascii")
 
 
@@ -131,17 +138,6 @@ def _apenas_listados(
     return escolhidos, []
 
 
-def _omissao(doc: Documento, motivo: str, codigo: str = "") -> dict[str, str]:
-    item = {"arquivo": doc.caminho, "raiz": doc.raiz, "motivo": motivo}
-    if doc.doc_id:
-        item["id"] = doc.doc_id
-    if codigo:
-        item["codigo"] = codigo
-    if not doc.doc_id and doc.sem_id:
-        item["sem_id"] = doc.sem_id
-    return item
-
-
 def _versao(
     pasta: str,
     recursivo: bool,
@@ -149,43 +145,30 @@ def _versao(
     pedidos: tuple[str, ...],
     candidatos: list[Documento],
     base: str = "",
+    estrito: bool = False,
+    omitidos: list[dict[str, str]] | None = None,
 ) -> str:
     """Identidade da seleção a partir de metadados, sem carregar conteúdo."""
-    payload = json.dumps(
-        {
-            "base": base,
-            "pasta": pasta,
-            "recursivo": recursivo,
-            "politica": politica,
-            "ids": list(pedidos),
-            "docs": [
-                (d.raiz, d.caminho, d.sha256, d.parser, d.mtime, d.tamanho)
-                for d in candidatos
-            ],
-        },
-        ensure_ascii=False,
-        sort_keys=True,
-        separators=(",", ":"),
-    )
-    return sha256(payload.encode("utf-8")).hexdigest()
-
-
-def _separador(pronto: _Pronto, base: str) -> str:
-    doc = pronto.doc
-    linhas = [
-        "", "", "---",
-        f"id: {doc.doc_id}",
-        f"arquivo: {doc.caminho}",
-        f"raiz: {doc.raiz}",
-    ]
-    if base and doc.doc_id:
-        linhas.append(f"uri: {montar_uri(base, doc.doc_id)}")
-    linhas.extend([
-        f"sha256: {doc.sha256}",
-        f"chars: {len(pronto.markdown)}",
-        "---", "",
-    ])
-    return "\n".join(linhas)
+    corpo: dict[str, Any] = {
+        "base": base,
+        "pasta": pasta,
+        "recursivo": recursivo,
+        "politica": politica,
+        "ids": list(pedidos),
+        "docs": [
+            (d.raiz, d.caminho, d.sha256, d.parser, d.mtime, d.tamanho)
+            for d in candidatos
+        ],
+    }
+    if estrito:
+        corpo["estrito"] = True
+        corpo["omitidos"] = [
+            (o.get("arquivo"), o.get("raiz"), o.get("id"), o.get("motivo"))
+            for o in omitidos or ()
+        ]
+    return sha256(json.dumps(
+        corpo, ensure_ascii=False, sort_keys=True, separators=(",", ":"),
+    ).encode("utf-8")).hexdigest()
 
 
 def _markdown(
@@ -224,46 +207,6 @@ def _markdown(
         linhas.append("- (nenhum documento nesta pasta)")
     linhas.extend(["", "## Documentos", ""])
     return "\n".join(linhas)
-
-
-def _carregar_pagina(
-    leitor: LeitorDocumento,
-    candidatos: list[Documento],
-    inicio: int,
-    budget: int,
-    base: str,
-    max_docs: int = DOCS_POR_CHAMADA_MAX,
-) -> tuple[dict[int, _Pronto], list[dict[str, str]], list[str], int]:
-    """Carrega somente os documentos necessários para a página atual sob orçamento."""
-    prontos_map: dict[int, _Pronto] = {}
-    omitidos: list[dict[str, str]] = []
-    blocos: list[str] = []
-    usados = 0
-    i = inicio
-
-    while i < len(candidatos):
-        doc = candidatos[i]
-        try:
-            chave, canonico, _alvo = leitor.carregar_documento(doc)
-            pronto = _Pronto(doc=doc, markdown=canonico.markdown, chave=chave)
-            bloco = _separador(pronto, base) + pronto.markdown
-        except ErroLeitura as erro:
-            omitidos.append(_omissao(doc, str(erro), erro.codigo))
-            i += 1
-            continue
-
-        if i > inicio and usados + len(bloco) > budget:
-            break
-
-        prontos_map[i] = pronto
-        blocos.append(bloco)
-        usados += len(bloco)
-        i += 1
-
-        if len(blocos) >= max_docs:
-            break
-
-    return prontos_map, omitidos, blocos, i
 
 
 def _itens(
@@ -360,6 +303,77 @@ def _envelope(
     return saida
 
 
+def _flag_estrito(estrito: object) -> bool:
+    if type(estrito) is not bool:
+        raise ErroLeitura("modo_invalido", "estrito deve ser true ou false.")
+    return estrito
+
+
+def _partir(
+    escolhidos: list[Documento], extras: list[dict[str, str]], quarentena: dict[str, str],
+) -> tuple[list[Documento], list[dict[str, str]]]:
+    candidatos: list[Documento] = []
+    omitidos: list[dict[str, str]] = list(extras)
+    for doc in escolhidos:
+        if not doc.doc_id:
+            omitidos.append(_omissao(doc, doc.sem_id or "sem identidade no índice"))
+        elif doc.caminho in quarentena:
+            omitidos.append(_omissao(doc, f"em quarentena: {quarentena[doc.caminho]}", "quarentena"))
+        elif doc.status and doc.status != "ok":
+            omitidos.append(_omissao(doc, f"status: {doc.status}", doc.status))
+        else:
+            candidatos.append(doc)
+    return candidatos, omitidos
+
+
+def _posicao(
+    continuacao: tuple[str, int, int] | None,
+    versao: str,
+    n_docs: int,
+    n_omitidos: int,
+) -> tuple[int, int]:
+    if continuacao is None:
+        return 0, 0
+    if continuacao[0] != versao or continuacao[1] > n_docs or continuacao[2] > n_omitidos:
+        raise ErroLeitura("cursor_desatualizado", "A pasta ou a política mudou. Reinicie sem cursor.")
+    return continuacao[1], continuacao[2]
+
+
+def _saida_estrita(
+    saida: dict[str, Any],
+    pagina: PaginaEstrita,
+    versao: str,
+    candidatos: list[Documento],
+    omitidos_pre: list[dict[str, str]],
+) -> dict[str, Any]:
+    restante = (len(candidatos) - pagina.fim) + (len(omitidos_pre) - pagina.fim_omitidos)
+    omitidos = pagina.omitidos_pagina + pagina.omitidos_carga
+    saida["estrito"] = True
+    saida["unidade"] = "caracteres Unicode"
+    saida["teto_itens"] = ITENS_POR_PAGINA
+    saida["itens"] = pagina.itens
+    saida["incluidos"] = pagina.incluidos
+    saida["omitidos"] = omitidos
+    saida["encaminhados"] = pagina.encaminhados
+    saida["total"] = len(candidatos) + len(omitidos_pre)
+    saida["completo"] = restante == 0
+    saida["mostrando"] = (
+        f"{len(pagina.incluidos)} nesta página, {len(pagina.encaminhados)} encaminhado(s) "
+        f"a get_document, {len(omitidos)} omitido(s) desta página"
+    )
+    saida["fronteira"] = (
+        "Modo estrito: o Markdown nunca ultrapassa budget_chars (caracteres Unicode, "
+        "não tokens). Documento maior que a página não entra no bundle; use get_document "
+        "com o id. Cite arquivo e raiz, nunca o cache."
+    )
+    saida.pop("cursor_proximo", None)
+    saida.pop("restante", None)
+    if restante:
+        saida["cursor_proximo"] = _cursor(versao, pagina.fim, pagina.fim_omitidos, estrito=True)
+        saida["restante"] = restante
+    return saida
+
+
 def empacotar(
     store: Store,
     pasta: str,
@@ -372,41 +386,38 @@ def empacotar(
     recursivo: bool = False,
     base: str = "",
     censo_cfg=None,  # noqa: ANN001
+    estrito: bool = False,
 ) -> dict[str, Any]:
     """Bundle manifesto-first; corta só em fronteira de documento."""
     budget = _orcamento(budget_chars)
-    continuacao = _decodificar(cursor)
+    flag = _flag_estrito(estrito)
+    continuacao = _decodificar(cursor, flag)
     pedidos = _ids(ids)
-
     documentos, erros_censo = listar(store, pasta, recursivo=recursivo, censo_cfg=censo_cfg)
-    quarentena = quarentena_da_pasta(store, pasta, recursivo=recursivo)
     escolhidos, extras = _escolher(documentos, politica, pedidos)
+    candidatos, omitidos = _partir(
+        escolhidos, extras, quarentena_da_pasta(store, pasta, recursivo=recursivo),
+    )
+    versao = _versao(
+        pasta, recursivo, politica, pedidos, candidatos, base,
+        estrito=flag, omitidos=omitidos,
+    )
+    inicio, inicio_omit = _posicao(continuacao, versao, len(candidatos), len(omitidos))
+    if flag:
+        pagina = montar_estrita(
+            leitor, pasta, politica, candidatos, omitidos, inicio, inicio_omit, budget, base,
+        )
+        saida = _envelope(
+            pasta, politica, recursivo, pagina.markdown, candidatos, pagina.prontos_map,
+            omitidos, inicio, pagina.fim, base, versao, documentos, erros_censo,
+        )
+        return _saida_estrita(saida, pagina, versao, candidatos, omitidos)
 
-    candidatos: list[Documento] = []
-    omitidos: list[dict[str, str]] = list(extras)
-    for doc in escolhidos:
-        if not doc.doc_id:
-            omitidos.append(_omissao(doc, doc.sem_id or "sem identidade no índice"))
-        elif doc.caminho in quarentena:
-            omitidos.append(_omissao(doc, f"em quarentena: {quarentena[doc.caminho]}", "quarentena"))
-        elif doc.status and doc.status != "ok":
-            omitidos.append(_omissao(doc, f"status: {doc.status}", doc.status))
-        else:
-            candidatos.append(doc)
-
-    versao = _versao(pasta, recursivo, politica, pedidos, candidatos, base)
-    inicio = continuacao[1] if continuacao else 0
-    if continuacao and (continuacao[0] != versao or inicio > len(candidatos)):
-        raise ErroLeitura("cursor_desatualizado", "A pasta ou a política mudou. Reinicie sem cursor.")
-
-    prontos_map, omitidos_novos, blocos, fim = _carregar_pagina(
+    prontos_map, omitidos_novos, blocos, fim = carregar_pagina_legado(
         leitor, candidatos, inicio, budget, base,
     )
     omitidos.extend(omitidos_novos)
-
-    cabeca = _markdown(pasta, politica, candidatos, prontos_map, omitidos, inicio)
-    markdown = cabeca + "".join(blocos)
-
+    markdown = _markdown(pasta, politica, candidatos, prontos_map, omitidos, inicio) + "".join(blocos)
     return _envelope(
         pasta, politica, recursivo, markdown, candidatos, prontos_map, omitidos,
         inicio, fim, base, versao, documentos, erros_censo,

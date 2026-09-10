@@ -268,3 +268,153 @@ def test_continuacao_por_cursor_nao_reprocessa_anteriores(store) -> None:
         assert arq not in pag1["incluidos"]
     assert "Projetos/Gama/NN-VCE-000.md" not in espiao_p2.chamadas
 
+
+def _erro_status(store, caminho: str, i: int) -> None:
+    digest = sha256(f"erro-{i}".encode()).hexdigest()
+    store.registrar_documento(
+        path=caminho, raiz="acervo", tamanho=1, mtime=float(i), sha256=digest,
+        status="erro", n_chunks=0, model_id="falso:8", parser="md:1",
+    )
+
+
+def _cobrir_estrito(store, pasta: str, budget: int, **kwargs) -> dict:
+    """Agente estrito: pagina até completo sem o Markdown passar do teto."""
+    vistos: list[str] = []
+    encaminhados: list[str] = []
+    omitidos: list[str] = []
+    corpos: list[str] = []
+    cursor = None
+    paginas = 0
+    while True:
+        saida = empacotar(
+            store, pasta, leitor=_leitor(store), budget_chars=budget,
+            cursor=cursor, estrito=True, **kwargs,
+        )
+        assert len(saida["markdown"]) <= budget
+        assert "token" not in saida["unidade"].lower()
+        corpos.append(saida["markdown"])
+        for caminho in saida["incluidos"]:
+            assert caminho not in vistos
+            assert caminho not in encaminhados
+        vistos.extend(saida["incluidos"])
+        for item in saida.get("encaminhados", []):
+            assert item["proximo_passo"] == "get_document"
+            assert item["id"]
+            assert item["documento"]
+            assert item["arquivo"] not in vistos
+            encaminhados.append(item["arquivo"])
+        omitidos.extend(o["arquivo"] for o in saida["omitidos"])
+        paginas += 1
+        assert paginas < 200, "cursor que não avança é laço"
+        if saida["completo"]:
+            assert "cursor_proximo" not in saida
+            return {
+                "incluidos": vistos, "encaminhados": encaminhados, "omitidos": omitidos,
+                "paginas": paginas, "saida": saida, "markdown": "\n".join(corpos),
+            }
+        cursor = saida["cursor_proximo"]
+
+
+def test_legado_ainda_excede_no_primeiro_da_pagina(store) -> None:
+    """FND-03b: o default de J.d não muda — o primeiro da página pode estourar."""
+    enorme = "Y" * 10_000
+    _gravar(store, f"{PROJETO}/enorme.md", enorme, 1.0)
+    store.commit()
+    saida = empacotar(store, PROJETO, leitor=_leitor(store), budget_chars=500)
+    assert len(saida["markdown"]) > 500
+    assert saida["incluidos"] == [f"{PROJETO}/enorme.md"]
+    assert enorme in saida["markdown"]
+
+
+def test_estrito_documento_de_cem_mil_nao_entra_no_bundle(store) -> None:
+    """FND-03b: 100.000 caracteres não cabem; o id aponta para get_document."""
+    corpo = "Z" * 100_000
+    _gravar(store, f"{PROJETO}/cem-mil.md", corpo, 1.0)
+    store.commit()
+    cobertura = _cobrir_estrito(store, PROJETO, 8_000, politica="todos")
+    alvo = f"{PROJETO}/cem-mil.md"
+    assert alvo in cobertura["encaminhados"]
+    assert alvo not in cobertura["incluidos"]
+    assert corpo not in cobertura["markdown"]
+    assert cobertura["saida"]["completo"]
+    enc = cobertura["saida"]["encaminhados"][0]
+    assert enc["motivo"]
+    assert enc["proximo_passo"] == "get_document"
+
+
+def test_estrito_orcamento_um_nao_carrega_conteudo(store) -> None:
+    """FND-03b: envelope mínimo não cabe → erro antes de parse."""
+    _gravar(store, f"{PROJETO}/a.md", "texto", 1.0)
+    store.commit()
+    espiao = _LeitorEspiao(_leitor(store))
+    try:
+        empacotar(store, PROJETO, leitor=espiao, budget_chars=1, estrito=True)
+        raise AssertionError("orçamento 1 deveria falhar")
+    except ErroLeitura as erro:
+        assert erro.codigo == "orcamento_insuficiente"
+    assert espiao.chamadas == []
+
+
+def test_estrito_conta_caracteres_unicode_nao_bytes(store) -> None:
+    """FND-03b: á é um caractere; utf-8 tem dois bytes — o teto usa len()."""
+    corpo = "á" * 400
+    _gravar(store, f"{PROJETO}/acentos.md", corpo, 1.0)
+    store.commit()
+    folgado = empacotar(
+        store, PROJETO, leitor=_leitor(store), budget_chars=8_000, estrito=True,
+    )
+    teto = len(folgado["markdown"])
+    assert corpo in folgado["markdown"]
+    assert teto < len(folgado["markdown"].encode("utf-8"))
+    justo = empacotar(
+        store, PROJETO, leitor=_leitor(store), budget_chars=teto, estrito=True,
+    )
+    assert len(justo["markdown"]) <= teto
+    assert justo["incluidos"] == [f"{PROJETO}/acentos.md"]
+    assert corpo in justo["markdown"]
+
+
+def test_estrito_pagina_milhares_de_omitidos(store) -> None:
+    """FND-03b: 1.200 omitidos não cabem numa página; o cliente chega ao fim."""
+    _gravar(store, f"{PROJETO}/zz-ok.md", "canônico", 9_999.0)
+    for i in range(1_200):
+        _erro_status(store, f"{PROJETO}/omit-{i:04d}.md", i)
+    store.commit()
+    cobertura = _cobrir_estrito(store, PROJETO, 4_000, politica="todos")
+    assert len(cobertura["omitidos"]) == 1_200
+    assert cobertura["paginas"] > 1
+    assert f"{PROJETO}/zz-ok.md" in cobertura["incluidos"] + cobertura["encaminhados"]
+    assert cobertura["saida"]["total"] == 1_201
+
+
+def test_estrito_enorme_no_meio_e_no_fim(store) -> None:
+    """FND-03b: item enorme no meio e no fim é encaminhado; os pequenos entram."""
+    _gravar(store, f"{PROJETO}/a-pequeno.md", "um", 1.0)
+    _gravar(store, f"{PROJETO}/b-enorme.md", "M" * 100_000, 2.0)
+    _gravar(store, f"{PROJETO}/c-pequeno.md", "dois", 3.0)
+    _gravar(store, f"{PROJETO}/d-enorme.md", "F" * 100_000, 4.0)
+    store.commit()
+    cobertura = _cobrir_estrito(store, PROJETO, 8_000, politica="todos")
+    assert cobertura["incluidos"] == [f"{PROJETO}/a-pequeno.md", f"{PROJETO}/c-pequeno.md"]
+    assert cobertura["encaminhados"] == [f"{PROJETO}/b-enorme.md", f"{PROJETO}/d-enorme.md"]
+    assert "M" * 100 not in cobertura["markdown"]
+    assert "F" * 100 not in cobertura["markdown"]
+    for item in cobertura["saida"]["itens"]:
+        if item.get("papel") == "encaminhado":
+            assert item["proximo_passo"] == "get_document"
+
+
+def test_ferramenta_mcp_estrito_encaminha_e_respeita_teto(store) -> None:
+    _gravar(store, f"{PROJETO}/enorme.md", "Q" * 100_000, 1.0)
+    store.commit()
+    espiao = _Espiao()
+    leitura.registrar(espiao, _Recursos(store))
+    saida = espiao.tools["pack_folder"](pasta=PROJETO, budget_chars=8000, estrito=True)
+    corpo = saida.structured_content
+    assert not saida.is_error
+    assert len(corpo["markdown"]) <= 8000
+    assert corpo["estrito"] is True
+    assert corpo["encaminhados"]
+    assert corpo["encaminhados"][0]["proximo_passo"] == "get_document"
+    assert "Q" * 100 not in corpo["markdown"]
+
