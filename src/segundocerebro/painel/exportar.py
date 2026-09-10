@@ -15,6 +15,7 @@ from starlette.responses import JSONResponse
 
 from ..config import ErroDeConfig
 from ..logger import get_logger
+from .trabalho import Ocupado, executar
 
 log = get_logger("painel.exportar")
 
@@ -37,9 +38,13 @@ def rota_exportar(
                 status_code=400,
             )
         try:
-            return JSONResponse(_gerar(base_de(config_de(), corpo), corpo, destino.strip()))
+            base = base_de(config_de(), corpo)
+            saida = await executar(base.id, lambda: _gerar(base, corpo, destino.strip()))
+            return JSONResponse(saida)
         except ErroDeConfig as erro:
             return JSONResponse({"erro": str(erro)}, status_code=400)
+        except Ocupado as erro:
+            return JSONResponse({"erro": str(erro), "codigo": erro.codigo}, status_code=409)
         except _ErroDeExportacao as erro:
             return JSONResponse({"erro": str(erro), "codigo": erro.codigo}, status_code=400)
         except OSError:

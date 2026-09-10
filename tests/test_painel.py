@@ -7,7 +7,9 @@ cima dela.
 
 from __future__ import annotations
 
+import asyncio
 import json
+import threading
 from pathlib import Path
 
 import pytest
@@ -1165,3 +1167,216 @@ def test_a_tela_oferece_exportar_o_vault() -> None:
     assert 'id="exportarVault"' in html
     assert 'id="destinoVault"' in html
     assert "/api/exportar" in html
+
+
+# --- FND-05: painel responsivo durante operação longa -------------------------
+
+
+def _app_async(caminho: Path, monkeypatch: pytest.MonkeyPatch, medidor=None):  # noqa: ANN001, ANN202
+    monkeypatch.setattr("segundocerebro.index.retomada.instalada", lambda: False)
+    fn = medidor or (lambda *_a, **_k: {"recall@1": 0.5})
+    return criar_app(caminho, medidor=fn, token=TOKEN)
+
+
+def _cliente_asgi(app):  # noqa: ANN001, ANN202
+    from httpx import ASGITransport, AsyncClient
+
+    return AsyncClient(transport=ASGITransport(app=app), base_url="http://painel")
+
+
+def test_estado_completa_antes_de_liberar_evento_do_export(caminho: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    """GET /estado termina enquanto o export ainda segura o Event — mesmo loop."""
+    from segundocerebro.painel import trabalho as trab
+
+    trab.TRABALHO.soltar("trabalho")
+    trava = threading.Event()
+    entrou = threading.Event()
+
+    def gerar_bloqueado(*_a, **_k):  # noqa: ANN202
+        entrou.set()
+        assert trava.wait(timeout=5)
+        return {"arquivos": 1, "destino": "D:/vault"}
+
+    monkeypatch.setattr("segundocerebro.painel.exportar._gerar", gerar_bloqueado)
+    app = _app_async(caminho, monkeypatch)
+
+    async def cenario() -> None:
+        async with _cliente_asgi(app) as ac:
+            tarefa = asyncio.create_task(ac.post(
+                "/api/exportar",
+                json={"base": "trabalho", "destino": "D:/vault"},
+                headers=cabecalho(),
+            ))
+            assert await asyncio.to_thread(entrou.wait, 5)
+            estado = await ac.get("/api/estado", headers=cabecalho())
+            assert estado.status_code == 200
+            assert not trava.is_set()
+            trava.set()
+            export = await tarefa
+            assert export.status_code == 200
+            assert export.json()["arquivos"] == 1
+
+    asyncio.run(cenario())
+    assert not trab.TRABALHO.ocupada("trabalho")
+
+
+def test_segundo_export_paralelo_na_mesma_base_recusa(caminho: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from segundocerebro.painel import trabalho as trab
+
+    trab.TRABALHO.soltar("trabalho")
+    trava = threading.Event()
+    entrou = threading.Event()
+
+    def gerar_bloqueado(*_a, **_k):  # noqa: ANN202
+        entrou.set()
+        trava.wait(timeout=5)
+        return {"arquivos": 1}
+
+    monkeypatch.setattr("segundocerebro.painel.exportar._gerar", gerar_bloqueado)
+    app = _app_async(caminho, monkeypatch)
+
+    async def cenario() -> None:
+        async with _cliente_asgi(app) as ac:
+            primeira = asyncio.create_task(ac.post(
+                "/api/exportar",
+                json={"base": "trabalho", "destino": "D:/vault"},
+                headers=cabecalho(),
+            ))
+            assert await asyncio.to_thread(entrou.wait, 5)
+            segunda = await ac.post(
+                "/api/exportar",
+                json={"base": "trabalho", "destino": "D:/outro"},
+                headers=cabecalho(),
+            )
+            assert segunda.status_code == 409
+            assert segunda.json()["codigo"] == "ocupado"
+            trava.set()
+            assert (await primeira).status_code == 200
+            terceira = await ac.post(
+                "/api/exportar",
+                json={"base": "trabalho", "destino": "D:/vault"},
+                headers=cabecalho(),
+            )
+            assert terceira.status_code == 200
+
+    asyncio.run(cenario())
+
+
+def test_excecao_do_worker_libera_o_slot(caminho: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from segundocerebro.painel import trabalho as trab
+
+    trab.TRABALHO.soltar("trabalho")
+
+    def gerar_quebra(*_a, **_k):  # noqa: ANN202
+        raise RuntimeError("falha nativa do export")
+
+    monkeypatch.setattr("segundocerebro.painel.exportar._gerar", gerar_quebra)
+    app = _app_async(caminho, monkeypatch)
+
+    async def cenario() -> None:
+        async with _cliente_asgi(app) as ac:
+            try:
+                r = await ac.post(
+                    "/api/exportar",
+                    json={"base": "trabalho", "destino": "D:/vault"},
+                    headers=cabecalho(),
+                )
+                assert r.status_code >= 500
+            except RuntimeError:
+                pass
+
+    asyncio.run(cenario())
+    assert not trab.TRABALHO.ocupada("trabalho")
+
+
+def test_token_invalido_nao_ocupa_slot(caminho: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from segundocerebro.painel import trabalho as trab
+
+    trab.TRABALHO.soltar("trabalho")
+    chamou = []
+
+    def gerar(*_a, **_k):  # noqa: ANN202
+        chamou.append(1)
+        return {}
+
+    monkeypatch.setattr("segundocerebro.painel.exportar._gerar", gerar)
+    app = _app_async(caminho, monkeypatch)
+
+    async def cenario() -> None:
+        async with _cliente_asgi(app) as ac:
+            r = await ac.post("/api/exportar", json={"base": "trabalho", "destino": "D:/vault"})
+            assert r.status_code == 403
+
+    asyncio.run(cenario())
+    assert chamou == []
+    assert not trab.TRABALHO.ocupada("trabalho")
+
+
+def test_medir_bloqueado_nao_segura_o_estado(caminho: Path, monkeypatch: pytest.MonkeyPatch) -> None:
+    from segundocerebro.painel import trabalho as trab
+
+    trab.TRABALHO.soltar("trabalho")
+    trava = threading.Event()
+    entrou = threading.Event()
+
+    def medidor_bloqueado(*_a, **_k):  # noqa: ANN202
+        entrou.set()
+        trava.wait(timeout=5)
+        return {"recall@1": 0.1}
+
+    app = _app_async(caminho, monkeypatch, medidor=medidor_bloqueado)
+
+    async def cenario() -> None:
+        async with _cliente_asgi(app) as ac:
+            tarefa = asyncio.create_task(ac.post(
+                "/api/medir", json={"base": "trabalho", "pesos": {"lexical": 0.5}},
+                headers=cabecalho(),
+            ))
+            assert await asyncio.to_thread(entrou.wait, 5)
+            estado = await ac.get("/api/estado", headers=cabecalho())
+            assert estado.status_code == 200
+            assert not trava.is_set()
+            trava.set()
+            assert (await tarefa).status_code == 200
+
+    asyncio.run(cenario())
+
+
+def test_cancelar_request_nao_mente_que_o_trabalho_parou(
+    caminho: Path, monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """cancellable=False: o Event só libera quando o worker acaba, não no cancel."""
+    from segundocerebro.painel import trabalho as trab
+
+    trab.TRABALHO.soltar("trabalho")
+    trava = threading.Event()
+    entrou = threading.Event()
+    acabou = threading.Event()
+
+    def gerar_bloqueado(*_a, **_k):  # noqa: ANN202
+        entrou.set()
+        trava.wait(timeout=5)
+        acabou.set()
+        return {"arquivos": 1}
+
+    monkeypatch.setattr("segundocerebro.painel.exportar._gerar", gerar_bloqueado)
+    app = _app_async(caminho, monkeypatch)
+
+    async def cenario() -> None:
+        async with _cliente_asgi(app) as ac:
+            tarefa = asyncio.create_task(ac.post(
+                "/api/exportar",
+                json={"base": "trabalho", "destino": "D:/vault"},
+                headers=cabecalho(),
+            ))
+            assert await asyncio.to_thread(entrou.wait, 5)
+            assert trab.TRABALHO.ocupada("trabalho")
+            assert not acabou.is_set()
+            tarefa.cancel()
+            threading.Timer(0.05, trava.set).start()
+            with pytest.raises(asyncio.CancelledError):
+                await tarefa
+            assert acabou.wait(timeout=5)
+            assert not trab.TRABALHO.ocupada("trabalho")
+
+    asyncio.run(cenario())
