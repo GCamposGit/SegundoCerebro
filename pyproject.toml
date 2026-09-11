@@ -11,8 +11,6 @@ requires-python = ">=3.12"
 # generated from this list (pip-compile). A floating extra that swapped ORT
 # for CUDA 13 dropped 45 indexer tests on this desktop — pin, don't clean.
 dependencies = [
-    # F0 — census uses the stdlib. pytest is the suite, declared because tests import it.
-    "pytest>=8.0",
     # F1 — ingest. An embedding version swap invalidates the whole index
     # without warning (fastembed 0.8.0 changed e5-large pooling CLS→mean).
     "pymupdf==1.28.2",
@@ -37,8 +35,6 @@ dependencies = [
     "starlette>=1.0,<2",
     "uvicorn>=0.30",
     "tomli-w>=1.0",
-    # Starlette test client (tests/test_painel.py). Same hitchhiker argument.
-    "httpx>=0.27",
     # OLE compound (CFB). olefile is one pure-Python module and does not
     # change model_id.
     "olefile==0.47",
@@ -66,15 +62,18 @@ gpu = [
 ocr = [
     "rapidocr-onnxruntime>=1.3,<2",
 ]
-# Q1: lint, types, coverage. The pytest job on CI installs the lock, then
-# the editable package with --no-deps. ruff/pyright jobs install only what
-# they need.
+# FND-09b: toolchain and the test suite. src/ does not import pytest or
+# httpx; a layperson `pip install` must not pull them. CI pytest uses
+# requirements-dev.txt; ruff/pyright jobs keep the same pins as this extra.
+# Regenerate both locks together, without upgrading runtime pins:
+#   pip-compile --strip-extras --no-upgrade --output-file=requirements.txt pyproject.toml
+#   pip-compile --extra dev --strip-extras --no-upgrade -c requirements.txt --output-file=requirements-dev.txt pyproject.toml
 dev = [
+    "pytest>=8.0",
+    "httpx>=0.27",
     "ruff==0.16.5",
     "pyright==1.1.411",
     "pytest-cov>=5,<8",
-    # Q2 — regenerate the lock:
-    #   pip-compile --strip-extras --output-file=requirements.txt pyproject.toml
     "pip-tools>=7.4,<8",
 ]
 
