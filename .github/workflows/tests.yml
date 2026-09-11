@@ -18,6 +18,7 @@ jobs:
           python-version: "3.12"
           cache: "pip"
       - name: Install ruff
+        # Pin matches [project.optional-dependencies] dev. Do not float.
         run: pip install ruff==0.16.5
       - name: ruff check
         run: python -m ruff check src tests eval
@@ -30,8 +31,10 @@ jobs:
         with:
           python-version: "3.12"
           cache: "pip"
-      - name: Install package and pyright
-        run: pip install -e . ; pip install pyright==1.1.411
+      - name: Install package from lock
+        # FND-09b: types used to resolve pyproject ranges. Lock first, then
+        # the editable package without resolving again. pyright pin matches extra.
+        run: pip install -r requirements.txt ; pip install -e . --no-deps ; pip install pyright==1.1.411
       - name: pyright
         run: python -m pyright src
 
@@ -50,13 +53,29 @@ jobs:
           cache: "pip"
 
       - name: Install package from lock
-        # Q2: lock first, then the editable package without resolving again.
-        # install-smoke still uses `pip install -e .` (pyproject, 3 OSes).
-        run: pip install -r requirements.txt ; pip install -e . --no-deps ; pip install pytest-cov
+        # FND-09b: runtime+dev lock, then the editable package without
+        # resolving again. pytest-cov comes from the lock, not a floating pip.
+        run: pip install -r requirements-dev.txt ; pip install -e . --no-deps
 
       - name: Run test suite
         # Floor is measured, then −2 p.p. (Q1). Do not raise it toward 100.
         run: python -m pytest tests/ eval/ -q --cov=segundocerebro --cov-report=xml --cov-fail-under=80
+
+  # FND-09b: layperson path. Ranges from pyproject, no lock. A third-party
+  # release that breaks import is a product defect. GPU extra stays out —
+  # a CUDA machine must not rewrite the CPU default.
+  resolve-open:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: "pip"
+      - name: Install from pyproject ranges
+        run: pip install -e .
+      - name: Import surfaces without the dev extra
+        run: python -c "import segundocerebro; from segundocerebro.mcp.server import main as mcp_main; from segundocerebro.painel import app as painel_app; from segundocerebro.index.indexer import main as idx_main; from segundocerebro.index.diagnostico import main as diag_main"
 
   # FND-09a: the layperson path is the wheel, not `pip install -e .`.
   # Full pytest stays on Windows. This job builds a wheel, installs it in a

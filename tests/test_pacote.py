@@ -90,6 +90,19 @@ def test_pyproject_e_fonte_unica_das_dependencias() -> None:
     extras = project["optional-dependencies"]
     assert "gpu" in extras
     assert "ocr" in extras
+    assert "dev" in extras
+    assert "pytest" not in nomes, (
+        "pytest no runtime — a suíte é extra [dev]; pip install do leigo não a puxa (FND-09b)"
+    )
+    assert "httpx" not in nomes, (
+        "httpx no runtime — src/ não o importa; o cliente de teste mora no extra [dev] (FND-09b)"
+    )
+    extra_dev = {
+        d.split(">")[0].split("<")[0].split("=")[0].split("[")[0].strip().lower()
+        for d in extras["dev"]
+    }
+    for ferramenta in ("pytest", "httpx", "ruff", "pyright", "pytest-cov", "pip-tools"):
+        assert ferramenta in extra_dev, f"{ferramenta} saiu do extra [dev]"
 
 
 def _linhas_de_requisito(texto: str) -> list[str]:
@@ -130,6 +143,42 @@ def test_lockfile_congela_o_conjunto() -> None:
         "lock de CPU puxou o extra [gpu] — CUDA 13 voltaria no CI Windows sem ninguém pedir"
     )
     assert not any("cu12" in n or "cu13" in n for n in nomes)
+    assert "pytest" not in nomes, (
+        "lock de runtime ainda puxa pytest — regenerar sem o extra [dev] (FND-09b)"
+    )
+    pywin = [linha for linha in lock.splitlines() if linha.startswith("pywin32==")]
+    assert pywin, "pywin32 saiu do lock de runtime"
+    assert "sys_platform" in pywin[0], (
+        "pywin32 sem marcador de plataforma — lock compilado no Windows "
+        "quebraria install-smoke no Linux/macOS"
+    )
+    assert "ruff" not in nomes
+    assert "pyright" not in nomes
+    assert "pytest-cov" not in nomes
+    assert "pip-tools" not in nomes
+
+
+def test_lock_dev_congela_o_extra() -> None:
+    """CI pytest installs requirements-dev.txt, not a floating pytest-cov."""
+    lock = (REPO / "requirements-dev.txt").read_text(encoding="utf-8")
+    cabeca = "\n".join(lock.splitlines()[:16]).lower()
+    assert "pyproject.toml" in cabeca
+    assert "--extra" in cabeca and "dev" in cabeca
+    pins = _linhas_de_requisito(lock)
+    nomes = {
+        s.split("==")[0].split("[")[0].strip().lower().replace("_", "-") for s in pins
+    }
+    pyproject = tomllib.loads((REPO / "pyproject.toml").read_text(encoding="utf-8"))
+    extra = pyproject["project"]["optional-dependencies"]["dev"]
+    for dep in list(pyproject["project"]["dependencies"]) + list(extra):
+        nome = dep.split(">")[0].split("<")[0].split("=")[0].split("[")[0].strip().lower()
+        nome = nome.replace("_", "-")
+        assert nome in nomes, f"{nome} está no extra/runtime e não no lock de dev"
+    assert "onnxruntime-gpu" not in nomes
+    for ferramenta in ("pytest", "httpx", "ruff", "pyright", "pytest-cov", "pip-tools"):
+        assert ferramenta in nomes, f"{ferramenta} saiu do lock de dev"
+    pywin = [linha for linha in lock.splitlines() if linha.startswith("pywin32==")]
+    assert pywin and "sys_platform" in pywin[0]
 
 
 def test_import_sem_pythonpath_de_system32() -> None:
@@ -220,6 +269,28 @@ def _guardado(no: ast.AST) -> bool:
         if alcanca and trata:
             return True
     return False
+
+
+DEV_SO_NO_TESTE = {"pytest", "httpx"}
+"""Packages that tests import and src/ must not.
+
+Inventory for FND-09b: no `src/**/*.py` imports these. If a product module
+starts to, declare it in [project.dependencies] — do not keep it only in [dev].
+"""
+
+
+def test_src_nao_importa_ferramentas_de_dev() -> None:
+    """Moving pytest/httpx to [dev] is only safe if src/ does not import them."""
+    culpados: list[str] = []
+    for arquivo in PACOTE.rglob("*.py"):
+        achados = sorted(DEV_SO_NO_TESTE & _imports_de(arquivo))
+        if achados:
+            rel = arquivo.relative_to(PACOTE).as_posix()
+            culpados.append(f"{rel}: {achados}")
+    assert not culpados, (
+        "src/ importa ferramenta de [dev]; ou declare no runtime ou tire o import: "
+        + "; ".join(culpados)
+    )
 
 
 def test_o_produto_nao_importa_o_repositorio() -> None:

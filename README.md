@@ -162,6 +162,7 @@ e a seção de bases em [ARCHITECTURE.md](ARCHITECTURE.md) §2.
 ## Testes
 
 ```bash
+pip install -e ".[dev]"
 py -m pytest tests/ eval/ -q        # suíte padrão — ~2 min, sem GPU e sem modelo
 py -m pytest -m modelo              # com o encoder real — baixa ~2 GB na 1ª vez
 ```
