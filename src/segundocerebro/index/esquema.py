@@ -173,4 +173,24 @@ CREATE TABLE IF NOT EXISTS medicoes (
     quando        TEXT NOT NULL DEFAULT ''
 );
 CREATE INDEX IF NOT EXISTS idx_medicoes_tipo ON medicoes(tipo);
+
+-- FND-02b: journal of one document write across SQLite and LanceDB.
+-- Inserted and committed BEFORE any Lance delete/add. A row that is not
+-- finished is a crash: recovery either confirms the intended ids or aborts
+-- the path so the next indexer pass reprocesses the file. Readers that do
+-- not know this table ignore it. Never delete a pending row to "roll back
+-- a version" — only a completed or aborted recovery removes it.
+CREATE TABLE IF NOT EXISTS operacoes (
+    id            TEXT PRIMARY KEY,
+    path          TEXT NOT NULL,
+    tipo          TEXT NOT NULL,
+    etapa         TEXT NOT NULL,
+    model_id      TEXT NOT NULL DEFAULT '',
+    chunk_ids     TEXT NOT NULL DEFAULT '[]',
+    documento     TEXT NOT NULL DEFAULT '{}',
+    mtime         REAL NOT NULL DEFAULT 0,
+    criada_em     TEXT NOT NULL,
+    atualizada_em TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS idx_operacoes_path ON operacoes(path);
 """

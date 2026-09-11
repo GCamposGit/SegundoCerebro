@@ -65,6 +65,7 @@ from .repesca import esperando_ocr, pular_por_quarentena
 from .resultado import PedidoDeParada as PedidoDeParada
 from .resultado import Progresso
 from .store import ChunkArmazenado, Store
+from .operacoes import publicar_completo, publicar_lexical, publicar_vetores, recuperar_pendentes
 from .trava import TravaDeIndice as TravaDeIndice
 from .trava import TravaOcupada as TravaOcupada
 from .identidade_entrada import ColisaoDeCaminho as ColisaoDeCaminho, conferir_colisoes
@@ -74,6 +75,22 @@ log = get_logger("index.indexer")
 
 LOTE_EMBEDDING = 32
 INTERVALO_LOG = 25
+
+
+def _documento_ok(root, arquivo, resultado, chunks, model_id: str) -> dict:  # noqa: ANN001
+    return {
+        "path": arquivo.rel,
+        "raiz": root.name,
+        "tamanho": arquivo.size,
+        "mtime": arquivo.mtime,
+        "sha256": resultado.sha256,
+        "status": ParseStatus.OK.value,
+        "n_chunks": len(chunks),
+        "model_id": model_id,
+        "chunker": CHUNKER_VERSION,
+        "parser": _parser_gravado(resultado, arquivo.rel),
+        "natureza": resultado.natureza,
+    }
 
 
 class _Interrupcao:
@@ -448,6 +465,7 @@ def indexar(
         ThreadPoolExecutor(max_workers=workers) as pool,
     ):
         pendentes: list[tuple] = []
+        recuperar_pendentes(store)
         em_ocr = esperando_ocr(store)  # `Q15.a`: o que pertence à fase de OCR, não a este laço
         for root, arquivos in trabalho:
             for arquivo in arquivos:
@@ -564,22 +582,16 @@ def indexar(
 
         def gravar_ok(root, arquivo, estado, resultado, chunks, vetores, crono) -> None:  # noqa: ANN001
             store.limpar_quarentena(arquivo.rel)
-            store.remover_documento(arquivo.rel)
-            store.gravar_chunks(chunks, vetores, arquivo.mtime, embedder.model_id)
-            store.registrar_documento(
-                path=arquivo.rel,
-                raiz=root.name,
-                tamanho=arquivo.size,
-                mtime=arquivo.mtime,
-                sha256=resultado.sha256,
-                status=ParseStatus.OK.value,
-                n_chunks=len(chunks),
-                model_id=embedder.model_id,
-                chunker=CHUNKER_VERSION,
-                parser=_parser_gravado(resultado, arquivo.rel),
-                natureza=resultado.natureza,
+            publicar_completo(
+                store,
+                chunks,
+                vetores,
+                arquivo.mtime,
+                embedder.model_id,
+                documento=_documento_ok(
+                    root, arquivo, resultado, chunks, embedder.model_id
+                ),
             )
-            store.commit()
             crono.marcar("grava")
             progresso.indexados += 1
             if resultado.doc is not None and resultado.doc.meta.get("fonte") == "ocr":
@@ -907,22 +919,12 @@ def indexar(
             ritmo = controle.plano.duty_padrao if controle is not None else 1.0
             if dois_passes:
                 store.limpar_quarentena(arquivo.rel)
-                store.remover_documento(arquivo.rel)
-                store.gravar_textos(chunks)
-                store.registrar_documento(
-                    path=arquivo.rel,
-                    raiz=root.name,
-                    tamanho=arquivo.size,
-                    mtime=arquivo.mtime,
-                    sha256=resultado.sha256,
-                    status=ParseStatus.OK.value,
-                    n_chunks=len(chunks),
-                    model_id="",
-                    chunker=CHUNKER_VERSION,
-                    parser=_parser_gravado(resultado, arquivo.rel),
-                    natureza=resultado.natureza,
+                publicar_lexical(
+                    store,
+                    chunks,
+                    arquivo.mtime,
+                    documento=_documento_ok(root, arquivo, resultado, chunks, ""),
                 )
-                store.commit()
                 crono.marcar("grava")
                 progresso.indexados += 1
                 if resultado.doc is not None and resultado.doc.meta.get("fonte") == "ocr":
@@ -1093,9 +1095,9 @@ def indexar(
             except PedidoDeParada:
                 progresso.interrompido = True
                 return
-            store.substituir_vetores(chunks, vetores, arquivo_mtime, embedder.model_id)
-            store.carimbar_modelo(path_rel, embedder.model_id)
-            store.commit()
+            publicar_vetores(
+                store, chunks, vetores, arquivo_mtime, embedder.model_id, path_rel
+            )
             if publicador is not None:
                 publicador.anotar(
                     cobertura=_cobertura(store, embedder.model_id, estimador.documentos_totais),

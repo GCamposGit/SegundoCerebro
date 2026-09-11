@@ -26,3 +26,9 @@ def test_trava_deste_processo_recusa_com_comando_txt(tmp_path) -> None:
         recusar_se_indexando(tmp_path)
     assert "comando.txt" in str(erro.value)
     assert indexacao_viva(tmp_path)
+
+
+def test_journal_pendente_sem_trava_nao_e_indice_em_escrita(tmp_path) -> None:
+    """FND-02b: unfinished write is recovered, not treated as a live indexer."""
+    recusar_se_indexando(tmp_path)
+    assert not indexacao_viva(tmp_path)

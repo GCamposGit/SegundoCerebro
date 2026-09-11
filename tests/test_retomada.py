@@ -46,6 +46,24 @@ def test_base_sem_progresso_nao_e_pendente(tmp_path: Path) -> None:
     assert pendente(Base(id="x", indice=indice)) is None
 
 
+def test_journal_sem_progresso_nao_dispara_retomada(tmp_path: Path) -> None:
+    """FND-02b: the write journal is recovered by Store/indexer, not by this CLI."""
+    indice = tmp_path / "indice"
+    indice.mkdir()
+    from segundocerebro.index.store import Store
+    from tests.falsos import DIM
+
+    store = Store(indice, DIM)
+    store.con.execute(
+        "INSERT INTO operacoes (id, path, tipo, etapa, model_id, chunk_ids, "
+        "documento, mtime, criada_em, atualizada_em) "
+        "VALUES ('x', 'contrato.md', 'completo', 'preparar', '', '[]', '{}', 0, '', '')"
+    )
+    store.con.commit()
+    store.fechar()
+    assert pendente(Base(id="x", indice=indice)) is None
+
+
 def test_base_com_indexador_vivo_nao_e_pendente(tmp_path: Path) -> None:
     """O caso que importa: retomar em cima de um run vivo duplica cada vetor.
 
