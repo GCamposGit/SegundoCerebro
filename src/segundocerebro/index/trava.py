@@ -1,4 +1,7 @@
+# pyright: reportReturnType=error, reportArgumentType=error
 """A trava exclusiva de um diretório de índice, e o erro de quando ela está ocupada.
+
+FND-10: second frontier (index lock). Global pyright keeps those reports off.
 
 Saiu de `indexer.py` em 29/08/2026. O nome do arquivo já morava em `travas.py`
 desde o mesmo dia, pelo mesmo motivo — ler a trava não pode custar o encoder — e
@@ -102,7 +105,7 @@ class TravaDeIndice:
             return False
         return self._vivo(*self._dono())
 
-    def __enter__(self) -> "TravaDeIndice":
+    def __enter__(self) -> TravaDeIndice:
         self.caminho.parent.mkdir(parents=True, exist_ok=True)
         try:
             fd = os.open(self.caminho, os.O_CREAT | os.O_EXCL | os.O_WRONLY)
@@ -119,5 +122,5 @@ class TravaDeIndice:
             fh.write(self.marca())
         return self
 
-    def __exit__(self, *exc) -> None:  # noqa: ANN002
+    def __exit__(self, *exc: object) -> None:
         self.caminho.unlink(missing_ok=True)

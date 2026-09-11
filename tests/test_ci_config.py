@@ -50,13 +50,15 @@ def test_ruff_e_pyright_estao_no_pyproject() -> None:
 
 
 def test_fronteira_fnd10_tem_config_focal() -> None:
-    """FND-10: the first frontier is on, globally the rest stays off."""
-    respostas = (REPO / "src" / "segundocerebro" / "mcp" / "respostas.py").read_text(
-        encoding="utf-8"
+    """FND-10: listed frontiers are on, globally the rest stays off."""
+    comentario = "# pyright: reportReturnType=error, reportArgumentType=error"
+    fronteiras = (
+        REPO / "src" / "segundocerebro" / "mcp" / "respostas.py",
+        REPO / "src" / "segundocerebro" / "index" / "trava.py",
     )
-    assert respostas.startswith(
-        "# pyright: reportReturnType=error, reportArgumentType=error"
-    )
+    for alvo in fronteiras:
+        texto = alvo.read_text(encoding="utf-8")
+        assert texto.startswith(comentario), f"{alvo.name} perdeu o comentário focal"
     fixture = REPO / "tests" / "fixtures" / "tipos" / "pyrightconfig.json"
     assert fixture.is_file(), "config focal da fixture de tipos sumiu"
     yml = (REPO / ".github" / "workflows" / "tests.yml").read_text(encoding="utf-8")
