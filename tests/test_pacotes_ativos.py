@@ -137,7 +137,9 @@ def test_fila_real_carrega_sem_erro() -> None:
     ids = {p.id for p in pacotes}
     assert {"FND-01a", "FND-01b", "FND-01b-int", "FND-02a", "FND-02b", "FND-08a", "FND-08b"} <= ids
     por_id = {p.id: p for p in pacotes}
-    assert por_id["FND-01b"].estado == "pronto", "01b voltou a bloqueado sem o desenho ter saído"
+    assert por_id["FND-01b"].estado in {"pronto", "em_execucao"}, (
+        "01b voltou a bloqueado sem o desenho ter saído"
+    )
     assert por_id["FND-01b"].dono == "desktop"
     assert por_id["FND-01b-int"].estado == "bloqueado"
     assert (REPO / "docs" / "fnd-01b-identidade-interna.md").is_file()

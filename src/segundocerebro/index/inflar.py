@@ -177,10 +177,30 @@ def _chunks_do_lote(bases: list[Chunk], start: int, size: int) -> list[Chunk]:
 def _registrar_docs(dest: Store, chunks: list[Chunk], model_id: str) -> None:
     from collections import Counter
 
+    from .ocorrencia import id_de, usa_ocorrencia
     from .store import agora
 
     n_por = Counter(c.doc_path for c in chunks)
     agora_iso = agora()
+    if usa_ocorrencia(dest.con):
+        dest.con.executemany(
+            "INSERT OR REPLACE INTO documentos "
+            "(ocorrencia_id, root_id, path, raiz, tamanho, mtime, sha256, status, "
+            "detalhe, n_chunks, model_id, chunker, parser, indexado_em) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            [
+                (
+                    id_de(PREFIXO, path), PREFIXO, path, PREFIXO, 0, 1.0, "",
+                    "ok", "", n_chunks, model_id, "", "", agora_iso,
+                )
+                for path, n_chunks in n_por.items()
+            ],
+        )
+        dest.con.execute(
+            "INSERT OR IGNORE INTO raizes (root_id, rotulo) VALUES (?, ?)",
+            (PREFIXO, PREFIXO),
+        )
+        return
     dest.con.executemany(
         "INSERT OR REPLACE INTO documentos "
         "(path, raiz, tamanho, mtime, sha256, status, detalhe, n_chunks, "

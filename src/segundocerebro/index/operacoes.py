@@ -153,6 +153,11 @@ def _abrir(
         )
         if k in documento
     }
+    raiz = str(documento.get("raiz") or "")
+    if raiz:
+        from .ocorrencia import id_de
+
+        payload["ocorrencia_id"] = id_de(raiz, path)
     store.con.execute(
         "INSERT INTO operacoes (id, path, tipo, etapa, model_id, chunk_ids, "
         "documento, mtime, criada_em, atualizada_em) VALUES (?,?,?,?,?,?,?,?,?,?)",
@@ -196,8 +201,26 @@ def _deletar(store: Store, path: str, *, apagar_textos: bool) -> None:
     apagar_vetores_do_path(store, path)
 
 
+# Closed set of kwargs `registrar_documento` accepts. The journal payload may
+# grow (FND-01b adds ocorrencia_id); extra keys must not crash recovery.
+_CAMPOS_REGISTRO = (
+    "path",
+    "raiz",
+    "tamanho",
+    "mtime",
+    "status",
+    "sha256",
+    "detalhe",
+    "n_chunks",
+    "model_id",
+    "chunker",
+    "parser",
+    "natureza",
+)
+
+
 def _registrar(store: Store, documento: dict[str, Any]) -> None:
-    store.registrar_documento(**documento)
+    store.registrar_documento(**{k: documento[k] for k in _CAMPOS_REGISTRO if k in documento})
 
 
 def _completo(ids_sql: set[str], ids_lance: set[str], intended: set[str], tipo: str) -> bool:

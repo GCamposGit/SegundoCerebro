@@ -52,19 +52,22 @@ proxima_acao = ""
 
 [[pacote]]
 id = "FND-01b"
-estado = "pronto"
+estado = "em_execucao"
 dono = "desktop"
 paths = [
     "docs/fnd-01b-identidade-interna.md",
     "src/segundocerebro/index/esquema.py",
+    "src/segundocerebro/index/ocorrencia.py",
+    "src/segundocerebro/index/migrar_identidade.py",
     "src/segundocerebro/index/store.py",
     "src/segundocerebro/index/operacoes.py",
+    "src/segundocerebro/index/inflar.py",
     "src/segundocerebro/index/identidade_entrada.py",
 ]
 dependencias = ["FND-01a", "FND-02b", "FND-08b"]
 aceite = "duas raízes sintéticas com contrato.md distinto coexistem no Store novo; original intacto; recusa 01a permanece"
 evidencia = ""
-proxima_acao = "PR de migração para diretório novo, segundo docs/fnd-01b-identidade-interna.md; não desligar a recusa 01a"
+proxima_acao = "PR de migração para diretório novo; não desligar a recusa 01a; não abrir acesso/identidade.py"
 
 [[pacote]]
 id = "FND-01b-int"

@@ -19,9 +19,95 @@ essa é a razão de `Store.COLUNAS_ACRESCENTAVEIS` existir ao lado.
 
 from __future__ import annotations
 
-ESQUEMA = """
+SCHEMA_VERSAO = "2"
+# FND-01b: `documentos.ocorrencia_id` is the PK. Legacy indexes keep `path` as PK
+# until `migrar_identidade` writes a new directory. `CREATE IF NOT EXISTS` does
+# not change a primary key.
+
+COLUNAS_DOCUMENTOS = (
+    "path",
+    "raiz",
+    "tamanho",
+    "mtime",
+    "sha256",
+    "status",
+    "detalhe",
+    "n_chunks",
+    "model_id",
+    "chunker",
+    "parser",
+    "indexado_em",
+    "familia_real",
+    "extensao_mente",
+    "digitalizado",
+    "tem_sumario_nativo",
+    "tem_tabela",
+    "figuras_por_pagina",
+    "paginas",
+)
+
+# Compact legacy CREATE for fixtures. Comments of the live schema stay in ESQUEMA.
+ESQUEMA_DOCUMENTOS_V1 = """
 CREATE TABLE IF NOT EXISTS documentos (
     path        TEXT PRIMARY KEY,
+    raiz        TEXT NOT NULL,
+    tamanho     INTEGER NOT NULL,
+    mtime       REAL NOT NULL,
+    sha256      TEXT DEFAULT '',
+    status      TEXT NOT NULL,
+    detalhe     TEXT DEFAULT '',
+    n_chunks    INTEGER DEFAULT 0,
+    model_id    TEXT DEFAULT '',
+    chunker     TEXT DEFAULT '',
+    parser      TEXT DEFAULT '',
+    indexado_em TEXT NOT NULL,
+    familia_real       TEXT DEFAULT '',
+    extensao_mente     INTEGER DEFAULT 0,
+    digitalizado       INTEGER DEFAULT 0,
+    tem_sumario_nativo INTEGER DEFAULT 0,
+    tem_tabela         INTEGER DEFAULT 0,
+    figuras_por_pagina REAL DEFAULT 0,
+    paginas            INTEGER DEFAULT 0
+);
+"""
+
+# Used by the migrator after renaming the old table out of the way.
+DOCUMENTOS_V2_CREATE = """
+CREATE TABLE documentos (
+    ocorrencia_id TEXT PRIMARY KEY,
+    root_id     TEXT NOT NULL,
+    path        TEXT NOT NULL,
+    raiz        TEXT NOT NULL,
+    tamanho     INTEGER NOT NULL,
+    mtime       REAL NOT NULL,
+    sha256      TEXT DEFAULT '',
+    status      TEXT NOT NULL,
+    detalhe     TEXT DEFAULT '',
+    n_chunks    INTEGER DEFAULT 0,
+    model_id    TEXT DEFAULT '',
+    chunker     TEXT DEFAULT '',
+    parser      TEXT DEFAULT '',
+    indexado_em TEXT NOT NULL,
+    familia_real       TEXT DEFAULT '',
+    extensao_mente     INTEGER DEFAULT 0,
+    digitalizado       INTEGER DEFAULT 0,
+    tem_sumario_nativo INTEGER DEFAULT 0,
+    tem_tabela         INTEGER DEFAULT 0,
+    figuras_por_pagina REAL DEFAULT 0,
+    paginas            INTEGER DEFAULT 0,
+    UNIQUE(root_id, path)
+);
+"""
+
+ESQUEMA = """
+CREATE TABLE IF NOT EXISTS documentos (
+    -- FND-01b (2026-09-10): PK is the occurrence, not the relative path.
+    -- Two roots may share contrato.md. `path` remains the POSIX relative path
+    -- (caminho_rel in the design) so existing readers keep working while 01a
+    -- still refuses to index homonyms. UNIQUE(root_id, path) is the natural key.
+    ocorrencia_id TEXT PRIMARY KEY,
+    root_id     TEXT NOT NULL,
+    path        TEXT NOT NULL,
     raiz        TEXT NOT NULL,
     tamanho     INTEGER NOT NULL,
     mtime       REAL NOT NULL,
@@ -45,7 +131,19 @@ CREATE TABLE IF NOT EXISTS documentos (
     tem_sumario_nativo INTEGER DEFAULT 0,
     tem_tabela         INTEGER DEFAULT 0,
     figuras_por_pagina REAL DEFAULT 0,
-    paginas            INTEGER DEFAULT 0
+    paginas            INTEGER DEFAULT 0,
+    UNIQUE(root_id, path)
+);
+
+CREATE TABLE IF NOT EXISTS raizes (
+    root_id       TEXT PRIMARY KEY,
+    rotulo        TEXT NOT NULL DEFAULT '',
+    caminho_atual TEXT NOT NULL DEFAULT ''
+);
+
+CREATE TABLE IF NOT EXISTS meta (
+    chave TEXT PRIMARY KEY,
+    valor TEXT NOT NULL
 );
 
 -- O `doc_id` público do `J.b1` é o prefixo deste hash, e a primeira coisa que
