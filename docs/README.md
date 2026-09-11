@@ -19,6 +19,7 @@ entender como este projeto trabalha.
 | [`regra-de-ouro.md`](regra-de-ouro.md) | **Precedência sobre tudo.** O produto é para um leigo apontando uma pasta que nunca vimos. As três perguntas que todo pacote responde antes de começar |
 | [`colaboracao.md`](colaboracao.md) | A **única** fonte das regras entre os dois setups: quem mexe em quê, as doze regras anti-retrabalho, o que nunca entra no Git, e a §6 com os números vivos |
 | [`pacotes-ativos.toml`](pacotes-ativos.toml) | Fila ativa (FND-12): o que está aberto, dono, paths, dependências e evidência de entrega. O ROADMAP não é a fila |
+| [`fnd-01b-identidade-interna.md`](fnd-01b-identidade-interna.md) | Desenho que desbloqueia o FND-01b: ocorrência vs conteúdo, `root_id`, migração para pasta nova |
 | [`rigor-estatistico.md`](rigor-estatistico.md) | `E5`: IC bootstrap pareado obrigatório em toda métrica, e a regra de adoção |
 | [`guia-engenharia-5-estrelas.md`](guia-engenharia-5-estrelas.md) | Os pacotes `Q` de qualidade, com a régua final em duas metades — produto primeiro |
 | [`matriz-de-armadilhas.md`](matriz-de-armadilhas.md) | Fatia ↔ pacote: qual armadilha cada fatia sintética existe para pegar |
