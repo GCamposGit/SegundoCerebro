@@ -950,14 +950,9 @@ def test_exigir_exclusoes_nao_atrapalha_regra_que_funciona(tmp_path: Path) -> No
 # --- FND-01a: recusa de colisão de caminhos antes de escrever ------------------
 
 
-def test_colisao_de_caminhos_demonstracao_vulnerabilidade_anterior(tmp_path: Path) -> None:
-    """Requirement 1 de FND-01a: demonstra que sem a guarda, o Store terminava com uma só linha.
-
-    Dois arquivos homônimos em raízes distintas sobrescreviam-se mutuamente no SQLite
-    devido ao ON CONFLICT(path), inclusive se o hash for idêntico.
-    """
+def test_store_guarda_homonimos_em_raizes_distintas(tmp_path: Path) -> None:
+    """FND-01b: o Store novo guarda as duas ocorrências; a recusa 01a continua no indexador."""
     store = Store(tmp_path / "indice", DIM)
-    # Raiz A
     store.registrar_documento(
         path="contrato.md",
         raiz="raiz_a",
@@ -966,12 +961,6 @@ def test_colisao_de_caminhos_demonstracao_vulnerabilidade_anterior(tmp_path: Pat
         sha256="hash_a" * 8,
         status="ok",
     )
-    store.commit()
-    assert store.estatisticas()["documentos"] == 1
-    raiz_doc_a = store.con.execute("SELECT raiz FROM documentos WHERE path = 'contrato.md'").fetchone()[0]
-    assert raiz_doc_a == "raiz_a"
-
-    # Raiz B registra mesmo path (conteúdo diferente)
     store.registrar_documento(
         path="contrato.md",
         raiz="raiz_b",
@@ -980,13 +969,6 @@ def test_colisao_de_caminhos_demonstracao_vulnerabilidade_anterior(tmp_path: Pat
         sha256="hash_b" * 8,
         status="ok",
     )
-    store.commit()
-    # O Store antigo terminava com uma única linha, da raiz B
-    assert store.estatisticas()["documentos"] == 1
-    raiz_doc_b = store.con.execute("SELECT raiz FROM documentos WHERE path = 'contrato.md'").fetchone()[0]
-    assert raiz_doc_b == "raiz_b"
-
-    # Caso com mesmo hash em raízes distintas
     store.registrar_documento(
         path="mesmo_hash.md",
         raiz="raiz_a",
@@ -1004,8 +986,17 @@ def test_colisao_de_caminhos_demonstracao_vulnerabilidade_anterior(tmp_path: Pat
         status="ok",
     )
     store.commit()
-    raiz_hash = store.con.execute("SELECT raiz FROM documentos WHERE path = 'mesmo_hash.md'").fetchone()[0]
-    assert raiz_hash == "raiz_b"
+    assert store.estatisticas()["documentos"] == 4
+    contratos = {
+        str(r["raiz"])
+        for r in store.con.execute("SELECT raiz FROM documentos WHERE path = 'contrato.md'")
+    }
+    assert contratos == {"raiz_a", "raiz_b"}
+    iguais = {
+        str(r["raiz"])
+        for r in store.con.execute("SELECT raiz FROM documentos WHERE path = 'mesmo_hash.md'")
+    }
+    assert iguais == {"raiz_a", "raiz_b"}
     store.fechar()
 
 

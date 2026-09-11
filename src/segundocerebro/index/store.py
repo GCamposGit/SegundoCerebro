@@ -187,6 +187,9 @@ class Store:
         self.con.execute("PRAGMA busy_timeout=15000")
         self.con.executescript(ESQUEMA)
         self._alinhar_colunas()
+        from .ocorrencia import estampar_schema
+
+        estampar_schema(self.con)
         self.con.commit()
 
         self._db = None
@@ -443,35 +446,22 @@ class Store:
         parser: str = "",
         natureza=None,  # noqa: ANN001 — ingest.natureza.Natureza, importado tarde
     ) -> None:
-        colunas = self.COLUNAS_NATUREZA
-        valores_natureza = natureza.como_colunas() if natureza is not None else {}
-        extras = tuple(valores_natureza.get(c, "" if c == "familia_real" else 0) for c in colunas)
+        from .ocorrencia import registrar as registrar_ocorrencia
 
-        lista = ", ".join(colunas)
-        marcas = ", ".join("?" * len(colunas))
-        # Sem natureza, preserva a gravada: o filho que morre por recurso devolve
-        # `ParseResult` sem ela, o UPDATE zerava `digitalizado`, e o scan saía da
-        # fila de OCR em silêncio (30/08/2026).
-        origem = "excluded" if natureza is not None else "documentos"
-        atualiza = ", ".join(f"{c}={origem}.{c}" for c in colunas)
-        self.con.execute(
-            f"""
-            INSERT INTO documentos
-                (path, raiz, tamanho, mtime, sha256, status, detalhe, n_chunks,
-                 model_id, chunker, parser, indexado_em, {lista})
-            VALUES (?,?,?,?,?,?,?,?,?,?,?,?, {marcas})
-            ON CONFLICT(path) DO UPDATE SET
-                raiz=excluded.raiz, tamanho=excluded.tamanho, mtime=excluded.mtime,
-                sha256=excluded.sha256, status=excluded.status, detalhe=excluded.detalhe,
-                n_chunks=excluded.n_chunks, model_id=excluded.model_id,
-                chunker=excluded.chunker, parser=excluded.parser,
-                indexado_em=excluded.indexado_em, {atualiza}
-            """,
-            (
-                path, raiz, tamanho, mtime, sha256, status, detalhe, n_chunks,
-                model_id, chunker, parser, agora(),
-            )
-            + extras,
+        registrar_ocorrencia(
+            self,
+            path=path,
+            raiz=raiz,
+            tamanho=tamanho,
+            mtime=mtime,
+            status=status,
+            sha256=sha256,
+            detalhe=detalhe,
+            n_chunks=n_chunks,
+            model_id=model_id,
+            chunker=chunker,
+            parser=parser,
+            natureza=natureza,
         )
 
     def registrar_quarentena(

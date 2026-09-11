@@ -30,7 +30,7 @@ Aceite: colisão não modifica o estado anterior; base sem colisão mantém comp
 
 P0 estrutural; alta; depende de 01a, 02b e 08b antes de dados reais. Relaciona J.b1 sem trocar sua identidade pública de conteúdo.
 
-**Desenho versionado:** [`fnd-01b-identidade-interna.md`](fnd-01b-identidade-interna.md). A fila (`pacotes-ativos.toml`) passou a `pronto` no PR de migração (Desktop). A recusa do 01a permanece até a integração (Notebook). Não implementar sem esse desenho.
+**Desenho versionado:** [`fnd-01b-identidade-interna.md`](fnd-01b-identidade-interna.md). A fila (`pacotes-ativos.toml`) está em `em_execucao` no PR de migração (Desktop). A recusa do 01a permanece até a integração (Notebook). Não implementar sem esse desenho.
 
 Paths: `index/esquema.py`, `store.py`, `ingest/chunking.py`, `acesso/registro.py`, `identidade.py`, consumidores de path em retrieve/mcp/index; testes correspondentes. Dividir a lista final em PR de migração e PR de integração conforme donos. Não escrever todos os arquivos no primeiro bloco.
 

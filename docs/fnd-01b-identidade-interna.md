@@ -152,6 +152,6 @@ Não um diff só. `store.py` e `acesso/identidade.py` não abrem juntos.
 
 ## Aceite do desenho (esta entrega)
 
-Documento versionado; fila `FND-01b` em `pronto`; próximo passo = PR 1 de
-migração. Implementação que divergir destas decisões reabre o bloqueio, não
-“ajusta no código”.
+Documento versionado; fila `FND-01b` em `em_execucao` no PR 1 de migração
+(Desktop). Recusa do 01a permanece. Implementação que divergir destas decisões
+reabre o bloqueio, não “ajusta no código”.
