@@ -192,6 +192,9 @@ class Store:
         self._db = None
         self._tabela = None
         self._ann_ativo: bool | None = None
+        from .operacoes import recuperar_ao_abrir
+
+        recuperar_ao_abrir(self)
 
     COLUNAS_ACRESCENTAVEIS = (
         ("familia_real", "TEXT DEFAULT ''"),
@@ -604,11 +607,9 @@ class Store:
         n = self.con.execute("SELECT count(*) FROM chunks WHERE path = ?", (path,)).fetchone()[0]
         if n:
             self.con.execute("DELETE FROM chunks WHERE path = ?", (path,))
-            escapado = path.replace("'", "''")
-            try:
-                self.tabela.delete(f"path = '{escapado}'")
-            except Exception as exc:  # noqa: BLE001 — tabela vazia ou ainda inexistente
-                log.debug("remoção de vetores sem efeito para %s: %s", path, exc)
+            from .operacoes import apagar_vetores_do_path
+
+            apagar_vetores_do_path(self, path)
         return n
 
     def gravar_textos(self, chunks: Sequence[Chunk]) -> None:
@@ -681,12 +682,9 @@ class Store:
         """
         if not chunks:
             return
-        path = chunks[0].doc_path
-        escapado = path.replace("'", "''")
-        try:
-            self.tabela.delete(f"path = '{escapado}'")
-        except Exception as exc:  # noqa: BLE001 — no vector table yet is pass 1
-            log.debug("substituição de vetores sem tabela para %s: %s", path, exc)
+        from .operacoes import apagar_vetores_do_path
+
+        apagar_vetores_do_path(self, chunks[0].doc_path)
         self.gravar_vetores(chunks, vetores, mtime, model_id)
 
     def gravar_chunks(
