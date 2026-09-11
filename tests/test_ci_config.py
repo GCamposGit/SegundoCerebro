@@ -45,6 +45,23 @@ def test_ruff_e_pyright_estao_no_pyproject() -> None:
     assert "[tool.ruff.lint]" in texto
     assert "[tool.pyright]" in texto, "config do pyright saiu do pyproject.toml — o Q1 reabre"
     assert "typeCheckingMode" in texto
+    assert "reportReturnType = \"none\"" in texto
+    assert "reportArgumentType = \"none\"" in texto
+
+
+def test_fronteira_fnd10_tem_config_focal() -> None:
+    """FND-10: the first frontier is on, globally the rest stays off."""
+    respostas = (REPO / "src" / "segundocerebro" / "mcp" / "respostas.py").read_text(
+        encoding="utf-8"
+    )
+    assert respostas.startswith(
+        "# pyright: reportReturnType=error, reportArgumentType=error"
+    )
+    fixture = REPO / "tests" / "fixtures" / "tipos" / "pyrightconfig.json"
+    assert fixture.is_file(), "config focal da fixture de tipos sumiu"
+    yml = (REPO / ".github" / "workflows" / "tests.yml").read_text(encoding="utf-8")
+    _, _, tipos = yml.partition("types:")
+    assert "test_tipos_fronteira.py" in tipos.split("pytest:")[0]
 
 
 def test_ci_roda_lint_types_e_coverage() -> None:

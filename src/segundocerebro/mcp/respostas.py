@@ -1,8 +1,12 @@
+# pyright: reportReturnType=error, reportArgumentType=error
 """Padronização de respostas e protocolo de erros MCP (FND-07).
 
 Garante CallToolResult(is_error=True) quando houver exceções operacionais reais
 (parâmetros ilegais, pasta inexistente, cursor expirado, ID ausente), enquanto
 consultas sem correspondência permanecem como respostas normais de sucesso (is_error=False).
+
+FND-10: first public frontier with reportReturnType/reportArgumentType on via
+the file comment above. Global pyright keeps those reports off.
 """
 
 from __future__ import annotations

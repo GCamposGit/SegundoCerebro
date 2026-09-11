@@ -37,6 +37,8 @@ jobs:
         run: pip install -r requirements.txt ; pip install -e . --no-deps ; pip install pyright==1.1.411
       - name: pyright
         run: python -m pyright src
+      - name: pyright frontier fixtures
+        run: python -m pytest tests/test_tipos_fronteira.py -q
 
   pytest:
     runs-on: windows-latest
