@@ -1,6 +1,8 @@
 # Roadmap — Segundo Cérebro RAG
 
 > **Revisão fundamental de 04/09/2026:** [diagnóstico e sobreposição com a fila](docs/revisao-fundamentos-2026-09-04.md) e [plano executável FND-01–FND-12](docs/plano-fundamentos-execucao.md). Os itens FND são propostas complementares, não fases fechadas; FND-11 (skills e procedimento) foi aplicado nesta revisão. A regra de ouro mantém precedência.
+>
+> **Fila ativa:** [`docs/pacotes-ativos.toml`](docs/pacotes-ativos.toml), conferida por `python scripts/verificar_pacotes.py`. Este ROADMAP permanece história e contexto; não inferir pacote aberto pela prosa abaixo.
 
 Cada fase tem **critério de saída verificável**. Nenhuma fase *nova* começa
 antes da anterior passar no seu critério. O que **resta** de uma fase aberta

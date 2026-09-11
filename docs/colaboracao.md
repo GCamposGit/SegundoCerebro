@@ -1,7 +1,7 @@
 # Colaboração — desktop (Grok) e notebook (Claude Code)
 
 Dois setups, um repositório. Este arquivo é a **única** fonte das regras.
-As skills orientam a operação e apontam para cá. O [procedimento compartilhado](desenvolvimento-eficiente.md) define contexto mínimo, isolamento, validação e handoff; esta página mantém donos e regras de produto.
+As skills orientam a operação e apontam para cá. O [procedimento compartilhado](desenvolvimento-eficiente.md) define contexto mínimo, isolamento, validação e handoff; esta página mantém donos e regras de produto. Pacotes **abertos** ficam em [`pacotes-ativos.toml`](pacotes-ativos.toml) — `python scripts/verificar_pacotes.py` recusa id duplicado, ciclo, entrega sem PR/SHA e dois escritores no mesmo path.
 
 > **Estado vigente desde 02/09/2026.** O notebook original (i7-1355U) foi
 > desativado em 01/09. Este notebook (i7-14700HX, 8P+12E) retomou em 02/09, com
