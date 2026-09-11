@@ -148,10 +148,10 @@ ignore = ["E501", "E741", "E702", "E401"]
 # Q1 — types. basic, with the report codes that currently fire turned off
 # so the job is a gate rather than a 50-error wall. Re-enable module by
 # module; the list is the ladder, not a waiver.
-# FND-10: reportReturnType/reportArgumentType stay none globally. First
-# frontier is mcp/respostas.py via a file-level `# pyright:` comment. Proof
-# that the checker actually rejects a contract break lives outside src in
-# tests/fixtures/tipos/ (negative fixture must fail; positive must pass).
+# FND-10: reportReturnType/reportArgumentType stay none globally. Frontiers
+# so far: mcp/respostas.py, index/trava.py — each via a file-level `# pyright:`
+# comment. Proof that the checker rejects a contract break lives outside src
+# in tests/fixtures/tipos/.
 [tool.pyright]
 pythonVersion = "3.12"
 typeCheckingMode = "basic"
