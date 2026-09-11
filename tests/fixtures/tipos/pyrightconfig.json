@@ -1,0 +1,13 @@
+{
+  "pythonVersion": "3.12",
+  "typeCheckingMode": "basic",
+  "extraPaths": ["../../../src"],
+  "reportMissingImports": "none",
+  "reportArgumentType": "error",
+  "reportReturnType": "error",
+  "reportCallIssue": "none",
+  "reportAttributeAccessIssue": "none",
+  "reportOptionalMemberAccess": "none",
+  "reportOptionalCall": "none",
+  "reportGeneralTypeIssues": "none"
+}
