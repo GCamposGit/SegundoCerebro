@@ -86,6 +86,7 @@ segundocerebro-indexar = "segundocerebro.index.indexer:main"
 segundocerebro-observar = "segundocerebro.index.watcher:main"
 segundocerebro-exportar = "segundocerebro.acesso.exportar:main"
 segundocerebro-diagnosticar = "segundocerebro.index.diagnostico:main"
+segundocerebro-backup = "segundocerebro.index.backup:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

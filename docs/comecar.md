@@ -236,6 +236,21 @@ próxima ação. Com a indexação parada, acrescente `--profundo` para comparar
 registro com os vetores. Para pedir ajuda sem enviar caminhos, consultas ou
 tokens, acrescente `--exportar-suporte`.
 
+Para guardar uma cópia do **índice** (não dos documentos originais), com a
+indexação parada:
+
+```bash
+py -m segundocerebro.index.backup criar --base trabalho --destino backup-indice
+```
+
+```bash
+py -m segundocerebro.index.backup restaurar --origem backup-indice --destino indice-restaurado
+```
+
+A restauração grava numa pasta nova e não apaga o índice atual. Para usar a
+cópia, aponte `indice` no `config.toml` para essa pasta. Detalhe do contrato:
+[`backup-indice.md`](backup-indice.md).
+
 | O que você vê | O que é | O que fazer |
 |---|---|---|
 | `'segundocerebro-painel' não é reconhecido` | o atalho não está no PATH | use `py -m segundocerebro.painel` (veja o passo 2) |
