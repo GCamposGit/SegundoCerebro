@@ -52,23 +52,37 @@ proxima_acao = ""
 
 [[pacote]]
 id = "FND-01b"
-estado = "bloqueado"
-dono = "acordo"
+estado = "pronto"
+dono = "desktop"
 paths = [
+    "docs/fnd-01b-identidade-interna.md",
     "src/segundocerebro/index/esquema.py",
     "src/segundocerebro/index/store.py",
-    "src/segundocerebro/ingest/chunking.py",
-    "src/segundocerebro/acesso/registro.py",
-    "src/segundocerebro/acesso/identidade.py",
+    "src/segundocerebro/index/operacoes.py",
+    "src/segundocerebro/index/identidade_entrada.py",
 ]
-dependencias = ["FND-01a", "FND-08b"]
-aceite = "fontes distinguíveis na resposta MCP; migração interrompida não ativa índice parcial"
+dependencias = ["FND-01a", "FND-02b", "FND-08b"]
+aceite = "duas raízes sintéticas com contrato.md distinto coexistem no Store novo; original intacto; recusa 01a permanece"
 evidencia = ""
-proxima_acao = "desenho da chave (root_id, relative_path) antes de migrar dados reais"
+proxima_acao = "PR de migração para diretório novo, segundo docs/fnd-01b-identidade-interna.md; não desligar a recusa 01a"
+
+[[pacote]]
+id = "FND-01b-int"
+estado = "bloqueado"
+dono = "notebook"
+paths = [
+    "src/segundocerebro/acesso/identidade.py",
+    "src/segundocerebro/acesso/registro.py",
+    "src/segundocerebro/ingest/chunking.py",
+]
+dependencias = ["FND-01b"]
+aceite = "MCP distingue os dois contrato.md; path relativo ambíguo pede root_id; recusa 01a sai neste PR"
+evidencia = ""
+proxima_acao = "depois da migração em main; não abrir junto com store.py"
 
 [[pacote]]
 id = "FND-02b"
-estado = "proposto"
+estado = "entregue"
 dono = "desktop"
 paths = [
     "src/segundocerebro/index/operacoes.py",
@@ -77,5 +91,5 @@ paths = [
 ]
 dependencias = ["FND-02a"]
 aceite = "cada estado interrompido termina recuperado ou recusado, nunca sucesso inconsistente"
-evidencia = ""
-proxima_acao = "protocolo de falha revisado antes de implementar o journal"
+evidencia = { pr = 102, sha = "586fbef07ebe05eafb0623f5115ced63e20c5108" }
+proxima_acao = ""
