@@ -32,6 +32,13 @@ SEM_FATIA_PROPRIA: dict[str, str] = {
         "`eval/harness.py`, porque `retrieve/hybrid.py` os importava de volta e "
         "`eval` não vai no pacote."
     ),
+    "tempo": (
+        "conversão ISO→mtime, não ranqueador: não pontua nem ordena. O filtro "
+        "`depois_de`/`antes_de` é exercitado em `tests/test_hybrid.py`. A fatia "
+        "sintética `temporal` mede família de versões pelo texto do ano "
+        "(`familias/R6.3`), e nomeá-la `tempo` mediria outro caminho — a classe "
+        "da F4-P. Entrou quando `retrieve/tempo.py` nasceu no R6.3."
+    ),
 }
 """Módulos que não ganham fatia, com o motivo.
 

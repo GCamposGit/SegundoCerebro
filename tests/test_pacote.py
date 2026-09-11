@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import ast
 import os
+import re
 import subprocess
 import sys
 import sysconfig
@@ -430,29 +431,85 @@ def test_nenhum_texto_gerado_pelo_produto_grava_pythonpath() -> None:
     )
 
 
-def test_nenhum_script_grava_pythonpath() -> None:
-    """`scripts/` não escreve `PYTHONPATH` — `F6`, 30/08/2026.
+_GRAVA_PYTHONPATH = re.compile(r"(?i)(?:set|export)\s+PYTHONPATH\s*=")
 
-    Terceira aparição da mesma classe: *código que só roda de dentro do
-    repositório*. A primeira foi `retrieve/hybrid.py` importando `eval.harness`;
-    a segunda, o registrador do MCP gravando `PYTHONPATH=src` no arquivo de
-    configuração do cliente. Esta é a mais fácil de esquecer, porque ninguém
-    varre `scripts/` — e é a que o leigo executa clicando duas vezes.
 
-    Com o pacote instalado o módulo é importável de qualquer diretório. Um
-    script que fixa `PYTHONPATH` esconde uma instalação quebrada em vez de
-    reportá-la, e o sintoma reaparece na primeira vez que o usuário rodar o
-    comando por fora do atalho.
+def _subscript_pythonpath(no: ast.AST) -> bool:
+    if not isinstance(no, ast.Subscript):
+        return False
+    chave = no.slice
+    return isinstance(chave, ast.Constant) and chave.value == "PYTHONPATH"
+
+
+def pythonpath_escrito_em_script(fonte: str, *, python: bool) -> list[tuple[int, str]]:
+    """Literais e atribuições que **gravam** PYTHONPATH, não as que o filtram.
+
+    `scripts/smoke_wheel.py` tira PYTHONPATH do filho. Um grep por substring
+    trata essa guarda como o defeito que ela existe para pegar.
     """
-    culpados = [
-        arquivo.name
-        for arquivo in sorted((REPO / "scripts").glob("*"))
-        if arquivo.is_file() and "PYTHONPATH" in arquivo.read_text(encoding="utf-8", errors="ignore")
-    ]
+    if not python:
+        return [
+            (n, linha.strip())
+            for n, linha in enumerate(fonte.splitlines(), 1)
+            if _GRAVA_PYTHONPATH.search(linha)
+            and not linha.lstrip().startswith(("REM", "::", "#"))
+        ]
+    arvore = ast.parse(fonte)
+    docstring = {
+        id(no.value)
+        for no in ast.walk(arvore)
+        if isinstance(no, ast.Expr) and isinstance(no.value, ast.Constant)
+    }
+    culpados: list[tuple[int, str]] = []
+    for no in ast.walk(arvore):
+        if isinstance(no, ast.Constant) and isinstance(no.value, str):
+            if _GRAVA_PYTHONPATH.search(no.value) and id(no) not in docstring:
+                culpados.append((no.lineno, no.value.strip()))
+        alvos: list[ast.AST] = []
+        if isinstance(no, ast.Assign):
+            alvos.extend(no.targets)
+        elif isinstance(no, ast.AnnAssign) and no.target is not None:
+            alvos.append(no.target)
+        elif isinstance(no, ast.AugAssign):
+            alvos.append(no.target)
+        if any(_subscript_pythonpath(alvo) for alvo in alvos):
+            culpados.append((no.lineno, ast.unparse(no)))
+    return culpados
+
+
+def test_nenhum_script_grava_pythonpath() -> None:
+    """`scripts/` não **grava** PYTHONPATH — `F6`, 30/08/2026.
+
+    Filtrar a variável no processo filho é o contrário do defeito. A guarda
+    real distingue os dois; substring não.
+    """
+    culpados: list[str] = []
+    for arquivo in sorted((REPO / "scripts").glob("*")):
+        if not arquivo.is_file():
+            continue
+        texto = arquivo.read_text(encoding="utf-8", errors="ignore")
+        for linha, trecho in pythonpath_escrito_em_script(texto, python=arquivo.suffix == ".py"):
+            culpados.append(f"{arquivo.name}:{linha} {trecho!r}")
     assert not culpados, (
         f"{culpados} grava PYTHONPATH. O pacote se instala com `pip install -e .`; "
         "script que remenda o caminho esconde instalação quebrada (F6)."
     )
+
+
+def test_guarda_de_script_pythonpath_distingue_filtrar_de_gravar() -> None:
+    """A prova chama a guarda real: filtrar passa, `set PYTHONPATH=` e subscript não."""
+    filtrar = (
+        "os.environ = {k: v for k, v in os.environ.items() "
+        'if k.upper() != "PYTHONPATH"}\n'
+    )
+    assert pythonpath_escrito_em_script(filtrar, python=True) == []
+    assert pythonpath_escrito_em_script('"""strip PYTHONPATH in the child."""\n', python=True) == []
+    gravar_cmd = 'linhas.append("set PYTHONPATH=src")\n'
+    assert pythonpath_escrito_em_script(gravar_cmd, python=True)
+    gravar_env = 'os.environ["PYTHONPATH"] = "src"\n'
+    assert pythonpath_escrito_em_script(gravar_env, python=True)
+    assert pythonpath_escrito_em_script("set PYTHONPATH=src\n", python=False)
+    assert pythonpath_escrito_em_script("unset PYTHONPATH\n", python=False) == []
 
 
 def test_a_guarda_de_pythonpath_gerado_reprova_contra_caso_isolado() -> None:

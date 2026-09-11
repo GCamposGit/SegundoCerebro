@@ -150,18 +150,22 @@ def _registrar_outline(servidor, recursos) -> None:  # noqa: ANN001
         if recusa is not None:
             return erro_operacional(recusa["erro"], recusa.get("codigo", "referencia_invalida"), {"secoes": []})
 
-        limite = max(1, min(int(max_secoes), manifesto.LIMITE_SECOES_MAX))
+        try:
+            limite = max(1, min(int(max_secoes), manifesto.LIMITE_SECOES_MAX))
+            cursor_n = int(cursor or 0)
+        except (TypeError, ValueError) as exc:
+            return erro_operacional(str(exc), "parametro_invalido", {"secoes": []})
         try:
             res = manifesto.mapa(
                 recursos.store,
                 referencia,
-                cursor=int(cursor or 0),
+                cursor=cursor_n,
                 limite=limite,
                 base=id_da_base,
             )
-            if "erro" in res:
-                return erro_operacional(res["erro"], "documento_nao_encontrado", res)
-            return sucesso(res)
-        except Exception as exc:  # noqa: BLE001
-            return erro_operacional(str(exc), "documento_invalido", {"secoes": []})
+        except ErroLeitura as erro:
+            return erro_operacional(str(erro), erro.codigo, {"secoes": []})
+        if "erro" in res:
+            return erro_operacional(res["erro"], "documento_nao_encontrado", res)
+        return sucesso(res)
 
