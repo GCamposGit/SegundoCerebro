@@ -1,0 +1,81 @@
+# Fila ativa — FND-12.
+# ROADMAP.md e o plano fundamental são história e contexto.
+# Este arquivo lista o que ainda está aberto, mais as dependências já
+# entregues que esses abertos ainda nomeiam. Não é dump da crônica.
+# Autoridade plena só após reconciliação humana; até lá é proposta versionada.
+# Evidência de entrega é PR e/ou SHA. A frase "neste PR" não conta.
+
+[[pacote]]
+id = "FND-01a"
+estado = "entregue"
+dono = "desktop"
+paths = ["src/segundocerebro/index/identidade_entrada.py"]
+dependencias = []
+aceite = "colisão de caminho recusada antes de escrever; base sem colisão inalterada"
+evidencia = { pr = 90, sha = "3fd8f4af2dab1884e9b58e3074c575e1d8cfde7d" }
+proxima_acao = ""
+
+[[pacote]]
+id = "FND-02a"
+estado = "entregue"
+dono = "desktop"
+paths = ["src/segundocerebro/index/integridade.py"]
+dependencias = []
+aceite = "IDs a,b versus a,c acusam divergência; passe lexical válido não acusa corrupção"
+evidencia = { pr = 91, sha = "f3dba1a89ea953475b3d09057864d2a0f78cb176" }
+proxima_acao = ""
+
+[[pacote]]
+id = "FND-08a"
+estado = "entregue"
+dono = "desktop"
+paths = ["src/segundocerebro/index/diagnostico.py"]
+dependencias = ["FND-02a"]
+aceite = "leigo recebe causa e próxima ação sem carregar encoder nem abrir origem"
+evidencia = { pr = 92, sha = "96f2187b9dcda5a859fb75bb91709cd53201932f" }
+proxima_acao = ""
+
+[[pacote]]
+id = "FND-08b"
+estado = "entregue"
+dono = "desktop"
+paths = [
+    "src/segundocerebro/index/backup.py",
+    "src/segundocerebro/index/backup_io.py",
+    "src/segundocerebro/index/backup_manifesto.py",
+    "src/segundocerebro/index/backup_verificar.py",
+]
+dependencias = ["FND-02a", "FND-08a"]
+aceite = "restore reproduz IDs de fixture e recusa backup inconsistente; originais fora"
+evidencia = { pr = 98, sha = "b71a886068a5a13c954e3e74948f7fcfeb34500a" }
+proxima_acao = ""
+
+[[pacote]]
+id = "FND-01b"
+estado = "bloqueado"
+dono = "acordo"
+paths = [
+    "src/segundocerebro/index/esquema.py",
+    "src/segundocerebro/index/store.py",
+    "src/segundocerebro/ingest/chunking.py",
+    "src/segundocerebro/acesso/registro.py",
+    "src/segundocerebro/acesso/identidade.py",
+]
+dependencias = ["FND-01a", "FND-08b"]
+aceite = "fontes distinguíveis na resposta MCP; migração interrompida não ativa índice parcial"
+evidencia = ""
+proxima_acao = "desenho da chave (root_id, relative_path) antes de migrar dados reais"
+
+[[pacote]]
+id = "FND-02b"
+estado = "proposto"
+dono = "desktop"
+paths = [
+    "src/segundocerebro/index/operacoes.py",
+    "tests/test_retomada.py",
+    "tests/test_indice_em_uso.py",
+]
+dependencias = ["FND-02a"]
+aceite = "cada estado interrompido termina recuperado ou recusado, nunca sucesso inconsistente"
+evidencia = ""
+proxima_acao = "protocolo de falha revisado antes de implementar o journal"
