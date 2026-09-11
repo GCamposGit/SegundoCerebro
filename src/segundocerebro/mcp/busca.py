@@ -60,12 +60,9 @@ def _resumo_item(caminho: str, recursos: Any) -> dict[str, str]:
     chunk_id = ""
     store = getattr(recursos, "store", None)
     if store is not None:
-        try:
-            ids = store.ids_de_chunks(caminho)
-            if ids:
-                chunk_id = ids[0]
-        except Exception:  # noqa: BLE001
-            chunk_id = ""
+        ids = store.ids_de_chunks(caminho)
+        if ids:
+            chunk_id = ids[0]
     extensao = caminho.rsplit(".", 1)[-1].lower() if "." in caminho else ""
     return {
         "id": chunk_id,

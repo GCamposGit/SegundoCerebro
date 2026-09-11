@@ -12,6 +12,7 @@ Invariantes deste módulo:
 
 from __future__ import annotations
 
+import sqlite3
 from datetime import datetime, timezone
 from typing import Any
 
@@ -43,7 +44,7 @@ def _contar_quarentena(store: Store) -> int:
         cur = store.con.execute("SELECT COUNT(*) as q_total FROM quarentena")
         row = cur.fetchone()
         return int(row["q_total"]) if row else 0
-    except Exception:  # noqa: BLE001
+    except sqlite3.OperationalError:
         return 0
 
 

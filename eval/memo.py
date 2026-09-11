@@ -97,10 +97,12 @@ class _StoreComMemo:
         k: int,
         pesos_colunas: tuple[float, float, float] | None = None,
         filtro_path: str | None = None,
+        mtime_min: float | None = None,
+        mtime_max: float | None = None,
         *,
         podar_ubiquos: bool = True,
     ) -> list:
-        chave = (texto, k, pesos_colunas, filtro_path, podar_ubiquos)
+        chave = (texto, k, pesos_colunas, filtro_path, mtime_min, mtime_max, podar_ubiquos)
         return self._lembrar(
             self._lexical,
             chave,
@@ -109,6 +111,8 @@ class _StoreComMemo:
                 k,
                 pesos_colunas,
                 filtro_path=filtro_path,
+                mtime_min=mtime_min,
+                mtime_max=mtime_max,
                 podar_ubiquos=podar_ubiquos,
             ),
         )

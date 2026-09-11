@@ -48,44 +48,46 @@ def _fim_do_dia(ano: int, mes: int, dia: int) -> float:
 
 
 def _interpretar_inicio(texto: str) -> float | None:
-    if not texto.strip():
+    bruto = (texto or "").strip()
+    if not bruto:
         return None
     try:
-        m = PADRAO_ANO.match(texto)
+        m = PADRAO_ANO.match(bruto)
         if m:
             return _inicio_do_ano(int(m.group(1)))
-        m = PADRAO_ANO_MES.match(texto)
+        m = PADRAO_ANO_MES.match(bruto)
         if m:
             return _inicio_do_mes(int(m.group(1)), int(m.group(2)))
-        m = PADRAO_DATA.match(texto)
+        m = PADRAO_DATA.match(bruto)
         if m:
             return _inicio_do_dia(int(m.group(1)), int(m.group(2)), int(m.group(3)))
-        dt = datetime.fromisoformat(texto)
+        dt = datetime.fromisoformat(bruto)
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=timezone.utc)
         return dt.timestamp()
-    except Exception:  # noqa: BLE001
+    except (ValueError, OverflowError):
         return None
 
 
 def _interpretar_fim(texto: str) -> float | None:
-    if not texto.strip():
+    bruto = (texto or "").strip()
+    if not bruto:
         return None
     try:
-        m = PADRAO_ANO.match(texto)
+        m = PADRAO_ANO.match(bruto)
         if m:
             return _fim_do_ano(int(m.group(1)))
-        m = PADRAO_ANO_MES.match(texto)
+        m = PADRAO_ANO_MES.match(bruto)
         if m:
             return _fim_do_mes(int(m.group(1)), int(m.group(2)))
-        m = PADRAO_DATA.match(texto)
+        m = PADRAO_DATA.match(bruto)
         if m:
             return _fim_do_dia(int(m.group(1)), int(m.group(2)), int(m.group(3)))
-        dt = datetime.fromisoformat(texto)
+        dt = datetime.fromisoformat(bruto)
         if dt.tzinfo is None:
             dt = dt.replace(tzinfo=timezone.utc)
         return dt.timestamp()
-    except Exception:  # noqa: BLE001
+    except (ValueError, OverflowError):
         return None
 
 
