@@ -1,6 +1,6 @@
 # Índice da documentação
 
-51 arquivos versionados. **Todo link daqui aponta para arquivo que o clone tem** —
+52 arquivos versionados. **Todo link daqui aponta para arquivo que o clone tem** —
 e essa é a regra do índice, não um detalhe: mais da metade de `docs/` fica fora do
 Git de propósito, porque cita nome de arquivo do acervo real, e um índice que
 prometesse esses arquivos daria 404 para quem clonou. A [seção final](#o-que-não-está-aqui)
@@ -29,6 +29,7 @@ entender como este projeto trabalha.
 | Documento | O que é |
 |---|---|
 | [`comecar.md`](comecar.md) | De zero à primeira pergunta respondida. É a `F6-D`, e é a página que o leigo lê |
+| [`backup-indice.md`](backup-indice.md) | Backup do índice e restauração para pasta nova (`FND-08b`). Originais não entram |
 | [`usar-o-mcp.md`](usar-o-mcp.md) | As ferramentas MCP, e como ligar nos dois clientes |
 | [`painel-de-ajuste.md`](painel-de-ajuste.md) | O painel local: o que ele faz, e por que está fora do caminho de consulta |
 | [`arquitetura-tecnica.md`](arquitetura-tecnica.md) | A descrição técnica corrente |

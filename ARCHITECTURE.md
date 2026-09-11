@@ -176,7 +176,10 @@ vir da base.
   defeito
 - **Governança fica mais simples, não mais complexa.** O acervo de um cliente sai
   inteiro quando o contrato acaba: apagar um diretório. Política de backup e
-  cifragem por base, sem varrer o índice atrás do que pertence a quem
+  cifragem por base, sem varrer o índice atrás do que pertence a quem.
+  O `FND-08b` entrega o backup do **índice** (registro + vetores) com trava
+  exclusiva e restauração para diretório novo; originais da pasta apontada não
+  entram (`docs/backup-indice.md`)
 
 **Migração: nenhuma reindexação.** O índice atual vira uma base apontando para o
 diretório `index/` que já existe. Bases novas nascem vazias e são indexadas
