@@ -16,7 +16,7 @@ from typing import TYPE_CHECKING, Any
 if TYPE_CHECKING:
     from .store import Store
 
-TABELA_VETORES = "chunks"
+TABELA_VETORES = "vetores"
 log = logging.getLogger(__name__)
 Cancelar = Callable[[], bool]
 Progresso = Callable[[int, int], None]
@@ -67,10 +67,18 @@ class DiagnosticoIntegridade:
 
 def _coletar_sqlite(store: Store) -> dict[str, str]:
     """Retorna mapa de id -> model_id para todos os chunks registrados no SQLite."""
-    consulta = (
-        "SELECT c.id, COALESCE(d.model_id, '') "
-        "FROM chunks c LEFT JOIN documentos d ON c.path = d.path"
-    )
+    if store._usa_ocorrencia():
+        consulta = (
+            "SELECT c.id, COALESCE(d.model_id, '') "
+            "FROM chunks c LEFT JOIN documentos d "
+            "ON c.ocorrencia_id = d.ocorrencia_id "
+            "OR (c.ocorrencia_id = c.path AND c.path = d.path)"
+        )
+    else:
+        consulta = (
+            "SELECT c.id, COALESCE(d.model_id, '') "
+            "FROM chunks c LEFT JOIN documentos d ON c.path = d.path"
+        )
     return {row[0]: row[1] for row in store.con.execute(consulta).fetchall()}
 
 
@@ -180,7 +188,11 @@ def _abrir_tabela(store: Store) -> tuple[Any | None, str | None]:
     if store._tabela is not None:
         return store._tabela, None
     try:
-        db = store._db if store._db is not None else lancedb.connect(store.diretorio)
+        db = (
+            store._db
+            if store._db is not None
+            else lancedb.connect(str(store.diretorio / "vetores.lance"))
+        )
         tabelas = _tabelas_no_db(db)
         if TABELA_VETORES not in tabelas:
             return None, None

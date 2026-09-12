@@ -160,6 +160,7 @@ CREATE INDEX IF NOT EXISTS idx_documentos_sha256 ON documentos(sha256);
 
 CREATE TABLE IF NOT EXISTS chunks (
     id       TEXT PRIMARY KEY,
+    ocorrencia_id TEXT NOT NULL DEFAULT '',
     path     TEXT NOT NULL,
     caminho  TEXT NOT NULL DEFAULT '',
     ordinal  INTEGER NOT NULL,
@@ -170,6 +171,7 @@ CREATE TABLE IF NOT EXISTS chunks (
     texto    TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS idx_chunks_path ON chunks(path);
+CREATE INDEX IF NOT EXISTS idx_chunks_ocorrencia ON chunks(ocorrencia_id);
 
 -- `caminho` é o path com separadores virados em espaço, para o tokenizador
 -- quebrar em palavras. Sem ele o índice lexical ignora o nome do arquivo, que é
@@ -204,11 +206,12 @@ END;
 -- documentos se ligam pela ISO 42001 vale pouco se o cliente não pode ler o
 -- trecho onde cada um a cita.
 CREATE TABLE IF NOT EXISTS mencoes (
+    ocorrencia_id TEXT NOT NULL DEFAULT '',
     path     TEXT NOT NULL,
     tipo     TEXT NOT NULL,
     valor    TEXT NOT NULL,
     chunk_id TEXT NOT NULL DEFAULT '',
-    PRIMARY KEY (path, tipo, valor)
+    PRIMARY KEY (ocorrencia_id, tipo, valor)
 );
 -- A junção do `neighbors` parte de (tipo, valor) para achar quem mais cita o
 -- mesmo identificador; sem este índice ela varre a tabela inteira por consulta.
@@ -230,7 +233,8 @@ CREATE TABLE IF NOT EXISTS execucoes (
 -- `CREATE TABLE IF NOT EXISTS` is enough here — this is a new table, not a
 -- column on an old one. Hash change (the user replaced the file) clears the row.
 CREATE TABLE IF NOT EXISTS quarentena (
-    path               TEXT PRIMARY KEY,
+    ocorrencia_id      TEXT PRIMARY KEY,
+    path               TEXT NOT NULL,
     hash               TEXT DEFAULT '',
     motivo             TEXT NOT NULL,
     tentativas         INTEGER NOT NULL DEFAULT 1,
@@ -252,6 +256,7 @@ CREATE TABLE IF NOT EXISTS quarentena (
 CREATE TABLE IF NOT EXISTS medicoes (
     id            INTEGER PRIMARY KEY AUTOINCREMENT,
     execucao      INTEGER NOT NULL DEFAULT 0,
+    ocorrencia_id TEXT NOT NULL DEFAULT '',
     path          TEXT NOT NULL,
     tipo          TEXT NOT NULL DEFAULT '',
     mb            REAL NOT NULL DEFAULT 0,
@@ -280,6 +285,7 @@ CREATE INDEX IF NOT EXISTS idx_medicoes_tipo ON medicoes(tipo);
 -- a version" — only a completed or aborted recovery removes it.
 CREATE TABLE IF NOT EXISTS operacoes (
     id            TEXT PRIMARY KEY,
+    ocorrencia_id TEXT NOT NULL DEFAULT '',
     path          TEXT NOT NULL,
     tipo          TEXT NOT NULL,
     etapa         TEXT NOT NULL,

@@ -88,6 +88,11 @@ class Chunk:
     text: str
     locator: str = ""
     kind: BlockKind = BlockKind.TEXT
+    # Internal identity of the occurrence `(root_id, doc_path)`.  It is empty
+    # for the small low-level/test helpers that predate FND-01b; Store keeps
+    # those calls compatible while the indexer always stamps the value.
+    ocorrencia_id: str = ""
+    root_id: str = ""
 
     @property
     def nome_documento(self) -> str:
@@ -114,14 +119,26 @@ class Chunk:
         return len(self.text)
 
 
-def chunk_id(doc_path: str, heading_path: Sequence[str], locator: str, ordinal: int) -> str:
+def chunk_id(
+    doc_path: str,
+    heading_path: Sequence[str],
+    locator: str,
+    ordinal: int,
+    ocorrencia_id: str = "",
+) -> str:
     """Stable id: same document and same rules always give the same id.
 
     Position within the document is part of the identity, so editing one
     section does not renumber the whole document.
     """
     semente = "\x1f".join(
-        (CHUNKER_VERSION, doc_path, " > ".join(heading_path), locator, str(ordinal))
+        (
+            CHUNKER_VERSION,
+            ocorrencia_id or doc_path,
+            " > ".join(heading_path),
+            locator,
+            str(ordinal),
+        )
     )
     return hashlib.sha1(semente.encode("utf-8")).hexdigest()[:16]
 
@@ -276,7 +293,14 @@ def _respeitar_orcamento(pedacos: list[str], prefixo: str, kind: BlockKind, cfg:
     return saida
 
 
-def chunk_document(doc: ParsedDoc, doc_path: str, cfg: ChunkConfig | None = None) -> list[Chunk]:
+def chunk_document(
+    doc: ParsedDoc,
+    doc_path: str,
+    cfg: ChunkConfig | None = None,
+    *,
+    ocorrencia_id: str = "",
+    root_id: str = "",
+) -> list[Chunk]:
     """Blocks in, chunks out. Same input always gives the same output."""
     cfg = cfg or ChunkConfig()
     chunks: list[Chunk] = []
@@ -302,13 +326,17 @@ def chunk_document(doc: ParsedDoc, doc_path: str, cfg: ChunkConfig | None = None
                 local = f"{local} ({i}/{total})" if local else f"parte {i}/{total}"
             chunks.append(
                 Chunk(
-                    id=chunk_id(doc_path, bloco.heading_path, local, ordinal),
+                    id=chunk_id(
+                        doc_path, bloco.heading_path, local, ordinal, ocorrencia_id
+                    ),
                     doc_path=doc_path,
                     ordinal=ordinal,
                     heading_path=bloco.heading_path,
                     text=pedaco,
                     locator=local,
                     kind=bloco.kind,
+                    ocorrencia_id=ocorrencia_id,
+                    root_id=root_id,
                 )
             )
             ordinal += 1

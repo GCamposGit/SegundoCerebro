@@ -127,6 +127,8 @@ class EstadoDocumento:
     model_id: str
     chunker: str
     parser: str
+    ocorrencia_id: str = ""
+    root_id: str = ""
 
 
 @dataclass(frozen=True)
@@ -138,6 +140,8 @@ class ChunkArmazenado:
     locator: str
     kind: str
     texto: str
+    ocorrencia_id: str = ""
+    root_id: str = ""
 
 
 @dataclass(frozen=True)
@@ -191,6 +195,11 @@ class Store:
 
         estampar_schema(self.con)
         self.con.commit()
+        self._usa_ocorrencia_cache: bool | None = None
+        self._usa_ocorrencia_cache = any(
+            str(row["name"]) == "ocorrencia_id" and int(row["pk"]) == 1
+            for row in self.con.execute("PRAGMA table_info(documentos)")
+        )
 
         self._db = None
         self._tabela = None
@@ -210,6 +219,14 @@ class Store:
         ("parser", "TEXT DEFAULT ''"),
     )
 
+    COLUNAS_AUXILIARES = {
+        "chunks": (("ocorrencia_id", "TEXT NOT NULL DEFAULT ''"),),
+        "mencoes": (("ocorrencia_id", "TEXT NOT NULL DEFAULT ''"),),
+        "quarentena": (("ocorrencia_id", "TEXT NOT NULL DEFAULT ''"),),
+        "medicoes": (("ocorrencia_id", "TEXT NOT NULL DEFAULT ''"),),
+        "operacoes": (("ocorrencia_id", "TEXT NOT NULL DEFAULT ''"),),
+    }
+
     def _alinhar_colunas(self) -> None:
         """Acrescenta em banco antigo as colunas que o esquema ganhou depois.
 
@@ -227,6 +244,14 @@ class Store:
                 log.info("registro: coluna %s acrescentada", nome)
                 if nome == "parser":
                     self._estampar_parser_inicial()
+        for tabela, colunas in self.COLUNAS_AUXILIARES.items():
+            existentes_tabela = {
+                r["name"] for r in self.con.execute(f"PRAGMA table_info({tabela})")
+            }
+            for nome, tipo in colunas:
+                if nome not in existentes_tabela:
+                    self.con.execute(f"ALTER TABLE {tabela} ADD COLUMN {nome} {tipo}")
+                    log.info("registro: coluna %s.%s acrescentada", tabela, nome)
 
     def _estampar_parser_inicial(self) -> None:
         """Estampa `VERSAO_INICIAL` no índice que existia antes da coluna.
@@ -273,6 +298,7 @@ class Store:
                 esquema = pa.schema(
                     [
                         pa.field("id", pa.string()),
+                        pa.field("ocorrencia_id", pa.string()),
                         pa.field("path", pa.string()),
                         pa.field("ordinal", pa.int32()),
                         pa.field("kind", pa.string()),
@@ -348,12 +374,51 @@ class Store:
         return str(linha["path"]) if linha else None
 
     def estado_documento(self, path: str) -> EstadoDocumento | None:
+        from .ocorrencia import chave_de
+
+        chave = chave_de(self, path)
+        if self._usa_ocorrencia():
+            linha = self.con.execute(
+                "SELECT path, tamanho, mtime, sha256, status, n_chunks, model_id, chunker, parser, "
+                "ocorrencia_id, root_id FROM documentos WHERE ocorrencia_id = ?",
+                (chave,),
+            ).fetchone()
+        else:
+            linha = self.con.execute(
+                "SELECT path, tamanho, mtime, sha256, status, n_chunks, model_id, chunker, parser "
+                "FROM documentos WHERE path = ?", (path,)
+            ).fetchone()
+        return EstadoDocumento(**dict(linha)) if linha else None
+
+    def estado_documento_da_raiz(self, path: str, root_id: str) -> EstadoDocumento | None:
+        """Path lookup scoped to one root; never guesses between homonyms."""
+        from .ocorrencia import id_de
+
+        if not self._usa_ocorrencia():
+            return self.estado_documento(path)
         linha = self.con.execute(
-            "SELECT path, tamanho, mtime, sha256, status, n_chunks, model_id, chunker, parser"
-            " FROM documentos WHERE path = ?",
-            (path,),
+            "SELECT path, tamanho, mtime, sha256, status, n_chunks, model_id, chunker, parser, "
+            "ocorrencia_id, root_id FROM documentos WHERE ocorrencia_id = ?",
+            (id_de(root_id, path),),
         ).fetchone()
         return EstadoDocumento(**dict(linha)) if linha else None
+
+    def _usa_ocorrencia(self) -> bool:
+        if self._usa_ocorrencia_cache is not None:
+            return self._usa_ocorrencia_cache
+        from .ocorrencia import usa_ocorrencia
+
+        self._usa_ocorrencia_cache = usa_ocorrencia(self.con)
+        return self._usa_ocorrencia_cache
+
+    def _chave_ocorrencia(
+        self, path: str, *, root_id: str = "", ocorrencia_id: str = ""
+    ) -> str:
+        from .ocorrencia import chave_de
+
+        return chave_de(
+            self, path, root_id=root_id, ocorrencia_id=ocorrencia_id
+        )
 
     def estados(self) -> dict[str, EstadoDocumento]:
         """Todo o registro de uma vez, para derivar o mapa restante.
@@ -371,16 +436,28 @@ class Store:
         }
 
     def gravar_medicao(  # noqa: ANN001
-        self, obs, *, execucao: int = 0, fingerprint: str = "", model_id: str = ""
-    ) -> None:
+        self,
+        obs,
+        *,
+        execucao: int = 0,
+        fingerprint: str = "",
+        model_id: str = "",
+        root_id: str = "",
+        ocorrencia_id: str = "",
+    ) -> str:
         """Uma linha por documento processado. Nunca no caminho de consulta."""
+        if not ocorrencia_id and root_id and self._usa_ocorrencia():
+            from .ocorrencia import id_de
+
+            ocorrencia_id = id_de(root_id, obs.rel)
         self.con.execute(
-            "INSERT INTO medicoes (execucao, path, tipo, mb, n_chunks, tokens,"
+            "INSERT INTO medicoes (execucao, ocorrencia_id, path, tipo, mb, n_chunks, tokens,"
             " s_parse, s_chunk, s_embed, s_grava, s_total_ativo, suspeito,"
             " perfil, fingerprint, model_id, situacao, status, quando)"
-            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            " VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             (
                 execucao,
+                ocorrencia_id,
                 obs.rel,
                 obs.tipo,
                 obs.mb,
@@ -448,7 +525,7 @@ class Store:
     ) -> None:
         from .ocorrencia import registrar as registrar_ocorrencia
 
-        registrar_ocorrencia(
+        return registrar_ocorrencia(
             self,
             path=path,
             raiz=raiz,
@@ -468,6 +545,8 @@ class Store:
         self,
         path: str,
         *,
+        root_id: str = "",
+        ocorrencia_id: str = "",
         hash: str = "",
         motivo: str = "",
         agora: datetime | None = None,
@@ -480,7 +559,10 @@ class Store:
         """
         instante = agora or datetime.now(timezone.utc)
         espera = BACKOFF_QUARENTENA_S if backoff_s is None else float(backoff_s)
-        atual = self.quarentena_de(path)
+        chave = self._chave_ocorrencia(
+            path, root_id=root_id, ocorrencia_id=ocorrencia_id
+        )
+        atual = self.quarentena_de(path, root_id=root_id, ocorrencia_id=ocorrencia_id)
         if atual is None or atual.hash != hash:
             tentativas = 1
         else:
@@ -497,31 +579,56 @@ class Store:
             ultima_tentativa=instante.isoformat(timespec="seconds"),
             proxima_tentativa=proxima.isoformat(timespec="seconds"),
         )
-        self.con.execute(
-            """
-            INSERT INTO quarentena (path, hash, motivo, tentativas, ultima_tentativa, proxima_tentativa)
-            VALUES (?,?,?,?,?,?)
-            ON CONFLICT(path) DO UPDATE SET
-                hash=excluded.hash, motivo=excluded.motivo, tentativas=excluded.tentativas,
-                ultima_tentativa=excluded.ultima_tentativa, proxima_tentativa=excluded.proxima_tentativa
-            """,
-            (
-                item.path,
-                item.hash,
-                item.motivo,
-                item.tentativas,
-                item.ultima_tentativa,
-                item.proxima_tentativa,
-            ),
-        )
+        if self._usa_ocorrencia():
+            self.con.execute(
+                """
+                INSERT INTO quarentena
+                    (ocorrencia_id, path, hash, motivo, tentativas, ultima_tentativa, proxima_tentativa)
+                VALUES (?,?,?,?,?,?,?)
+                ON CONFLICT(ocorrencia_id) DO UPDATE SET
+                    path=excluded.path, hash=excluded.hash, motivo=excluded.motivo,
+                    tentativas=excluded.tentativas,
+                    ultima_tentativa=excluded.ultima_tentativa,
+                    proxima_tentativa=excluded.proxima_tentativa
+                """,
+                (
+                    chave, item.path, item.hash, item.motivo, item.tentativas,
+                    item.ultima_tentativa, item.proxima_tentativa,
+                ),
+            )
+        else:
+            self.con.execute(
+                """
+                INSERT INTO quarentena
+                    (path, hash, motivo, tentativas, ultima_tentativa, proxima_tentativa)
+                VALUES (?,?,?,?,?,?)
+                ON CONFLICT(path) DO UPDATE SET
+                    hash=excluded.hash, motivo=excluded.motivo, tentativas=excluded.tentativas,
+                    ultima_tentativa=excluded.ultima_tentativa, proxima_tentativa=excluded.proxima_tentativa
+                """,
+                (
+                    item.path, item.hash, item.motivo, item.tentativas,
+                    item.ultima_tentativa, item.proxima_tentativa,
+                ),
+            )
         return item
 
-    def quarentena_de(self, path: str) -> ItemQuarentena | None:
-        linha = self.con.execute(
-            "SELECT path, hash, motivo, tentativas, ultima_tentativa, proxima_tentativa "
-            "FROM quarentena WHERE path = ?",
-            (path,),
-        ).fetchone()
+    def quarentena_de(
+        self, path: str, *, root_id: str = "", ocorrencia_id: str = ""
+    ) -> ItemQuarentena | None:
+        chave = self._chave_ocorrencia(
+            path, root_id=root_id, ocorrencia_id=ocorrencia_id
+        )
+        if self._usa_ocorrencia():
+            linha = self.con.execute(
+                "SELECT path, hash, motivo, tentativas, ultima_tentativa, proxima_tentativa "
+                "FROM quarentena WHERE ocorrencia_id = ?", (chave,)
+            ).fetchone()
+        else:
+            linha = self.con.execute(
+                "SELECT path, hash, motivo, tentativas, ultima_tentativa, proxima_tentativa "
+                "FROM quarentena WHERE path = ?", (path,)
+            ).fetchone()
         return ItemQuarentena(**dict(linha)) if linha else None
 
     def listar_quarentena(self) -> list[ItemQuarentena]:
@@ -531,14 +638,25 @@ class Store:
         )
         return [ItemQuarentena(**dict(l)) for l in linhas]
 
-    def limpar_quarentena(self, path: str) -> None:
-        self.con.execute("DELETE FROM quarentena WHERE path = ?", (path,))
+    def limpar_quarentena(
+        self, path: str, *, root_id: str = "", ocorrencia_id: str = ""
+    ) -> None:
+        chave = self._chave_ocorrencia(
+            path, root_id=root_id, ocorrencia_id=ocorrencia_id
+        )
+        self.con.execute(
+            "DELETE FROM quarentena WHERE ocorrencia_id = ?"
+            if self._usa_ocorrencia() else "DELETE FROM quarentena WHERE path = ?",
+            (chave if self._usa_ocorrencia() else path,),
+        )
 
     def deve_pular_quarentena(
         self,
         path: str,
         hash: str = "",
         *,
+        root_id: str = "",
+        ocorrencia_id: str = "",
         agora: datetime | None = None,
     ) -> bool:
         """True when this file is still in backoff, or retries are exhausted.
@@ -551,11 +669,15 @@ class Store:
         tira o documento do acervo até alguém editá-lo. `MOTIVO_RECURSO` era
         escrito e nunca lido; agora é, e recurso só respeita o backoff.
         """
-        item = self.quarentena_de(path)
+        item = self.quarentena_de(
+            path, root_id=root_id, ocorrencia_id=ocorrencia_id
+        )
         if item is None:
             return False
         if hash and item.hash and hash != item.hash:
-            self.limpar_quarentena(path)
+            self.limpar_quarentena(
+                path, root_id=root_id, ocorrencia_id=ocorrencia_id
+            )
             return False
         instante = agora or datetime.now(timezone.utc)
         try:
@@ -570,36 +692,91 @@ class Store:
             return True
         return instante < proxima
 
-    def registrados(self, prefixo: str | None = None) -> dict[str, str]:
+    def registrados(
+        self,
+        prefixo: str | None = None,
+        *,
+        root_ids: set[str] | None = None,
+    ) -> dict[str, str]:
         """Caminho -> sha256 de tudo que está no registro, opcionalmente sob um prefixo."""
+        raiz_coluna = "root_id" if self._usa_ocorrencia() else "raiz AS root_id"
+        filtros: list[str] = []
+        parametros: list[object] = []
         if prefixo:
-            linhas = self.con.execute(
-                "SELECT path, sha256 FROM documentos WHERE path LIKE ? || '%'", (prefixo,)
-            )
-        else:
-            linhas = self.con.execute("SELECT path, sha256 FROM documentos")
-        return {r["path"]: r["sha256"] or "" for r in linhas}
+            filtros.append("path LIKE ? || '%'")
+            parametros.append(prefixo)
+        if root_ids:
+            marcas = ",".join("?" * len(root_ids))
+            coluna_raiz = "root_id" if self._usa_ocorrencia() else "raiz"
+            filtros.append(f"{coluna_raiz} IN ({marcas})")
+            parametros.extend(sorted(root_ids))
+        where = f" WHERE {' AND '.join(filtros)}" if filtros else ""
+        linhas = self.con.execute(
+            f"SELECT path, sha256, {raiz_coluna} FROM documentos{where}",
+            parametros,
+        )
+        materializadas = list(linhas)
+        duplicados = {
+            r["path"] for r in materializadas
+            if sum(x["path"] == r["path"] for x in materializadas) > 1
+        }
+        return {
+            (
+                f"{r['root_id']}\0{r['path']}"
+                if self._usa_ocorrencia() and r["path"] in duplicados
+                else r["path"]
+            ): r["sha256"] or ""
+            for r in materializadas
+        }
 
-    def esquecer_documento(self, path: str) -> int:
+    def esquecer_documento(
+        self, path: str, *, root_id: str = "", ocorrencia_id: str = ""
+    ) -> int:
         """Remove chunks, vetores **e** a linha do registro.
 
         Diferente de `remover_documento`, que limpa os chunks mas mantém a linha
         para reindexar por cima. Aqui o documento deixa de existir para o
         sistema — é o que se faz quando o arquivo saiu do disco.
         """
-        n = self.remover_documento(path)
-        self.con.execute("DELETE FROM documentos WHERE path = ?", (path,))
-        self.con.execute("DELETE FROM quarentena WHERE path = ?", (path,))
+        n = self.remover_documento(
+            path, root_id=root_id, ocorrencia_id=ocorrencia_id
+        )
+        if self._usa_ocorrencia() and (root_id or ocorrencia_id):
+            chave = self._chave_ocorrencia(
+                path, root_id=root_id, ocorrencia_id=ocorrencia_id
+            )
+            self.con.execute("DELETE FROM documentos WHERE ocorrencia_id = ?", (chave,))
+            self.con.execute("DELETE FROM quarentena WHERE ocorrencia_id = ?", (chave,))
+        elif self._usa_ocorrencia():
+            chave = self._chave_ocorrencia(path)
+            self.con.execute("DELETE FROM documentos WHERE ocorrencia_id = ?", (chave,))
+            self.con.execute("DELETE FROM quarentena WHERE ocorrencia_id = ?", (chave,))
+        else:
+            self.con.execute("DELETE FROM documentos WHERE path = ?", (path,))
+            self.con.execute("DELETE FROM quarentena WHERE path = ?", (path,))
         return n
 
-    def remover_documento(self, path: str) -> int:
+    def remover_documento(
+        self, path: str, *, root_id: str = "", ocorrencia_id: str = ""
+    ) -> int:
         """Drop a document's chunks and vectors — makes reindexing idempotent."""
-        n = self.con.execute("SELECT count(*) FROM chunks WHERE path = ?", (path,)).fetchone()[0]
+        chave = self._chave_ocorrencia(
+            path, root_id=root_id, ocorrencia_id=ocorrencia_id
+        )
+        if self._usa_ocorrencia() and (root_id or ocorrencia_id):
+            where, params = "ocorrencia_id = ?", (chave,)
+        else:
+            where, params = "path = ?", (path,)
+        n = self.con.execute(
+            f"SELECT count(*) FROM chunks WHERE {where}", params
+        ).fetchone()[0]
         if n:
-            self.con.execute("DELETE FROM chunks WHERE path = ?", (path,))
+            self.con.execute(f"DELETE FROM chunks WHERE {where}", params)
             from .operacoes import apagar_vetores_do_path
 
-            apagar_vetores_do_path(self, path)
+            apagar_vetores_do_path(
+                self, path, root_id=root_id, ocorrencia_id=ocorrencia_id
+            )
         return n
 
     def gravar_textos(self, chunks: Sequence[Chunk]) -> None:
@@ -612,11 +789,12 @@ class Store:
         if not chunks:
             return
         self.con.executemany(
-            "INSERT OR REPLACE INTO chunks (id, path, caminho, ordinal, trilha, locator, kind, chars, texto)"
-            " VALUES (?,?,?,?,?,?,?,?,?)",
+            "INSERT OR REPLACE INTO chunks (id, ocorrencia_id, path, caminho, ordinal, trilha, locator, kind, chars, texto)"
+            " VALUES (?,?,?,?,?,?,?,?,?,?)",
             [
                 (
                     c.id,
+                    c.ocorrencia_id or c.doc_path,
                     c.doc_path,
                     caminho_pesquisavel(c.doc_path),
                     c.ordinal,
@@ -642,10 +820,10 @@ class Store:
         if len(chunks) != len(vetores):
             raise ValueError(f"{len(chunks)} chunks e {len(vetores)} vetores")
         extensao = Path(chunks[0].doc_path).suffix.lower()
-        self.tabela.add(
-            [
+        registros = [
                 {
                     "id": c.id,
+                    "ocorrencia_id": c.ocorrencia_id or c.doc_path,
                     "path": c.doc_path,
                     "ordinal": c.ordinal,
                     "kind": c.kind.value,
@@ -656,7 +834,16 @@ class Store:
                 }
                 for c, v in zip(chunks, vetores)
             ]
-        )
+        try:
+            self.tabela.add(registros)
+        except Exception as exc:  # noqa: BLE001 — old LanceDB schema may lack the owner column
+            # An index made before FND-01b has no occurrence column. It is
+            # still readable; migration is the operation that upgrades it.
+            if "ocorrencia_id" not in str(exc).lower():
+                raise
+            for registro in registros:
+                registro.pop("ocorrencia_id", None)
+            self.tabela.add(registros)
 
     def substituir_vetores(
         self,
@@ -674,7 +861,12 @@ class Store:
             return
         from .operacoes import apagar_vetores_do_path
 
-        apagar_vetores_do_path(self, chunks[0].doc_path)
+        apagar_vetores_do_path(
+            self,
+            chunks[0].doc_path,
+            root_id=chunks[0].root_id,
+            ocorrencia_id=chunks[0].ocorrencia_id,
+        )
         self.gravar_vetores(chunks, vetores, mtime, model_id)
 
     def gravar_chunks(
@@ -691,21 +883,50 @@ class Store:
         self.gravar_textos(chunks)
         self.gravar_vetores(chunks, vetores, mtime, model_id)
 
-    def carimbar_modelo(self, path: str, model_id: str) -> None:
+    def carimbar_modelo(
+        self, path: str, model_id: str, *, root_id: str = "", ocorrencia_id: str = ""
+    ) -> None:
         """Pass 2: the bytes did not change, only the dense space did."""
-        self.con.execute(
-            "UPDATE documentos SET model_id = ?, indexado_em = ? WHERE path = ?",
-            (model_id, agora(), path),
-        )
+        if self._usa_ocorrencia() and (root_id or ocorrencia_id):
+            chave = self._chave_ocorrencia(
+                path, root_id=root_id, ocorrencia_id=ocorrencia_id
+            )
+            self.con.execute(
+                "UPDATE documentos SET model_id = ?, indexado_em = ? WHERE ocorrencia_id = ?",
+                (model_id, agora(), chave),
+            )
+        else:
+            self.con.execute(
+                "UPDATE documentos SET model_id = ?, indexado_em = ? WHERE path = ?",
+                (model_id, agora(), path),
+            )
 
     def pendentes_de_modelo(self, model_id: str) -> list[str]:
         """OK documents that have chunks and are not yet on `model_id`."""
-        linhas = self.con.execute(
-            "SELECT path FROM documentos WHERE status = 'ok' AND n_chunks > 0 "
-            "AND (model_id IS NULL OR model_id != ?) ORDER BY path",
-            (model_id,),
-        )
-        return [r["path"] for r in linhas]
+        return [path for path, _, _ in self.pendentes_de_modelo_detalhes(model_id)]
+
+    def pendentes_de_modelo_detalhes(
+        self, model_id: str
+    ) -> list[tuple[str, str, str]]:
+        """The pass-two queue with enough identity to disambiguate homonyms."""
+        if self._usa_ocorrencia():
+            linhas = self.con.execute(
+                "SELECT path, root_id, ocorrencia_id FROM documentos "
+                "WHERE status = 'ok' AND n_chunks > 0 "
+                "AND (model_id IS NULL OR model_id != ?) ORDER BY root_id, path",
+                (model_id,),
+            )
+        else:
+            linhas = self.con.execute(
+                "SELECT path, raiz AS root_id, '' AS ocorrencia_id FROM documentos "
+                "WHERE status = 'ok' AND n_chunks > 0 "
+                "AND (model_id IS NULL OR model_id != ?) ORDER BY path",
+                (model_id,),
+            )
+        return [
+            (str(row["path"]), str(row["root_id"] or ""), str(row["ocorrencia_id"] or ""))
+            for row in linhas
+        ]
 
     def documentos_para_ocr(self, versao: str) -> list[tuple[str, str]]:
         """Scans waiting for OCR, or OCR'd with an older engine. (path, raiz).
@@ -817,10 +1038,19 @@ class Store:
         )
 
     def chunk(self, chunk_id: str) -> ChunkArmazenado | None:
-        linha = self.con.execute(
-            "SELECT id, path, ordinal, trilha, locator, kind, texto FROM chunks WHERE id = ?", (chunk_id,)
-        ).fetchone()
-        return ChunkArmazenado(**dict(linha)) if linha else None
+        consulta = (
+            "SELECT c.id, c.path, c.ordinal, c.trilha, c.locator, c.kind, c.texto, "
+            "c.ocorrencia_id, COALESCE(d.root_id, '') AS root_id "
+            "FROM chunks c LEFT JOIN documentos d ON c.ocorrencia_id = d.ocorrencia_id "
+            "WHERE c.id = ?"
+            if self._usa_ocorrencia() else
+            "SELECT id, path, ordinal, trilha, locator, kind, texto, ocorrencia_id "
+            "FROM chunks WHERE id = ?"
+        )
+        linha = self.con.execute(consulta, (chunk_id,)).fetchone()
+        if not linha:
+            return None
+        return ChunkArmazenado(**dict(linha))
 
     def chunks_por_id(self, ids: Sequence[str]) -> dict[str, ChunkArmazenado]:
         """Vários chunks numa ida ao banco. Id ausente simplesmente não aparece.
@@ -844,17 +1074,24 @@ class Store:
         for inicio in range(0, len(unicos), 900):
             lote = unicos[inicio : inicio + 900]
             marcas = ",".join("?" * len(lote))
-            linhas = self.con.execute(
-                "SELECT id, path, ordinal, trilha, locator, kind, texto FROM chunks "
-                f"WHERE id IN ({marcas})",
-                lote,
-            ).fetchall()
+            consulta = (
+                "SELECT c.id, c.path, c.ordinal, c.trilha, c.locator, c.kind, c.texto, "
+                "c.ocorrencia_id, COALESCE(d.root_id, '') AS root_id "
+                "FROM chunks c LEFT JOIN documentos d ON c.ocorrencia_id = d.ocorrencia_id "
+                f"WHERE c.id IN ({marcas})"
+                if self._usa_ocorrencia() else
+                "SELECT id, path, ordinal, trilha, locator, kind, texto, ocorrencia_id FROM chunks "
+                f"WHERE id IN ({marcas})"
+            )
+            linhas = self.con.execute(consulta, lote).fetchall()
             for linha in linhas:
                 armazenado = ChunkArmazenado(**dict(linha))
                 achados[armazenado.id] = armazenado
         return achados
 
-    def ids_de_chunks_por_path(self, paths: Sequence[str]) -> dict[str, list[str]]:
+    def ids_de_chunks_por_path(
+        self, paths: Sequence[str], *, root_id: str = ""
+    ) -> dict[str, list[str]]:
         """`ids_de_chunks` para vários documentos de uma vez, em ordem de leitura.
 
         Mesmo motivo do método acima: o ranqueador de nome pergunta isto para
@@ -867,15 +1104,28 @@ class Store:
         for inicio in range(0, len(unicos), 900):
             lote = unicos[inicio : inicio + 900]
             marcas = ",".join("?" * len(lote))
-            linhas = self.con.execute(
-                f"SELECT path, id FROM chunks WHERE path IN ({marcas}) ORDER BY path, ordinal",
-                lote,
-            ).fetchall()
+            if root_id and self._usa_ocorrencia():
+                from .ocorrencia import id_de
+
+                oid = [id_de(root_id, path) for path in lote]
+                linhas = self.con.execute(
+                    "SELECT path, id FROM chunks WHERE ocorrencia_id IN ("
+                    + ",".join("?" * len(oid))
+                    + ") ORDER BY path, ordinal",
+                    oid,
+                ).fetchall()
+            else:
+                linhas = self.con.execute(
+                    f"SELECT path, id FROM chunks WHERE path IN ({marcas}) ORDER BY path, ordinal",
+                    lote,
+                ).fetchall()
             for linha in linhas:
                 por_path.setdefault(linha["path"], []).append(linha["id"])
         return por_path
 
-    def ids_de_chunks(self, path: str) -> list[str]:
+    def ids_de_chunks(
+        self, path: str, *, root_id: str = "", ocorrencia_id: str = ""
+    ) -> list[str]:
         """Só os ids de um documento, em ordem de leitura — sem carregar texto.
 
         Existe separado de `chunks_de` porque o ranqueador de nome pergunta isto
@@ -883,16 +1133,38 @@ class Store:
         documento tem. Trazer `texto` junto seria ler o documento inteiro do disco
         para descartá-lo, `candidatos` vezes, dentro do caminho de consulta.
         """
-        linhas = self.con.execute(
-            "SELECT id FROM chunks WHERE path = ? ORDER BY ordinal", (path,)
-        ).fetchall()
+        if self._usa_ocorrencia() and (root_id or ocorrencia_id):
+            chave = self._chave_ocorrencia(
+                path, root_id=root_id, ocorrencia_id=ocorrencia_id
+            )
+            linhas = self.con.execute(
+                "SELECT id FROM chunks WHERE ocorrencia_id = ? ORDER BY ordinal",
+                (chave,),
+            ).fetchall()
+        else:
+            linhas = self.con.execute(
+                "SELECT id FROM chunks WHERE path = ? ORDER BY ordinal", (path,)
+            ).fetchall()
         return [linha[0] for linha in linhas]
 
-    def chunks_de(self, path: str) -> list[ChunkArmazenado]:
-        linhas = self.con.execute(
-            "SELECT id, path, ordinal, trilha, locator, kind, texto FROM chunks WHERE path = ? ORDER BY ordinal",
-            (path,),
-        ).fetchall()
+    def chunks_de(
+        self, path: str, *, root_id: str = "", ocorrencia_id: str = ""
+    ) -> list[ChunkArmazenado]:
+        if self._usa_ocorrencia() and (root_id or ocorrencia_id):
+            chave = self._chave_ocorrencia(
+                path, root_id=root_id, ocorrencia_id=ocorrencia_id
+            )
+            linhas = self.con.execute(
+                "SELECT c.id, c.path, c.ordinal, c.trilha, c.locator, c.kind, c.texto, "
+                "c.ocorrencia_id, COALESCE(d.root_id, '') AS root_id "
+                "FROM chunks c LEFT JOIN documentos d ON c.ocorrencia_id = d.ocorrencia_id "
+                "WHERE c.ocorrencia_id = ? ORDER BY c.ordinal", (chave,)
+            ).fetchall()
+        else:
+            linhas = self.con.execute(
+                "SELECT id, path, ordinal, trilha, locator, kind, texto, ocorrencia_id "
+                "FROM chunks WHERE path = ? ORDER BY ordinal", (path,)
+            ).fetchall()
         return [ChunkArmazenado(**dict(l)) for l in linhas]
 
     def vizinhos(self, chunk_id: str, janela: int = 1) -> list[ChunkArmazenado]:
@@ -901,9 +1173,11 @@ class Store:
         if atual is None:
             return []
         linhas = self.con.execute(
-            "SELECT id, path, ordinal, trilha, locator, kind, texto FROM chunks"
-            " WHERE path = ? AND ordinal BETWEEN ? AND ? ORDER BY ordinal",
-            (atual.path, atual.ordinal - janela, atual.ordinal + janela),
+            "SELECT c.id, c.path, c.ordinal, c.trilha, c.locator, c.kind, c.texto, c.ocorrencia_id, "
+            "COALESCE(d.root_id, '') AS root_id FROM chunks c "
+            "LEFT JOIN documentos d ON c.ocorrencia_id = d.ocorrencia_id "
+            "WHERE c.ocorrencia_id = ? AND c.ordinal BETWEEN ? AND ? ORDER BY c.ordinal",
+            (atual.ocorrencia_id or atual.path, atual.ordinal - janela, atual.ordinal + janela),
         ).fetchall()
         return [ChunkArmazenado(**dict(l)) for l in linhas]
 
@@ -930,11 +1204,17 @@ class Store:
         condicoes: list[str] = []
         parametros: list[object] = []
         for alvo in alvos.values():
-            condicoes.append("(path = ? AND ordinal BETWEEN ? AND ?)")
-            parametros += [alvo.path, alvo.ordinal - janela, alvo.ordinal + janela]
+            condicoes.append(
+                "(ocorrencia_id = ? AND ordinal BETWEEN ? AND ?)"
+            )
+            parametros += [
+                alvo.ocorrencia_id or alvo.path,
+                alvo.ordinal - janela,
+                alvo.ordinal + janela,
+            ]
 
         linhas = self.con.execute(
-            "SELECT id, path, ordinal, trilha, locator, kind, texto FROM chunks WHERE "
+            "SELECT id, path, ordinal, trilha, locator, kind, texto, ocorrencia_id FROM chunks WHERE "
             + " OR ".join(condicoes)
             + " ORDER BY path, ordinal",
             parametros,
@@ -943,14 +1223,16 @@ class Store:
         por_path: dict[str, list[ChunkArmazenado]] = {}
         for linha in linhas:
             armazenado = ChunkArmazenado(**dict(linha))
-            por_path.setdefault(armazenado.path, []).append(armazenado)
+            por_path.setdefault(
+                armazenado.ocorrencia_id or armazenado.path, []
+            ).append(armazenado)
 
         # Uma faixa por acerto, recortada da lista do documento: dois acertos no
         # mesmo arquivo têm janelas diferentes, e podem se sobrepor.
         return {
             chunk_id: [
                 c
-                for c in por_path.get(alvo.path, ())
+                for c in por_path.get(alvo.ocorrencia_id or alvo.path, ())
                 if alvo.ordinal - janela <= c.ordinal <= alvo.ordinal + janela
             ]
             for chunk_id, alvo in alvos.items()
@@ -958,7 +1240,14 @@ class Store:
 
     # --- grafo derivado (F4) ----------------------------------------------
 
-    def registrar_mencoes(self, path: str, mencoes: Sequence[tuple[str, str, str]]) -> int:
+    def registrar_mencoes(
+        self,
+        path: str,
+        mencoes: Sequence[tuple[str, str, str]],
+        *,
+        root_id: str = "",
+        ocorrencia_id: str = "",
+    ) -> int:
         """Substitui as menções de um documento. Devolve quantas ficaram.
 
         Substitui em vez de acrescentar porque a passada do grafo é idempotente
@@ -966,20 +1255,31 @@ class Store:
         identificador que saiu do texto depois de uma edição tem que sair do
         grafo — senão a aresta sobrevive ao fato que a justificava.
         """
-        self.con.execute("DELETE FROM mencoes WHERE path = ?", (path,))
+        chave = self._chave_ocorrencia(
+            path, root_id=root_id, ocorrencia_id=ocorrencia_id
+        )
+        if self._usa_ocorrencia():
+            self.con.execute("DELETE FROM mencoes WHERE ocorrencia_id = ?", (chave,))
+        else:
+            self.con.execute("DELETE FROM mencoes WHERE path = ?", (path,))
         if mencoes:
             self.con.executemany(
-                "INSERT OR REPLACE INTO mencoes(path, tipo, valor, chunk_id) VALUES (?,?,?,?)",
-                [(path, t, v, c) for t, v, c in mencoes],
+                "INSERT OR REPLACE INTO mencoes(ocorrencia_id, path, tipo, valor, chunk_id) VALUES (?,?,?,?,?)",
+                [(chave, path, t, v, c) for t, v, c in mencoes],
             )
         return len(mencoes)
 
-    def mencoes_de(self, path: str) -> list[tuple[str, str, str]]:
+    def mencoes_de(
+        self, path: str, *, root_id: str = "", ocorrencia_id: str = ""
+    ) -> list[tuple[str, str, str]]:
+        chave = self._chave_ocorrencia(
+            path, root_id=root_id, ocorrencia_id=ocorrencia_id
+        )
         return [
             (l["tipo"], l["valor"], l["chunk_id"])
             for l in self.con.execute(
-                "SELECT tipo, valor, chunk_id FROM mencoes WHERE path = ? ORDER BY tipo, valor",
-                (path,),
+                "SELECT tipo, valor, chunk_id FROM mencoes WHERE ocorrencia_id = ? ORDER BY tipo, valor",
+                (chave,),
             )
         ]
 
@@ -1099,9 +1399,19 @@ class Store:
         janeiro contra agosto. Medido na condição C, é a causa da falha do caso
         `g010` (`docs/portas-f1-condicao-c.md`).
         """
+        raiz_coluna = "root_id" if self._usa_ocorrencia() else "raiz AS root_id"
+        linhas = list(self.con.execute(f"SELECT path, mtime, {raiz_coluna} FROM documentos"))
+        duplicados = {
+            r["path"] for r in linhas
+            if sum(x["path"] == r["path"] for x in linhas) > 1
+        }
         return {
-            linha["path"]: linha["mtime"]
-            for linha in self.con.execute("SELECT path, mtime FROM documentos")
+            (
+                f"{r['root_id']}\0{r['path']}"
+                if r["path"] in duplicados
+                else r["path"]
+            ): r["mtime"]
+            for r in linhas
         }
 
     def paths_com_chunks(self) -> list[str]:

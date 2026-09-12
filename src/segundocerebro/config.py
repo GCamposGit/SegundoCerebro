@@ -537,6 +537,13 @@ class Base:
         self.busca.validar(onde)
         self.chunking.validar(onde)
         self.limites.validar(onde)
+        nomes = [raiz.name.strip() for raiz in self.raizes]
+        repetidos = sorted({nome for nome in nomes if nome and nomes.count(nome) > 1})
+        if repetidos:
+            raise ErroDeConfig(
+                f"{onde}: nomes de raiz repetidos ({', '.join(repetidos)}); "
+                "cada raiz precisa de um root_id único"
+            )
 
 
 @dataclass(frozen=True)

@@ -81,6 +81,7 @@ def reconciliar(
     vistos: set[str],
     *,
     prefixo: str | None = None,
+    root_ids: set[str] | None = None,
     completa: bool = True,
     limite_seguranca: float = LIMITE_SEGURANCA,
     forcar: bool = False,
@@ -98,7 +99,7 @@ def reconciliar(
         log.info("reconciliação pulada: %s", resultado.recusada)
         return resultado
 
-    registrados = store.registrados(prefixo)
+    registrados = store.registrados(prefixo, root_ids=root_ids)
     ausentes = [p for p in registrados if p not in vistos]
     if not ausentes:
         return resultado
@@ -123,12 +124,21 @@ def reconciliar(
         if sha:
             por_sha.setdefault(sha, caminho)
 
-    for caminho in sorted(ausentes):
-        sha = registrados.get(caminho, "")
+    for chave in sorted(ausentes):
+        root_id, separador, caminho = chave.partition("\0")
+        if not separador:
+            caminho = chave
+        sha = registrados.get(chave, "")
         destino = por_sha.get(sha) if sha else None
         if destino:
-            resultado.movidos.append((caminho, destino))
-        resultado.chunks_removidos += store.esquecer_documento(caminho)
+            _, destino_separador, destino_path = destino.partition("\0")
+            resultado.movidos.append(
+                (caminho, destino_path if destino_separador else destino)
+            )
+        resultado.chunks_removidos += store.esquecer_documento(
+            caminho,
+            root_id=root_id if separador else "",
+        )
         resultado.removidos.append(caminho)
 
     store.commit()
