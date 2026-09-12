@@ -30,6 +30,7 @@ from .original import (
 )
 from .pagina_documento import CHARS_PADRAO, decodificar_cursor, paginar
 from .registro import Documento, resolver
+from ..index.ocorrencia import CaminhoAmbiguo
 
 # Uma chamada interativa não deve iniciar um job de horas. O indexador continua
 # disponível para arquivos acima destes tetos, sem alterar a política dele.
@@ -37,8 +38,10 @@ MAX_ORIGINAL_MB = 50
 TIMEOUT_SEGUNDOS = 60
 
 
-def _resolver(store: Store, documento: str, base_id: str, cfg=None) -> Documento:
-    ref = interpretar(documento)
+def _resolver(
+    store: Store, documento: str, base_id: str, cfg=None, root_id: str = ""
+) -> Documento:
+    ref = interpretar(documento, root_id=root_id)
     erro = ref.erro or conferir_base(ref, base_id)
     if erro:
         raise ErroLeitura("referencia_invalida", erro)
@@ -47,22 +50,7 @@ def _resolver(store: Store, documento: str, base_id: str, cfg=None) -> Documento
     doc = resolver(store, ref)
     if doc is None or not doc.doc_id:
         raise ErroLeitura("sem_documento", "Documento sem identidade no índice. Confira list_folder e indexe-o primeiro.")
-    if ref.caminho:
-        _conferir_ambiguidade(doc, cfg)
     return doc
-
-
-def _conferir_ambiguidade(doc: Documento, cfg) -> None:
-    """Um so_censo de outra raiz não pode virar o arquivo homônimo do índice."""
-    for raiz in cfg.roots if cfg else ():
-        if raiz.name == doc.raiz:
-            continue
-        try:
-            candidato = localizar(replace(doc, raiz=raiz.name), cfg)
-        except ErroLeitura:
-            continue  # Link/exclusão não constitui outro documento acessível.
-        if candidato is not None and candidato.is_file():
-            raise ErroLeitura("caminho_ambiguo", "Há esse caminho em mais de uma raiz. Use o id ou URI do documento indexado; arquivos so_censo precisam de indexação.")
 
 
 def _obter(indice: Path, doc: Documento) -> tuple[Chave, ParseCanonico] | None:
@@ -104,7 +92,9 @@ def _reler(indice: Path, doc: Documento, base: Any, alvo: Path | None) -> tuple[
 def _metadados(doc: Documento, canonico: ParseCanonico, chave: Chave, base_id: str) -> dict[str, Any]:
     return {
         "id": doc.doc_id, "uri": montar_uri(base_id, doc.doc_id) if base_id else "",
-        "arquivo": doc.caminho, "raiz": doc.raiz, "titulo": Path(doc.caminho).stem,
+        "arquivo": doc.caminho, "raiz": doc.raiz, "root_id": doc.root_id,
+        "ocorrencia_id": doc.ocorrencia_id,
+        "titulo": Path(doc.caminho).stem,
         "caminho_preferido": doc.caminhos[0], "sha256": doc.sha256,
         "mtime": doc.mtime, "indexado_em": doc.indexado_em, "bytes_original": doc.tamanho,
         "total_chars": canonico.chars, "total_blocos": len(canonico.blocos),
@@ -156,12 +146,24 @@ class LeitorDocumento:
             raise ErroLeitura("documento_alterado", "O original mudou durante a leitura. Reinicie após reindexar.")
         return chave, canonico, alvo
 
-    def ler(self, documento: str, cursor: str | None = None, max_chars: int = CHARS_PADRAO) -> dict[str, Any]:
+    def ler(
+        self,
+        documento: str,
+        cursor: str | None = None,
+        max_chars: int = CHARS_PADRAO,
+        *,
+        root_id: str = "",
+    ) -> dict[str, Any]:
         decodificar_cursor(cursor)  # Recusa barata antes de qualquer parse.
         if type(max_chars) is not int or max_chars < 1:
             raise ErroLeitura("orcamento_invalido", "max_chars deve ser um inteiro positivo.")
         base_id = getattr(self.base, "id", "") or ""
-        doc = _resolver(self.store, documento, base_id, configuracao(self.base))
+        try:
+            doc = _resolver(
+                self.store, documento, base_id, configuracao(self.base), root_id
+            )
+        except CaminhoAmbiguo as erro:
+            raise ErroLeitura("caminho_ambiguo", str(erro)) from erro
         chave, canonico, alvo = self.carregar_documento(doc)
         identidade = json.dumps([str(resolver_caminho(self.store.diretorio)), base_id, doc.raiz,
                                  doc.caminho, doc.sha256, chave.digest(),

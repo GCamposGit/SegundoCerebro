@@ -47,11 +47,14 @@ def registrar(
         read_only_hint=True, destructive_hint=False, open_world_hint=False,
     ))
     def get_document(
-        documento: str, cursor: str | None = None, max_chars: int = CHARS_PADRAO,
+        documento: str,
+        cursor: str | None = None,
+        max_chars: int = CHARS_PADRAO,
+        root_id: str = "",
     ) -> CallToolResult:
-        """documento: caminho/id/URI; cursor: continuação opaca; max_chars: orçamento."""
+        """documento: caminho/id/URI; root_id: raiz quando o caminho é homônimo; cursor: continuação opaca; max_chars: orçamento."""
         try:
-            saida = leitor().ler(documento, cursor, max_chars)
+            saida = leitor().ler(documento, cursor, max_chars, root_id=root_id)
             return sucesso(saida)
         except ErroLeitura as erro:
             return erro_operacional(str(erro), erro.codigo)

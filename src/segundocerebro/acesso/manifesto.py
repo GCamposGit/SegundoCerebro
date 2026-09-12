@@ -134,6 +134,8 @@ def _item(
     item: dict[str, Any] = {
         "arquivo": doc.caminho,
         "raiz": doc.raiz,
+        "root_id": doc.root_id,
+        "ocorrencia_id": doc.ocorrencia_id,
         "tipo": _tipo(doc.caminho),
         "status": "quarentena" if quarentena else STATUS_LEGIVEL.get(doc.status, doc.status),
         "modificado": _data(doc.mtime),
@@ -203,6 +205,8 @@ def _complementar_com_censo(
                     caminhos=(arquivo.rel,),
                     sem_id=motivo_sem_id("so_censo"),
                     raiz=arquivo.root.name,
+                    root_id=arquivo.root.name,
+                    ocorrencia_id="",
                     tamanho=arquivo.size,
                     mtime=arquivo.mtime,
                     status="so_censo",
@@ -286,13 +290,17 @@ def manifesto(
     quarentena = registro.quarentena_da_pasta(store, pasta, recursivo=recursivo)
 
     pagina = paginar(documentos, posicao, limite)
-    tamanhos = registro.texto_por_documento(store, [d.caminho for d in pagina.itens])
+    tamanhos = registro.texto_por_documento(
+        store,
+        [d.caminho for d in pagina.itens],
+        documentos=pagina.itens,
+    )
     canonico = vigentes(documentos)
     itens = [
         _item(
             doc, base=base,
-            chars=0 if doc.status == "so_censo" else tamanhos.get(doc.caminho, (0, 0))[0],
-            trechos=0 if doc.status == "so_censo" else tamanhos.get(doc.caminho, (0, 0))[1],
+            chars=0 if doc.status == "so_censo" else tamanhos.get(doc.ocorrencia_id or doc.caminho, (0, 0))[0],
+            trechos=0 if doc.status == "so_censo" else tamanhos.get(doc.ocorrencia_id or doc.caminho, (0, 0))[1],
             vigente=(doc.raiz, doc.caminho) in canonico,
             quarentena="" if doc.status == "so_censo" else quarentena.get(doc.caminho, ""),
         )
@@ -324,6 +332,9 @@ def _cabecalho(
     """A identidade do documento no topo do mapa, com o que falta dito na cara."""
     cabecalho: dict[str, Any] = {
         "arquivo": doc.caminho,
+        "raiz": doc.raiz,
+        "root_id": doc.root_id,
+        "ocorrencia_id": doc.ocorrencia_id,
         "tipo": _tipo(doc.caminho),
         "status": STATUS_LEGIVEL.get(doc.status, doc.status),
         "modificado": _data(doc.mtime),
@@ -364,7 +375,12 @@ def mapa(
             ),
         }
 
-    secoes = registro.estrutura_de(store, doc.caminho)
+    secoes = registro.estrutura_de(
+        store,
+        doc.caminho,
+        root_id=doc.root_id,
+        ocorrencia_id=doc.ocorrencia_id,
+    )
     pagina = paginar(secoes, cursor, limite)
     cabecalho = _cabecalho(doc, secoes, base)
 

@@ -120,6 +120,7 @@ class Referencia:
     doc_id: str = ""
     caminho: str = ""
     base: str = ""
+    root_id: str = ""
     erro: str = ""
 
     @property
@@ -131,7 +132,7 @@ def montar_uri(base: str, doc_id: str) -> str:
     return f"{ESQUEMA_URI}://{base}/{doc_id}"
 
 
-def interpretar(texto: str) -> Referencia:
+def interpretar(texto: str, root_id: str = "") -> Referencia:
     """Aceita `sc://<base>/<doc_id>`, um `doc_id` nu, ou um caminho relativo.
 
     A ambiguidade é declarada em vez de adivinhada: um texto de exatamente 12
@@ -159,7 +160,7 @@ def interpretar(texto: str) -> Referencia:
 
     if parece_doc_id(bruto):
         return Referencia(doc_id=bruto.lower())
-    return Referencia(caminho=bruto)
+    return Referencia(caminho=bruto, root_id=(root_id or "").strip())
 
 
 def conferir_base(referencia: Referencia, base_do_processo: str) -> str:

@@ -169,7 +169,8 @@ def test_sha_cruzado_nao_reembedda(tmp_path: Path) -> None:
 
     progresso = indexar(cfg, store, emb, publicar=False)
 
-    assert progresso.indexados == 1
-    assert progresso.falhas.get("duplicado") == 1
-    assert emb.chamadas > 0
+    assert progresso.indexados == 2
+    assert not progresso.falhas.get("duplicado")
+    assert emb.chamadas == 2
+    assert store.estatisticas()["documentos"] == 2
     store.fechar()

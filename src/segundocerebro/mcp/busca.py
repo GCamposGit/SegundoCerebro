@@ -42,6 +42,8 @@ def _procedencia(chunk: Any) -> dict[str, Any]:
     return {
         "id": chunk.id if hasattr(chunk, "id") else chunk.chunk_id,
         "arquivo": chunk.path,
+        **({"root_id": chunk.root_id} if getattr(chunk, "root_id", "") else {}),
+        **({"ocorrencia_id": chunk.ocorrencia_id} if getattr(chunk, "ocorrencia_id", "") else {}),
         "secao": chunk.trilha or "",
         "onde": chunk.locator or "",
     }
@@ -87,6 +89,7 @@ def _registrar_search(servidor: Any, recursos: Any, limites: Any) -> None:
         incluir_versoes_antigas: bool = False,
         depois_de: str = "",
         antes_de: str = "",
+        root_id: str = "",
     ) -> dict[str, Any]:
         """Args:
         consulta: pergunta ou termos em linguagem natural.
@@ -110,6 +113,7 @@ def _registrar_search(servidor: Any, recursos: Any, limites: Any) -> None:
             incluir_versoes_antigas=incluir_versoes_antigas,
             depois_de=depois_de,
             antes_de=antes_de,
+            root_id=root_id,
         )
         trechos = []
         for a in acertos:

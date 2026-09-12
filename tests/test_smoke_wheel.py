@@ -74,7 +74,10 @@ def _montar_venv_com_wheel(tmp: Path, *, com_html: bool, com_eval: bool = False)
     dist.mkdir(parents=True)
     _escrever_toy(pkg, com_html=com_html)
     wheel = subprocess.run(  # noqa: S603 — pip wheel do fixture sintético, argv fixo
-        [sys.executable, "-m", "pip", "wheel", "--no-deps", "-w", str(dist), str(pkg)],
+        [
+            sys.executable, "-m", "pip", "wheel", "--no-deps", "--no-build-isolation",
+            "-w", str(dist), str(pkg),
+        ],
         capture_output=True,
         text=True,
         timeout=TIMEOUT_VENV_S,
