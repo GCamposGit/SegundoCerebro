@@ -28,6 +28,11 @@ def env_sem_pythonpath(base: dict[str, str] | None = None) -> dict[str, str]:
     return {chave: valor for chave, valor in origem.items() if chave.upper() != "PYTHONPATH"}
 
 
+def caminho_interprete(caminho: Path) -> Path:
+    """Torna o caminho absoluto sem dissolver o symlink da venv."""
+    return Path(os.path.abspath(caminho))
+
+
 def _rodar(
     python: Path,
     codigo: str,
@@ -194,7 +199,7 @@ def main(argv: list[str] | None = None) -> int:
         help="valida o conteúdo do wheel sem executar entry points que exigem dependências",
     )
     args = parser.parse_args(argv)
-    python = args.python.resolve()
+    python = caminho_interprete(args.python)
     if not python.is_file():
         print(f"python não encontrado: {python}", file=sys.stderr)
         return 2
