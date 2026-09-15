@@ -289,6 +289,10 @@ def indexar(
         CHUNKER_VERSION,
         {"max_chars": chunk_cfg.max_chars, "modelo": embedder.spec.id, "dim": embedder.dim},
     )
+    # `comando.txt` pertence à sessão que o criou. Remover um cancelamento
+    # órfão logo após assumir o lock impede que uma sessão anterior aborte a
+    # nova antes do primeiro documento.
+    limpar_comando(store.diretorio)
 
     vistos: set[str] = set()
 
@@ -984,7 +988,6 @@ def indexar(
         # estimativa conta como restante o acervo inteiro, inclusive o que
         # acabou de ser pulado.
         ciclo()
-        limpar_comando(store.diretorio)
         limpar_pedido(store.diretorio)
         preencher()
         while inflight:
