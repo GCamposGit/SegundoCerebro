@@ -18,6 +18,7 @@ from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 
 from ..index.store import Store
+from ..index.ocorrencia import CaminhoAmbiguo
 from ..retrieve.familias import por_vigencia
 from .identidade import Referencia, doc_id_de, faixa_de_prefixo, motivo_sem_id, preferido
 
@@ -65,6 +66,8 @@ class Documento:
     familia_real: str = ""
     digitalizado: bool = False
     paginas: int = 0
+    root_id: str = ""
+    ocorrencia_id: str = ""
 
     @property
     def duplicado(self) -> bool:
@@ -111,7 +114,28 @@ def _linha_para_documento(linha, caminhos: Sequence[str]) -> Documento:  # noqa:
         familia_real=str(linha["familia_real"] or ""),
         digitalizado=bool(linha["digitalizado"]),
         paginas=int(linha["paginas"] or 0),
+        root_id=(str(linha["root_id"] or "") if "root_id" in linha.keys() else str(linha["raiz"] or "")),
+        ocorrencia_id=(str(linha["ocorrencia_id"] or "") if "ocorrencia_id" in linha.keys() else ""),
     )
+
+
+def _campos(store: Store) -> str:
+    if store._usa_ocorrencia():
+        return (
+            "path, root_id, ocorrencia_id, raiz, tamanho, mtime, sha256, status, n_chunks, parser, indexado_em, "
+            "familia_real, digitalizado, paginas"
+        )
+    return CAMPOS
+
+
+def _linhas_doc_id(store: Store, doc_id: str, root_id: str = "") -> list:
+    inicio, fim = faixa_de_prefixo(doc_id)
+    sql = f"SELECT {_campos(store)} FROM documentos WHERE sha256 >= ? AND sha256 < ?"
+    params: list[object] = [inicio, fim]
+    if root_id and store._usa_ocorrencia():
+        sql += " AND root_id = ?"
+        params.append(root_id)
+    return list(store.con.execute(sql, params))
 
 
 def caminhos_de_doc_id(store: Store, doc_id: str) -> list[str]:
@@ -123,15 +147,14 @@ def caminhos_de_doc_id(store: Store, doc_id: str) -> list[str]:
     """
     if not doc_id:
         return []
-    inicio, fim = faixa_de_prefixo(doc_id)
-    linhas = store.con.execute(
-        "SELECT path, mtime FROM documentos WHERE sha256 >= ? AND sha256 < ?",
-        (inicio, fim),
-    ).fetchall()
+    linhas = _linhas_doc_id(store, doc_id)
     if not linhas:
         return []
-    mtimes = {str(l["path"]): float(l["mtime"] or 0.0) for l in linhas}
-    return por_vigencia(sorted(mtimes), mtimes)
+    mtimes = {
+        f"{str(l['root_id'])}\0{str(l['path'])}" if "root_id" in l.keys() else str(l["path"]): float(l["mtime"] or 0.0)
+        for l in linhas
+    }
+    return [chave.split("\0", 1)[-1] for chave in por_vigencia(sorted(mtimes), mtimes)]
 
 
 def irmaos_de_conteudo(store: Store, sha256: str) -> list[str]:
@@ -141,18 +164,44 @@ def irmaos_de_conteudo(store: Store, sha256: str) -> list[str]:
     linhas = store.con.execute(
         "SELECT path, mtime FROM documentos WHERE sha256 = ?", (sha256,)
     ).fetchall()
-    mtimes = {str(l["path"]): float(l["mtime"] or 0.0) for l in linhas}
-    if len(mtimes) < 2:
-        return list(mtimes)
-    return por_vigencia(sorted(mtimes), mtimes)
+    mtimes = {
+        f"{str(l['root_id'])}\0{str(l['path'])}" if "root_id" in l.keys() else str(l["path"]): float(l["mtime"] or 0.0)
+        for l in linhas
+    }
+    ordenados = por_vigencia(sorted(mtimes), mtimes) if len(mtimes) > 1 else list(mtimes)
+    return [chave.split("\0", 1)[-1] for chave in ordenados]
 
 
-def documento_de_caminho(store: Store, caminho: str) -> Documento | None:
-    linha = store.con.execute(
-        f"SELECT {CAMPOS} FROM documentos WHERE path = ?", (caminho,)
-    ).fetchone()
-    if linha is None:
+def documento_de_caminho(
+    store: Store, caminho: str, *, root_id: str = "", ocorrencia_id: str = ""
+) -> Documento | None:
+    campos = _campos(store)
+    if store._usa_ocorrencia():
+        if ocorrencia_id:
+            linhas = store.con.execute(
+                f"SELECT {campos} FROM documentos WHERE ocorrencia_id = ?", (ocorrencia_id,)
+            ).fetchall()
+        elif root_id:
+            linhas = store.con.execute(
+                f"SELECT {campos} FROM documentos WHERE root_id = ? AND path = ?",
+                (root_id, caminho),
+            ).fetchall()
+        else:
+            linhas = store.con.execute(
+                f"SELECT {campos} FROM documentos WHERE path = ? ORDER BY root_id", (caminho,)
+            ).fetchall()
+            if len(linhas) > 1:
+                raise CaminhoAmbiguo(
+                    f"o caminho relativo '{caminho}' existe em mais de uma raiz; "
+                    "informe root_id ou use o id/URI"
+                )
+    else:
+        linhas = store.con.execute(
+            f"SELECT {campos} FROM documentos WHERE path = ?", (caminho,)
+        ).fetchall()
+    if not linhas:
         return None
+    linha = linhas[0]
     return _linha_para_documento(linha, irmaos_de_conteudo(store, str(linha["sha256"] or "")))
 
 
@@ -164,16 +213,20 @@ def resolver(store: Store, referencia: Referencia) -> Documento | None:
     conta própria, que é a aleatoriedade que o `J.b1` existe para fechar.
     """
     if referencia.doc_id:
-        caminhos = caminhos_de_doc_id(store, referencia.doc_id)
-        if not caminhos:
+        linhas = _linhas_doc_id(store, referencia.doc_id, referencia.root_id)
+        if not linhas:
             return None
-        escolhido = preferido(caminhos, _mtimes(store, caminhos))
-        linha = store.con.execute(
-            f"SELECT {CAMPOS} FROM documentos WHERE path = ?", (escolhido,)
-        ).fetchone()
-        return _linha_para_documento(linha, caminhos) if linha is not None else None
+        chaves = [
+            f"{str(l['root_id'])}\0{str(l['path'])}" if "root_id" in l.keys() else str(l["path"])
+            for l in linhas
+        ]
+        mtimes = {chave: float(linhas[i]["mtime"] or 0.0) for i, chave in enumerate(chaves)}
+        escolhido = preferido(chaves, mtimes)
+        linha = next(l for i, l in enumerate(linhas) if chaves[i] == escolhido)
+        caminhos = [chave.split("\0", 1)[-1] for chave in por_vigencia(sorted(chaves), mtimes)]
+        return _linha_para_documento(linha, caminhos)
     if referencia.caminho:
-        return documento_de_caminho(store, referencia.caminho)
+        return documento_de_caminho(store, referencia.caminho, root_id=referencia.root_id)
     return None
 
 
@@ -188,7 +241,9 @@ def _mtimes(store: Store, caminhos: Sequence[str]) -> dict[str, float]:
     return saida
 
 
-def estrutura_de(store: Store, caminho: str) -> list[Secao]:
+def estrutura_de(
+    store: Store, caminho: str, *, root_id: str = "", ocorrencia_id: str = ""
+) -> list[Secao]:
     """O mapa do documento: uma entrada por trilha de headings, na ordem do texto.
 
     Sai de `chunks.trilha` + `chunks.locator` + `ordinal`, que já estão indexados
@@ -204,10 +259,33 @@ def estrutura_de(store: Store, caminho: str) -> list[Secao]:
     uma que custa 80 s na primeira chamada. Número que circula sem unidade vira
     três números — foi o que aconteceu com a cobertura do dourado.
     """
-    linhas = store.con.execute(
-        "SELECT id, ordinal, trilha, locator, chars FROM chunks WHERE path = ? ORDER BY ordinal",
-        (caminho,),
-    ).fetchall()
+    if store._usa_ocorrencia() and (root_id or ocorrencia_id):
+        from ..index.ocorrencia import id_de
+
+        chave = ocorrencia_id or id_de(root_id, caminho)
+        linhas = store.con.execute(
+            "SELECT id, ordinal, trilha, locator, chars FROM chunks "
+            "WHERE ocorrencia_id = ? ORDER BY ordinal", (chave,)
+        ).fetchall()
+        # Low-level Store callers from before FND-01b have chunks owned by the
+        # path itself. Keep those snapshots readable without weakening the
+        # scoped lookup for real occurrence-owned rows.
+        if not linhas:
+            compat = store.con.execute(
+                "SELECT 1 FROM chunks WHERE path = ? "
+                "AND (ocorrencia_id = '' OR ocorrencia_id = path) LIMIT 1",
+                (caminho,),
+            ).fetchone()
+            if compat:
+                linhas = store.con.execute(
+                    "SELECT id, ordinal, trilha, locator, chars FROM chunks "
+                    "WHERE path = ? ORDER BY ordinal", (caminho,)
+                ).fetchall()
+    else:
+        linhas = store.con.execute(
+            "SELECT id, ordinal, trilha, locator, chars FROM chunks WHERE path = ? ORDER BY ordinal",
+            (caminho,),
+        ).fetchall()
 
     secoes: list[Secao] = []
     for linha in linhas:
@@ -267,11 +345,11 @@ def documentos_da_pasta(store: Store, pasta: str, *, recursivo: bool = False) ->
         # "/" é 0x2F e "0" é 0x30: todo caminho sob a pasta cai nesta faixa, e a
         # faixa usa a chave primária em vez de varrer a tabela.
         linhas = store.con.execute(
-            f"SELECT {CAMPOS} FROM documentos WHERE path >= ? AND path < ? ORDER BY path",
+            f"SELECT {_campos(store)} FROM documentos WHERE path >= ? AND path < ? ORDER BY path, raiz",
             (prefixo, prefixo[:-1] + "0"),
         ).fetchall()
     else:
-        linhas = store.con.execute(f"SELECT {CAMPOS} FROM documentos ORDER BY path").fetchall()
+        linhas = store.con.execute(f"SELECT {_campos(store)} FROM documentos ORDER BY path, raiz").fetchall()
 
     escolhidas = [l for l in linhas if _sob(str(l["path"]), prefixo, recursivo)]
     irmaos = _irmaos_em_lote(store, [str(l["sha256"] or "") for l in escolhidas])
@@ -309,7 +387,12 @@ def _irmaos_em_lote(store: Store, hashes: Iterable[str]) -> dict[str, list[str]]
     return {h: por_vigencia(sorted(m), m) for h, m in por_hash.items()}
 
 
-def texto_por_documento(store: Store, caminhos: Sequence[str]) -> dict[str, tuple[int, int]]:
+def texto_por_documento(
+    store: Store,
+    caminhos: Sequence[str],
+    *,
+    documentos: Sequence[Documento] | None = None,
+) -> dict[str, tuple[int, int]]:
     """`caminho -> (chars, trechos)`, numa consulta só para a página inteira.
 
     `chars` é o texto **indexado**, que é o que o agente vai receber se pedir o
@@ -317,6 +400,39 @@ def texto_por_documento(store: Store, caminhos: Sequence[str]) -> dict[str, tupl
     diz nada sobre quanto contexto ele custa.
     """
     saida: dict[str, tuple[int, int]] = {}
+    if documentos and store._usa_ocorrencia():
+        chaves = [doc.ocorrencia_id or doc.caminho for doc in documentos]
+        for lote in _em_lotes(chaves):
+            marcas = ",".join("?" * len(lote))
+            linhas = store.con.execute(
+                "SELECT ocorrencia_id, SUM(chars) AS chars, COUNT(*) AS trechos "
+                f"FROM chunks WHERE ocorrencia_id IN ({marcas}) GROUP BY ocorrencia_id",
+                tuple(lote),
+            )
+            saida.update({
+                str(l["ocorrencia_id"]): (int(l["chars"] or 0), int(l["trechos"] or 0))
+                for l in linhas
+            })
+        faltantes = [
+            doc for doc in documentos if (doc.ocorrencia_id or doc.caminho) not in saida
+        ]
+        for lote in _em_lotes([doc.caminho for doc in faltantes]):
+            marcas = ",".join("?" * len(lote))
+            linhas = store.con.execute(
+                "SELECT path, SUM(chars) AS chars, COUNT(*) AS trechos FROM chunks "
+                "WHERE path IN (" + marcas + ") "
+                "AND (ocorrencia_id = '' OR ocorrencia_id = path) GROUP BY path",
+                tuple(lote),
+            )
+            por_caminho = {
+                str(l["path"]): (int(l["chars"] or 0), int(l["trechos"] or 0))
+                for l in linhas
+            }
+            for doc in faltantes:
+                medida = por_caminho.get(doc.caminho)
+                if medida is not None:
+                    saida[doc.ocorrencia_id or doc.caminho] = medida
+        return saida
     for lote in _em_lotes(caminhos):
         marcas = ",".join("?" * len(lote))
         linhas = store.con.execute(

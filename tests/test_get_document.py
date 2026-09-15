@@ -378,13 +378,13 @@ def test_pdf_real_de_500_paginas_no_fluxo_isolado(acervo):
     assert len(localizadores) == 500
 
 
-def test_homonimo_so_censo_em_outra_raiz_nao_vira_documento_indexado(acervo, tmp_path):
+def test_homonimo_so_censo_em_outra_raiz_nao_sobrescreve_documento_indexado(acervo, tmp_path):
     leitor, original, sha = acervo
     outra = tmp_path / "outra-raiz"
     outra.mkdir()
     (outra / original.name).write_text("conteúdo diferente ainda não indexado", encoding="utf-8")
     leitor.base = replace(leitor.base, raizes=(*leitor.base.raizes, RootSpec("outra", outra)))
-    with pytest.raises(ErroLeitura) as erro:
-        leitor.ler(original.name)
-    assert erro.value.codigo == "caminho_ambiguo"
+    lido = leitor.ler(original.name)
+    assert lido["documento"]["raiz"] == "r"
+    assert "Texto integral" in lido["markdown"]
     assert leitor.ler(sha[:12])["documento"]["raiz"] == "r"

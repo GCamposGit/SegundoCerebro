@@ -31,6 +31,8 @@ class Hit:
     anteriores: tuple[str, ...] = ()
     formatos: tuple[str, ...] = ()
     versoes: int = 1
+    root_id: str = ""
+    ocorrencia_id: str = ""
 
 
 @dataclass(frozen=True)
@@ -54,6 +56,8 @@ class ChunkAcerto:
     anteriores: tuple[str, ...] = ()
     formatos: tuple[str, ...] = ()
     versoes: int = 1
+    root_id: str = ""
+    ocorrencia_id: str = ""
 
 
 class Retriever(Protocol):

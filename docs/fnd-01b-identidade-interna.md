@@ -1,12 +1,13 @@
 # FND-01b — identidade interna por raiz e caminho
 
-Desenho que desbloqueia a implementação. Não é a migração. Schema, Store e
-índice real **não mudam neste documento**.
+Contrato de implementação do FND-01b. A persistência e a integração pública
+foram entregues em dois commits revisáveis; a ativação do índice real continua
+sendo uma operação explícita e reversível.
 
 Serve a uma pasta que nunca vimos: duas raízes na mesma base, o mesmo
-`contrato.md` relativo, conteúdos diferentes. Hoje o 01a recusa a passada.
-Amanhã as duas ocorrências existem e a MCP as distingue. Empate no desenho
-encerra; não se “começa a migrar para ver”.
+`contrato.md` relativo, conteúdos diferentes. O 01a recusava a passada. Agora
+as duas ocorrências coexistem e a MCP as distingue; a migração escreve em
+diretório novo e só publica após a verificação.
 
 Relaciona o `J.b1` sem trocar o `doc_id` público de conteúdo.
 
@@ -14,16 +15,17 @@ Relaciona o `J.b1` sem trocar o `doc_id` público de conteúdo.
 
 | Peça | Estado | Consequência |
 |---|---|---|
-| `documentos.path` é `PRIMARY KEY` | `esquema.py` | homônimo entre raízes é uma linha só |
-| `documentos.raiz` já existe | metadado, não chave | a recusa do 01a não usa isso para coexistir |
+| `documentos.ocorrencia_id` é `PRIMARY KEY` após migração | `esquema.py` | homônimo entre raízes são linhas distintas |
+| `documentos.path` no schema legado | compatibilidade de leitura | migração reconstrói a chave sem alterar o original |
 | `doc_id` = prefixo de `sha256` | `acesso/identidade.py` | identidade **pública de conteúdo**; não muda |
 | `sc://<base>/<doc_id>` | conferência de base, nunca seletor | invariante 7 |
-| parse store | chave = hash + parser | não usa path; migração não o reescreve |
-| journal `operacoes.path` | FND-02b, PR #102 | a migração tem de levar o journal, ou recusar se houver linha pendente |
+| parse store | chave = hash + parser | não usa path; migração copia e verifica sem reescrever |
+| journal `operacoes.ocorrencia_id` | FND-02b | a migração leva o journal e recusa linha pendente |
 | backup para pasta nova | FND-08b, PR #98 | destino da migração; original intacto |
 
-A recusa do 01a (PR #90) permanece até o aceite da integração: dois homônimos
-indexados **e** consultáveis. Tirar a recusa no PR de migração é regressão.
+O indexador não chama mais a guarda temporária do 01a. A ambiguidade continua
+protegida na resolução pública: caminho sem raiz só é aceito quando há uma
+única ocorrência.
 
 ## Decisões
 
@@ -63,7 +65,7 @@ ocorrência — isso é o remapeamento, não um rename silencioso.
 `caminho_rel` é POSIX relativo à raiz (`contrato.md`, `atas/2024/x.pdf`),
 sem drive e sem `..`.
 
-PK sugerida de `documentos`: `ocorrencia_id`. Colunas `root_id` e
+PK de `documentos`: `ocorrencia_id`. Colunas `root_id` e
 `caminho_rel` com `UNIQUE(root_id, caminho_rel)`. `path` deixa de ser PK;
 pode ficar coluna gerada ou view de compatibilidade **só na leitura do
 schema antigo**, não como chave nova.
@@ -74,7 +76,7 @@ schema antigo**, não como chave nova.
 `ocorrencia_id` (não o path cru). Dois `contrato.md` não compartilham chunk
 nem vetor.
 
-`operacoes.path` (FND-02b) passa a `ocorrencia_id`. Migração com journal
+`operacoes.ocorrencia_id` (FND-02b) identifica a ocorrência. Migração com journal
 pendente: **recusar**. Escritor parado (trava do 08b) é pré-requisito.
 
 LanceDB: o campo que hoje replica `path` replica `ocorrencia_id`. Integridade
@@ -128,23 +130,21 @@ trabalho/contrato.md  "Contrato do escritório da VCE, cláusula 9."
 Mesmo conteúdo nas duas raízes: duas ocorrências, um `doc_id`, preferido
 pela regra já existente de `por_vigencia`.
 
-## Dois PRs, um de cada vez
+## Dois commits, em ordem
 
-**PR 1 — migração (Desktop).** `index/esquema.py`, `store.py`, migrador,
-`operacoes.py` (journal), laço do indexer o mínimo para gravar
-`ocorrencia_id`. Recusa 01a **ligada**. Testes com duas raízes sintéticas no
-Store, sem MCP.
+**Commit 1 — persistência.** `index/esquema.py`, `store.py`, migrador,
+`operacoes.py` (journal), integridade e reconciliação. Testes com duas raízes
+sintéticas no Store, sem acervo real.
 
-**PR 2 — integração (Notebook, depois do 1 em `main`).**
-`acesso/identidade.py`, `registro.py`, resolução MCP, `chunking.py` se o
-id do chunk ainda nascer do path. Só então desligar a recusa 01a, no mesmo
-PR que prova o exemplo acima.
+**Commit 2 — integração pública (Notebook).** `acesso/identidade.py`,
+`registro.py`, resolução MCP, busca, leitura e `chunking.py`; remove a guarda
+temporária e prova o exemplo acima.
 
-Não um diff só. `store.py` e `acesso/identidade.py` não abrem juntos.
+Os commits permanecem separados para revisão. A fila registra o executor
+`notebook` e a evidência SHA da entrega.
 
 ## Fora deste desenho
 
-- Implementar o migrador ou mudar `ESQUEMA` agora.
 - Ligar em índice real (corporativo ou do Desktop) antes da fixture verde.
 - Inferir `root_id` de `C:` / `D:` / UNC.
 - Trocar `doc_id` público ou o esquema `sc://`.
@@ -152,6 +152,6 @@ Não um diff só. `store.py` e `acesso/identidade.py` não abrem juntos.
 
 ## Aceite do desenho (esta entrega)
 
-Documento versionado; fila `FND-01b` em `em_execucao` no PR 1 de migração
-(Desktop). Recusa do 01a permanece. Implementação que divergir destas decisões
-reabre o bloqueio, não “ajusta no código”.
+Documento versionado; fila `FND-01b` e `FND-01b-int` com dono `notebook` e
+evidência SHA. Fixtures sintéticas verdes, migração verificada em diretório
+novo e ativação real mantida como passo separado e reversível.

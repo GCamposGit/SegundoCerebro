@@ -190,6 +190,16 @@ class Config:
     o aviso não sai (ninguém declarou nada) ou sai doze vezes por passada."""
     top: int = 15
 
+    def validar_raizes(self) -> None:
+        """Root names are the stable namespace used by FND-01b."""
+        nomes = [root.name.strip() for root in self.roots]
+        repetidos = sorted({nome for nome in nomes if nome and nomes.count(nome) > 1})
+        if repetidos:
+            raise ValueError(
+                "nomes de raiz repetidos: " + ", ".join(repetidos)
+                + "; informe um root_id único para cada raiz"
+            )
+
     def dir_rule(self, name: str) -> str | None:
         """Qual entrada de `exclude_dirs` tira esta pasta."""
         lowered = name.lower()

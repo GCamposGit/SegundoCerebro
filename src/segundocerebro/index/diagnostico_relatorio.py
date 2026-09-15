@@ -107,7 +107,7 @@ def _higienizar(valor: Any, chave: str = "") -> Any:
         return tuple(_higienizar(v) for v in valor)
     if isinstance(valor, str):
         texto = _SEGREDO.sub("<SEGREDO>", valor)
-        texto = _CAMINHO_USUARIO.sub("<DIR_USUARIO>", texto)
+        texto = _CAMINHO_USUARIO.sub("<DIR_PRIVADO>", texto)
         return _CAMINHO_LOCAL.sub("<CAMINHO_LOCAL>", texto)
     return valor
 

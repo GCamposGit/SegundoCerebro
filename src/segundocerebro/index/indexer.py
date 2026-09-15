@@ -68,7 +68,7 @@ from .store import ChunkArmazenado, Store
 from .operacoes import publicar_completo, publicar_lexical, publicar_vetores, recuperar_pendentes
 from .trava import TravaDeIndice as TravaDeIndice
 from .trava import TravaOcupada as TravaOcupada
-from .identidade_entrada import ColisaoDeCaminho as ColisaoDeCaminho, conferir_colisoes
+from .ocorrencia import id_de
 from .travas import NOME_DA_TRAVA as NOME_DA_TRAVA  # reexport histórico: painel e testes o pedem daqui
 
 log = get_logger("index.indexer")
@@ -78,9 +78,12 @@ INTERVALO_LOG = 25
 
 
 def _documento_ok(root, arquivo, resultado, chunks, model_id: str) -> dict:  # noqa: ANN001
+    ocorrencia_id = id_de(root.name, arquivo.rel)
     return {
         "path": arquivo.rel,
         "raiz": root.name,
+        "root_id": root.name,
+        "ocorrencia_id": ocorrencia_id,
         "tamanho": arquivo.size,
         "mtime": arquivo.mtime,
         "sha256": resultado.sha256,
@@ -203,6 +206,8 @@ def _chunk_de(arm: ChunkArmazenado) -> Chunk:
         text=arm.texto,
         locator=arm.locator,
         kind=kind,
+        ocorrencia_id=arm.ocorrencia_id,
+        root_id=arm.root_id,
     )
 
 
@@ -254,6 +259,7 @@ def indexar(
     source unmatchable — the eval would report zero recall and the blame would
     land on the retriever.
     """
+    cfg.validar_raizes()
     chunk_cfg = chunk_cfg or ChunkConfig()
     if chunk_cfg.max_tokens is None:
         # o orçamento real vem do tokenizador do modelo, não de caracteres
@@ -326,10 +332,10 @@ def indexar(
             "exclusões por regra: %s",
             " · ".join(f"{k} = {v}" for k, v in sorted(exclusoes["por_regra"].items())),
         )
-    conferir_colisoes(enumerados, store, prefixo=prefixo, execucao=execucao)
     for _root, arquivos in enumerados:
         for arquivo in arquivos:
             vistos.add(arquivo.rel)
+            vistos.add(f"{_root.name}\0{arquivo.rel}")
     trabalho = [
         (root, ordenar_fila(indexaveis(arquivos), apenas_onda=apenas_onda))
         for root, arquivos in enumerados
@@ -473,8 +479,9 @@ def indexar(
                 # pergunta "este caminho existe em disco?", e a resposta é sim
                 # mesmo quando o documento já estava indexado e íntegro.
                 vistos.add(arquivo.rel)
+                vistos.add(f"{root.name}\0{arquivo.rel}")
                 progresso.documentos += 1
-                estado = store.estado_documento(arquivo.rel)
+                estado = store.estado_documento_da_raiz(arquivo.rel, root.name)
                 versao_parser = parser_version_for(os.path.splitext(arquivo.rel)[1])
                 sha_conhecido = estado.sha256 if estado is not None else ""
                 if pular_por_quarentena(
@@ -576,12 +583,13 @@ def indexar(
                     execucao=execucao,
                     fingerprint=impressao,
                     model_id=embedder.model_id,
+                    root_id=getattr(getattr(arquivo, "root", None), "name", ""),
                 )
             except Exception as erro:  # noqa: BLE001 — medir não pode derrubar indexar
                 log.debug("medição não gravada para %s: %s", arquivo.rel, erro)
 
         def gravar_ok(root, arquivo, estado, resultado, chunks, vetores, crono) -> None:  # noqa: ANN001
-            store.limpar_quarentena(arquivo.rel)
+            store.limpar_quarentena(arquivo.rel, root_id=root.name)
             publicar_completo(
                 store,
                 chunks,
@@ -735,6 +743,7 @@ def indexar(
                 if _venenoso(resultado):
                     item = store.registrar_quarentena(
                         arquivo.rel,
+                        root_id=root.name,
                         hash=resultado.sha256 or (estado.sha256 if estado else ""),
                         motivo=resultado.detail,
                     )
@@ -745,7 +754,7 @@ def indexar(
                         item.tentativas,
                         arquivo.rel,
                     )
-                store.remover_documento(arquivo.rel)
+                store.remover_documento(arquivo.rel, root_id=root.name)
                 store.registrar_documento(
                     path=arquivo.rel,
                     raiz=root.name,
@@ -821,43 +830,14 @@ def indexar(
                     publicador.publicar()
                 return
 
-            outro = store.path_ok_por_sha256(
-                resultado.sha256,
-                embedder.model_id,
-                CHUNKER_VERSION,
-                parser_version_for(os.path.splitext(arquivo.rel)[1]),
+            ocorrencia_id = id_de(root.name, arquivo.rel)
+            chunks = chunk_document(
+                resultado.doc,
+                arquivo.rel,
+                chunk_cfg,
+                ocorrencia_id=ocorrencia_id,
+                root_id=root.name,
             )
-            if outro and outro != arquivo.rel:
-                store.registrar_documento(
-                    path=arquivo.rel,
-                    raiz=root.name,
-                    tamanho=arquivo.size,
-                    mtime=arquivo.mtime,
-                    sha256=resultado.sha256,
-                    status=ParseStatus.DUPLICATE.value,
-                    detalhe=f"mesmo conteúdo que {outro}",
-                    n_chunks=0,
-                    model_id=embedder.model_id,
-                    chunker=CHUNKER_VERSION,
-                    parser=_parser_gravado(resultado, arquivo.rel),
-                    natureza=resultado.natureza,
-                )
-                store.commit()
-                progresso.registrar_falha(ParseStatus.DUPLICATE.value)
-                crono.marcar("grava")
-                registrar_obs(
-                    arquivo,
-                    crono,
-                    situacao="duplicado",
-                    status=ParseStatus.DUPLICATE.value,
-                    natureza=resultado.natureza,
-                )
-                if publicador is not None:
-                    publicador.anotar(falhas=progresso.falhas, etapa=None, trecho=None, trechos=None)
-                    publicador.publicar()
-                return
-
-            chunks = chunk_document(resultado.doc, arquivo.rel, chunk_cfg)
             crono.marcar("chunk")
             ext = os.path.splitext(arquivo.rel)[1].lower()
             if (
@@ -865,7 +845,7 @@ def indexar(
                 and ext in EXTENSOES_DE_TEXTO_BRUTO
                 and len(chunks) > limite_chunks
             ):
-                store.remover_documento(arquivo.rel)
+                store.remover_documento(arquivo.rel, root_id=root.name)
                 store.registrar_documento(
                     path=arquivo.rel,
                     raiz=root.name,
@@ -918,7 +898,7 @@ def indexar(
 
             ritmo = controle.plano.duty_padrao if controle is not None else 1.0
             if dois_passes:
-                store.limpar_quarentena(arquivo.rel)
+                store.limpar_quarentena(arquivo.rel, root_id=root.name)
                 publicar_lexical(
                     store,
                     chunks,
@@ -1054,11 +1034,19 @@ def indexar(
                 progresso.interrompido = True
                 break
 
-        def embeber_um(path_rel: str) -> None:
-            estado = store.estado_documento(path_rel)
+        def embeber_um(
+            path_rel: str, root_id: str = "", ocorrencia_id: str = ""
+        ) -> None:
+            estado = (
+                store.estado_documento_da_raiz(path_rel, root_id)
+                if root_id
+                else store.estado_documento(path_rel)
+            )
             if estado is None or estado.n_chunks <= 0:
                 return
-            armazenados = store.chunks_de(path_rel)
+            armazenados = store.chunks_de(
+                path_rel, root_id=root_id, ocorrencia_id=ocorrencia_id
+            )
             if not armazenados:
                 return
             chunks = [_chunk_de(a) for a in armazenados]
@@ -1096,7 +1084,14 @@ def indexar(
                 progresso.interrompido = True
                 return
             publicar_vetores(
-                store, chunks, vetores, arquivo_mtime, embedder.model_id, path_rel
+                store,
+                chunks,
+                vetores,
+                arquivo_mtime,
+                embedder.model_id,
+                path_rel,
+                root_id=root_id,
+                ocorrencia_id=ocorrencia_id,
             )
             if publicador is not None:
                 publicador.anotar(
@@ -1153,19 +1148,21 @@ def indexar(
                         ocr=True,
                     )
                     crono_ocr.marcar("parse")
-                    estado_antes = store.estado_documento(rel)
+                    estado_antes = store.estado_documento_da_raiz(rel, root.name)
                     if preservar_no_erro_de_ocr(store, progresso, rel, estado_antes, resultado):
                         log.warning("OCR falhou em %s; o texto já indexado fica", rel)
                         continue
                     aplicar(root, arquivo, estado_antes, resultado, crono_ocr)
 
         if dois_passes and not progresso.interrompido:
-            for path_rel in store.pendentes_de_modelo(embedder.model_id):
+            for path_rel, root_id, ocorrencia_id in store.pendentes_de_modelo_detalhes(
+                embedder.model_id
+            ):
                 honrar_comando()
                 if interrupcao.pedida:
                     progresso.interrompido = True
                     break
-                embeber_um(path_rel)
+                embeber_um(path_rel, root_id, ocorrencia_id)
 
     # A passada só vale para reconciliar se percorreu o escopo inteiro. Com
     # `--limite` ou interrupção, um caminho ausente de `vistos` significa "não
@@ -1180,6 +1177,7 @@ def indexar(
         store,
         vistos,
         prefixo=prefixo,
+        root_ids={root.name for root in cfg.roots},
         completa=passada_completa and reconciliar_ao_fim,
         forcar=forcar_reconciliacao,
     )

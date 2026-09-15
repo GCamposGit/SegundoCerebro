@@ -60,8 +60,8 @@ DESCRICAO_OUTLINE = (
 )
 
 
-def _referencia(documento: str, id_da_base: str):  # noqa: ANN202
-    referencia = interpretar(documento)
+def _referencia(documento: str, id_da_base: str, root_id: str = ""):  # noqa: ANN202
+    referencia = interpretar(documento, root_id=root_id)
     if referencia.erro:
         return None, {"erro": referencia.erro, "codigo": "referencia_invalida", "secoes": []}
     divergencia = conferir_base(referencia, id_da_base)
@@ -140,13 +140,14 @@ def _registrar_outline(servidor, recursos) -> None:  # noqa: ANN001
         documento: str,
         cursor: int = 0,
         max_secoes: int = manifesto.LIMITE_SECOES,
+        root_id: str = "",
     ) -> CallToolResult:
         """Args:
         documento: caminho, `id` de `list_folder`, ou URI `sc://<base>/<id>`.
         cursor: de onde continuar, vindo de `cursor_proximo`.
         max_secoes: quantas seções devolver por página.
         """
-        referencia, recusa = _referencia(documento, id_da_base)
+        referencia, recusa = _referencia(documento, id_da_base, root_id)
         if recusa is not None:
             return erro_operacional(recusa["erro"], recusa.get("codigo", "referencia_invalida"), {"secoes": []})
 

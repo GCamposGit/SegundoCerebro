@@ -52,8 +52,8 @@ proxima_acao = ""
 
 [[pacote]]
 id = "FND-01b"
-estado = "em_execucao"
-dono = "desktop"
+estado = "entregue"
+dono = "notebook"
 paths = [
     "docs/fnd-01b-identidade-interna.md",
     "src/segundocerebro/index/esquema.py",
@@ -61,27 +61,36 @@ paths = [
     "src/segundocerebro/index/migrar_identidade.py",
     "src/segundocerebro/index/store.py",
     "src/segundocerebro/index/operacoes.py",
-    "src/segundocerebro/index/inflar.py",
-    "src/segundocerebro/index/identidade_entrada.py",
+    "src/segundocerebro/index/integridade.py",
+    "src/segundocerebro/index/reconciliar.py",
+    "src/segundocerebro/ingest/chunking.py",
 ]
 dependencias = ["FND-01a", "FND-02b", "FND-08b"]
-aceite = "duas raízes sintéticas com contrato.md distinto coexistem no Store novo; original intacto; recusa 01a permanece"
-evidencia = ""
-proxima_acao = "PR de migração para diretório novo; não desligar a recusa 01a; não abrir acesso/identidade.py"
+aceite = "duas raízes sintéticas com contrato.md distinto coexistem; migração para diretório novo preserva o original; chunks, vetores e journal são copiados e conferidos; ativação real é separada"
+evidencia = { sha = "f01d5a7e89731ff856dde4003c0b2f38f1a51398" }
+proxima_acao = ""
 
 [[pacote]]
 id = "FND-01b-int"
-estado = "bloqueado"
+estado = "entregue"
 dono = "notebook"
 paths = [
+    "src/segundocerebro/index/indexer.py",
     "src/segundocerebro/acesso/identidade.py",
     "src/segundocerebro/acesso/registro.py",
+    "src/segundocerebro/acesso/documento.py",
+    "src/segundocerebro/acesso/manifesto.py",
+    "src/segundocerebro/mcp/busca.py",
+    "src/segundocerebro/mcp/documento.py",
+    "src/segundocerebro/mcp/leitura.py",
+    "src/segundocerebro/retrieve/contrato.py",
+    "src/segundocerebro/retrieve/hybrid.py",
     "src/segundocerebro/ingest/chunking.py",
 ]
 dependencias = ["FND-01b"]
-aceite = "MCP distingue os dois contrato.md; path relativo ambíguo pede root_id; recusa 01a sai neste PR"
-evidencia = ""
-proxima_acao = "depois da migração em main; não abrir junto com store.py"
+aceite = "MCP distingue os dois contrato.md; path relativo ambíguo pede root_id; doc_id permanece por conteúdo; guarda temporária FND-01a removida"
+evidencia = { sha = "f01d5a7e89731ff856dde4003c0b2f38f1a51398" }
+proxima_acao = ""
 
 [[pacote]]
 id = "FND-02b"

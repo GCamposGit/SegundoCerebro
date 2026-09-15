@@ -24,6 +24,10 @@ class CaminhoRelativoInvalido(ValueError):
     """Relative path is absolute, has a drive, or climbs out of the root."""
 
 
+class CaminhoAmbiguo(ValueError):
+    """A relative path exists in more than one configured root."""
+
+
 def caminho_rel(path: str) -> str:
     """POSIX relative path: no drive, no `..`, no leading slash."""
     texto = path.replace("\\", "/").strip()
@@ -44,6 +48,36 @@ def id_de(root_id: str, path: str) -> str:
         raise ValueError("root_id vazio")
     rel = caminho_rel(path)
     return sha256(f"{raiz}\0{rel}".encode()).hexdigest()[:TAMANHO_OCORRENCIA_ID]
+
+
+def chave_de(
+    store: Store,
+    path: str,
+    *,
+    root_id: str = "",
+    ocorrencia_id: str = "",
+) -> str:
+    """Resolve the internal key while retaining path-only compatibility.
+
+    Low-level callers historically passed only a path. That remains valid for a
+    unique path (and for legacy stores); a v2 store refuses to guess when two
+    roots contain the same relative path.
+    """
+    rel = caminho_rel(path)
+    if ocorrencia_id:
+        return ocorrencia_id
+    if root_id:
+        return id_de(root_id, rel)
+    if not usa_ocorrencia(store.con):
+        return rel
+    linhas = store.con.execute(
+        "SELECT ocorrencia_id FROM documentos WHERE path = ?", (rel,)
+    ).fetchall()
+    if len(linhas) > 1:
+        raise CaminhoAmbiguo(
+            f"o caminho relativo '{rel}' existe em mais de uma raiz; informe root_id"
+        )
+    return str(linhas[0][0]) if linhas else rel
 
 
 def usa_ocorrencia(con: sqlite3.Connection) -> bool:

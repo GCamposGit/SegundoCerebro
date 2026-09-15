@@ -473,8 +473,8 @@ def test_exportar_suporte_anonimiza_caminhos_e_segredos() -> None:
             ItemDiagnostico(
                 codigo="caminho_sensivel",
                 severidade="aviso",
-                mensagem=r"Falha no arquivo C:\Users\Ada\AcervoVCE\config.toml",
-                acao=r"Consulte /home/ada/projetos/arquivo.pdf",
+                mensagem=r"Falha no arquivo C:\Users\usuario\AcervoSintetico\config.toml",
+                acao=r"Consulte /home/usuario/projetos/arquivo.pdf",
                 evidencia={
                     "consulta": "contrato secreto",
                     "token": "sk-segredosegredo",
@@ -484,14 +484,13 @@ def test_exportar_suporte_anonimiza_caminhos_e_segredos() -> None:
     )
     anonimizado = relatorio.exportar_suporte()
 
-    assert "Ada" not in anonimizado
-    assert "ada" not in anonimizado
+    assert "usuario" not in anonimizado.lower()
     assert r"C:\Users" not in anonimizado
     assert "/home" not in anonimizado
     assert "contrato secreto" not in anonimizado
     assert "sk-segredosegredo" not in anonimizado
     assert "confidencial" not in anonimizado
-    assert "<DIR_USUARIO>" in anonimizado
+    assert "<DIR_PRIVADO>" in anonimizado
 
 
 def test_cli_diagnosticar_main(tmp_path: Path, capsys: pytest.CaptureFixture[str]) -> None:

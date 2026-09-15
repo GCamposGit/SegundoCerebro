@@ -24,7 +24,6 @@ from segundocerebro.census import Config, DeclaredExclusions, RoleExclusion, Roo
 from segundocerebro.config import ErroDeConfig
 from segundocerebro.ingest.chunking import CHUNKER_VERSION, ChunkConfig
 from segundocerebro.index.indexer import _deve_ativar_mcp, indexar
-from segundocerebro.index.identidade_entrada import ColisaoDeCaminho
 from segundocerebro.index.store import Store, consulta_fts
 
 from tests.falsos import DIM, EmbedderFalso, chunk, config_de_raiz, corpus
@@ -947,11 +946,11 @@ def test_exigir_exclusoes_nao_atrapalha_regra_que_funciona(tmp_path: Path) -> No
     assert progresso.indexados == 1
 
 
-# --- FND-01a: recusa de colisão de caminhos antes de escrever ------------------
+# --- FND-01b: caminhos iguais em raízes distintas ------------------------------
 
 
 def test_store_guarda_homonimos_em_raizes_distintas(tmp_path: Path) -> None:
-    """FND-01b: o Store novo guarda as duas ocorrências; a recusa 01a continua no indexador."""
+    """O Store novo guarda as duas ocorrências com ids internos distintos."""
     store = Store(tmp_path / "indice", DIM)
     store.registrar_documento(
         path="contrato.md",
@@ -1000,8 +999,8 @@ def test_store_guarda_homonimos_em_raizes_distintas(tmp_path: Path) -> None:
     store.fechar()
 
 
-def test_indexar_recusa_colisao_duas_raizes(tmp_path: Path) -> None:
-    """FND-01a: recusa a passada antes de qualquer escrita quando há homônimos."""
+def test_indexar_aceita_homonimos_duas_raizes(tmp_path: Path) -> None:
+    """A identidade por ocorrência indexa homônimos sem sobrescrever dados."""
     raiz_a = tmp_path / "raiz_a"
     raiz_b = tmp_path / "raiz_b"
     raiz_a.mkdir()
@@ -1011,30 +1010,18 @@ def test_indexar_recusa_colisao_duas_raizes(tmp_path: Path) -> None:
 
     cfg = Config(roots=[RootSpec(name="raiz_a", path=raiz_a), RootSpec(name="raiz_b", path=raiz_b)])
     store = Store(tmp_path / "indice", DIM)
-    emb = EmbedderFalso()
-
-    with pytest.raises(ColisaoDeCaminho) as exc_info:
-        indexar(cfg, store, emb, parse_workers=1)
-
-    msg = str(exc_info.value)
-    assert "contrato.md" in msg
-    assert "raiz_a" in msg
-    assert "raiz_b" in msg
-    assert "bases distintas" in msg
-    assert "config.toml" in msg
-
-    # Integridade comprovada: nenhum documento gerou embeddings, nenhum foi gravado
-    assert emb.chamadas == 0
-    assert store.estatisticas()["documentos"] == 0
-
-    # Estado de execução registrado explicitamente como 'recusada'
-    status_exec = store.con.execute("SELECT status FROM execucoes ORDER BY id DESC LIMIT 1").fetchone()[0]
-    assert status_exec == "recusada"
+    progresso = indexar(cfg, store, EmbedderFalso(), parse_workers=1)
+    assert progresso.indexados == 2
+    assert store.estatisticas()["documentos"] == 2
+    assert {
+        str(row["root_id"])
+        for row in store.con.execute("SELECT root_id FROM documentos WHERE path = 'contrato.md'")
+    } == {"raiz_a", "raiz_b"}
     store.fechar()
 
 
-def test_indexar_recusa_colisao_ordem_invertida(tmp_path: Path) -> None:
-    """A recusa não favorece a primeira nem a última raiz silenciosamente."""
+def test_indexar_aceita_homonimos_ordem_invertida(tmp_path: Path) -> None:
+    """A ordem das raízes não altera a coexistência das ocorrências."""
     raiz_a = tmp_path / "raiz_a"
     raiz_b = tmp_path / "raiz_b"
     raiz_a.mkdir()
@@ -1045,13 +1032,17 @@ def test_indexar_recusa_colisao_ordem_invertida(tmp_path: Path) -> None:
     cfg = Config(roots=[RootSpec(name="raiz_b", path=raiz_b), RootSpec(name="raiz_a", path=raiz_a)])
     store = Store(tmp_path / "indice", DIM)
 
-    with pytest.raises(ColisaoDeCaminho):
-        indexar(cfg, store, EmbedderFalso(), parse_workers=1)
+    progresso = indexar(cfg, store, EmbedderFalso(), parse_workers=1)
+    assert progresso.indexados == 2
+    assert {
+        str(row["root_id"])
+        for row in store.con.execute("SELECT root_id FROM documentos WHERE path = 'nota.txt'")
+    } == {"raiz_a", "raiz_b"}
     store.fechar()
 
 
-def test_indexar_recusa_colisao_mesmo_hash(tmp_path: Path) -> None:
-    """Mesmo conteúdo/hash em raízes distintas também é recusado para evitar colisão de procedência."""
+def test_indexar_aceita_homonimos_mesmo_hash(tmp_path: Path) -> None:
+    """Conteúdo idêntico mantém dois donos, embora compartilhe o doc_id público."""
     raiz_a = tmp_path / "raiz_a"
     raiz_b = tmp_path / "raiz_b"
     raiz_a.mkdir()
@@ -1063,13 +1054,17 @@ def test_indexar_recusa_colisao_mesmo_hash(tmp_path: Path) -> None:
     cfg = Config(roots=[RootSpec(name="raiz_a", path=raiz_a), RootSpec(name="raiz_b", path=raiz_b)])
     store = Store(tmp_path / "indice", DIM)
 
-    with pytest.raises(ColisaoDeCaminho):
-        indexar(cfg, store, EmbedderFalso(), parse_workers=1)
+    progresso = indexar(cfg, store, EmbedderFalso(), parse_workers=1)
+    assert progresso.indexados == 2
+    assert store.estatisticas()["documentos"] == 2
+    assert store.con.execute(
+        "SELECT count(DISTINCT sha256) FROM documentos WHERE path = 'identico.md'"
+    ).fetchone()[0] == 1
     store.fechar()
 
 
-def test_indexar_recusa_colisao_contra_indice_pre_existente(tmp_path: Path) -> None:
-    """Conflito entre raiz atual e raiz já registrada no Store recusa sem apagar nada."""
+def test_indexar_aceita_homonimo_contra_indice_pre_existente(tmp_path: Path) -> None:
+    """Uma segunda raiz pode ser adicionada a um Store já populado."""
     raiz_a = tmp_path / "raiz_a"
     raiz_b = tmp_path / "raiz_b"
     raiz_a.mkdir()
@@ -1088,21 +1083,20 @@ def test_indexar_recusa_colisao_contra_indice_pre_existente(tmp_path: Path) -> N
 
     # 2. Tenta indexar raiz B com o mesmo contrato.md
     cfg_b = Config(roots=[RootSpec(name="raiz_b", path=raiz_b)])
-    with pytest.raises(ColisaoDeCaminho) as exc_info:
-        indexar(cfg_b, store, EmbedderFalso(), parse_workers=1)
+    progresso_b = indexar(cfg_b, store, EmbedderFalso(), parse_workers=1)
 
-    assert "raiz_b" in str(exc_info.value)
-    assert "raiz_a" in str(exc_info.value)
-
-    # 3. Estado anterior permaneceu intocado; reconciliação de remoção NÃO disparou
-    assert store.estatisticas()["documentos"] == 1
-    raiz_depois = store.con.execute("SELECT raiz FROM documentos WHERE path = 'contrato.md'").fetchone()[0]
-    assert raiz_depois == "raiz_a"
+    assert progresso_b.indexados == 1
+    assert store.estatisticas()["documentos"] == 2
+    raizes = {
+        str(row["root_id"])
+        for row in store.con.execute("SELECT root_id FROM documentos WHERE path = 'contrato.md'")
+    }
+    assert raizes == {"raiz_a", "raiz_b"}
     store.fechar()
 
 
-def test_indexar_recusa_colisao_com_prefixo(tmp_path: Path) -> None:
-    """Passada incremental com --prefixo detecta conflito se o prefixo alcançar o homônimo."""
+def test_indexar_aceita_homonimos_com_prefixo(tmp_path: Path) -> None:
+    """Uma passada incremental mantém o caminho exato em cada raiz."""
     raiz_a = tmp_path / "raiz_a"
     raiz_b = tmp_path / "raiz_b"
     (raiz_a / "sub").mkdir(parents=True)
@@ -1113,8 +1107,12 @@ def test_indexar_recusa_colisao_com_prefixo(tmp_path: Path) -> None:
     cfg = Config(roots=[RootSpec(name="raiz_a", path=raiz_a), RootSpec(name="raiz_b", path=raiz_b)])
     store = Store(tmp_path / "indice", DIM)
 
-    with pytest.raises(ColisaoDeCaminho):
-        indexar(cfg, store, EmbedderFalso(), parse_workers=1, prefixo="sub")
+    progresso = indexar(cfg, store, EmbedderFalso(), parse_workers=1, prefixo="sub")
+    assert progresso.indexados == 2
+    assert {
+        str(row["root_id"])
+        for row in store.con.execute("SELECT root_id FROM documentos WHERE path = 'sub/doc.md'")
+    } == {"raiz_a", "raiz_b"}
     store.fechar()
 
 

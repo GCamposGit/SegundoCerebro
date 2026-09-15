@@ -1,4 +1,4 @@
-"""FND-01b: migrar índice legado para pasta nova, original intacto, recusa 01a ligada."""
+"""FND-01b: migrar índice legado para pasta nova, original intacto."""
 
 from __future__ import annotations
 
@@ -11,7 +11,6 @@ import pytest
 from segundocerebro.census import Config, RootSpec
 from segundocerebro.index.backup_manifesto import BackupRecusado
 from segundocerebro.index.esquema import ESQUEMA_DOCUMENTOS_V1, SCHEMA_VERSAO
-from segundocerebro.index.identidade_entrada import ColisaoDeCaminho
 from segundocerebro.index.indexer import indexar
 from segundocerebro.index.migrar_identidade import MigracaoRecusada, migrar
 from segundocerebro.index.ocorrencia import id_de, usa_ocorrencia
@@ -159,7 +158,7 @@ def test_migrar_interrompida_nao_publica(tmp_path: Path, monkeypatch: pytest.Mon
     assert _bytes_origem(origem) == antes
 
 
-def test_indexar_ainda_recusa_homonimos_depois_do_schema_novo(tmp_path: Path) -> None:
+def test_indexar_aceita_homonimos_depois_do_schema_novo(tmp_path: Path) -> None:
     raiz_a = tmp_path / "pessoal"
     raiz_b = tmp_path / "trabalho"
     raiz_a.mkdir()
@@ -169,8 +168,11 @@ def test_indexar_ainda_recusa_homonimos_depois_do_schema_novo(tmp_path: Path) ->
     cfg = Config(roots=[RootSpec(name="pessoal", path=raiz_a), RootSpec(name="trabalho", path=raiz_b)])
     store = Store(tmp_path / "indice", DIM)
     assert usa_ocorrencia(store.con)
-    with pytest.raises(ColisaoDeCaminho) as exc:
-        indexar(cfg, store, EmbedderFalso(), parse_workers=1)
-    assert "contrato.md" in str(exc.value)
-    assert store.estatisticas()["documentos"] == 0
+    progresso = indexar(cfg, store, EmbedderFalso(), parse_workers=1)
+    assert progresso.indexados == 2
+    assert store.estatisticas()["documentos"] == 2
+    assert {
+        str(row["root_id"])
+        for row in store.con.execute("SELECT root_id FROM documentos WHERE path = 'contrato.md'")
+    } == {"pessoal", "trabalho"}
     store.fechar()

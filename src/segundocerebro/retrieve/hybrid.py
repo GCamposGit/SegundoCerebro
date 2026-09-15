@@ -35,6 +35,14 @@ from .tempo import converter_limites_temporais
 
 log = get_logger("retrieve.hybrid")
 
+
+def _chave_documento(chunk: ChunkArmazenado) -> str:
+    """Internal result key; relative paths alone are not unique after FND-01b."""
+    return (
+        f"{chunk.root_id}\0{chunk.path}"
+        if chunk.root_id else chunk.path
+    )
+
 PESO_DENSO = 1.0
 """Peso cheio, escolhido pela varredura de 13/08/2026 (`docs/varredura-pesos-f1.md`).
 
@@ -345,6 +353,7 @@ class BuscaHibrida:
         prefixo: str = "",
         mtime_min: float | None = None,
         mtime_max: float | None = None,
+        root_id: str = "",
     ) -> dict[str, float]:
         """A contribuição RRF do ranqueador de nome, por documento — fonte única."""
         if not (self.usar_nome and self.peso_nome):
@@ -358,7 +367,8 @@ class BuscaHibrida:
             if prefixo and not (rel == prefixo or rel.startswith(prefixo + "/")):
                 continue
             if mtime_min is not None or mtime_max is not None:
-                doc_mtime = self.mtimes.get(rel)
+                chave_mtime = f"{root_id}\0{rel}" if root_id else rel
+                doc_mtime = self.mtimes.get(chave_mtime, self.mtimes.get(rel))
                 if doc_mtime is not None:
                     if mtime_min is not None and doc_mtime < mtime_min:
                         continue
@@ -377,12 +387,15 @@ class BuscaHibrida:
         prefixo: str = "",
         mtime_min: float | None = None,
         mtime_max: float | None = None,
+        root_id: str = "",
     ) -> dict[str, float]:
         """O ranqueador de nome trazido para o nível de trecho — um trecho por documento."""
         por_documento = self._nome_por_doc(
             consulta, prefixo=prefixo, mtime_min=mtime_min, mtime_max=mtime_max
         )
-        ids_por_documento = self.store.ids_de_chunks_por_path(list(por_documento))
+        ids_por_documento = self.store.ids_de_chunks_por_path(
+            list(por_documento), root_id=root_id
+        )
 
         pontos: dict[str, float] = {}
         for rel, contribuicao in por_documento.items():
@@ -438,6 +451,7 @@ class BuscaHibrida:
         incluir_versoes_antigas: bool = False,
         depois_de: str = "",
         antes_de: str = "",
+        root_id: str = "",
     ) -> list[ChunkAcerto]:
         prefixo = pasta.strip().replace("\\", "/").strip("/")
         mtime_min, mtime_max = converter_limites_temporais(depois_de, antes_de)
@@ -447,13 +461,25 @@ class BuscaHibrida:
         pontos = rrf(rankings, self.k_rrf, pesos)
 
         de_nome = self._nome_por_chunk(
-            consulta, pontos, prefixo, mtime_min=mtime_min, mtime_max=mtime_max
+            consulta,
+            pontos,
+            prefixo,
+            mtime_min=mtime_min,
+            mtime_max=mtime_max,
+            root_id=root_id,
         )
         for chunk_id, ponto in de_nome.items():
             pontos[chunk_id] = pontos.get(chunk_id, 0.0) + ponto
 
         ordenados = sorted(pontos.items(), key=lambda kv: (-kv[1], kv[0]))
         armazenados = self.store.chunks_por_id([c for c, _ in ordenados])
+        if root_id:
+            ordenados = [
+                (chunk_id, score)
+                for chunk_id, score in ordenados
+                if (arm := armazenados.get(chunk_id)) is not None
+                and arm.root_id == root_id
+            ]
 
         descartados, mapa_familias = (
             self._irmaos_superados(ordenados, armazenados)
@@ -477,6 +503,7 @@ class BuscaHibrida:
                 ChunkAcerto(
                     chunk_id=chunk_id, path=arm.path, score=score, trilha=arm.trilha,
                     locator=arm.locator, texto=arm.texto, origem=origem,
+                    root_id=arm.root_id, ocorrencia_id=arm.ocorrencia_id,
                     anteriores=ant, formatos=(fam.formatos if fam else ()), versoes=1 + len(ant),
                 )
             )
@@ -525,6 +552,7 @@ class BuscaHibrida:
         incluir_versoes_antigas: bool = False,
         depois_de: str = "",
         antes_de: str = "",
+        root_id: str = "",
     ) -> list:
         """Documents ranked by fusion at the document level."""
         prefixo = pasta.strip().replace("\\", "/").strip("/")
@@ -538,6 +566,10 @@ class BuscaHibrida:
         melhor_chunk: dict[str, str] = {}
 
         armazenados = self.store.chunks_por_id([c for ranking in rankings_chunk for c in ranking])
+        if root_id:
+            armazenados = {
+                ident: arm for ident, arm in armazenados.items() if arm.root_id == root_id
+            }
 
         for ranking, peso in zip(rankings_chunk, pesos):
             documentos: list[str] = []
@@ -545,18 +577,39 @@ class BuscaHibrida:
                 armazenado = armazenados.get(chunk_id)
                 if armazenado is None:
                     continue
-                if armazenado.path not in documentos:
-                    documentos.append(armazenado.path)
-                melhor_chunk.setdefault(armazenado.path, chunk_id)
+                chave = _chave_documento(armazenado)
+                if chave not in documentos:
+                    documentos.append(chave)
+                melhor_chunk.setdefault(chave, chunk_id)
             rankings_doc.append(documentos)
             pesos_doc.append(peso)
 
         pontos = rrf(rankings_doc, self.k_rrf, pesos_doc)
 
-        for rel, contribuicao in self._nome_por_doc(
-            consulta, prefixo, mtime_min=mtime_min, mtime_max=mtime_max
-        ).items():
-            pontos[rel] = pontos.get(rel, 0.0) + contribuicao
+        pontos_nome = self._nome_por_doc(
+            consulta,
+            prefixo,
+            mtime_min=mtime_min,
+            mtime_max=mtime_max,
+            root_id=root_id,
+        )
+        ids_nome = self.store.ids_de_chunks_por_path(
+            list(pontos_nome), root_id=root_id
+        )
+        ids_hidratados = [ident for ids in ids_nome.values() for ident in ids]
+        armazenados.update(self.store.chunks_por_id(ids_hidratados))
+        chaves_por_path: dict[str, set[str]] = {}
+        ids_por_chave: dict[str, str] = {}
+        for arm in armazenados.values():
+            chave = _chave_documento(arm)
+            chaves_por_path.setdefault(arm.path, set()).add(chave)
+            ids_por_chave[chave] = arm.id
+        for rel, contribuicao in pontos_nome.items():
+            candidatos_nome = chaves_por_path.get(rel, {rel})
+            for chave in candidatos_nome:
+                pontos[chave] = pontos.get(chave, 0.0) + contribuicao
+                if chave not in melhor_chunk and chave in ids_por_chave:
+                    melhor_chunk[chave] = ids_por_chave[chave]
         ordenados = sorted(pontos.items(), key=lambda kv: (-kv[1], kv[0]))
 
         mapa_familias = {}
@@ -591,12 +644,14 @@ class BuscaHibrida:
             versoes = (1 + len(anteriores)) if fam else 1
             saida.append(
                 Hit(
-                    path=path,
+                    path=armazenado.path if armazenado else path,
                     score=score,
                     trecho=(armazenado.texto[:300] if armazenado else ""),
                     anteriores=anteriores,
                     formatos=formatos,
                     versoes=versoes,
+                    root_id=armazenado.root_id if armazenado else "",
+                    ocorrencia_id=armazenado.ocorrencia_id if armazenado else "",
                 )
             )
         return saida

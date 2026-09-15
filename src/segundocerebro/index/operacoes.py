@@ -67,11 +67,29 @@ def _e_tabela_ausente(exc: BaseException) -> bool:
     return any(m in texto or m in nome for m in marcas)
 
 
-def apagar_vetores_do_path(store: Store, path: str) -> None:
-    """Delete dense rows for `path`. Missing table is a no-op; other errors raise."""
+def apagar_vetores_do_path(
+    store: Store,
+    path: str,
+    *,
+    root_id: str = "",
+    ocorrencia_id: str = "",
+) -> None:
+    """Delete dense rows for one occurrence, preserving path-only callers."""
     tabela = _tabela_existente(store)
     if tabela is None:
         return
+    if ocorrencia_id or root_id or store._usa_ocorrencia():
+        from .ocorrencia import chave_de
+
+        chave = chave_de(
+            store, path, root_id=root_id, ocorrencia_id=ocorrencia_id
+        )
+        try:
+            tabela.delete(f"ocorrencia_id = '{chave.replace(chr(39), chr(39) * 2)}'")
+            return
+        except Exception as exc:  # noqa: BLE001 — old LanceDB schema may lack the owner column
+            if "ocorrencia_id" not in str(exc).lower():
+                raise
     escapado = path.replace("'", "''")
     tabela.delete(f"path = '{escapado}'")
 
@@ -96,24 +114,47 @@ def _tabela_existente(store: Store) -> Any:
     return tabela
 
 
-def _ids_sqlite(store: Store, path: str) -> set[str]:
+def _ids_sqlite(
+    store: Store, path: str, *, root_id: str = "", ocorrencia_id: str = ""
+) -> set[str]:
+    if store._usa_ocorrencia() and (root_id or ocorrencia_id):
+        chave = store._chave_ocorrencia(
+            path, root_id=root_id, ocorrencia_id=ocorrencia_id
+        )
+        return {
+            str(row[0]) for row in store.con.execute(
+                "SELECT id FROM chunks WHERE ocorrencia_id = ?", (chave,)
+            )
+        }
     return {
         str(row[0])
         for row in store.con.execute("SELECT id FROM chunks WHERE path = ?", (path,))
     }
 
 
-def _ids_lance(store: Store, path: str) -> set[str]:
+def _ids_lance(
+    store: Store, path: str, *, root_id: str = "", ocorrencia_id: str = ""
+) -> set[str]:
     tabela = _tabela_existente(store)
     if tabela is None:
         return set()
-    escapado = path.replace("'", "''")
+    campo, valor = "path", path
+    if ocorrencia_id or root_id:
+        from .ocorrencia import chave_de
+
+        campo, valor = "ocorrencia_id", chave_de(
+            store, path, root_id=root_id, ocorrencia_id=ocorrencia_id
+        )
+    escapado = valor.replace("'", "''")
     try:
-        lote = tabela.search().where(f"path = '{escapado}'").select(["id"]).limit(10000).to_arrow()
+        lote = tabela.search().where(f"{campo} = '{escapado}'").select(["id"]).limit(10000).to_arrow()
     except Exception as exc:  # noqa: BLE001 — empty/missing table means no vectors
-        if _e_tabela_ausente(exc):
+        if campo == "ocorrencia_id" and "ocorrencia_id" in str(exc).lower():
+            lote = tabela.search().where(f"path = '{path.replace(chr(39), chr(39) * 2)}'").select(["id"]).limit(10000).to_arrow()
+        elif _e_tabela_ausente(exc):
             return set()
-        raise
+        else:
+            raise
     return {str(i) for i in lote.column("id").to_pylist()}
 
 
@@ -153,16 +194,18 @@ def _abrir(
         )
         if k in documento
     }
-    raiz = str(documento.get("raiz") or "")
+    raiz = str(documento.get("root_id") or "")
     if raiz:
         from .ocorrencia import id_de
 
         payload["ocorrencia_id"] = id_de(raiz, path)
+    ocorrencia_id = str(payload.get("ocorrencia_id") or (chunks[0].ocorrencia_id if chunks else ""))
     store.con.execute(
-        "INSERT INTO operacoes (id, path, tipo, etapa, model_id, chunk_ids, "
-        "documento, mtime, criada_em, atualizada_em) VALUES (?,?,?,?,?,?,?,?,?,?)",
+        "INSERT INTO operacoes (id, ocorrencia_id, path, tipo, etapa, model_id, chunk_ids, "
+        "documento, mtime, criada_em, atualizada_em) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
         (
             op_id,
+            ocorrencia_id,
             path,
             tipo,
             "preparar",
@@ -194,11 +237,26 @@ def _publicar(store: Store, op_id: str) -> None:
     _talvez_falhar("publicar")
 
 
-def _deletar(store: Store, path: str, *, apagar_textos: bool) -> None:
+def _deletar(
+    store: Store,
+    path: str,
+    *,
+    apagar_textos: bool,
+    root_id: str = "",
+    ocorrencia_id: str = "",
+) -> None:
     if apagar_textos:
-        store.con.execute("DELETE FROM chunks WHERE path = ?", (path,))
+        if store._usa_ocorrencia() and (root_id or ocorrencia_id):
+            chave = store._chave_ocorrencia(
+                path, root_id=root_id, ocorrencia_id=ocorrencia_id
+            )
+            store.con.execute("DELETE FROM chunks WHERE ocorrencia_id = ?", (chave,))
+        else:
+            store.con.execute("DELETE FROM chunks WHERE path = ?", (path,))
         store.con.commit()
-    apagar_vetores_do_path(store, path)
+    apagar_vetores_do_path(
+        store, path, root_id=root_id, ocorrencia_id=ocorrencia_id
+    )
 
 
 # Closed set of kwargs `registrar_documento` accepts. The journal payload may
@@ -231,19 +289,41 @@ def _completo(ids_sql: set[str], ids_lance: set[str], intended: set[str], tipo: 
     return ids_lance == intended
 
 
-def _abortar(store: Store, path: str, tipo: str) -> None:
+def _abortar(
+    store: Store, path: str, tipo: str, *, root_id: str = "", ocorrencia_id: str = ""
+) -> None:
+    chave = store._chave_ocorrencia(
+        path, root_id=root_id, ocorrencia_id=ocorrencia_id
+    )
     if tipo != "vetores":
-        store.con.execute("DELETE FROM chunks WHERE path = ?", (path,))
-        store.con.execute("DELETE FROM documentos WHERE path = ?", (path,))
+        if store._usa_ocorrencia() and (root_id or ocorrencia_id):
+            store.con.execute("DELETE FROM chunks WHERE ocorrencia_id = ?", (chave,))
+            store.con.execute("DELETE FROM documentos WHERE ocorrencia_id = ?", (chave,))
+        else:
+            store.con.execute("DELETE FROM chunks WHERE path = ?", (path,))
+            store.con.execute("DELETE FROM documentos WHERE path = ?", (path,))
     else:
-        store.con.execute("UPDATE documentos SET model_id = '' WHERE path = ?", (path,))
+        if store._usa_ocorrencia():
+            store.con.execute("UPDATE documentos SET model_id = '' WHERE ocorrencia_id = ?", (chave,))
+        else:
+            store.con.execute("UPDATE documentos SET model_id = '' WHERE path = ?", (path,))
     store.con.commit()
-    apagar_vetores_do_path(store, path)
+    apagar_vetores_do_path(
+        store, path, root_id=root_id, ocorrencia_id=ocorrencia_id
+    )
 
 
-def _verificar(store: Store, path: str, intended: set[str], tipo: str) -> None:
-    ids_sql = _ids_sqlite(store, path)
-    ids_lance = _ids_lance(store, path)
+def _verificar(
+    store: Store,
+    path: str,
+    intended: set[str],
+    tipo: str,
+    *,
+    root_id: str = "",
+    ocorrencia_id: str = "",
+) -> None:
+    ids_sql = _ids_sqlite(store, path, root_id=root_id, ocorrencia_id=ocorrencia_id)
+    ids_lance = _ids_lance(store, path, root_id=root_id, ocorrencia_id=ocorrencia_id)
     if not _completo(ids_sql, ids_lance, intended, tipo):
         raise OperacaoRecusada(
             f"operação em {path} não reproduziu os ids pretendidos "
@@ -260,11 +340,13 @@ def publicar_completo(
     documento: dict[str, Any],
 ) -> str:
     path = str(documento["path"])
+    root_id = str(documento.get("root_id") or (chunks[0].root_id if chunks else ""))
+    ocorrencia_id = str(documento.get("ocorrencia_id") or (chunks[0].ocorrencia_id if chunks else ""))
     op_id = _abrir(
         store, path=path, tipo="completo", chunks=chunks, model_id=model_id,
         mtime=mtime, documento=documento,
     )
-    _deletar(store, path, apagar_textos=True)
+    _deletar(store, path, apagar_textos=True, root_id=root_id, ocorrencia_id=ocorrencia_id)
     _marcar(store, op_id, "deletar")
     store.gravar_textos(chunks)
     store.con.commit()
@@ -274,7 +356,10 @@ def publicar_completo(
     _registrar(store, documento)
     store.con.commit()
     _marcar(store, op_id, "carimbo")
-    _verificar(store, path, {c.id for c in chunks}, "completo")
+    _verificar(
+        store, path, {c.id for c in chunks}, "completo",
+        root_id=root_id, ocorrencia_id=ocorrencia_id,
+    )
     _marcar(store, op_id, "verificar")
     _publicar(store, op_id)
     return op_id
@@ -287,11 +372,13 @@ def publicar_lexical(
     documento: dict[str, Any],
 ) -> str:
     path = str(documento["path"])
+    root_id = str(documento.get("root_id") or (chunks[0].root_id if chunks else ""))
+    ocorrencia_id = str(documento.get("ocorrencia_id") or (chunks[0].ocorrencia_id if chunks else ""))
     op_id = _abrir(
         store, path=path, tipo="lexical", chunks=chunks, model_id="",
         mtime=mtime, documento=documento,
     )
-    _deletar(store, path, apagar_textos=True)
+    _deletar(store, path, apagar_textos=True, root_id=root_id, ocorrencia_id=ocorrencia_id)
     _marcar(store, op_id, "deletar")
     store.gravar_textos(chunks)
     store.con.commit()
@@ -299,7 +386,10 @@ def publicar_lexical(
     _registrar(store, documento)
     store.con.commit()
     _marcar(store, op_id, "carimbo")
-    _verificar(store, path, {c.id for c in chunks}, "lexical")
+    _verificar(
+        store, path, {c.id for c in chunks}, "lexical",
+        root_id=root_id, ocorrencia_id=ocorrencia_id,
+    )
     _marcar(store, op_id, "verificar")
     _publicar(store, op_id)
     return op_id
@@ -312,20 +402,34 @@ def publicar_vetores(
     mtime: float,
     model_id: str,
     path: str,
+    *,
+    root_id: str = "",
+    ocorrencia_id: str = "",
 ) -> str:
-    documento = {"path": path, "model_id": model_id, "n_chunks": len(chunks)}
+    documento = {
+        "path": path, "root_id": root_id, "ocorrencia_id": ocorrencia_id,
+        "model_id": model_id, "n_chunks": len(chunks),
+    }
     op_id = _abrir(
         store, path=path, tipo="vetores", chunks=chunks, model_id=model_id,
         mtime=mtime, documento=documento,
     )
-    _deletar(store, path, apagar_textos=False)
+    _deletar(
+        store, path, apagar_textos=False,
+        root_id=root_id, ocorrencia_id=ocorrencia_id,
+    )
     _marcar(store, op_id, "deletar")
     store.gravar_vetores(chunks, vetores, mtime, model_id)
     _marcar(store, op_id, "vetores")
-    store.carimbar_modelo(path, model_id)
+    store.carimbar_modelo(
+        path, model_id, root_id=root_id, ocorrencia_id=ocorrencia_id
+    )
     store.con.commit()
     _marcar(store, op_id, "carimbo")
-    _verificar(store, path, {c.id for c in chunks}, "vetores")
+    _verificar(
+        store, path, {c.id for c in chunks}, "vetores",
+        root_id=root_id, ocorrencia_id=ocorrencia_id,
+    )
     _marcar(store, op_id, "verificar")
     _publicar(store, op_id)
     return op_id
@@ -334,25 +438,26 @@ def publicar_vetores(
 def _recuperar_uma(store: Store, row: sqlite3.Row) -> None:
     path = str(row["path"])
     tipo = str(row["tipo"])
+    ocorrencia_id = str(row["ocorrencia_id"] or "")
     intended = set(json.loads(row["chunk_ids"]))
-    ids_sql = _ids_sqlite(store, path)
-    ids_lance = _ids_lance(store, path)
+    ids_sql = _ids_sqlite(store, path, ocorrencia_id=ocorrencia_id)
+    ids_lance = _ids_lance(store, path, ocorrencia_id=ocorrencia_id)
     if _completo(ids_sql, ids_lance, intended, tipo):
         documento = json.loads(row["documento"] or "{}")
         if tipo != "vetores" and documento.get("path"):
             _registrar(store, documento)
             store.con.commit()
         elif tipo == "vetores" and row["model_id"]:
-            store.carimbar_modelo(path, str(row["model_id"]))
+            store.carimbar_modelo(path, str(row["model_id"]), ocorrencia_id=ocorrencia_id)
             store.con.commit()
-        _verificar(store, path, intended, tipo)
+        _verificar(store, path, intended, tipo, ocorrencia_id=ocorrencia_id)
         _publicar(store, str(row["id"]))
         return
     if str(row["etapa"]) == "preparar":
         _publicar(store, str(row["id"]))
         return
     log.warning("operação %s em %s abortada para reindexar (etapa %s)", row["id"], path, row["etapa"])
-    _abortar(store, path, tipo)
+    _abortar(store, path, tipo, ocorrencia_id=ocorrencia_id)
     _publicar(store, str(row["id"]))
 
 

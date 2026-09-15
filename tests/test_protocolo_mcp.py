@@ -258,13 +258,14 @@ def test_o_esquema_diz_ao_cliente_como_chamar(do_produto: dict[str, Any]) -> Non
         "incluir_versoes_antigas",
         "depois_de",
         "antes_de",
+        "root_id",
     }
     assert esquemas["read_note"]["required"] == ["id"]
     assert set(esquemas["read_note"]["properties"]) == {"id", "janela"}
     assert esquemas["neighbors"]["required"] == ["arquivo"]
     assert set(esquemas["neighbors"]["properties"]) == {"arquivo", "limite"}
     assert esquemas["get_document"]["required"] == ["documento"]
-    assert set(esquemas["get_document"]["properties"]) == {"documento", "cursor", "max_chars"}
+    assert set(esquemas["get_document"]["properties"]) == {"documento", "cursor", "max_chars", "root_id"}
     assert do_produto["ferramentas"]["get_document"].annotations.read_only_hint is True
     assert set(esquemas["list_folder"]["properties"]) == {
         "pasta", "recursivo", "cursor", "max_itens", "cursor_opaco",
