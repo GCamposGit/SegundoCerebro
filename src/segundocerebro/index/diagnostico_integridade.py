@@ -32,11 +32,17 @@ class _StoreLeitura:
     _db: Any
     _tabela: Any = None
 
+    def _usa_ocorrencia(self) -> bool:
+        from .ocorrencia import usa_ocorrencia
+
+        return usa_ocorrencia(self.con)
+
 
 @contextmanager
 def _abrir_store(diretorio: Path) -> Iterator[_StoreLeitura]:
     registro = (diretorio / "registro.db").resolve()
     con = sqlite3.connect(registro.as_uri() + "?mode=ro", uri=True, timeout=0)
+    con.row_factory = sqlite3.Row
     con.execute("PRAGMA query_only=ON")
     vetores = diretorio / "vetores.lance"
     db: Any = _BancoSemTabelas()
