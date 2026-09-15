@@ -40,6 +40,18 @@ import sys
 from dataclasses import dataclass, field
 from pathlib import Path
 
+
+def _processador_da_maquina() -> str:
+    """Obtém a identidade sem consultar WMI, que pode bloquear no CI Windows."""
+    if sys.platform == "win32":
+        return (
+            os.environ.get("PROCESSOR_IDENTIFIER")
+            or os.environ.get("PROCESSOR_ARCHITEW6432")
+            or os.environ.get("PROCESSOR_ARCHITECTURE")
+            or "Windows"
+        )
+    return platform.processor() or platform.machine()
+
 AQUECIMENTO = 3
 """Chunks descartados antes de cronometrar. Mesmo valor de `eval/latencia.py`."""
 
@@ -65,7 +77,7 @@ def estado() -> dict[str, object]:
     """
     dados: dict[str, object] = {
         "maquina": platform.node(),
-        "processador": platform.processor(),
+        "processador": _processador_da_maquina(),
         "logicos": os.cpu_count(),
     }
     try:

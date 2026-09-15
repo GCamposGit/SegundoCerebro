@@ -11,6 +11,7 @@ import random
 
 import pytest
 
+from segundocerebro.index import regime_maquina
 from segundocerebro.index.calibracao import (
     Ajuste,
     Calibracao,
@@ -278,6 +279,27 @@ def test_i5_fingerprint_muda_com_modelo_e_chunker():
     c = impressao_da_maquina("e5-large", "2")
     d = impressao_da_maquina("e5-large", "1", gpus=["0"])
     assert len({a, b, c, d}) == 4
+
+
+def test_fingerprint_windows_nao_consulta_wmi(monkeypatch):
+    """O provedor WMI do runner pode bloquear indefinidamente."""
+    monkeypatch.setattr(regime_maquina.sys, "platform", "win32")
+    monkeypatch.setenv("PROCESSOR_IDENTIFIER", "CPU sintética")
+    monkeypatch.setenv("PROCESSOR_ARCHITECTURE", "AMD64")
+    monkeypatch.setattr(
+        regime_maquina.platform,
+        "machine",
+        lambda: pytest.fail("não consultar platform.machine no Windows"),
+    )
+    monkeypatch.setattr(
+        regime_maquina.platform,
+        "processor",
+        lambda: pytest.fail("não consultar platform.processor no Windows"),
+    )
+
+    assert regime_maquina.processador_da_maquina() == "CPU sintética"
+    assert regime_maquina.arquitetura_da_maquina() == "AMD64"
+    assert len(impressao_da_maquina("e5-large", "1")) == 16
 
 
 def test_i5_calibragem_de_outro_modelo_nao_e_lida(tmp_path):
