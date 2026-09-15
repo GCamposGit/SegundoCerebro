@@ -37,6 +37,7 @@ from ..ingest.chunking import Chunk
 from ..logger import get_logger
 from .esquema import ESQUEMA
 from .fts import caminho_pesquisavel, consulta_fts as consulta_fts
+from .lancedb_recursos import fechar_recursos
 from .quarentena import (
     BACKOFF_QUARENTENA_S as BACKOFF_QUARENTENA_S,
     MAX_TENTATIVAS_QUARENTENA as MAX_TENTATIVAS_QUARENTENA,
@@ -341,11 +342,10 @@ class Store:
     def fechar(self) -> None:
         self.con.commit()
         self.con.close()
-        # soltar a referência do LanceDB: mantê-la viva prende o processo pelo
-        # loop de background da biblioteca
-        self._tabela = None
-        self._db = None
+        tabela, db = self._tabela, self._db
+        self._tabela = self._db = None
         self._ann_ativo = None
+        fechar_recursos(tabela, db)
 
     def garantir_ann(self, n_vetores: int | None = None, *, limiar: int | None = None):  # noqa: ANN201
         from .ann import garantir_no_store
