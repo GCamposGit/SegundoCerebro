@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any, cast
 from .diagnostico_relatorio import ItemDiagnostico
 from .diagnostico_relatorio import item as _item
 from .integridade import DiagnosticoIntegridade, diagnosticar_integridade
+from .lancedb_recursos import fechar_recursos
 
 if TYPE_CHECKING:
     from .store import Store
@@ -50,9 +51,12 @@ def _abrir_store(diretorio: Path) -> Iterator[_StoreLeitura]:
         import lancedb
 
         db = lancedb.connect(str(vetores))
+    leitor: _StoreLeitura | None = None
     try:
-        yield _StoreLeitura(vetores, con, db)
+        leitor = _StoreLeitura(vetores, con, db)
+        yield leitor
     finally:
+        fechar_recursos(getattr(leitor, "_tabela", None), db)
         con.close()
 
 

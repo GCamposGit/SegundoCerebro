@@ -12,3 +12,16 @@ def fechar_recursos(tabela: object, db: object) -> None:
         fechar = getattr(recurso, "close", None)
         if callable(fechar):
             fechar()
+
+
+def fechar_store(conexao: object, tabela: object, db: object) -> None:
+    """Fecha SQLite e LanceDB mesmo quando uma etapa de fechamento falha."""
+    try:
+        commit = getattr(conexao, "commit")
+        commit()
+    finally:
+        try:
+            fechar = getattr(conexao, "close")
+            fechar()
+        finally:
+            fechar_recursos(tabela, db)

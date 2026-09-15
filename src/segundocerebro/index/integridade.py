@@ -188,15 +188,17 @@ def _abrir_tabela(store: Store) -> tuple[Any | None, str | None]:
     if store._tabela is not None:
         return store._tabela, None
     try:
-        db = (
-            store._db
-            if store._db is not None
-            else lancedb.connect(str(store.diretorio / "vetores.lance"))
-        )
+        if store._db is None:
+            # Attach the connection so the store owner can close it. A
+            # standalone connection here used to survive until process exit
+            # and kept LanceDB files open on Windows between tests.
+            store._db = lancedb.connect(str(store.diretorio / "vetores.lance"))
+        db = store._db
         tabelas = _tabelas_no_db(db)
         if TABELA_VETORES not in tabelas:
             return None, None
-        return db.open_table(TABELA_VETORES), None
+        store._tabela = db.open_table(TABELA_VETORES)
+        return store._tabela, None
     except Exception as exc:  # noqa: BLE001 — I/O do LanceDB vira diagnóstico indisponível, não crash
         return None, str(exc)
 
