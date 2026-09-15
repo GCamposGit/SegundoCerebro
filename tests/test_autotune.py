@@ -50,7 +50,10 @@ def store_com_dados(tmp_path: Path) -> Store:
 
     store.gravar_chunks(chunks_list, emb.embed_passagens([c.text for c in chunks_list]), mtime=1.0, model_id=emb.model_id)
     store.commit()
-    return store
+    try:
+        yield store
+    finally:
+        store.fechar()
 
 
 def test_amostrar_perguntas(store_com_dados: Store) -> None:
@@ -65,8 +68,7 @@ def test_amostrar_perguntas(store_com_dados: Store) -> None:
         assert p.fontes[0] in store_com_dados.registrados()
 
 
-def test_guarda_corpo_baixa_variacao(tmp_path: Path) -> None:
-    store = Store(tmp_path / "indice", DIM)
+def test_guarda_corpo_baixa_variacao(store: Store, tmp_path: Path) -> None:
     emb = EmbedderFalso(dim=DIM)
 
     store.registrar_documento(path="Texto_Unico.txt", raiz="raiz", tamanho=100, mtime=1000.0, status="ok")
@@ -88,8 +90,7 @@ def test_guarda_corpo_baixa_variacao(tmp_path: Path) -> None:
     assert res.pesos.nome == PRIOR_NOME
 
 
-def test_guarda_corpo_prior_mantido(tmp_path: Path) -> None:
-    store = Store(tmp_path / "indice", DIM)
+def test_guarda_corpo_prior_mantido(store: Store, tmp_path: Path) -> None:
     emb = EmbedderFalso(dim=DIM)
 
     # Cria docs onde o prior já é 1.0 (nome e lexical casam juntos com prior 1.0/0.25/0.5)
@@ -121,9 +122,8 @@ def test_guarda_corpo_prior_mantido(tmp_path: Path) -> None:
     assert res.pesos.nome == PRIOR_NOME
 
 
-def test_autotune_convergencia_nomes_ruins(tmp_path: Path) -> None:
+def test_autotune_convergencia_nomes_ruins(store: Store, tmp_path: Path) -> None:
     """Em acervo com nomes hostis/não-informativos (IMG_xxxx), o peso de nome deve diminuir."""
-    store = Store(tmp_path / "indice", DIM)
     emb = EmbedderFalso(dim=DIM)
 
     # 3 docs com nomes não informativos
@@ -153,9 +153,8 @@ def test_autotune_convergencia_nomes_ruins(tmp_path: Path) -> None:
     assert res.pesos.nome <= 0.5
 
 
-def test_autotune_convergencia_nomes_informativos(tmp_path: Path) -> None:
+def test_autotune_convergencia_nomes_informativos(store: Store, tmp_path: Path) -> None:
     """Em acervo onde nomes são informativos, o ranqueador de nome ajuda a desempatar ou subir MRR."""
-    store = Store(tmp_path / "indice", DIM)
     emb = EmbedderFalso(dim=DIM)
 
     # Documentos onde o conteúdo é genérico, mas o nome do arquivo identifica a área
@@ -184,8 +183,7 @@ def test_autotune_convergencia_nomes_informativos(tmp_path: Path) -> None:
     assert res.ajustado or res.motivo == "prior_mantido"
 
 
-def test_persistencia_e_procedencia(tmp_path: Path) -> None:
-    store = Store(tmp_path / "indice", DIM)
+def test_persistencia_e_procedencia(store: Store, tmp_path: Path) -> None:
     emb = EmbedderFalso(dim=DIM)
 
     store.registrar_documento(path="doc.txt", raiz="raiz", tamanho=100, mtime=1000.0, status="ok")
