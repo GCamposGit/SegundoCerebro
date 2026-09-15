@@ -189,8 +189,8 @@ class Store:
         # vez de abortar horas de trabalho.
         self.con.execute("PRAGMA journal_mode=WAL")
         self.con.execute("PRAGMA busy_timeout=15000")
-        self.con.executescript(ESQUEMA)
         self._alinhar_colunas()
+        self.con.executescript(ESQUEMA)
         from .ocorrencia import estampar_schema
 
         estampar_schema(self.con)
@@ -230,15 +230,15 @@ class Store:
     def _alinhar_colunas(self) -> None:
         """Acrescenta em banco antigo as colunas que o esquema ganhou depois.
 
-        `CREATE TABLE IF NOT EXISTS` não altera tabela existente, então um índice
-        criado por versão anterior seguiria sem as colunas e o INSERT falharia
-        com "no such column" — no meio de uma passada de horas. O default de cada
+        `CREATE TABLE IF NOT EXISTS` não altera tabela existente; o alinhamento
+        vem antes do esquema para que índices novos encontrem colunas antigas.
+        O default de cada
         coluna é o valor "não sei", nunca um valor que finja medição: documento
         indexado antes desta versão tem `digitalizado = 0` porque ninguém olhou,
         e não porque foi verificado.
         """
         existentes = {r["name"] for r in self.con.execute("PRAGMA table_info(documentos)")}
-        for nome, tipo in self.COLUNAS_ACRESCENTAVEIS:
+        for nome, tipo in (self.COLUNAS_ACRESCENTAVEIS if existentes else ()):
             if nome not in existentes:
                 self.con.execute(f"ALTER TABLE documentos ADD COLUMN {nome} {tipo}")
                 log.info("registro: coluna %s acrescentada", nome)
@@ -248,7 +248,7 @@ class Store:
             existentes_tabela = {
                 r["name"] for r in self.con.execute(f"PRAGMA table_info({tabela})")
             }
-            for nome, tipo in colunas:
+            for nome, tipo in (colunas if existentes_tabela else ()):
                 if nome not in existentes_tabela:
                     self.con.execute(f"ALTER TABLE {tabela} ADD COLUMN {nome} {tipo}")
                     log.info("registro: coluna %s.%s acrescentada", tabela, nome)

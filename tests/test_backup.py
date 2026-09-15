@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import ast
 import json
+import sqlite3
 import subprocess
 import sys
 from pathlib import Path
@@ -18,6 +19,7 @@ from segundocerebro.index.backup import (
     main,
     restaurar_backup,
 )
+from segundocerebro.index.esquema import ESQUEMA_DOCUMENTOS_V1
 from segundocerebro.index.store import Store
 from segundocerebro.index.trava import TravaDeIndice
 from segundocerebro.index.travas import NOME_DA_TRAVA
@@ -48,6 +50,70 @@ def _indice_minimo(tmp_path: Path) -> Path:
     store.commit()
     store.fechar()
     (indice / "segredo.txt").write_text("não pertence ao backup", encoding="utf-8")
+    return indice
+
+
+def _indice_legado_minimo(tmp_path: Path) -> Path:
+    """Create the pre-occurrence SQLite shape without opening it via Store."""
+    indice = tmp_path / "indice-legado"
+    indice.mkdir()
+    con = sqlite3.connect(indice / "registro.db")
+    con.executescript(ESQUEMA_DOCUMENTOS_V1)
+    con.executescript(
+        """
+        CREATE TABLE chunks (
+            id       TEXT PRIMARY KEY,
+            path     TEXT NOT NULL,
+            caminho  TEXT NOT NULL DEFAULT '',
+            ordinal  INTEGER NOT NULL,
+            trilha   TEXT NOT NULL DEFAULT '',
+            locator  TEXT NOT NULL DEFAULT '',
+            kind     TEXT NOT NULL DEFAULT '',
+            chars    INTEGER NOT NULL DEFAULT 0,
+            texto    TEXT NOT NULL
+        );
+        CREATE INDEX idx_chunks_path ON chunks(path);
+        CREATE VIRTUAL TABLE chunks_fts USING fts5(
+            texto, trilha, caminho,
+            content='chunks', content_rowid='rowid',
+            tokenize='unicode61 remove_diacritics 2'
+        );
+        CREATE VIRTUAL TABLE chunks_fts_vocab USING fts5vocab(chunks_fts, 'row');
+        CREATE TRIGGER chunks_ai AFTER INSERT ON chunks BEGIN
+            INSERT INTO chunks_fts(rowid, texto, trilha, caminho)
+            VALUES (new.rowid, new.texto, new.trilha, new.caminho);
+        END;
+        CREATE TRIGGER chunks_ad AFTER DELETE ON chunks BEGIN
+            INSERT INTO chunks_fts(chunks_fts, rowid, texto, trilha, caminho)
+            VALUES ('delete', old.rowid, old.texto, old.trilha, old.caminho);
+        END;
+        """
+    )
+    con.execute(
+        """
+        INSERT INTO documentos
+            (path, raiz, tamanho, mtime, sha256, status, detalhe, n_chunks,
+             model_id, chunker, parser, indexado_em)
+        VALUES (?, 'principal', ?, 1.0, ?, 'ok', '', 1,
+                'falso:8', '2', '', 'agora')
+        """,
+        ("contrato.md", len(TEXTO), "b" * 64),
+    )
+    con.execute(
+        """
+        INSERT INTO chunks
+            (id, path, caminho, ordinal, trilha, locator, kind, chars, texto)
+        VALUES ('c-vce-legado', 'contrato.md', 'contrato md', 0, '', '',
+                'paragrafo', ?, ?)
+        """,
+        (len(TEXTO), TEXTO),
+    )
+    con.execute(
+        "INSERT INTO chunks_fts(rowid, texto, trilha, caminho) "
+        "SELECT rowid, texto, trilha, caminho FROM chunks"
+    )
+    con.commit()
+    con.close()
     return indice
 
 
@@ -87,6 +153,19 @@ def test_backup_e_restore_reproduzem_ids_e_consulta(tmp_path: Path) -> None:
     assert _ids(restaurado) == ["c-vce-1"]
     assert _ids(indice) == ["c-vce-1"]
     assert original.stat().st_mtime_ns == mtime
+
+
+def test_backup_verifica_indice_legado_antes_de_publicar(tmp_path: Path) -> None:
+    indice = _indice_legado_minimo(tmp_path)
+    antes = (indice / "registro.db").read_bytes()
+    backup = tmp_path / "backup-legado"
+
+    manifesto = criar_backup(indice, backup)
+
+    assert manifesto.contagens["documentos"] == 1
+    assert manifesto.contagens["chunks"] == 1
+    assert manifesto.consulta["reproduzido"] is True
+    assert (indice / "registro.db").read_bytes() == antes
 
 
 def test_escritor_ativo_recusa_e_nao_publica(tmp_path: Path) -> None:
