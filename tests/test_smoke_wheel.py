@@ -141,6 +141,20 @@ def test_env_sem_pythonpath_nao_vaza() -> None:
     assert limpo["FOO"] == "1"
 
 
+def test_wheel_only_valida_sem_dependencias_de_runtime(tmp_path: Path) -> None:
+    py = _montar_venv_com_wheel(tmp_path / "wheel-only", com_html=True)
+    helper = _carregar_helper()
+
+    helper.executar(
+        py,
+        tmp_path / "cwd",
+        pacote="toy_smoke",
+        html_modulo="toy_smoke.painel",
+        runtime=False,
+        mcp=False,
+    )
+
+
 def test_wheel_toy_passa_fora_do_checkout(tmp_path: Path) -> None:
     py = _montar_venv_com_wheel(tmp_path / "ok", com_html=True)
     cwd = tmp_path / "cwd"

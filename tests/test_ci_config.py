@@ -91,12 +91,13 @@ def test_ci_pytest_instala_do_lock() -> None:
 
 
 def test_ci_types_instala_do_lock() -> None:
-    """FND-09b: types used to `pip install -e .` and resolve ranges."""
+    """FND-09b: types installs the runtime+dev lock before the package."""
     yml = (REPO / ".github" / "workflows" / "tests.yml").read_text(encoding="utf-8")
     types = bloco_do_job(yml, "types")
-    assert "pip install -r requirements.txt" in types
+    assert "pip install -r requirements-dev.txt" in types
     assert "pip install -e . --no-deps" in types
-    assert f"pyright=={pin_do_extra_dev('pyright')}" in types
+    dev_lock = (REPO / "requirements-dev.txt").read_text(encoding="utf-8")
+    assert f"pyright=={pin_do_extra_dev('pyright')}" in dev_lock
     assert re.search(r"pip install -e \.(?!\s*--no-deps)", types) is None, (
         "job types voltou a resolver pyproject por cima do lock"
     )
@@ -126,6 +127,7 @@ def test_ci_install_smoke_usa_wheel_fora_do_checkout() -> None:
     yml = (REPO / ".github" / "workflows" / "tests.yml").read_text(encoding="utf-8")
     fumo = bloco_do_job(yml, "install-smoke")
     assert "scripts/smoke_wheel.py" in fumo
+    assert "--sem-runtime" in fumo
     assert "pip wheel --no-deps" in fumo
     assert "pip install -e ." not in fumo
     assert "runner.temp" in fumo

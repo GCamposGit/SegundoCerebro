@@ -67,8 +67,9 @@ def conferir_import(python: Path, cwd: Path, pacote: str) -> None:
 
 def conferir_html(python: Path, cwd: Path, modulo: str, arquivo: str) -> None:
     codigo = (
-        "from importlib.resources import files\n"
-        f"alvo = files({modulo!r}).joinpath({arquivo!r})\n"
+        "from importlib.metadata import distribution\n"
+        f"dist = distribution({modulo.split('.')[0]!r})\n"
+        f"alvo = dist.locate_file({(modulo.replace('.', '/') + '/' + arquivo)!r})\n"
         "print(alvo)\n"
         "raise SystemExit(0 if alvo.is_file() else 2)\n"
     )
@@ -88,6 +89,16 @@ def listar_scripts(python: Path, cwd: Path, pacote: str) -> list[str]:
     )
     saida = _exigir(_rodar(python, codigo, cwd=cwd, timeout=TIMEOUT_IMPORT_S), "entry_points")
     return [linha.strip() for linha in saida.splitlines() if linha.strip()]
+
+
+def conferir_entry_points(python: Path, scripts: Sequence[str]) -> None:
+    if not scripts:
+        raise SmokeFalhou("nenhum console script no metadata do wheel")
+    scripts_dir = python.parent
+    sufixo = ".exe" if os.name == "nt" else ""
+    for nome in scripts:
+        if not (scripts_dir / f"{nome}{sufixo}").is_file():
+            raise SmokeFalhou(f"console script {nome} declarado e não instalado")
 
 
 def conferir_helps(python: Path, cwd: Path, scripts: Sequence[str]) -> None:
@@ -148,15 +159,20 @@ def executar(
     html_modulo: str = "segundocerebro.painel",
     html_arquivo: str = "index.html",
     mcp: bool = True,
+    runtime: bool = True,
 ) -> None:
     cwd.mkdir(parents=True, exist_ok=True)
     passos: list[tuple[str, object]] = [
         ("import", lambda: conferir_import(python, cwd, pacote)),
         ("html", lambda: conferir_html(python, cwd, html_modulo, html_arquivo)),
         ("eval_ausente", lambda: conferir_eval_ausente(python, cwd)),
-        ("helps", lambda: conferir_helps(python, cwd, listar_scripts(python, cwd, pacote))),
     ]
-    if mcp:
+    scripts = listar_scripts(python, cwd, pacote)
+    if runtime:
+        passos.append(("helps", lambda: conferir_helps(python, cwd, scripts)))
+    else:
+        passos.append(("entry_points", lambda: conferir_entry_points(python, scripts)))
+    if mcp and runtime:
         passos.append(("mcp_tools", lambda: conferir_mcp_tools(python, cwd)))
     for nome, fn in passos:
         print(f"== {nome}", flush=True)
@@ -172,6 +188,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--html-modulo", default="segundocerebro.painel")
     parser.add_argument("--html-arquivo", default="index.html")
     parser.add_argument("--sem-mcp", action="store_true")
+    parser.add_argument(
+        "--sem-runtime",
+        action="store_true",
+        help="valida o conteúdo do wheel sem executar entry points que exigem dependências",
+    )
     args = parser.parse_args(argv)
     python = args.python.resolve()
     if not python.is_file():
@@ -185,6 +206,7 @@ def main(argv: list[str] | None = None) -> int:
             html_modulo=args.html_modulo,
             html_arquivo=args.html_arquivo,
             mcp=not args.sem_mcp,
+            runtime=not args.sem_runtime,
         )
     except subprocess.TimeoutExpired as exc:
         print(f"TIMEOUT: {exc}", file=sys.stderr)

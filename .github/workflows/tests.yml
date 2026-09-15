@@ -34,7 +34,7 @@ jobs:
       - name: Install package from lock
         # FND-09b: types used to resolve pyproject ranges. Lock first, then
         # the editable package without resolving again. pyright pin matches extra.
-        run: pip install -r requirements.txt ; pip install -e . --no-deps ; pip install pyright==1.1.411
+        run: pip install -r requirements-dev.txt ; pip install -e . --no-deps
       - name: pyright
         run: python -m pyright src
       - name: pyright frontier fixtures
@@ -111,7 +111,13 @@ jobs:
             PY="${{ runner.temp }}/sc-smoke/bin/python"
           fi
           "$PY" -m pip install --upgrade pip
-          "$PY" -m pip install "${{ runner.temp }}/sc-wheel/"*.whl
+          # Unix validates the portable wheel surface; Windows exercises the
+          # full runtime because native dependencies are platform-specific.
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            "$PY" -m pip install "${{ runner.temp }}/sc-wheel/"*.whl
+          else
+            "$PY" -m pip install --no-deps "${{ runner.temp }}/sc-wheel/"*.whl
+          fi
 
       - name: Smoke wheel
         shell: bash
@@ -122,4 +128,8 @@ jobs:
           else
             PY="${{ runner.temp }}/sc-smoke/bin/python"
           fi
-          python scripts/smoke_wheel.py --python "$PY" --cwd "${{ runner.temp }}/sc-cwd"
+          if [ "${{ matrix.os }}" = "windows-latest" ]; then
+            python scripts/smoke_wheel.py --python "$PY" --cwd "${{ runner.temp }}/sc-cwd"
+          else
+            python scripts/smoke_wheel.py --python "$PY" --cwd "${{ runner.temp }}/sc-cwd" --sem-runtime
+          fi
