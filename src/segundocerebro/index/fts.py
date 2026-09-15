@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import re
 import sqlite3
+import sys
 import unicodedata
 from dataclasses import dataclass
 
@@ -108,7 +109,12 @@ def configurar_sqlite(con: sqlite3.Connection, *, novo: bool) -> PoliticaSQLite:
         # VACUUM integral e uma segunda cópia do arquivo — não cabe na abertura.
         con.execute("PRAGMA auto_vacuum=INCREMENTAL")
     con.execute(f"PRAGMA cache_size=-{politica.cache_mb * 1024}")
-    con.execute(f"PRAGMA mmap_size={politica.mmap_mb * MIB}")
+    # On Windows, a large mapping is committed by the filesystem layer rather
+    # than merely reserving address space. Hosted runners report abundant RAM,
+    # which otherwise turns each short-lived test connection into a possible
+    # multi-second (or interrupted) mapping operation.
+    mmap_mb = min(politica.mmap_mb, 128) if sys.platform == "win32" else politica.mmap_mb
+    con.execute(f"PRAGMA mmap_size={mmap_mb * MIB}")
     return politica
 
 

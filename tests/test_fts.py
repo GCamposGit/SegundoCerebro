@@ -2,9 +2,25 @@
 
 from __future__ import annotations
 
+from segundocerebro.index import fts
 from segundocerebro.index.fts import consulta_fts, consulta_fts_seletiva, politica_sqlite
 from segundocerebro.index.store import Store
 from tests.falsos import chunk
+
+
+def test_mmap_windows_tem_teto_de_128_mib(monkeypatch) -> None:  # noqa: ANN001
+    comandos: list[str] = []
+
+    class ConexaoFake:
+        def execute(self, comando: str):  # noqa: ANN001, ANN201
+            comandos.append(comando)
+
+    monkeypatch.setattr(fts.sys, "platform", "win32")
+    monkeypatch.setattr(fts, "_ram_livre_mb", lambda: 64 * 1024)
+
+    fts.configurar_sqlite(ConexaoFake(), novo=False)  # type: ignore[arg-type]
+
+    assert "PRAGMA mmap_size=134217728" in comandos
 
 
 def test_orcamento_sqlite_encolhe_e_tem_teto() -> None:
