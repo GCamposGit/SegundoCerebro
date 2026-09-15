@@ -6,6 +6,9 @@ from __future__ import annotations
 def fechar_recursos(tabela: object, db: object) -> None:
     """Fecha tabela e conexão assíncrona sem depender de coleta de lixo."""
     for recurso in (tabela, getattr(db, "_conn", None)):
+        fechar_lsm = getattr(recurso, "close_lsm_writers", None)
+        if callable(fechar_lsm):
+            fechar_lsm()
         fechar = getattr(recurso, "close", None)
         if callable(fechar):
             fechar()

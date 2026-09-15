@@ -129,9 +129,13 @@ def test_store_fechar_libera_recursos_lance() -> None:
     class Recurso:
         def __init__(self) -> None:
             self.fechado = False
+            self.lsm_fechado = False
 
         def close(self) -> None:
             self.fechado = True
+
+        def close_lsm_writers(self) -> None:
+            self.lsm_fechado = True
 
     class Conexao:
         def __init__(self) -> None:
@@ -158,6 +162,7 @@ def test_store_fechar_libera_recursos_lance() -> None:
     assert conexao.commits == 1
     assert conexao.fechada
     assert tabela.fechado
+    assert tabela.lsm_fechado
     assert conexao_lance.fechado
     assert store._tabela is None
     assert store._db is None
