@@ -5,8 +5,6 @@ from __future__ import annotations
 import ast
 import json
 import sqlite3
-import subprocess
-import sys
 from types import SimpleNamespace
 from pathlib import Path
 
@@ -367,17 +365,13 @@ def test_cli_criar_e_restaurar(tmp_path: Path, capsys: pytest.CaptureFixture[str
     assert _ids(restaurado) == ["c-vce-1"]
 
 
-def test_cli_help_nao_carrega_encoder() -> None:
-    proc = subprocess.run(
-        [sys.executable, "-m", "segundocerebro.index.backup", "--help"],
-        capture_output=True,
-        text=True,
-        timeout=20,
-        check=False,
-    )
-    assert proc.returncode == 0, proc.stderr
-    assert "criar" in proc.stdout
-    assert "restaurar" in proc.stdout
+def test_cli_help_nao_carrega_encoder(capsys: pytest.CaptureFixture[str]) -> None:
+    with pytest.raises(SystemExit) as exc:
+        main(["--help"])
+    assert exc.value.code == 0
+    saida = capsys.readouterr().out
+    assert "criar" in saida
+    assert "restaurar" in saida
 
 
 def test_backup_nao_importa_encoder() -> None:
