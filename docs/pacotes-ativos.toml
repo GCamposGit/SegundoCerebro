@@ -189,7 +189,7 @@ proxima_acao = ""
 
 [[pacote]]
 id = "DF-LAP-1"
-estado = "em_execucao"
+estado = "entregue"
 dono = "notebook"
 paths = [
     ".factory/state.json",
@@ -199,5 +199,5 @@ paths = [
 ]
 dependencias = ["DF-BOOTSTRAP"]
 aceite = "bootstrap registrado como entregue; volta manual documentada; nível 2 inalterado; harness --quick verde"
-evidencia = ""
-proxima_acao = "merge manual; não promover autonomia"
+evidencia = { pr = 114, sha = "8fb6b95ba275171490b417b6bd9343f0d1c99709" }
+proxima_acao = ""
