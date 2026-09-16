@@ -60,6 +60,30 @@ contrato de interrupção e poderiam deixar a suíte verde sem validar o produto
 O PR #110 foi mergeado sem alteração de produto; o `main` remoto resultante é
 `40b56d1`.
 
+### Recorrência no merge do PR #111
+
+O push em `main` do [run 35143865965](https://github.com/GCamposGit/SegundoCerebro/actions/runs/35143865965)
+chegou mais longe e ainda falhou:
+
+```text
+FAILED tests/test_comando.py::test_cancelar_antes_da_largada_nao_indexa - AssertionError: assert not True
+FAILED tests/test_diagnostico.py::test_cli_modulo_help_nao_sonda_hardware - RuntimeError: release unlocked lock
+KeyboardInterrupt
+C:\hostedtoolcache\windows\Python\3.12.10\x64\Lib\logging\__init__.py:1541: KeyboardInterrupt
+2 failed, 833 passed, 2 skipped, 60 deselected in 92.11s
+```
+
+A asserção em `test_cancelar_antes_da_largada_nao_indexa` é
+`assert not progresso.interrompido`: o indexador interpretou o sinal como
+cancelamento da passada. O segundo teste estava em `subprocess.communicate`.
+Isso não confirma a origem do sinal; confirma que a interrupção continua
+depois do teto de mmap de 128 MiB do PR #109.
+
+Medição local (notebook, Windows, 16 GiB livres): 20 aberturas SQLite com
+mmap 0, 128, 256 e 1024 MiB ficaram em ~2,4 ms. A lentidão do runner **não**
+reproduz aqui. O experimento seguinte é `mmap_size=0` somente com `CI=true`,
+sem retry e sem alterar o teto da máquina local.
+
 ### Procedimento para não repetir o diagnóstico incompleto
 
 1. Registrar URL do run/job, comando, contagem de testes, duração e exit code.

@@ -137,3 +137,20 @@ dependencias = ["FND-02a"]
 aceite = "cada estado interrompido termina recuperado ou recusado, nunca sucesso inconsistente"
 evidencia = { pr = 102, sha = "586fbef07ebe05eafb0623f5115ced63e20c5108" }
 proxima_acao = ""
+
+[[pacote]]
+id = "CI-SQLITE-OPEN"
+estado = "em_execucao"
+dono = "notebook"
+paths = [
+    "src/segundocerebro/index/fts.py",
+    "tests/test_fts.py",
+    "tests/test_ci_config.py",
+    "tests/test_pacotes_ativos.py",
+    "docs/incidentes-ci.md",
+    "docs/pacotes-ativos.toml",
+]
+dependencias = ["FND-09a"]
+aceite = "job pytest windows-latest conclui a suíte padrão sem KeyboardInterrupt; mmap local Windows inalterado; workflow sem retry"
+evidencia = ""
+proxima_acao = "mmap=0 quando CI=true; não adicionar retry no workflow"

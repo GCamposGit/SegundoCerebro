@@ -143,7 +143,8 @@ def test_fila_real_carrega_sem_erro() -> None:
     assert por_id["FND-01b-int"].dono == "notebook"
     assert (REPO / "docs" / "fnd-01b-identidade-interna.md").is_file()
     abertos = [p for p in pacotes if p.estado in {"proposto", "pronto", "em_execucao", "bloqueado"}]
-    assert not abertos, "fila real ainda contém pacote aberto após a conclusão do escopo"
+    assert any(p.id == "CI-SQLITE-OPEN" and p.estado == "em_execucao" for p in abertos)
+    assert all(p.paths and p.aceite for p in abertos)
     entregues = [p for p in pacotes if p.estado == "entregue"]
     assert entregues, "dependencias entregues sumiram; 01b/02b ficariam sem evidencia"
     assert all(mod.evidencia_prova_entrega(p.evidencia) for p in entregues)

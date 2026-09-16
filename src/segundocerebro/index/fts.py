@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import os
 import re
 import sqlite3
 import sys
@@ -77,6 +78,11 @@ def consulta_fts_seletiva(con: sqlite3.Connection, texto: str) -> str:
     return consulta_fts(" ".join(escolhidos or termos))
 
 
+def ambiente_de_ci() -> bool:
+    """GitHub Actions e runners compatíveis exportam ``CI=true``."""
+    return os.environ.get("CI", "").strip().lower() in {"1", "true", "yes"}
+
+
 def politica_sqlite(ram_livre_mb: int = 0) -> PoliticaSQLite:
     """Deriva cache e mmap da RAM livre sem competir com encoder e sistema.
 
@@ -92,7 +98,33 @@ def politica_sqlite(ram_livre_mb: int = 0) -> PoliticaSQLite:
     )
 
 
+def mmap_aplicado_mb(
+    politica: PoliticaSQLite,
+    *,
+    plataforma: str | None = None,
+    ci: bool | None = None,
+) -> int:
+    """Tamanho efetivo do mmap. Runner hosted não recebe o orçamento de produção.
+
+    No Windows o mapeamento é cometido pelo sistema de arquivos, não só
+    reservado. O teto de 128 MiB (PR #109) ainda interrompeu o job pytest.
+    ``CI=true`` desliga o mmap: a suíte abre stores efêmeros; o índice local
+    do usuário não vê essa variável e mantém o teto.
+    """
+    if ci is None:
+        ci = ambiente_de_ci()
+    if ci:
+        return 0
+    if plataforma is None:
+        plataforma = sys.platform
+    if plataforma == "win32":
+        return min(politica.mmap_mb, 128)
+    return politica.mmap_mb
+
+
 def _ram_livre_mb() -> int:
+    if ambiente_de_ci():
+        return 0
     try:
         import psutil
 
@@ -104,18 +136,14 @@ def _ram_livre_mb() -> int:
 def configurar_sqlite(con: sqlite3.Connection, *, novo: bool) -> PoliticaSQLite:
     """Aplica orçamento em toda conexão; incremental vacuum nasce com o banco."""
     politica = politica_sqlite(_ram_livre_mb())
+    mmap_mb = mmap_aplicado_mb(politica)
     if novo:
         # Só produz efeito antes de criar tabelas. Converter banco antigo exige
         # VACUUM integral e uma segunda cópia do arquivo — não cabe na abertura.
         con.execute("PRAGMA auto_vacuum=INCREMENTAL")
     con.execute(f"PRAGMA cache_size=-{politica.cache_mb * 1024}")
-    # On Windows, a large mapping is committed by the filesystem layer rather
-    # than merely reserving address space. Hosted runners report abundant RAM,
-    # which otherwise turns each short-lived test connection into a possible
-    # multi-second (or interrupted) mapping operation.
-    mmap_mb = min(politica.mmap_mb, 128) if sys.platform == "win32" else politica.mmap_mb
     con.execute(f"PRAGMA mmap_size={mmap_mb * MIB}")
-    return politica
+    return PoliticaSQLite(cache_mb=politica.cache_mb, mmap_mb=mmap_mb)
 
 
 def otimizar_fts(con: sqlite3.Connection) -> bool:
