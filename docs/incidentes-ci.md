@@ -81,8 +81,33 @@ depois do teto de mmap de 128 MiB do PR #109.
 
 Medição local (notebook, Windows, 16 GiB livres): 20 aberturas SQLite com
 mmap 0, 128, 256 e 1024 MiB ficaram em ~2,4 ms. A lentidão do runner **não**
-reproduz aqui. O experimento seguinte é `mmap_size=0` somente com `CI=true`,
-sem retry e sem alterar o teto da máquina local.
+reproduz aqui. O experimento `mmap_size=0` no CI (PR #112) **não** encerrou
+a interrupção: o job #114 ainda caiu com `KeyboardInterrupt` em `shutil.py`
+após 31 testes / 19,68 s.
+
+### Diagnóstico (2026-09-16)
+
+`KeyboardInterrupt` no CPython é CTRL+C (`CTRL_C_EVENT` no Windows). Não é
+asserção do produto. Evidência:
+
+- A suíte local completa passa (2010+ testes).
+- lint, types, install-smoke (incluindo Windows) e o harness da Dark Factory passam.
+- O ponto da pilha muda a cada run (`store.py`, `fts.py`, `shutil.py`, `logging`,
+  `os.py`, `threading.Event.wait`): o sinal chega de fora, no meio de qualquer
+  chamada.
+- pytest 9.1.1 liga por padrão no Windows o plugin `terminalprogress` (OSC 9;4),
+  desligado nos outros SO precisamente por incompatibilidade com emuladores
+  ([pytest #13896](https://github.com/pytest-dev/pytest/issues/13896),
+  changelog 9.0.2).
+- No Windows, `CTRL_C_EVENT` é entregue ao **grupo de console** inteiro, não a
+  um PID ([Python docs / `GenerateConsoleCtrlEvent`](https://docs.python.org/3/library/subprocess.html);
+  [Stack Overflow](https://stackoverflow.com/questions/42180468/on-windows-what-is-the-python-launcher-py-doing-that-lets-control-c-cross-bet)).
+  Filho (parse isolado, `--help` em subprocesso, coverage) e pai pytest
+  compartilham o console do runner.
+
+Decisão: a suíte exigida com coverage passa a `ubuntu-latest`, onde o processo
+termina. A prova de instalação Windows permanece o `install-smoke`. Sem retry.
+Progresso OSC desligado em `addopts` (`-p no:terminalprogress`).
 
 ### Procedimento para não repetir o diagnóstico incompleto
 

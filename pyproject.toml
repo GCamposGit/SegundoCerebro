@@ -96,7 +96,7 @@ segundocerebro = ["painel/index.html"]
 [tool.pytest.ini_options]
 pythonpath = ["src", "."]
 testpaths = ["tests", "eval"]
-addopts = "-ra -m 'not modelo and not cuda and not ocr and not arquivo'"
+addopts = "-ra -p no:terminalprogress -m 'not modelo and not cuda and not ocr and not arquivo'"
 markers = [
   # Carregam o encoder de verdade: ~2 GB de download na primeira vez e dezenas de
   # segundos por rodada. Ficam fora do padrão, mas são obrigatórios antes de
