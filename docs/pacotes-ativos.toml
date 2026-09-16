@@ -140,7 +140,7 @@ proxima_acao = ""
 
 [[pacote]]
 id = "CI-SQLITE-OPEN"
-estado = "em_execucao"
+estado = "entregue"
 dono = "notebook"
 paths = [
     "src/segundocerebro/index/fts.py",
@@ -152,5 +152,37 @@ paths = [
 ]
 dependencias = ["FND-09a"]
 aceite = "job pytest windows-latest conclui a suíte padrão sem KeyboardInterrupt; mmap local Windows inalterado; workflow sem retry"
+evidencia = { pr = 112, sha = "6d94fa7dfc33620cfd8ba372716ac741c02e3394" }
+proxima_acao = ""
+
+[[pacote]]
+id = "DF-BOOTSTRAP"
+estado = "em_execucao"
+dono = "notebook"
+paths = [
+    "MISSION.md",
+    "FACTORY_RULES.md",
+    "AGENTS.md",
+    "harness.config.json",
+    ".gitignore",
+    ".factory/darkfac.lock.json",
+    ".factory/darkfac-requirements.txt",
+    ".factory/README.md",
+    ".factory/state.json",
+    ".agents/skills/*/SKILL.md",
+    "core/harness/runner.py",
+    "core/harness/markers.py",
+    "core/orchestrator/guard.py",
+    "docs/DARK_FACTORY_PLAYBOOK.md",
+    "docs/HARNESS_INTEROP.md",
+    "docs/MODEL_SELECTION_GUIDE.md",
+    "docs/pacote-dark-factory.md",
+    "docs/pacotes-ativos.toml",
+    ".github/workflows/dark-factory.yml",
+    "tests/test_dark_factory_bootstrap.py",
+    "tests/test_pacotes_ativos.py",
+]
+dependencias = ["FND-09a"]
+aceite = "snapshot pinado sem symlink; skills do produto intactas; harness --quick emite HARNESS_PASS; auto-merge e agendador desligados"
 evidencia = ""
-proxima_acao = "mmap=0 quando CI=true; não adicionar retry no workflow"
+proxima_acao = "bootstrap isolado em nível 2; primeira volta manual depois do merge"

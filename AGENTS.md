@@ -2,9 +2,9 @@
 
 O produto recupera documentos de pastas desconhecidas por MCP, sem geração no servidor e sem API paga por consulta. Cada base tem índice físico próprio.
 
-Leia `docs/regra-de-ouro.md`, a seção vigente de donos em `docs/colaboracao.md` e `docs/desenvolvimento-eficiente.md`. Use `CLAUDE.md` como mapa complementar, conferindo estado no código e no Git. Não presumir hardware, identidade de agente ou fase ativa a partir de texto histórico.
+Leia `MISSION.md`, `FACTORY_RULES.md`, `docs/regra-de-ouro.md`, a seção vigente de donos em `docs/colaboracao.md` e `docs/desenvolvimento-eficiente.md`. Use `CLAUDE.md` como mapa complementar, conferindo estado no código e no Git. Não presumir hardware, identidade de agente ou fase ativa a partir de texto histórico.
 
-Skills versionadas ficam em `.claude/skills/*/SKILL.md` e `.grok/skills/segundo-cerebro-desktop/SKILL.md`. Abra apenas a necessária: `navegar`, `pacote`, `depurar`, `medir`, `revisar`, `entregar`; skills de setup apenas quando esse setup for pertinente. Não dependem de slash commands: seus arquivos são instruções legíveis por qualquer agente.
+Skills próprias do Segundo Cérebro ficam em `.claude/skills/*/SKILL.md` e `.grok/skills/segundo-cerebro-desktop/SKILL.md`. Abra apenas a necessária: `navegar`, `pacote`, `depurar`, `medir`, `revisar`, `entregar`; skills de setup apenas quando esse setup for pertinente. O catálogo pinado da Dark Factory mora em `.agents/skills/` e não substitui as skills do produto. Runtime em `core/` e proveniência em `.factory/darkfac.lock.json`. Nível 2: merge e agendador permanecem humanos.
 
 Revisão e novos pacotes: `docs/revisao-fundamentos-2026-09-04.md` e `docs/plano-fundamentos-execucao.md`. Confira o estado antes de executar; propostas não são funcionalidades entregues.
 
