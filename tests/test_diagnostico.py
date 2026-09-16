@@ -136,6 +136,42 @@ def _preparar_indice_minimo(indice: Path, model_id: str = "e5-large") -> None:
     con.close()
 
 
+def _preparar_indice_ocorrencias(indice: Path) -> None:
+    """Gera um registro v2 mínimo para o diagnóstico somente leitura."""
+    con = sqlite3.connect(indice / "registro.db")
+    con.execute(
+        """
+        CREATE TABLE documentos (
+            ocorrencia_id TEXT PRIMARY KEY,
+            root_id TEXT NOT NULL,
+            path TEXT NOT NULL,
+            model_id TEXT,
+            tamanho INTEGER NOT NULL,
+            mtime REAL NOT NULL,
+            sha256 TEXT NOT NULL,
+            status TEXT NOT NULL,
+            n_chunks INTEGER NOT NULL
+        )
+        """
+    )
+    con.execute(
+        """
+        CREATE TABLE chunks (
+            id TEXT PRIMARY KEY,
+            ocorrencia_id TEXT NOT NULL,
+            path TEXT NOT NULL
+        )
+        """
+    )
+    con.execute(
+        "INSERT INTO documentos VALUES (?,?,?,?,?,?,?,?,?)",
+        ("occ-1", "root-1", "nota.md", "", 10, 1.0, "a" * 64, "ok", 1),
+    )
+    con.execute("INSERT INTO chunks VALUES (?,?,?)", ("chunk-1", "occ-1", "nota.md"))
+    con.commit()
+    con.close()
+
+
 def test_diagnostico_base_saudavel_retorna_ok(tmp_path: Path) -> None:
     cfg_path, _, indice = _criar_config_sintetico(tmp_path)
     _preparar_indice_minimo(indice)
@@ -346,6 +382,19 @@ def test_diagnostico_profundo_detecta_divergencia_integridade(
     )
     assert item_integridade.severidade == "erro"
     assert relatorio_profundo.status_geral == "inoperante"
+
+
+def test_diagnostico_profundo_le_indice_por_ocorrencia(
+    tmp_path: Path,
+) -> None:
+    cfg_path, _, indice = _criar_config_sintetico(tmp_path)
+    _preparar_indice_ocorrencias(indice)
+
+    relatorio = diagnosticar_base("padrao", caminho_config=cfg_path, profundo=True)
+
+    item = next(it for it in relatorio.itens if it.codigo == "integridade_ok")
+    assert relatorio.status_geral == "saudavel"
+    assert item.evidencia["chunks"] == 1
 
 
 def test_diagnostico_profundo_nao_abre_store_gravavel(

@@ -15,6 +15,7 @@ from __future__ import annotations
 import hashlib
 import os
 import platform
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -34,6 +35,24 @@ def aceita_regime(ecoqos: bool | None) -> bool:
     return ecoqos is not True
 
 
+def arquitetura_da_maquina() -> str:
+    """Arquitetura sem consulta WMI no Windows hospedado."""
+    if sys.platform == "win32":
+        return (
+            os.environ.get("PROCESSOR_ARCHITEW6432")
+            or os.environ.get("PROCESSOR_ARCHITECTURE")
+            or "Windows"
+        )
+    return platform.machine()
+
+
+def processador_da_maquina() -> str:
+    """Nome do processador sem bloquear no provedor WMI do Windows."""
+    if sys.platform == "win32":
+        return os.environ.get("PROCESSOR_IDENTIFIER") or arquitetura_da_maquina()
+    return platform.processor() or arquitetura_da_maquina()
+
+
 def impressao_da_maquina(model_id: str, chunker: str, *, gpus: list[str] | None = None) -> str:
     """Hash of everything that invalidates the machine coefficients.
 
@@ -44,8 +63,8 @@ def impressao_da_maquina(model_id: str, chunker: str, *, gpus: list[str] | None 
     neither (the same reason profile is not in the key).
     """
     partes = [
-        platform.machine(),
-        (platform.processor() or "")[:80],
+        arquitetura_da_maquina(),
+        processador_da_maquina()[:80],
         str(os.cpu_count() or 0),
         ",".join(sorted(gpus or [])),
         model_id,

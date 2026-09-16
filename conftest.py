@@ -71,10 +71,16 @@ def ambiente_devolvido() -> Iterator[None]:
     alguém escrever sem lembrar de desfazer. Mora na raiz para valer também em
     `pytest eval/`, que não carrega o conftest de `tests/`.
     """
-    antes = dict(os.environ)
+    # O pytest atualiza esta chave entre setup/call/teardown. Ela é um marcador
+    # do próprio executor, não estado do produto que a fixture precise copiar.
+    sentinel = "PYTEST_CURRENT_TEST"
+    antes = {chave: valor for chave, valor in os.environ.items() if chave != sentinel}
     try:
         yield
     finally:
-        if os.environ != antes:
-            os.environ.clear()
-            os.environ.update(antes)
+        atual = {chave: valor for chave, valor in os.environ.items() if chave != sentinel}
+        for chave in atual.keys() - antes.keys():
+            del os.environ[chave]
+        for chave, valor in antes.items():
+            if atual.get(chave) != valor:
+                os.environ[chave] = valor

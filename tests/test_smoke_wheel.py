@@ -13,6 +13,8 @@ import sys
 import venv
 from pathlib import Path
 
+import pytest
+
 REPO = Path(__file__).resolve().parents[1]
 HELPER = REPO / "scripts" / "smoke_wheel.py"
 TIMEOUT_VENV_S = 120
@@ -139,6 +141,36 @@ def test_env_sem_pythonpath_nao_vaza() -> None:
     limpo = helper.env_sem_pythonpath({"PYTHONPATH": "src", "Path": "C:\\Windows", "FOO": "1"})
     assert "PYTHONPATH" not in limpo
     assert limpo["FOO"] == "1"
+
+
+def test_caminho_interprete_preserva_symlink_da_venv(tmp_path: Path) -> None:
+    if os.name == "nt":
+        pytest.skip("symlink de executável pode exigir privilégio no Windows")
+    helper = _carregar_helper()
+    alvo = tmp_path / "python-real"
+    alvo.write_text("", encoding="utf-8")
+    link = tmp_path / "bin" / "python"
+    link.parent.mkdir()
+    link.symlink_to(alvo)
+
+    caminho = helper.caminho_interprete(link)
+
+    assert caminho == Path(os.path.abspath(link))
+    assert caminho != alvo.resolve()
+
+
+def test_wheel_only_valida_sem_dependencias_de_runtime(tmp_path: Path) -> None:
+    py = _montar_venv_com_wheel(tmp_path / "wheel-only", com_html=True)
+    helper = _carregar_helper()
+
+    helper.executar(
+        py,
+        tmp_path / "cwd",
+        pacote="toy_smoke",
+        html_modulo="toy_smoke.painel",
+        runtime=False,
+        mcp=False,
+    )
 
 
 def test_wheel_toy_passa_fora_do_checkout(tmp_path: Path) -> None:

@@ -5,8 +5,7 @@ from __future__ import annotations
 import ast
 import json
 import sqlite3
-import subprocess
-import sys
+from types import SimpleNamespace
 from pathlib import Path
 
 import numpy as np
@@ -124,6 +123,50 @@ def _ids(diretorio: Path) -> list[str]:
         return [h.id for h in hits]
     finally:
         store.fechar()
+
+
+def test_store_fechar_libera_recursos_lance() -> None:
+    class Recurso:
+        def __init__(self) -> None:
+            self.fechado = False
+            self.lsm_fechado = False
+
+        def close(self) -> None:
+            self.fechado = True
+
+        def close_lsm_writers(self) -> None:
+            self.lsm_fechado = True
+
+    class Conexao:
+        def __init__(self) -> None:
+            self.commits = 0
+            self.fechada = False
+
+        def commit(self) -> None:
+            self.commits += 1
+
+        def close(self) -> None:
+            self.fechada = True
+
+    tabela = Recurso()
+    conexao_lance = Recurso()
+    conexao = Conexao()
+    store = object.__new__(Store)
+    store.con = conexao
+    store._tabela = tabela
+    store._db = SimpleNamespace(_conn=conexao_lance)
+    store._ann_ativo = True
+
+    store.fechar()
+
+    assert conexao.commits == 1
+    assert conexao.fechada
+    assert tabela.fechado
+    assert tabela.lsm_fechado
+    assert conexao_lance.fechado
+    assert store._tabela is None
+    assert store._db is None
+    assert store._ann_ativo is None
 
 
 def test_backup_e_restore_reproduzem_ids_e_consulta(tmp_path: Path) -> None:
@@ -327,17 +370,13 @@ def test_cli_criar_e_restaurar(tmp_path: Path, capsys: pytest.CaptureFixture[str
     assert _ids(restaurado) == ["c-vce-1"]
 
 
-def test_cli_help_nao_carrega_encoder() -> None:
-    proc = subprocess.run(
-        [sys.executable, "-m", "segundocerebro.index.backup", "--help"],
-        capture_output=True,
-        text=True,
-        timeout=20,
-        check=False,
-    )
-    assert proc.returncode == 0, proc.stderr
-    assert "criar" in proc.stdout
-    assert "restaurar" in proc.stdout
+def test_cli_help_nao_carrega_encoder(capsys: pytest.CaptureFixture[str]) -> None:
+    with pytest.raises(SystemExit) as exc:
+        main(["--help"])
+    assert exc.value.code == 0
+    saida = capsys.readouterr().out
+    assert "criar" in saida
+    assert "restaurar" in saida
 
 
 def test_backup_nao_importa_encoder() -> None:

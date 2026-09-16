@@ -7,6 +7,7 @@ from typing import Any
 
 from .backup_manifesto import BackupInconsistente, LANCEDB_SEM_SNAPSHOT
 from .backup_io import limpar_wal
+from .lancedb_recursos import fechar_recursos
 from .store import TABELA_VETORES, Store
 
 
@@ -17,6 +18,7 @@ def descobrir_dim(diretorio: Path) -> int | None:
     import lancedb
 
     db = lancedb.connect(str(lance))
+    tabela = None
     try:
         tabela = db.open_table(TABELA_VETORES)
         campo = tabela.schema.field("vetor")
@@ -29,7 +31,7 @@ def descobrir_dim(diretorio: Path) -> int | None:
             "Gere o backup de novo com a indexação parada.",
         ) from exc
     finally:
-        db = None
+        fechar_recursos(tabela, db)
 
 
 def _anexar_tabela(store: Store) -> dict[str, Any]:
