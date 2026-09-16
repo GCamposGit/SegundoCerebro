@@ -85,6 +85,18 @@ def test_pytest_job_nao_mascara_interrupcao() -> None:
     assert "Wandalen/wretry.action" not in pytest_job
 
 
+def test_pytest_job_nao_roda_no_runner_windows_que_interrompe() -> None:
+    """CTRL_C no windows-latest não é asserção; a suíte exigida termina no Ubuntu."""
+    yml = (REPO / ".github" / "workflows" / "tests.yml").read_text(encoding="utf-8")
+    pytest_job = bloco_do_job(yml, "pytest")
+    assert "runs-on: ubuntu-latest" in pytest_job
+    assert "runs-on: windows-latest" not in pytest_job
+    assert "install-smoke" in yml
+    assert "windows-latest" in bloco_do_job(yml, "install-smoke")
+    pyproject = (REPO / "pyproject.toml").read_text(encoding="utf-8")
+    assert "-p no:terminalprogress" in pyproject
+
+
 def test_ci_pytest_instala_do_lock() -> None:
     """Q2/FND-09b: the pytest job must not resolve floating ranges on a Tuesday."""
     yml = (REPO / ".github" / "workflows" / "tests.yml").read_text(encoding="utf-8")

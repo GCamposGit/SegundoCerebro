@@ -201,3 +201,20 @@ dependencias = ["DF-BOOTSTRAP"]
 aceite = "bootstrap registrado como entregue; volta manual documentada; nível 2 inalterado; harness --quick verde"
 evidencia = { pr = 114, sha = "8fb6b95ba275171490b417b6bd9343f0d1c99709" }
 proxima_acao = ""
+
+[[pacote]]
+id = "CI-PYTEST-RUNNER"
+estado = "em_execucao"
+dono = "notebook"
+paths = [
+    ".github/workflows/tests.yml",
+    "pyproject.toml",
+    "tests/test_ci_config.py",
+    "tests/test_pacotes_ativos.py",
+    "docs/incidentes-ci.md",
+    "docs/pacotes-ativos.toml",
+]
+dependencias = ["CI-SQLITE-OPEN"]
+aceite = "job pytest exigido conclui a suíte com coverage no Ubuntu; install-smoke Windows permanece; sem retry"
+evidencia = ""
+proxima_acao = "mover pytest+coverage para ubuntu-latest; desligar terminalprogress"

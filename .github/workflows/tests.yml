@@ -41,7 +41,11 @@ jobs:
         run: python -m pytest tests/test_tipos_fronteira.py -q
 
   pytest:
-    runs-on: windows-latest
+    # The hosted Windows runner delivers CTRL_C to this process (KeyboardInterrupt
+    # at random frames after ~20s). That is not an assertion failure. The suite
+    # is portable; Windows install stays proven by install-smoke.
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
     strategy:
       matrix:
         python-version: ["3.12"]
