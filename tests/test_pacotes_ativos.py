@@ -143,10 +143,13 @@ def test_fila_real_carrega_sem_erro() -> None:
     assert por_id["FND-01b-int"].dono == "notebook"
     assert (REPO / "docs" / "fnd-01b-identidade-interna.md").is_file()
     abertos = [p for p in pacotes if p.estado in {"proposto", "pronto", "em_execucao", "bloqueado"}]
-    assert any(p.id == "DF-BOOTSTRAP" and p.estado == "em_execucao" for p in abertos)
+    assert any(p.id == "DF-LAP-1" and p.estado == "em_execucao" for p in abertos)
     assert all(p.paths and p.aceite for p in abertos)
     assert por_id["CI-SQLITE-OPEN"].estado == "entregue"
     assert por_id["CI-SQLITE-OPEN"].evidencia["pr"] == 112
+    assert por_id["DF-BOOTSTRAP"].estado == "entregue"
+    assert por_id["DF-BOOTSTRAP"].evidencia["pr"] == 113
+    assert (REPO / "docs" / "volta-manual-nivel-2.md").is_file()
     entregues = [p for p in pacotes if p.estado == "entregue"]
     assert entregues, "dependencias entregues sumiram; 01b/02b ficariam sem evidencia"
     assert all(mod.evidencia_prova_entrega(p.evidencia) for p in entregues)

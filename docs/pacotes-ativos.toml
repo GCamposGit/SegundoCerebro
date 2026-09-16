@@ -157,7 +157,7 @@ proxima_acao = ""
 
 [[pacote]]
 id = "DF-BOOTSTRAP"
-estado = "em_execucao"
+estado = "entregue"
 dono = "notebook"
 paths = [
     "MISSION.md",
@@ -184,5 +184,20 @@ paths = [
 ]
 dependencias = ["FND-09a"]
 aceite = "snapshot pinado sem symlink; skills do produto intactas; harness --quick emite HARNESS_PASS; auto-merge e agendador desligados"
+evidencia = { pr = 113, sha = "0d055ff0d081c77e0f612f4626c262916679b44a" }
+proxima_acao = ""
+
+[[pacote]]
+id = "DF-LAP-1"
+estado = "em_execucao"
+dono = "notebook"
+paths = [
+    ".factory/state.json",
+    "docs/volta-manual-nivel-2.md",
+    "docs/pacotes-ativos.toml",
+    "tests/test_pacotes_ativos.py",
+]
+dependencias = ["DF-BOOTSTRAP"]
+aceite = "bootstrap registrado como entregue; volta manual documentada; nível 2 inalterado; harness --quick verde"
 evidencia = ""
-proxima_acao = "bootstrap isolado em nível 2; primeira volta manual depois do merge"
+proxima_acao = "merge manual; não promover autonomia"
