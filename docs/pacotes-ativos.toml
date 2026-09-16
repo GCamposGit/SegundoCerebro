@@ -51,6 +51,38 @@ evidencia = { pr = 98, sha = "b71a886068a5a13c954e3e74948f7fcfeb34500a" }
 proxima_acao = ""
 
 [[pacote]]
+id = "FND-09a"
+estado = "entregue"
+dono = "notebook"
+paths = [
+    ".github/workflows/tests.yml",
+    "scripts/smoke_wheel.py",
+    "tests/test_pacote.py",
+]
+dependencias = []
+aceite = "wheel instalado fora do checkout inicia as superfícies públicas no Windows e valida a superfície portátil nos Unix sem PYTHONPATH implícito"
+evidencia = { pr = 93, sha = "207004acf10a979136ffc1e90c2100c3e10249b2" }
+proxima_acao = ""
+
+[[pacote]]
+id = "FND-09b"
+estado = "entregue"
+dono = "notebook"
+paths = [
+    ".github/workflows/tests.yml",
+    "README.md",
+    "pyproject.toml",
+    "requirements-dev.txt",
+    "requirements.txt",
+    "tests/test_ci_config.py",
+    "tests/test_pacote.py",
+]
+dependencias = ["FND-09a"]
+aceite = "runtime instala sem pytest/httpx; dev usa lock; types e pytest executam com dependências fixadas; resolução aberta permanece separada"
+evidencia = { pr = 99, sha = "c00fb3a80f8c3d1e00de7da3d45437e8488f417e" }
+proxima_acao = ""
+
+[[pacote]]
 id = "FND-01b"
 estado = "entregue"
 dono = "notebook"
@@ -67,7 +99,7 @@ paths = [
 ]
 dependencias = ["FND-01a", "FND-02b", "FND-08b"]
 aceite = "duas raízes sintéticas com contrato.md distinto coexistem; migração para diretório novo preserva o original; chunks, vetores e journal são copiados e conferidos; ativação real é separada"
-evidencia = { sha = "f01d5a7e89731ff856dde4003c0b2f38f1a51398" }
+evidencia = { pr = 106, sha = "2d689f2b9e25984b37da2d2285f87ef5e7dd9b7c" }
 proxima_acao = ""
 
 [[pacote]]
@@ -89,7 +121,7 @@ paths = [
 ]
 dependencias = ["FND-01b"]
 aceite = "MCP distingue os dois contrato.md; path relativo ambíguo pede root_id; doc_id permanece por conteúdo; guarda temporária FND-01a removida"
-evidencia = { sha = "f01d5a7e89731ff856dde4003c0b2f38f1a51398" }
+evidencia = { pr = 107, sha = "5a7cbe17f109b84e31555320967f92767607149a" }
 proxima_acao = ""
 
 [[pacote]]
