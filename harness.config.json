@@ -1,0 +1,35 @@
+{
+  "steps": [
+    {
+      "name": "compile_python",
+      "cmd": "python -m compileall -q src tests eval core",
+      "quick": true,
+      "timeout_sec": 120
+    },
+    {
+      "name": "lint",
+      "cmd": "python -m ruff check src tests eval",
+      "quick": true,
+      "timeout_sec": 120
+    },
+    {
+      "name": "types",
+      "cmd": "python -m pyright src",
+      "quick": true,
+      "timeout_sec": 180
+    },
+    {
+      "name": "factory_bootstrap_tests",
+      "cmd": "python -m pytest tests/test_dark_factory_bootstrap.py -q",
+      "quick": true,
+      "timeout_sec": 120
+    },
+    {
+      "name": "unit_and_integration_tests",
+      "cmd": "python -m pytest tests/ eval/ -q",
+      "quick": false,
+      "timeout_sec": 600
+    }
+  ]
+}
+

@@ -1,0 +1,21 @@
+{
+  "schema_version": 1,
+  "source_repository": "DarkFac",
+  "source_ref": "origin/main",
+  "source_commit": "de6442408427adaaf336a122c6dd7c4dbe2e9311",
+  "installed_at": "2026-09-06",
+  "installation_mode": "vendored_snapshot",
+  "autonomy_level": 2,
+  "auto_merge": false,
+  "scheduler": false,
+  "included": [
+    ".agents/skills",
+    "core",
+    "docs/DARK_FACTORY_PLAYBOOK.md",
+    "docs/HARNESS_INTEROP.md",
+    "docs/MODEL_SELECTION_GUIDE.md",
+    ".factory/darkfac-requirements.txt"
+  ],
+  "update_policy": "manual_reviewed_commit_only"
+}
+

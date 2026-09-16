@@ -57,6 +57,11 @@ desktop.ini
 .DS_Store
 .claude/
 
+# Estado local da Dark Factory — fila viva, ledgers e relatórios de máquina
+.factory/benchmarks/
+.factory/learning/
+.factory/reports/
+
 # Índice local gerado — só na raiz. Sem a barra inicial, este padrão também
 # casaria src/segundocerebro/index/ e deixaria o pacote fora do repositório,
 # que foi exatamente o que aconteceu entre os commits ac36dc9 e 8b042d1.
