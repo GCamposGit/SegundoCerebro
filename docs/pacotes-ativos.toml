@@ -203,8 +203,24 @@ evidencia = { pr = 114, sha = "8fb6b95ba275171490b417b6bd9343f0d1c99709" }
 proxima_acao = ""
 
 [[pacote]]
-id = "CI-PYTEST-RUNNER"
+id = "FND-01b-ATV"
 estado = "em_execucao"
+dono = "notebook"
+paths = [
+    "src/segundocerebro/index/ativar_identidade.py",
+    "tests/test_ativar_identidade.py",
+    "docs/fnd-01b-identidade-interna.md",
+    "docs/pacotes-ativos.toml",
+    "tests/test_pacotes_ativos.py",
+]
+dependencias = ["FND-01b", "FND-01b-int"]
+aceite = "ativar aponta indice só depois de conferir schema v2; config original com comentários preservado; destino legado recusado; original intacto"
+evidencia = ""
+proxima_acao = "comando de ativação; não migrar acervo real neste PR"
+
+[[pacote]]
+id = "CI-PYTEST-RUNNER"
+estado = "entregue"
 dono = "notebook"
 paths = [
     ".github/workflows/tests.yml",
@@ -216,5 +232,5 @@ paths = [
 ]
 dependencias = ["CI-SQLITE-OPEN"]
 aceite = "job pytest exigido conclui a suíte com coverage no Ubuntu; install-smoke Windows permanece; sem retry"
-evidencia = ""
-proxima_acao = "mover pytest+coverage para ubuntu-latest; desligar terminalprogress"
+evidencia = { pr = 116, sha = "75aa2125121abc5eb50408d5d5c00327557c2549" }
+proxima_acao = ""

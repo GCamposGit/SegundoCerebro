@@ -107,7 +107,15 @@ Migrador:
    journal vazio, parse store intocado (chave de conteúdo).
 5. Publica o destino só depois da conferência. Interromper não aponta
    `config.toml` para pasta parcial.
-6. Ativação é passo separado, como o restore do 08b.
+6. Ativação é passo separado, como o restore do 08b:
+
+   ```text
+   py -m segundocerebro.index.migrar_identidade --config config.toml --destino index-v2
+   py -m segundocerebro.index.ativar_identidade --config config.toml --destino index-v2
+   ```
+
+   A ativação só reescreve `indice` da base alvo. Comentários e as outras bases
+   ficam. Rollback: apontar de novo para a pasta antiga.
 
 Rollback: voltar o `indice` para a pasta antiga. Sem downgrade destrutivo.
 
