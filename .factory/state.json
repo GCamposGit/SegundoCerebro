@@ -1,5 +1,19 @@
 {
-  "tasks": {},
+  "tasks": {
+    "DF-LAP-1": {
+      "id": "DF-LAP-1",
+      "title": "Primeira volta manual nivel 2",
+      "status": "READY_TO_MERGE",
+      "priority": 1,
+      "history": [
+        {"status": "TRIAGED"},
+        {"status": "PLANNED"},
+        {"status": "IMPLEMENTING"},
+        {"status": "VALIDATING"},
+        {"status": "REVIEWING"},
+        {"status": "READY_TO_MERGE"}
+      ]
+    }
+  },
   "history": []
 }
-
