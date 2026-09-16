@@ -3,7 +3,7 @@
     "DF-LAP-1": {
       "id": "DF-LAP-1",
       "title": "Primeira volta manual nivel 2",
-      "status": "READY_TO_MERGE",
+      "status": "MERGED",
       "priority": 1,
       "history": [
         {"status": "TRIAGED"},
@@ -11,7 +11,8 @@
         {"status": "IMPLEMENTING"},
         {"status": "VALIDATING"},
         {"status": "REVIEWING"},
-        {"status": "READY_TO_MERGE"}
+        {"status": "READY_TO_MERGE"},
+        {"status": "MERGED"}
       ]
     }
   },
