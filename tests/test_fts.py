@@ -15,12 +15,40 @@ def test_mmap_windows_tem_teto_de_128_mib(monkeypatch) -> None:  # noqa: ANN001
         def execute(self, comando: str):  # noqa: ANN001, ANN201
             comandos.append(comando)
 
+    monkeypatch.delenv("CI", raising=False)
     monkeypatch.setattr(fts.sys, "platform", "win32")
     monkeypatch.setattr(fts, "_ram_livre_mb", lambda: 64 * 1024)
 
     fts.configurar_sqlite(ConexaoFake(), novo=False)  # type: ignore[arg-type]
 
     assert "PRAGMA mmap_size=134217728" in comandos
+
+
+def test_mmap_ci_desliga_mapeamento_mesmo_com_ram_alta(monkeypatch) -> None:  # noqa: ANN001
+    comandos: list[str] = []
+
+    class ConexaoFake:
+        def execute(self, comando: str):  # noqa: ANN001, ANN201
+            comandos.append(comando)
+
+    monkeypatch.setenv("CI", "true")
+    monkeypatch.setattr(fts.sys, "platform", "win32")
+    monkeypatch.setattr(fts, "_ram_livre_mb", lambda: 64 * 1024)
+
+    aplicada = fts.configurar_sqlite(ConexaoFake(), novo=False)  # type: ignore[arg-type]
+
+    assert aplicada.mmap_mb == 0
+    assert "PRAGMA mmap_size=0" in comandos
+    assert "PRAGMA mmap_size=134217728" not in comandos
+
+
+def test_ci_desliga_mmap_sem_depender_da_sonda_de_ram(monkeypatch) -> None:  # noqa: ANN001
+    monkeypatch.setenv("CI", "true")
+
+    assert fts.ambiente_de_ci() is True
+    assert fts.mmap_aplicado_mb(politica_sqlite(64 * 1024), plataforma="win32") == 0
+    assert fts.mmap_aplicado_mb(politica_sqlite(0), plataforma="linux") == 0
+    assert fts._ram_livre_mb() == 0
 
 
 def test_orcamento_sqlite_encolhe_e_tem_teto() -> None:
@@ -36,7 +64,11 @@ def test_registro_novo_nasce_com_vacuum_incremental_e_pragmas(tmp_path) -> None:
     try:
         assert store.con.execute("PRAGMA auto_vacuum").fetchone()[0] == 2
         assert store.con.execute("PRAGMA cache_size").fetchone()[0] < 0
-        assert store.con.execute("PRAGMA mmap_size").fetchone()[0] > 0
+        mmap = store.con.execute("PRAGMA mmap_size").fetchone()[0]
+        if fts.ambiente_de_ci():
+            assert mmap == 0
+        else:
+            assert mmap > 0
     finally:
         store.fechar()
 

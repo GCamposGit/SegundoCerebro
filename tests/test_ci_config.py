@@ -75,6 +75,16 @@ def test_ci_roda_lint_types_e_coverage() -> None:
     assert "--cov-fail-under=80" in yml, "piso de coverage saiu do medido−2 p.p. (82% → 80%)"
 
 
+def test_pytest_job_nao_mascara_interrupcao() -> None:
+    """Incidentes de CI: retry e continue-on-error converteriam cancelamento em verde."""
+    yml = (REPO / ".github" / "workflows" / "tests.yml").read_text(encoding="utf-8")
+    pytest_job = bloco_do_job(yml, "pytest")
+    assert "continue-on-error" not in pytest_job
+    assert "max-attempts" not in pytest_job
+    assert "nick-fields/retry" not in pytest_job
+    assert "Wandalen/wretry.action" not in pytest_job
+
+
 def test_ci_pytest_instala_do_lock() -> None:
     """Q2/FND-09b: the pytest job must not resolve floating ranges on a Tuesday."""
     yml = (REPO / ".github" / "workflows" / "tests.yml").read_text(encoding="utf-8")
