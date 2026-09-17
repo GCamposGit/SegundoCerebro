@@ -107,6 +107,7 @@ def construir_parser() -> argparse.ArgumentParser:
         "(um processo por placa); senão fica na thread principal",
     )
     parser.add_argument("--prefixo", help="indexa só caminhos que começam com este prefixo")
+    parser.add_argument("--raiz", metavar="NOME", help="indexa só esta raiz; as outras não são apagadas")
     parser.add_argument(
         "--so-extensao",
         dest="so_extensao",

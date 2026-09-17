@@ -3,16 +3,18 @@
 Dois setups, um repositório. Este arquivo é a **única** fonte das regras.
 As skills orientam a operação e apontam para cá. O [procedimento compartilhado](desenvolvimento-eficiente.md) define contexto mínimo, isolamento, validação e handoff; esta página mantém donos e regras de produto. Pacotes **abertos** ficam em [`pacotes-ativos.toml`](pacotes-ativos.toml) — `python scripts/verificar_pacotes.py` recusa id duplicado, ciclo, entrega sem PR/SHA e dois escritores no mesmo path.
 
-> **Estado vigente desde 02/09/2026.** O notebook original (i7-1355U) foi
-> desativado em 01/09. Este notebook (i7-14700HX, 8P+12E) retomou em 02/09, com
+> **Estado vigente desde 02/09/2026.** O notebook original (i7-1355U, sem GPU) foi
+> desativado em 01/09. Este notebook (i7-14700HX, RTX 4070) retomou em 02/09, com
 > o acervo corporativo e o dourado real. O Desktop continua ativo. A tabela de
-> donos da §1 volta a distribuir trabalho. CUDA e `index/embeddings.py` seguem
-> do Desktop. Nenhum dado privado migra para o Desktop ou para o Git.
+> donos da §1 volta a distribuir trabalho. CUDA no Desktop permanece o extra
+> `[gpu]` pinado (Maxwell). Neste notebook a 4070 entra quando o runtime CUDA
+> está instalado e `diagnosticar()` diz ok — CPU continua o padrão de clone
+> sem GPU. Nenhum dado privado migra para o Desktop ou para o Git.
 
 | Setup | Hardware | Acervo | Agente |
 |-------|----------|--------|--------|
 | **Desktop** | duas GTX 980 Ti (`sm_52`, driver 582.x) | corpus **novo**, sem o acervo corporativo | Grok Build |
-| **Notebook** | i7-14700HX (8P+12E), Windows 11 | acervo **corporativo** original e o conjunto dourado real | Claude Code |
+| **Notebook** | i7-14700HX (8P+12E), RTX 4070 (8 GB), Windows 11 | acervo **corporativo** original e o conjunto dourado real | Claude Code |
 
 O índice corporativo, `perguntas.jsonl` e os relatórios de ablação **não
 viajam**. O que as duas máquinas compartilham é o código e o corpus sintético

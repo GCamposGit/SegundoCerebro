@@ -217,6 +217,34 @@ def ordenar(
     return [item.arquivo for item in planejar(arquivos, apenas_onda=apenas_onda, agora=agora)]
 
 
+def montar_trabalho(
+    enumerados: Sequence[tuple],
+    *,
+    apenas_onda: int | None = None,
+    so_raiz: str | None = None,
+) -> list[tuple]:
+    """Process queue. Enumeration/`vistos` stay complete; this only picks work.
+
+    `--raiz` must not drop other roots from `vistos`: that would look like they
+    vanished and reconciliation would delete them.
+    """
+    if so_raiz:
+        nomes = [root.name for root, _arquivos in enumerados]
+        if so_raiz not in nomes:
+            from ..config import ErroDeConfig
+
+            raise ErroDeConfig(
+                f"A raiz '{so_raiz}' não está nesta base. "
+                f"Disponíveis: {', '.join(nomes) or '(nenhuma)'}."
+            )
+    saida: list[tuple] = []
+    for root, arquivos in enumerados:
+        if so_raiz and root.name != so_raiz:
+            continue
+        saida.append((root, ordenar(indexaveis(arquivos), apenas_onda=apenas_onda)))
+    return saida
+
+
 def planejar(
     arquivos: Sequence[FileEntry],
     *,
