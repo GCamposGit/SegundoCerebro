@@ -139,7 +139,9 @@ def resolver_provider(provider: str | None) -> str:
     pedido = (os.environ.get("SEGUNDOCEREBRO_PROVIDER") or "").strip()
     if pedido:
         return pedido.lower()
-    return (provider or "").strip().lower() or "cpu"
+    if (provider or "").strip():
+        return (provider or "").strip().lower()
+    return "cuda" if diagnosticar().ok else "cpu"
 
 
 def aplicar_provider(provider: str | None) -> str:
@@ -161,9 +163,9 @@ def aplicar_provider(provider: str | None) -> str:
     Quem só precisa saber a resposta chama `resolver_provider`, que não escreve.
     """
     p = resolver_provider(provider)
-    # Publica só o que o ambiente ainda não disse e o arquivo declarou — a mesma
-    # condição de antes, escrita agora sobre a função pura.
-    if not (os.environ.get("SEGUNDOCEREBRO_PROVIDER") or "").strip() and (provider or "").strip():
+    # Publica o provedor efetivo (arquivo, env ou auto-CUDA) para os filhos de
+    # embed herdarem. Env já preenchido continua mandando.
+    if not (os.environ.get("SEGUNDOCEREBRO_PROVIDER") or "").strip() and p:
         os.environ["SEGUNDOCEREBRO_PROVIDER"] = p
     return p
 

@@ -40,7 +40,7 @@ from ..ingest.ocr import VERSAO as OCR_VERSAO
 from ..ingest.parsers import parser_version_for
 from ..ingest.document import BlockKind, ParseResult, ParseStatus
 from ..ingest.natureza import EXTENSOES_DE_TEXTO_BRUTO
-from .prioridade import ONDAS, indexaveis, onda_de, ordenar as ordenar_fila
+from .prioridade import ONDAS, montar_trabalho, onda_de
 from .prioridade import pasta_de, vigentes as vigentes_de
 from ..logger import get_logger
 from .gpu_pool import EmbedFila, dispositivos_embed
@@ -234,6 +234,7 @@ def indexar(
     limite: int | None = None,
     lote: int = LOTE_EMBEDDING,
     prefixo: str | None = None,
+    so_raiz: str | None = None,
     so_extensao: frozenset[str] | None = None,
     reconciliar_ao_fim: bool = True,
     forcar_reconciliacao: bool = False,
@@ -340,10 +341,7 @@ def indexar(
         for arquivo in arquivos:
             vistos.add(arquivo.rel)
             vistos.add(f"{_root.name}\0{arquivo.rel}")
-    trabalho = [
-        (root, ordenar_fila(indexaveis(arquivos), apenas_onda=apenas_onda))
-        for root, arquivos in enumerados
-    ]
+    trabalho = montar_trabalho(enumerados, apenas_onda=apenas_onda, so_raiz=so_raiz)
     vigentes_fila = vigentes_de([a for _, arquivos in trabalho for a in arquivos])
 
     # Tabela master: metade de máquina por `fingerprint`, metade de formato por
@@ -1113,6 +1111,8 @@ def indexar(
                 )
             else:
                 for rel, raiz_nome in store.documentos_para_ocr(OCR_VERSAO):
+                    if so_raiz and raiz_nome != so_raiz:
+                        continue
                     honrar_comando()
                     if interrupcao.pedida:
                         progresso.interrompido = True
@@ -1303,7 +1303,7 @@ def main(argv: list[str] | None = None) -> int:
             ),
             limite=args.limite,
             lote=conf.maquina.lote,
-            prefixo=args.prefixo,
+            prefixo=args.prefixo, so_raiz=args.raiz,
             so_extensao=_extensoes(args.so_extensao),
             limite_planilha_mb=args.pular_planilha_acima_de,
             limites_mb=_limites_efetivos(base.limites, args.pular_texto_acima_de),

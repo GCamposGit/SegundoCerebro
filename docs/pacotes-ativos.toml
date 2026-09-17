@@ -204,7 +204,7 @@ proxima_acao = ""
 
 [[pacote]]
 id = "FND-01b-ATV"
-estado = "em_execucao"
+estado = "entregue"
 dono = "notebook"
 paths = [
     "src/segundocerebro/index/ativar_identidade.py",
@@ -215,8 +215,28 @@ paths = [
 ]
 dependencias = ["FND-01b", "FND-01b-int"]
 aceite = "ativar aponta indice só depois de conferir schema v2; config original com comentários preservado; destino legado recusado; original intacto"
+evidencia = { pr = 117, sha = "ccb08fc28170e31a763c1cbffc52dbe33baa4db5" }
+proxima_acao = ""
+
+[[pacote]]
+id = "INDEXAR-RAIZ"
+estado = "em_execucao"
+dono = "notebook"
+paths = [
+    "src/segundocerebro/index/prioridade.py",
+    "src/segundocerebro/index/indexer.py",
+    "src/segundocerebro/index/cli.py",
+    "src/segundocerebro/index/cuda_runtime.py",
+    "tests/test_indexar_raiz.py",
+    "tests/test_cuda_runtime.py",
+    "tests/test_pacotes_ativos.py",
+    "docs/colaboracao.md",
+    "docs/pacotes-ativos.toml",
+]
+dependencias = ["FND-01b-ATV"]
+aceite = "--raiz processa só a raiz pedida e não apaga as outras; CUDA entra quando diagnosticar() ok; CPU permanece o padrão sem GPU"
 evidencia = ""
-proxima_acao = "comando de ativação; não migrar acervo real neste PR"
+proxima_acao = "flag --raiz; auto-CUDA quando a placa responde"
 
 [[pacote]]
 id = "CI-PYTEST-RUNNER"

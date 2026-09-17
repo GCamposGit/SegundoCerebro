@@ -143,7 +143,9 @@ def test_fila_real_carrega_sem_erro() -> None:
     assert por_id["FND-01b-int"].dono == "notebook"
     assert (REPO / "docs" / "fnd-01b-identidade-interna.md").is_file()
     abertos = [p for p in pacotes if p.estado in {"proposto", "pronto", "em_execucao", "bloqueado"}]
-    assert any(p.id == "FND-01b-ATV" and p.estado == "em_execucao" for p in abertos)
+    assert any(p.id == "INDEXAR-RAIZ" and p.estado == "em_execucao" for p in abertos)
+    assert por_id["FND-01b-ATV"].estado == "entregue"
+    assert por_id["FND-01b-ATV"].evidencia["pr"] == 117
     assert all(p.paths and p.aceite for p in abertos)
     assert por_id["CI-SQLITE-OPEN"].estado == "entregue"
     assert por_id["CI-SQLITE-OPEN"].evidencia["pr"] == 112
