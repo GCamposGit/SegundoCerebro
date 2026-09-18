@@ -60,7 +60,7 @@ def _texto_da_tabela(tabela) -> str:  # noqa: ANN001
     return "\n".join(linhas)
 
 
-@register(".docx", ".docm")
+@register(".docx", ".docm", version="2")
 def parse_docx(dados: bytes, nome: str) -> ParsedDoc:
     import docx
 
@@ -111,10 +111,12 @@ def parse_docx(dados: bytes, nome: str) -> ParsedDoc:
             corpo.append(texto)
 
     fechar()
-
     if not blocos and pilha:
         blocos.append(Block(heading_path=trilha()[:-1], text=pilha[-1][1]))
+    return _finalizar_docx(dados, nome, blocos, documento)
 
+
+def _finalizar_docx(dados: bytes, nome: str, blocos: list[Block], documento) -> ParsedDoc:  # noqa: ANN001
     meta = {"formato": "docx"}
     propriedades = getattr(documento, "core_properties", None)
     if propriedades is not None:
@@ -122,7 +124,9 @@ def parse_docx(dados: bytes, nome: str) -> ParsedDoc:
             meta["titulo"] = propriedades.title
         if propriedades.author:
             meta["autor"] = propriedades.author
+    from .ooxml_texto import completar
 
+    completar(dados, blocos)
     return ParsedDoc(name=nome, blocks=tuple(blocos), meta=meta)
 
 

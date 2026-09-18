@@ -158,7 +158,29 @@ def _paginas_em_markdown(documento) -> list[tuple[int, str]]:  # noqa: ANN001
 MOTORES = {"fonte": _paginas_por_tamanho_de_fonte, "layout": _paginas_em_markdown}
 
 
-@register(".pdf")
+def _extras_da_pagina(pagina) -> list[str]:  # noqa: ANN001
+    """Form fields and annotation bodies — get_text() often skips both."""
+    extras: list[str] = []
+    try:
+        for campo in pagina.widgets() or []:
+            valor = getattr(campo, "field_value", None)
+            if valor:
+                extras.append(str(valor).strip())
+    except Exception:  # noqa: BLE001 — widget quebrado não derruba a página
+        pass
+    try:
+        for anot in pagina.annots() or []:
+            info = getattr(anot, "info", None) or {}
+            for chave in ("content", "subject", "title"):
+                valor = info.get(chave) if isinstance(info, dict) else None
+                if valor:
+                    extras.append(str(valor).strip())
+    except Exception:  # noqa: BLE001 — anotação quebrada não derruba a página
+        pass
+    return [t for t in extras if t]
+
+
+@register(".pdf", version="2")
 def parse_pdf(dados: bytes, nome: str, motor: str = MOTOR_PADRAO) -> ParsedDoc:
     import pymupdf
 
@@ -175,6 +197,7 @@ def parse_pdf(dados: bytes, nome: str, motor: str = MOTOR_PADRAO) -> ParsedDoc:
             for i, pagina in enumerate(documento, start=1)
             if pagina_precisa_ocr(pagina, texto_de.get(i, ""))
         ]
+        extras = _extras_do_documento(documento)
     finally:
         documento.close()
 
@@ -213,4 +236,21 @@ def parse_pdf(dados: bytes, nome: str, motor: str = MOTOR_PADRAO) -> ParsedDoc:
             if t.strip() and n not in ocr_set
         ]
 
+    _anexar_extras(blocos, extras)
     return ParsedDoc(name=nome, blocks=tuple(blocos), meta=meta)
+
+
+def _extras_do_documento(documento) -> list[tuple[int, str]]:  # noqa: ANN001
+    return [
+        (i, t)
+        for i, pagina in enumerate(documento, start=1)
+        for t in _extras_da_pagina(pagina)
+    ]
+
+
+def _anexar_extras(blocos: list[Block], extras: list[tuple[int, str]]) -> None:
+    ja = "\n".join(b.text for b in blocos)
+    for numero, extra in extras:
+        if extra and extra not in ja:
+            blocos.append(Block(heading_path=(), text=extra, locator=f"p. {numero} (campo)"))
+            ja += "\n" + extra
