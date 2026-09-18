@@ -43,7 +43,7 @@ ACIMA_DO_TETO: dict[str, int] = {
     "ingest/parsers/sheets.py": 870,
     "index/estimativa.py": 691,
     "retrieve/hybrid.py": 657,
-    "index/migrar_identidade.py": 601,
+    "index/migrar_identidade.py": 570,
 }
 """Os módulos que já estavam grandes, com o tamanho de 29/08/2026 como teto.
 

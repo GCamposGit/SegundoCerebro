@@ -186,7 +186,9 @@ def buscar_denso(  # noqa: ANN001
 ) -> list:
     """Busca exata ou IVF-PQ sem inflar o módulo histórico ``store.py``."""
     from .store import Acerto
+    from .vetores_tipo import recusar_coluna_nao_vetor
 
+    recusar_coluna_nao_vetor(store.tabela, getattr(store, "dim", None))
     consulta = store.tabela.search(
         vetor.astype(np.float32), vector_column_name=COLUNA_VETOR
     ).metric("cosine")

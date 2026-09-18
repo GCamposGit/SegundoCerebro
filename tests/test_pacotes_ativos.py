@@ -143,7 +143,9 @@ def test_fila_real_carrega_sem_erro() -> None:
     assert por_id["FND-01b-int"].dono == "notebook"
     assert (REPO / "docs" / "fnd-01b-identidade-interna.md").is_file()
     abertos = [p for p in pacotes if p.estado in {"proposto", "pronto", "em_execucao", "bloqueado"}]
-    assert any(p.id == "PARSER-TEXTO-OCULTO" and p.estado == "em_execucao" for p in abertos)
+    assert any(p.id == "LANCE-TIPO-VETOR" and p.estado == "em_execucao" for p in abertos)
+    assert por_id["PARSER-TEXTO-OCULTO"].estado == "entregue"
+    assert por_id["PARSER-TEXTO-OCULTO"].evidencia["pr"] == 119
     assert por_id["INDEXAR-RAIZ"].estado == "entregue"
     assert por_id["INDEXAR-RAIZ"].evidencia["pr"] == 118
     assert por_id["FND-01b-ATV"].estado == "entregue"

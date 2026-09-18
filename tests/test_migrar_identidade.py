@@ -92,6 +92,11 @@ def test_migrar_preserva_contagens_identidade_e_origem(tmp_path: Path) -> None:
         assert oids["ata.md"] == id_de("trabalho", "ata.md")
         hits = store.buscar_lexical("CT-VCE-2024-0142", 5)
         assert [h.id for h in hits] == ["c-vce-1"]
+        campo = store.tabela.schema.field("vetor")
+        assert getattr(campo.type, "list_size", None) == DIM
+        vetor = np.ones(DIM, dtype=np.float32) / np.sqrt(DIM)
+        densos = store.buscar_denso(vetor, 1)
+        assert [h.id for h in densos] == ["c-vce-1"]
         raizes = {str(r[0]) for r in store.con.execute("SELECT root_id FROM raizes")}
         assert raizes == {"pessoal", "trabalho"}
     finally:

@@ -240,7 +240,7 @@ proxima_acao = ""
 
 [[pacote]]
 id = "PARSER-TEXTO-OCULTO"
-estado = "em_execucao"
+estado = "entregue"
 dono = "notebook"
 paths = [
     "src/segundocerebro/ingest/parsers/ooxml_texto.py",
@@ -254,8 +254,27 @@ paths = [
 ]
 dependencias = ["INDEXAR-RAIZ"]
 aceite = "SmartArt, cabeçalho Word e campo PDF entram no parse; texto já extraído não duplica; w:del é ignorado"
+evidencia = { pr = 119, sha = "ce058e9ef45937d1b3c860915ee1b0ce93e4b04f" }
+proxima_acao = ""
+
+[[pacote]]
+id = "LANCE-TIPO-VETOR"
+estado = "em_execucao"
+dono = "notebook"
+paths = [
+    "src/segundocerebro/index/vetores_tipo.py",
+    "src/segundocerebro/index/ann.py",
+    "src/segundocerebro/index/migrar_identidade.py",
+    "tests/test_vetores_tipo.py",
+    "tests/test_migrar_identidade.py",
+    "tests/test_pacotes_ativos.py",
+    "tests/test_tamanho_dos_modulos.py",
+    "docs/pacotes-ativos.toml",
+]
+dependencias = ["FND-01b"]
+aceite = "coluna Lance vetor vira FixedSizeList float32 da dim do modelo; buscar_denso funciona sem reparsear documentos; SQLite intacto"
 evidencia = ""
-proxima_acao = "colher a:t/w:t do pacote OOXML e extras de PDF"
+proxima_acao = "regravar a tabela Lance no tipo certo a partir das linhas já gravadas"
 
 [[pacote]]
 id = "CI-PYTEST-RUNNER"
