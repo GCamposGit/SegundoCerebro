@@ -220,7 +220,7 @@ proxima_acao = ""
 
 [[pacote]]
 id = "INDEXAR-RAIZ"
-estado = "em_execucao"
+estado = "entregue"
 dono = "notebook"
 paths = [
     "src/segundocerebro/index/prioridade.py",
@@ -235,8 +235,27 @@ paths = [
 ]
 dependencias = ["FND-01b-ATV"]
 aceite = "--raiz processa só a raiz pedida e não apaga as outras; CUDA entra quando diagnosticar() ok; CPU permanece o padrão sem GPU"
+evidencia = { pr = 118, sha = "66aaeeeafbc53b481a57c837177d8069a45cc9ec" }
+proxima_acao = ""
+
+[[pacote]]
+id = "PARSER-TEXTO-OCULTO"
+estado = "em_execucao"
+dono = "notebook"
+paths = [
+    "src/segundocerebro/ingest/parsers/ooxml_texto.py",
+    "src/segundocerebro/ingest/parsers/slides.py",
+    "src/segundocerebro/ingest/parsers/word.py",
+    "src/segundocerebro/ingest/parsers/pdf.py",
+    "tests/test_ingest.py",
+    "tests/test_index.py",
+    "tests/test_pacotes_ativos.py",
+    "docs/pacotes-ativos.toml",
+]
+dependencias = ["INDEXAR-RAIZ"]
+aceite = "SmartArt, cabeçalho Word e campo PDF entram no parse; texto já extraído não duplica; w:del é ignorado"
 evidencia = ""
-proxima_acao = "flag --raiz; auto-CUDA quando a placa responde"
+proxima_acao = "colher a:t/w:t do pacote OOXML e extras de PDF"
 
 [[pacote]]
 id = "CI-PYTEST-RUNNER"

@@ -832,6 +832,73 @@ def test_pptx_normal_continua_lendo() -> None:
     assert any("Copilot" in b.text for b in doc.blocks)
 
 
+def _pptx_com_diagrama() -> bytes:
+    """Structured slides plus a diagrams part — SmartArt is not a text frame."""
+    import zipfile
+
+    base = bytes_pptx()
+    buf = io.BytesIO()
+    with zipfile.ZipFile(io.BytesIO(base), "r") as origem, zipfile.ZipFile(buf, "w") as destino:
+        for item in origem.infolist():
+            destino.writestr(item, origem.read(item.filename))
+        destino.writestr(
+            "ppt/diagrams/data1.xml",
+            """<?xml version="1.0" encoding="UTF-8"?>
+<a:doc xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+  <a:t>RENATO CORVELLO</a:t>
+  <a:t>COORDENADOR DE GESTAO</a:t>
+</a:doc>
+""",
+        )
+    return buf.getvalue()
+
+
+def test_pptx_smartart_entra_no_indice() -> None:
+    """Organograma em diagrama: python-pptx não visita `ppt/diagrams` (#83)."""
+    doc = parse_pptx(_pptx_com_diagrama(), "Organização_v2.pptx")
+    texto = "\n".join(b.text for b in doc.blocks)
+    assert "RENATO CORVELLO" in texto
+    assert "COORDENADOR DE GESTAO" in texto
+    assert any(b.locator == "diagrama" for b in doc.blocks)
+
+
+def _docx_com_cabecalho() -> bytes:
+    import zipfile
+
+    base = bytes_docx()
+    buf = io.BytesIO()
+    with zipfile.ZipFile(io.BytesIO(base), "r") as origem, zipfile.ZipFile(buf, "w") as destino:
+        for item in origem.infolist():
+            destino.writestr(item, origem.read(item.filename))
+        destino.writestr(
+            "word/header1.xml",
+            """<?xml version="1.0" encoding="UTF-8"?>
+<w:hdr xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+  <w:p><w:r><w:t>CABECALHO-CONFIDENCIAL-XYZ</w:t></w:r></w:p>
+</w:hdr>
+""",
+        )
+    return buf.getvalue()
+
+
+def test_docx_cabecalho_e_caixa_nao_ficam_de_fora() -> None:
+    doc = parse_docx(_docx_com_cabecalho(), "politica.docx")
+    texto = "\n".join(b.text for b in doc.blocks)
+    assert "CABECALHO-CONFIDENCIAL-XYZ" in texto
+    assert "uso aceitável" in texto
+
+
+def test_ooxml_ignora_texto_apagado_no_controle_de_alteracoes() -> None:
+    from segundocerebro.ingest.parsers.ooxml_texto import _textos_xml
+
+    xml = b"""<?xml version="1.0"?>
+    <w:d xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
+      <w:r><w:t>fica</w:t></w:r>
+      <w:del><w:r><w:t>apagado</w:t></w:r></w:del>
+    </w:d>"""
+    assert _textos_xml(xml) == ["fica"]
+
+
 def test_arquivo_apagado_entre_a_varredura_e_a_leitura_vira_sumiu(tmp_path: Path) -> None:
     """Corpus vivo: 10 dos 18 "erros" do run completo eram isto.
 

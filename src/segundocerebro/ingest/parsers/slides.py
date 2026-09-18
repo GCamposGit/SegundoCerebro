@@ -53,7 +53,7 @@ def _texto_de_forma(forma) -> list[str]:  # noqa: ANN001 — tipos internos do p
     return partes
 
 
-@register(".pptx", ".pptm")
+@register(".pptx", ".pptm", version="2")
 def parse_pptx(dados: bytes, nome: str) -> ParsedDoc:
     from pptx import Presentation
 
@@ -98,10 +98,13 @@ def parse_pptx(dados: bytes, nome: str) -> ParsedDoc:
                     Block(heading_path=trilha, text=notas, locator=f"{local} (notas)", kind=BlockKind.SLIDE_NOTES)
                 )
 
+    from .ooxml_texto import completar
+
+    completar(dados, blocos)
     return ParsedDoc(name=nome, blocks=tuple(blocos), meta={"formato": "pptx", "slides": str(len(apresentacao.slides))})
 
 
-@register(".ppt", version="2")
+@register(".ppt", version="3")
 def parse_ppt(dados: bytes, nome: str) -> ParsedDoc:
     """PowerPoint 97-2003. Bytes only — no COM, no temp file.
 
