@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import argparse
 import hashlib
-import shutil
 import sqlite3
 from collections.abc import Mapping
 import sys
@@ -31,6 +30,8 @@ from .backup_io import (
 from .backup_manifesto import FalhaDeBackup
 from .esquema import COLUNAS_DOCUMENTOS, DOCUMENTOS_V2_CREATE, SCHEMA_VERSAO
 from .ocorrencia import id_de, usa_ocorrencia
+from .vetores_tipo import nomes_lance as _nomes_lance
+from .vetores_tipo import regravar_pasta
 
 log = get_logger("index.migrar_identidade")
 
@@ -521,45 +522,13 @@ def _transformar_vetores(tmp: Path) -> None:
     con = sqlite3.connect(tmp / "registro.db")
     con.row_factory = sqlite3.Row
     try:
-        mapa = {str(r["path"]): str(r["ocorrencia_id"]) for r in con.execute("SELECT path, ocorrencia_id FROM documentos")}
+        mapa = {
+            str(r["path"]): str(r["ocorrencia_id"])
+            for r in con.execute("SELECT path, ocorrencia_id FROM documentos")
+        }
     finally:
         con.close()
-
-    import lancedb
-    import pyarrow as pa
-
-    db = lancedb.connect(str(lance_dir))
-    nomes = _nomes_lance(db)
-    nome = "vetores" if "vetores" in nomes else ("chunks" if "chunks" in nomes else "")
-    if not nome:
-        return
-    tabela = db.open_table(nome)
-    linhas = tabela.to_arrow().to_pylist()
-    if not linhas:
-        return
-    for linha in linhas:
-        linha["ocorrencia_id"] = mapa.get(str(linha.get("path") or ""), str(linha.get("ocorrencia_id") or ""))
-    novo = tmp / "vetores.lance.novo"
-    if novo.exists():
-        shutil.rmtree(novo)
-    novo_db = lancedb.connect(str(novo))
-    novo_db.create_table("vetores", data=pa.Table.from_pylist(linhas))
-    del tabela, db, novo_db
-    shutil.rmtree(lance_dir)
-    novo.rename(lance_dir)
-
-
-def _nomes_lance(db) -> list[str]:  # noqa: ANN001
-    try:
-        resposta = db.list_tables()
-        if hasattr(resposta, "tables"):
-            return list(resposta.tables)
-        return list(resposta)
-    except Exception:  # noqa: BLE001 — compatibility with older LanceDB
-        try:
-            return list(db.table_names())
-        except Exception:  # noqa: BLE001 — compatibility fallback for old LanceDB
-            return []
+    regravar_pasta(lance_dir, ocorrencias=mapa)
 
 
 def _indice_da_base(base_id: str, config: Path | None) -> Path:
