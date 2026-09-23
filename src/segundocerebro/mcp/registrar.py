@@ -133,12 +133,19 @@ _VAR_PERCENT = re.compile(r"%([^%]+)%")
 
 
 def expandir_variaveis(modelo: str) -> str:
-    """`%APPDATA%` é a forma do Windows. No POSIX, expandvars deixa o literal."""
+    """`%APPDATA%` é a forma do Windows. No POSIX, expandvars deixa o literal.
+
+    A barra invertida do modelo também só é separador no Windows. Sem a troca,
+    o destino vira um único nome de arquivo debaixo do diretório atual.
+    """
 
     def trocar(achado: re.Match[str]) -> str:
         return os.environ.get(achado.group(1), achado.group(0))
 
-    return os.path.expandvars(_VAR_PERCENT.sub(trocar, modelo))
+    expandido = _VAR_PERCENT.sub(trocar, modelo)
+    if os.name != "nt":
+        expandido = expandido.replace("\\", "/")
+    return os.path.expandvars(expandido)
 
 
 def destino_de(cliente: str) -> Path | None:

@@ -182,6 +182,12 @@ def test_destino_expande_variavel_de_ambiente(monkeypatch):
     assert destino.is_absolute() or PureWindowsPath(str(destino)).is_absolute()
 
 
+def test_destino_usa_separador_do_sistema(monkeypatch, tmp_path):
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    destino = destino_de("claude-desktop")
+    assert destino == tmp_path / "Claude" / "claude_desktop_config.json"
+
+
 def test_percent_expande_mesmo_sem_expandvars(monkeypatch):
     """O POSIX não expande `%VAR%`. O destino do Claude Desktop está escrito assim."""
     monkeypatch.setattr(
