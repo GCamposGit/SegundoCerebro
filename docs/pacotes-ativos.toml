@@ -332,5 +332,5 @@ paths = [
 ]
 dependencias = ["CI-PYTEST-RUNNER"]
 aceite = "os oito testes que falham no pytest Ubuntu passam sem skip e continuam passando no Windows"
-evidencia = { pr = 122, sha = "b02b8c96a03e5131a4b05158480910a2c1b0afd9" }
+evidencia = { pr = 122, sha = "cbc6a4e8a4890b01684a0d8b37947d825ca02ebe" }
 proxima_acao = ""
