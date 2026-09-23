@@ -603,7 +603,7 @@ class Estimador:
 
     # -- serialização
 
-    def restaurar(self, dados: dict) -> None:
+    def restaurar(self, dados: dict) -> None:  # noqa: ARG002 — argumento faz parte da assinatura compartilhada
         """Não restaura coeficiente.
 
         A v1 trazia `previsto/medido` da execução anterior e com isso trazia a
@@ -612,7 +612,7 @@ class Estimador:
         e é carregada de lá. Este método existe para não quebrar
         `progresso.json` antigo.
         """
-        return None
+        return None  # noqa: RET501 — retorno explícito é o contrato antigo
 
     def como_json(self) -> dict:
         m = self.calibracao.maquina

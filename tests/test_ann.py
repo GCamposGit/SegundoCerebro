@@ -29,7 +29,7 @@ class IndiceFake:
 
 
 class TabelaFake:
-    def __init__(self, n: int, indices=()) -> None:  # noqa: ANN001
+    def __init__(self, n: int, indices=()) -> None:
         self.n = n
         self.indices = list(indices)
         self.criados: list[tuple] = []
@@ -38,10 +38,10 @@ class TabelaFake:
     def count_rows(self) -> int:
         return self.n
 
-    def list_indices(self):  # noqa: ANN201
+    def list_indices(self):
         return list(self.indices)
 
-    def create_index(self, coluna, *, config, replace):  # noqa: ANN001, ANN201
+    def create_index(self, coluna, *, config, replace):
         self.criados.append((coluna, config, replace))
         self.indices = [IndiceFake(num_indexed_rows=self.n)]
 
@@ -51,7 +51,7 @@ class TabelaFake:
 
 def test_abaixo_do_limiar_fica_flat_sem_consultar_indices() -> None:
     class TabelaSemIndice:
-        def list_indices(self):  # noqa: ANN201
+        def list_indices(self):
             raise AssertionError("índice pequeno não precisa listar manutenção")
 
     plano = planejar_ann(TabelaSemIndice(), dim=1024, n_vetores=199_999)
@@ -103,25 +103,25 @@ class ConsultaFake:
         self.sondas: int | None = None
         self.refino: int | None = None
 
-    def metric(self, _metrica):  # noqa: ANN001, ANN201
+    def metric(self, _metrica):
         return self
 
-    def bypass_vector_index(self):  # noqa: ANN201
+    def bypass_vector_index(self):
         self.pulou = True
         return self
 
-    def nprobes(self, n: int):  # noqa: ANN201
+    def nprobes(self, n: int):
         self.sondas = n
         return self
 
-    def refine_factor(self, n: int):  # noqa: ANN201
+    def refine_factor(self, n: int):
         self.refino = n
         return self
 
-    def where(self, _filtro, prefilter=True):  # noqa: ANN001, ARG002, ANN201
+    def where(self, _filtro, prefilter=True):
         return self
 
-    def limit(self, _k):  # noqa: ANN001, ANN201
+    def limit(self, _k):
         return self
 
     def to_list(self) -> list:
@@ -132,7 +132,7 @@ class TabelaBuscaFake:
     def __init__(self) -> None:
         self.consultas: list[ConsultaFake] = []
 
-    def search(self, *_args, **_kwargs):  # noqa: ANN002, ANN003, ANN201
+    def search(self, *_args, **_kwargs):
         consulta = ConsultaFake()
         self.consultas.append(consulta)
         return consulta
@@ -164,7 +164,7 @@ def test_busca_ann_usa_a_configuracao_aprovada_por_padrao() -> None:
     assert consulta.refino == CANDIDATOS_REFINO // 20 == 500
 
 
-def test_lancedb_real_cria_ann_e_preserva_busca_flat(tmp_path) -> None:  # noqa: ANN001
+def test_lancedb_real_cria_ann_e_preserva_busca_flat(tmp_path) -> None:
     """A API unificada do LanceDB instalado aceita o plano que o produto gera."""
     rng = np.random.default_rng(42)
     matriz = rng.standard_normal((512, 8), dtype=np.float32)

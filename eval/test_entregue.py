@@ -22,7 +22,7 @@ from tests.falsos import DIM, EmbedderFalso, chunk
 
 
 @pytest.fixture
-def indice(tmp_path: Path):  # noqa: ANN201
+def indice(tmp_path: Path):
     store = Store(tmp_path / "indice", DIM)
     emb = EmbedderFalso()
     textos = {
@@ -39,7 +39,7 @@ def indice(tmp_path: Path):  # noqa: ANN201
     store.fechar()
 
 
-def _busca(indice, peso_nome: float, *, usar_lexical: bool = True) -> BuscaHibrida:  # noqa: ANN001
+def _busca(indice, peso_nome: float, *, usar_lexical: bool = True) -> BuscaHibrida:
     store, emb = indice
     return BuscaHibrida(
         store,
@@ -51,7 +51,7 @@ def _busca(indice, peso_nome: float, *, usar_lexical: bool = True) -> BuscaHibri
     )
 
 
-def test_o_trecho_entregue_declara_que_veio_pelo_nome(indice) -> None:  # noqa: ANN001
+def test_o_trecho_entregue_declara_que_veio_pelo_nome(indice) -> None:
     """Era o defeito inteiro em quatro linhas; agora é o conserto, pela procedência.
 
     Até 25/08/2026 este teste afirmava o contrário — `buscar_chunks` devolvia
@@ -71,7 +71,7 @@ def test_o_trecho_entregue_declara_que_veio_pelo_nome(indice) -> None:  # noqa: 
     assert "nome" not in origem.get("Outros/nota.md", "")
 
 
-def test_search_de_documento_sente_o_peso_do_nome(indice) -> None:  # noqa: ANN001
+def test_search_de_documento_sente_o_peso_do_nome(indice) -> None:
     """O outro lado do mesmo fato: no caminho que o eval mede, o peso pesa.
 
     O bm25 fica **desligado** aqui, e a razão é o próprio `C3.a`: a coluna
@@ -88,7 +88,7 @@ def test_search_de_documento_sente_o_peso_do_nome(indice) -> None:  # noqa: ANN0
     assert com[0] == "Politicas/politica de ia.md", "o nome promove o documento certo"
 
 
-def test_sem_o_bm25_o_nome_e_o_unico_que_alcanca_o_documento(indice) -> None:  # noqa: ANN001
+def test_sem_o_bm25_o_nome_e_o_unico_que_alcanca_o_documento(indice) -> None:
     """A fatia cross-lingual do dourado, em miniatura — e o aceite da `F4-P`.
 
     Com o bm25 desligado, a coluna `caminho` do FTS5 sai de cena e o alvo passa a
@@ -110,7 +110,7 @@ def test_sem_o_bm25_o_nome_e_o_unico_que_alcanca_o_documento(indice) -> None:  #
     assert alvo in [h.path for h in com.search(consulta, 3)]
 
 
-def test_rotulo_diz_qual_caminho_foi_medido(indice) -> None:  # noqa: ANN001
+def test_rotulo_diz_qual_caminho_foi_medido(indice) -> None:
     """Relatório que diga só "híbrido" é indistinguível do que mediu o outro caminho."""
     nome = CaminhoEntregue(interno=_busca(indice, 0.5)).nome
 
@@ -118,7 +118,7 @@ def test_rotulo_diz_qual_caminho_foi_medido(indice) -> None:  # noqa: ANN001
     assert "caminho entregue" in nome
 
 
-def test_documento_fica_com_a_posicao_do_seu_melhor_trecho(indice) -> None:  # noqa: ANN001
+def test_documento_fica_com_a_posicao_do_seu_melhor_trecho(indice) -> None:
     """O mesmo colapso que `search` faz por dentro — senão mede-se a regra, não a busca."""
     store, emb = indice
     extra = chunk("c9", "Projetos/anexo iii.md", 1, "segundo trecho do mesmo arquivo")
@@ -131,7 +131,7 @@ def test_documento_fica_com_a_posicao_do_seu_melhor_trecho(indice) -> None:  # n
     assert len(caminhos) == len(set(caminhos)), "um documento aparece uma vez só"
 
 
-def test_pede_trechos_suficientes_para_encher_k_documentos(indice) -> None:  # noqa: ANN001
+def test_pede_trechos_suficientes_para_encher_k_documentos(indice) -> None:
     """`k` trechos rendem menos de `k` documentos — medido: 14 de 59 perguntas.
 
     O fator existe por causa disso, e baixá-lo faz o relatório dizer "o caminho
@@ -142,7 +142,7 @@ def test_pede_trechos_suficientes_para_encher_k_documentos(indice) -> None:  # n
     class _Espia:
         nome = "espia"
 
-        def buscar_chunks(self, consulta: str, k: int, contexto: int = 0):  # noqa: ANN001, ARG002, ANN202
+        def buscar_chunks(self, consulta: str, k: int, contexto: int = 0):
             pedidos.append(k)
             return []
 
@@ -151,7 +151,7 @@ def test_pede_trechos_suficientes_para_encher_k_documentos(indice) -> None:  # n
     assert pedidos == [20 * FATOR_DE_CHUNKS]
 
 
-def test_entra_no_harness_como_recuperador_qualquer(indice) -> None:  # noqa: ANN001
+def test_entra_no_harness_como_recuperador_qualquer(indice) -> None:
     """É o ponto do pacote: o caminho entregue passa a ser mensurável como os outros."""
     perguntas = [
         Pergunta(

@@ -793,7 +793,7 @@ def test_construir_reranker_nao_carrega_o_modelo():
     assert busca.reranker._encoder is None
 
 
-def BuscaHibrida_de(base):  # noqa: N802, ANN001, ANN201
+def BuscaHibrida_de(base):
     from segundocerebro.retrieve.hybrid import BuscaHibrida
 
     return BuscaHibrida.de_base(None, None, base)

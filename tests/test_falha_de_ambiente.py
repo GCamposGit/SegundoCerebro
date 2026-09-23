@@ -345,7 +345,7 @@ def test_a_guarda_de_hook_reprova_contra_caso_isolado():
 @pytest.mark.parametrize("modo,quebrar", MODOS, ids=[m for m, _ in MODOS])
 def test_a_repesca_barata_nao_reescreve_vazio_por_cima_do_erro_do_ocr(
     monkeypatch: pytest.MonkeyPatch, tmp_path: Path, modo: str, quebrar
-) -> None:  # noqa: ANN001
+) -> None:
     """O laço inteiro, e a passada **sem** `--ocr` — que é onde o `Q15.a` vivia.
 
     A primeira versão deste teste rodava duas passadas com `--ocr` e passava com
@@ -434,7 +434,7 @@ def test_o_documento_continua_na_fila_de_ocr_depois_da_falha(
         store.fechar()
 
 
-def _estado_em_erro(**mudancas: object):  # noqa: ANN202
+def _estado_em_erro(**mudancas: object):
     """Um registro em `erro`, batendo com modelo, chunker, parser e bytes."""
     from segundocerebro.ingest.chunking import CHUNKER_VERSION
 

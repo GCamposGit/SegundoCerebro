@@ -189,7 +189,7 @@ def test_parse_file_leva_natureza_no_caminho_bem_sucedido(tmp_path: Path) -> Non
 # --- persistência: o motivo de tudo isso ------------------------------------
 
 
-def _store(tmp_path: Path):  # noqa: ANN202
+def _store(tmp_path: Path):
     from segundocerebro.index.store import Store
 
     return Store(tmp_path / "indice", dim=8)

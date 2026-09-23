@@ -18,7 +18,7 @@ from segundocerebro.ingest.chunking import Chunk
 from segundocerebro.ingest.document import BlockKind
 
 
-def montar(tmp_path: Path, documentos: dict[str, str]):  # noqa: ANN201
+def montar(tmp_path: Path, documentos: dict[str, str]):
     """Índice com um chunk por documento; o valor do dict é o sha256 simulado.
 
     Um `gravar_chunks` só, e não um por documento (`Q17`, 30/08/2026). Os dois

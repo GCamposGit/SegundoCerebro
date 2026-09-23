@@ -179,7 +179,7 @@ def passagens_rerank(n: int) -> list[str]:
     return [estoque[i % len(estoque)] for i in range(n)]
 
 
-def _cronometrar_rerank(encoder, consulta: str, docs: list[str], repeticoes: int = 5) -> float:
+def _cronometrar_rerank(encoder, consulta: str, docs: list[str], repeticoes: int = 5) -> float:  # noqa: ANN001 — tipo fica no chamador para não importar o módulo pesado
     """Mediana de parede, depois de o caller ter feito o warmup."""
     import statistics
     import time
@@ -192,7 +192,7 @@ def _cronometrar_rerank(encoder, consulta: str, docs: list[str], repeticoes: int
     return statistics.median(amostras)
 
 
-def _carregar_rerank(modelo: str, providers: list[str]):
+def _carregar_rerank(modelo: str, providers: list[str]):  # noqa: ANN202 — retorno concreto vive no corpo, não na assinatura
     from fastembed.rerank.cross_encoder import TextCrossEncoder
 
     from .cuda_runtime import preparar

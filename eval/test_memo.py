@@ -31,7 +31,7 @@ memo tem de acertar."""
 
 
 @pytest.fixture
-def indice(tmp_path: Path):  # noqa: ANN201
+def indice(tmp_path: Path):
     store = Store(tmp_path / "indice", DIM)
     emb = EmbedderFalso()
     textos = {
@@ -73,7 +73,7 @@ PERGUNTAS = [
 ]
 
 
-def _grade(store, embedder) -> list[tuple[float, float, float]]:  # noqa: ANN001
+def _grade(store, embedder) -> list[tuple[float, float, float]]:
     saida = []
     for pesos_fts, peso_nome in BRACOS:
         busca = BuscaHibrida(
@@ -89,7 +89,7 @@ def _grade(store, embedder) -> list[tuple[float, float, float]]:  # noqa: ANN001
     return saida
 
 
-def test_memo_nao_muda_metrica_nenhuma(indice) -> None:  # noqa: ANN001
+def test_memo_nao_muda_metrica_nenhuma(indice) -> None:
     store, emb = indice
     memo = MemoDeBusca(store, emb)
 
@@ -99,7 +99,7 @@ def test_memo_nao_muda_metrica_nenhuma(indice) -> None:  # noqa: ANN001
     assert com_memo == sem_memo
 
 
-def test_memo_economiza_o_que_promete(indice) -> None:  # noqa: ANN001
+def test_memo_economiza_o_que_promete(indice) -> None:
     """Taxa baixa é grade mal desenhada, e o resumo é o que denuncia isso."""
     store, emb = indice
     memo = MemoDeBusca(store, emb)
@@ -115,7 +115,7 @@ def test_memo_economiza_o_que_promete(indice) -> None:  # noqa: ANN001
     assert "12 de 24" in memo.resumo()
 
 
-def test_memo_devolve_lista_propria_a_cada_chamada(indice) -> None:  # noqa: ANN001
+def test_memo_devolve_lista_propria_a_cada_chamada(indice) -> None:
     """Quem chama ordena e concatena; a lista guardada não pode ser a mesma."""
     store, emb = indice
     memo = MemoDeBusca(store, emb)
@@ -127,7 +127,7 @@ def test_memo_devolve_lista_propria_a_cada_chamada(indice) -> None:  # noqa: ANN
     assert "lixo" not in segunda
 
 
-def test_memo_separa_pesos_de_coluna_diferentes(indice) -> None:  # noqa: ANN001
+def test_memo_separa_pesos_de_coluna_diferentes(indice) -> None:
     """A chave inclui os pesos — sem isso o segundo braço leria o cache do primeiro.
 
     É o defeito que faria a tabela inteira mostrar o mesmo número 18 vezes, o que
@@ -143,7 +143,7 @@ def test_memo_separa_pesos_de_coluna_diferentes(indice) -> None:  # noqa: ANN001
     assert sem_caminho == [a.id for a in store.buscar_lexical("politica", 5, (1.0, 1.0, 0.0))]
 
 
-def test_memo_separa_poda_de_termos_ubiquos(indice) -> None:  # noqa: ANN001
+def test_memo_separa_poda_de_termos_ubiquos(indice) -> None:
     store, emb = indice
     memo = MemoDeBusca(store, emb)
 
@@ -154,7 +154,7 @@ def test_memo_separa_poda_de_termos_ubiquos(indice) -> None:  # noqa: ANN001
     assert memo.store.acertos == 0
 
 
-def test_memo_delega_o_que_nao_e_busca(indice) -> None:  # noqa: ANN001
+def test_memo_delega_o_que_nao_e_busca(indice) -> None:
     """`__getattr__` em vez de lista de métodos: o proxy não pode envelhecer."""
     store, emb = indice
     memo = MemoDeBusca(store, emb)
@@ -164,7 +164,7 @@ def test_memo_delega_o_que_nao_e_busca(indice) -> None:  # noqa: ANN001
     assert memo.embedder.model_id == emb.model_id
 
 
-def test_memo_chaveia_o_denso_pelos_bytes_do_vetor(indice) -> None:  # noqa: ANN001
+def test_memo_chaveia_o_denso_pelos_bytes_do_vetor(indice) -> None:
     """Dois vetores iguais em objetos diferentes têm de bater no mesmo cache."""
     store, emb = indice
     memo = MemoDeBusca(store, emb)

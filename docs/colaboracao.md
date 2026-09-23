@@ -1002,9 +1002,9 @@ produziu texto, ou existe linha de quarentena com motivo de recurso"* — nunca
 mais um skip por janela de memória.
 
 **Uma coisa que continua sendo de vocês, e ficou mais fácil:** o `Q15.a` acima, e
-o `F6-C` (hardware). E o `Q18`, que segue precisando de acordo — ligar as dez
-regras baratas do `ruff` obriga a anotar oito arquivos de vocês, e a medição
+o `F6-C` (hardware). O `Q18` esperava acordo em 30/08 — a medição
 (75 dos 92 `noqa` passam a valer por 40 correções) está no `ROADMAP.md`.
+O usuário autorizou a execução em 23/09/2026.
 
 ### O pacote J chegou, e a tabela de donos dele já nasce velha (30/08/2026)
 

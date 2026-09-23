@@ -27,7 +27,7 @@ def e_ole2(dados: bytes) -> bool:
     return dados.startswith(ASSINATURA_OLE)
 
 
-def _ole():
+def _ole():  # noqa: ANN202 — retorno concreto vive no corpo, não na assinatura
     import olefile
 
     return olefile

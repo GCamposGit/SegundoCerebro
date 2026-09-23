@@ -24,7 +24,7 @@ def rota_medir(
     base_de: Callable[..., Any],
     ajuste_de: Callable[..., Any],
     medidor: Callable[..., dict[str, Any]],
-    medicoes: Any,
+    medicoes: Any,  # noqa: ANN401 — fronteira dinâmica ainda sem protocolo
 ) -> Callable[[Request], Any]:
     async def medir(request: Request) -> JSONResponse:
         if not autorizado(request):

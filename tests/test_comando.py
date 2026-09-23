@@ -67,7 +67,7 @@ def test_cancelar_durante_a_passada_encerra(tmp_path: Path, monkeypatch: pytest.
     cfg = corpus(tmp_path / "raiz")
     store = Store(tmp_path / "indice", DIM)
 
-    def parse_e_cancela(path, **kw):  # noqa: ANN001, ANN003
+    def parse_e_cancela(path, **kw):
         pedir(store.diretorio, CANCELAR)
         return original(path, **kw)
 

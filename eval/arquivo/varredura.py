@@ -69,7 +69,7 @@ def grade() -> list[tuple[float, float, float]]:
     return [
         (d, l, n)
         for d in PESOS
-        for l in PESOS  # noqa: E741
+        for l in PESOS
         for n in PESOS
         if max(d, l, n) == 1.0
     ]
@@ -114,7 +114,7 @@ class Ponto:
         return self.armadilhas >= MINIMO_ARMADILHAS
 
 
-def REGRA(pontos: list[Ponto]) -> Ponto | None:  # noqa: N802 — é uma constante de decisão
+def REGRA(pontos: list[Ponto]) -> Ponto | None:
     """Maior MRR@10 entre os pontos elegíveis; empate decide pelo modelo mais simples.
 
     Declarada antes de rodar. Desempate por recall@1 e, persistindo, por menor
@@ -128,7 +128,7 @@ def REGRA(pontos: list[Ponto]) -> Ponto | None:  # noqa: N802 — é uma constan
     return max(elegiveis, key=lambda p: (p.resultado.mrr(), p.resultado.recall(1), -p.peso_nome))
 
 
-def varrer(store, embedder, perguntas, candidatos: int) -> list[Ponto]:  # noqa: ANN001
+def varrer(store, embedder, perguntas, candidatos: int) -> list[Ponto]:
     pontos: list[Ponto] = []
     triplos = grade()
     for i, (peso_denso, peso_lexical, peso_nome) in enumerate(triplos, start=1):

@@ -60,7 +60,7 @@ def blocos_de_markdown(
         corpo.clear()
 
     linhas = texto.splitlines()
-    for i, linha in enumerate(linhas):
+    for i, linha in enumerate(linhas):  # noqa: B007 — índice da cerca não entra no bloco
         if CERCA.match(linha):
             dentro_de_cerca = not dentro_de_cerca
             corpo.append(linha)

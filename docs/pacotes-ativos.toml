@@ -334,3 +334,24 @@ dependencias = ["CI-PYTEST-RUNNER"]
 aceite = "os oito testes que falham no pytest Ubuntu passam sem skip e continuam passando no Windows"
 evidencia = { pr = 122, sha = "cbc6a4e8a4890b01684a0d8b37947d825ca02ebe" }
 proxima_acao = ""
+
+[[pacote]]
+id = "Q18"
+estado = "em_execucao"
+dono = "notebook"
+paths = [
+    "pyproject.toml",
+    "tests/test_ci_config.py",
+    "tests/test_pacotes_ativos.py",
+    "docs/pacotes-ativos.toml",
+    "docs/colaboracao.md",
+    "ROADMAP.md",
+    "CLAUDE.md",
+    "src/segundocerebro/**/*.py",
+    "tests/**/*.py",
+    "eval/**/*.py",
+]
+dependencias = ["CI-PYTEST-UBUNTU"]
+aceite = "as dez regras do Q18 e RUF100 passam em src; tests e eval ignoram ANN/ARG/T201/B007/N801/RET; noqa sem regra ativa sai"
+evidencia = ""
+proxima_acao = ""

@@ -184,7 +184,7 @@ class Veredito:
     motivo: str
 
 
-def REGRA(pontos: list[Ponto]) -> Veredito:  # noqa: N802 — é uma constante de decisão
+def REGRA(pontos: list[Ponto]) -> Veredito:
     """Declarada antes de rodar, com a conclusão negativa declarada junto.
 
     Elegível é o braço que mantém a porta 3 (>= 5 de 6 armadilhas) **e** não
@@ -274,7 +274,7 @@ def REGRA(pontos: list[Ponto]) -> Veredito:  # noqa: N802 — é uma constante d
     )
 
 
-def varrer(store, embedder, perguntas, candidatos: int, glossario=None) -> list[Ponto]:  # noqa: ANN001
+def varrer(store, embedder, perguntas, candidatos: int, glossario=None) -> list[Ponto]:
     pontos: list[Ponto] = []
     triplos = grade()
     for i, (peso_trilha, peso_caminho, peso_nome) in enumerate(triplos, start=1):

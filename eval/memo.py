@@ -52,14 +52,14 @@ class _StoreComMemo:
     este proxy de envelhecer quando o `Store` ganhar método novo.
     """
 
-    def __init__(self, store: Any) -> None:  # noqa: ANN401 — é o Store, sem importar
+    def __init__(self, store: Any) -> None:
         self._store = store
         self._denso: dict[tuple, list] = {}
         self._lexical: dict[tuple, list] = {}
         self.acertos = 0
         self.buscas = 0
 
-    def __getattr__(self, nome: str) -> Any:  # noqa: ANN401
+    def __getattr__(self, nome: str) -> Any:
         return getattr(self._store, nome)
 
     def buscar_denso(
@@ -117,7 +117,7 @@ class _StoreComMemo:
             ),
         )
 
-    def _lembrar(self, cache: dict, chave: tuple, calcular) -> list:  # noqa: ANN001
+    def _lembrar(self, cache: dict, chave: tuple, calcular) -> list:
         self.buscas += 1
         if chave in cache:
             self.acertos += 1
@@ -137,13 +137,13 @@ class _EmbedderComMemo:
     guardar passagem em dicionário seria guardar o acervo em memória.
     """
 
-    def __init__(self, embedder: Any) -> None:  # noqa: ANN401
+    def __init__(self, embedder: Any) -> None:
         self._embedder = embedder
         self._vetores: dict[str, np.ndarray] = {}
         self.acertos = 0
         self.chamadas = 0
 
-    def __getattr__(self, nome: str) -> Any:  # noqa: ANN401
+    def __getattr__(self, nome: str) -> Any:
         return getattr(self._embedder, nome)
 
     def embed_consulta(self, texto: str) -> np.ndarray:
@@ -160,7 +160,7 @@ class _EmbedderComMemo:
 class MemoDeBusca:
     """Par (store, embedder) com memo, e o resumo do que se economizou."""
 
-    def __init__(self, store: Any, embedder: Any) -> None:  # noqa: ANN401
+    def __init__(self, store: Any, embedder: Any) -> None:
         self.store = _StoreComMemo(store)
         self.embedder = _EmbedderComMemo(embedder)
 

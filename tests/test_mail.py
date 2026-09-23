@@ -56,7 +56,7 @@ EML_SIMPLES = (
 )
 
 
-def texto_dos_blocos(doc) -> str:  # noqa: ANN001
+def texto_dos_blocos(doc) -> str:
     return "\n".join(b.text for b in doc.blocks)
 
 
@@ -465,7 +465,7 @@ def test_parser_de_email_nao_abre_arquivo(monkeypatch: pytest.MonkeyPatch) -> No
 
     dados_msg = msg_de(assunto="x", corpo="y")
 
-    def proibido(*args, **kwargs):  # noqa: ANN002, ANN003
+    def proibido(*args, **kwargs):
         raise AssertionError(f"parser tentou abrir arquivo: {args!r}")
 
     monkeypatch.setattr(builtins, "open", proibido)

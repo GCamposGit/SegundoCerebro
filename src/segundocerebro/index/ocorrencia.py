@@ -117,7 +117,7 @@ def registrar(
     model_id: str = "",
     chunker: str = "",
     parser: str = "",
-    natureza: Any = None,
+    natureza: Any = None,  # noqa: ANN401 — fronteira dinâmica ainda sem protocolo
 ) -> str:
     """Insert or update one document row. Returns `ocorrencia_id` on v2, path on v1."""
     rel = caminho_rel(path)
@@ -164,7 +164,7 @@ def registrar(
     return rel
 
 
-def _natureza(store: Store, natureza: Any) -> tuple[tuple[object, ...], str]:
+def _natureza(store: Store, natureza: Any) -> tuple[tuple[object, ...], str]:  # noqa: ANN401 — fronteira dinâmica ainda sem protocolo
     # Sem natureza, preserva a gravada: o filho que morre por recurso devolve
     # `ParseResult` sem ela, o UPDATE zerava `digitalizado`, e o scan saía da
     # fila de OCR em silêncio (30/08/2026).

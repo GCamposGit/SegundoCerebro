@@ -109,7 +109,7 @@ def coluna_fixa(coluna, dim: int):  # noqa: ANN001, ANN201
     return _coluna_fixa_via_numpy(combinada, dim)
 
 
-def _coluna_fixa_via_numpy(coluna, dim: int):  # noqa: ANN001, ANN201
+def _coluna_fixa_via_numpy(coluna, dim: int):  # noqa: ANN001, ANN202
     import numpy as np
     import pyarrow as pa
 
@@ -205,7 +205,7 @@ def regravar_pasta(
     return {"linhas": linhas, "alterado": True, "dim": dim_efetiva}
 
 
-def _ler_arrow(pasta: Path):  # noqa: ANN201
+def _ler_arrow(pasta: Path):  # noqa: ANN202
     import lancedb
 
     from .lancedb_recursos import fechar_recursos
@@ -291,13 +291,13 @@ def main(argv: list[str] | None = None) -> int:
         origem = args.indice if args.indice is not None else _indice_da_base(args.base, args.config)
         relato = reparar(origem, dim=args.dim)
     except (TipoVetorInvalido, ErroDeConfig, BackupRecusado) as exc:
-        print(str(exc), file=sys.stderr)
+        print(str(exc), file=sys.stderr)  # noqa: T201 — saída da CLI
         acao = getattr(exc, "acao", "")
         if acao:
-            print(acao, file=sys.stderr)
+            print(acao, file=sys.stderr)  # noqa: T201 — saída da CLI
         return 2
     estado = "regravada" if relato["alterado"] else "já no tipo certo"
-    print(f"coluna {estado}: {relato['linhas']} vetores de {relato['dim']} dimensões")
+    print(f"coluna {estado}: {relato['linhas']} vetores de {relato['dim']} dimensões")  # noqa: T201 — saída da CLI
     return 0
 
 

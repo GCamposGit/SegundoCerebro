@@ -118,7 +118,7 @@ class _RecuperadorFixo:
     def __init__(self, paths: list[str]) -> None:
         self._paths = paths
 
-    def search(self, consulta: str, k: int):  # noqa: ANN201, ARG002
+    def search(self, consulta: str, k: int):
         from .harness import Hit
 
         return [Hit(path=p) for p in self._paths[:k]]

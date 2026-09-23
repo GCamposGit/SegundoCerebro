@@ -145,7 +145,7 @@ def test_fontes_que_discordam_nao_viram_cross_lingual() -> None:
 # --- Pergunta ---------------------------------------------------------------
 
 
-def _p(**kw) -> Pergunta:  # noqa: ANN003
+def _p(**kw) -> Pergunta:
     campos = {"id": "g1", "tipo": "exato", "pergunta": "SLA PO-CORP-007", "fontes": ("a.pdf",)}
     return Pergunta(**{**campos, **kw})
 
@@ -205,7 +205,7 @@ def test_carrega_os_dois_campos(tmp_path: Path) -> None:
 # --- relatório --------------------------------------------------------------
 
 
-def _resultado(perguntas: list[Pergunta]):  # noqa: ANN202
+def _resultado(perguntas: list[Pergunta]):
     return avaliar(RecuperadorFixo(["a.pdf", "b.pdf"]), perguntas)
 
 

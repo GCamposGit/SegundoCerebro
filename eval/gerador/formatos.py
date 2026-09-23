@@ -63,7 +63,7 @@ STREAM_OLE = {".doc": "WordDocument", ".ppt": "PowerPoint Document"}
 """Onde o texto mora dentro do container OLE de cada formato legado."""
 
 
-def _corpo(rng, cid: str, valor: int) -> str:  # noqa: ANN001
+def _corpo(rng, cid: str, valor: int) -> str:
     return (
         f"REGISTRO {cid}\n"
         f"Contratada: {rng.choice(V.EMPRESAS)}.\n"
@@ -72,7 +72,7 @@ def _corpo(rng, cid: str, valor: int) -> str:  # noqa: ANN001
     )
 
 
-def _documento(rng, extensao: str, cid: str, valor: int):  # noqa: ANN001
+def _documento(rng, extensao: str, cid: str, valor: int):
     """O documento daquela extensão, no formato que o parser dela espera."""
     texto = _corpo(rng, cid, valor)
     nome = f"Registro {cid}"
@@ -101,7 +101,7 @@ def _documento(rng, extensao: str, cid: str, valor: int):  # noqa: ANN001
     return mkdoc(PASTA, nome, texto, extensao.lstrip("."))
 
 
-def f_formatos(rng, n, ext):  # noqa: ANN001, ARG001
+def f_formatos(rng, n, ext):
     """Um documento e uma pergunta por extensão que o produto sabe ler.
 
     Não escala com `n` pelo mesmo motivo da pasta hostil: um documento prova que

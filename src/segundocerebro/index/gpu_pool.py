@@ -105,7 +105,7 @@ def _desempacotar(job) -> tuple:  # noqa: ANN001
     return jid, textos, lote, 1.0
 
 
-def _worker(device: str, modelo: str, cache: str, pedidos, respostas) -> None:
+def _worker(device: str, modelo: str, cache: str, pedidos, respostas) -> None:  # noqa: ANN001 — tipo fica no chamador para não importar o módulo pesado
     os.environ["CUDA_VISIBLE_DEVICES"] = device
     os.environ["SEGUNDOCEREBRO_PROVIDER"] = "cuda"
     from .cuda_runtime import preparar
@@ -126,7 +126,7 @@ def _worker(device: str, modelo: str, cache: str, pedidos, respostas) -> None:
             respostas.put((jid, None, str(erro)))
 
 
-def _worker_eco(device: str, modelo: str, cache: str, pedidos, respostas) -> None:
+def _worker_eco(device: str, modelo: str, cache: str, pedidos, respostas) -> None:  # noqa: ANN001, ARG001 — tipo fica no chamador para não importar o módulo pesado; argumento faz parte da assinatura compartilhada
     """No encoder — CPU test of the queue protocol. Do not use in production."""
     while True:
         job = pedidos.get()

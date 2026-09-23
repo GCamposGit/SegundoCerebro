@@ -177,8 +177,8 @@ class _Espiao:
     def __init__(self) -> None:
         self.tools: dict[str, Any] = {}
 
-    def tool(self, description: str = "", **_k):  # noqa: ANN201, ANN003
-        def registrar(fn):  # noqa: ANN001, ANN202
+    def tool(self, description: str = "", **_k):
+        def registrar(fn):
             fn.description = description
             self.tools[fn.__name__] = fn
             return fn
@@ -186,7 +186,7 @@ class _Espiao:
 
 
 class _Recursos:
-    def __init__(self, store) -> None:  # noqa: ANN001
+    def __init__(self, store) -> None:
         self.store = store
         self.base = None
 
@@ -211,7 +211,7 @@ class _LeitorEspiao:
         self.real = leitor_real
         self.chamadas: list[str] = []
 
-    def carregar_documento(self, doc):  # noqa: ANN001, ANN201
+    def carregar_documento(self, doc):
         self.chamadas.append(doc.caminho)
         return self.real.carregar_documento(doc)
 

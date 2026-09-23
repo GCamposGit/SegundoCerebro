@@ -179,7 +179,7 @@ class Publicador:
 
     # --- publicação ------------------------------------------------------
 
-    def anotar(self, **campos: Any) -> None:
+    def anotar(self, **campos: Any) -> None:  # noqa: ANN401 — fronteira dinâmica ainda sem protocolo
         """Campos que a tela mostra e o indexador conhece: base, perfil, arquivo."""
         with self._trava:
             self._extra.update(campos)

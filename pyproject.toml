@@ -137,13 +137,21 @@ line-length = 100
 #   ANN202 45 · ANN201 193 · ANN001 359
 # `I` e `ruff format` são PR próprio: reescrevem import de 49 arquivos e o corpo
 # de 136, e um diff desse tamanho apaga `git blame` das docstrings de decisão.
-select = ["E", "F", "BLE", "S603", "DTZ"]
+# Q18 (23/09/2026): as dez regras baratas ligam em src. tests/ e eval/
+# ficam de fora — lá os números explodem e o noqa voltaria a ser inerte.
+select = [
+    "E", "F", "BLE", "S603", "DTZ",
+    "ANN001", "ANN201", "ANN202", "ANN401",
+    "ARG001", "ARG002", "T201", "B007", "N801", "RET", "RUF100",
+]
 ignore = ["E501", "E741", "E702", "E401"]
 
 [tool.ruff.lint.per-file-ignores]
 # Notebook-owned ranking. Unused import is not a ranking change; Q1 does
 # not rewrite retrieve/* to satisfy F401.
 "src/segundocerebro/retrieve/**" = ["F401"]
+"tests/**" = ["ANN", "ARG", "T201", "B007", "N801", "RET"]
+"eval/**" = ["ANN", "ARG", "T201", "B007", "N801", "RET"]
 
 # Q1 — types. basic, with the report codes that currently fire turned off
 # so the job is a gate rather than a 50-error wall. Re-enable module by

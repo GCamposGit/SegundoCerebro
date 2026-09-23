@@ -316,9 +316,9 @@ def main(argv: list[str] | None = None) -> int:
         relato = inflar(args.origem, args.destino, args.n, args.seed)
     except InflarErro as erro:
         log.error("%s", erro)
-        print(erro)
+        print(erro)  # noqa: T201 — saída da CLI
         return 2
-    print(
+    print(  # noqa: T201 — saída da CLI
         f"inflado: {relato.n_origem} → {relato.n_destino} trechos · "
         f"dim {relato.dim} · `{relato.model_id}` · seed {relato.seed}"
     )

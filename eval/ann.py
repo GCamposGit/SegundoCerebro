@@ -43,7 +43,7 @@ class ResultadoANN:
         return percentil(self.ms, 0.95)
 
 
-def recall_do_flat(referencia, aproximado) -> float:  # noqa: ANN001
+def recall_do_flat(referencia, aproximado) -> float:
     """Fração dos ids do top-k exato recuperada pelo ANN."""
     esperados = {acerto.id for acerto in referencia}
     if not esperados:
@@ -60,7 +60,7 @@ def medir(
     k: int = K,
     nprobes: tuple[int, ...] = NPROBES_CANDIDATOS,
     refine_factors: tuple[int, ...] = (0,),
-) -> tuple[ResultadoANN, ...]:  # noqa: ANN001
+) -> tuple[ResultadoANN, ...]:
     """Mede candidatos contra uma única referência flat por consulta."""
     referencias = [
         store.buscar_denso(vetor, k, model_id=model_id, usar_ann=False)

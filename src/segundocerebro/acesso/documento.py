@@ -39,7 +39,7 @@ TIMEOUT_SEGUNDOS = 60
 
 
 def _resolver(
-    store: Store, documento: str, base_id: str, cfg=None, root_id: str = ""
+    store: Store, documento: str, base_id: str, cfg=None, root_id: str = ""  # noqa: ANN001, ARG001 — tipo fica no chamador para não importar o módulo pesado; argumento faz parte da assinatura compartilhada
 ) -> Documento:
     ref = interpretar(documento, root_id=root_id)
     erro = ref.erro or conferir_base(ref, base_id)
@@ -63,7 +63,7 @@ def _obter(indice: Path, doc: Documento) -> tuple[Chave, ParseCanonico] | None:
     return None
 
 
-def _reler(indice: Path, doc: Documento, base: Any, alvo: Path | None) -> tuple[Chave, ParseCanonico]:
+def _reler(indice: Path, doc: Documento, base: Any, alvo: Path | None) -> tuple[Chave, ParseCanonico]:  # noqa: ANN401 — fronteira dinâmica ainda sem protocolo
     if alvo is None:
         raise ErroLeitura("cache_ausente", "Parse Store ausente. Configure as raízes desta base para reconstruí-lo do original.")
     extensao = alvo.suffix.lower()
@@ -119,7 +119,7 @@ def _limitacoes(canonico: ParseCanonico) -> list[str]:
 
 
 class LeitorDocumento:
-    def __init__(self, store: Store, base: Any = None) -> None:
+    def __init__(self, store: Store, base: Any = None) -> None:  # noqa: ANN401 — fronteira dinâmica ainda sem protocolo
         self.store, self.base = store, base
         self._parse = Lock()
 

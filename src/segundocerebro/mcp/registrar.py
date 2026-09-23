@@ -253,7 +253,7 @@ def python_do_projeto(*, relativo: bool = True) -> str:
     return sys.executable
 
 
-def extra_env_hardware(conf: Any = None, existente: dict[str, Any] | None = None) -> dict[str, str]:
+def extra_env_hardware(conf: Any = None, existente: dict[str, Any] | None = None) -> dict[str, str]:  # noqa: ANN401 — fronteira dinâmica ainda sem protocolo
     """Provider de embedding (cuda/cpu) — hardware, não entra em `model_id`.
 
     Ordem: variável de ambiente, `[maquina] provider`, o que já estiver num
@@ -286,7 +286,7 @@ def _ler_existente(destino: Path) -> dict[str, Any]:
 
 def gravar_em(
     destino: Path,
-    bases: Any,
+    bases: Any,  # noqa: ANN401 — fronteira dinâmica ainda sem protocolo
     *,
     nomear: bool = True,
     absoluto: bool = False,
@@ -313,7 +313,7 @@ def gravar_em(
     return acrescentados, trocados
 
 
-def ativar(base: Any, *, conf: Any, destino: Path | None = None) -> Path:
+def ativar(base: Any, *, conf: Any, destino: Path | None = None) -> Path:  # noqa: ANN401 — fronteira dinâmica ainda sem protocolo
     """Liga a base no `.mcp.json` do projeto. Idempotente.
 
     Indexar uma base nova e esquecer este degrau deixa o índice pronto e o
@@ -414,7 +414,7 @@ def main(argv: list[str] | None = None) -> int:
         log.info("cole em: %s", CLIENTES[args.cliente])
 
     if args.out is None:
-        print(json.dumps(novo, indent=2, ensure_ascii=False))
+        print(json.dumps(novo, indent=2, ensure_ascii=False))  # noqa: T201 — saída da CLI
         return 0
 
     try:

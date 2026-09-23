@@ -8,11 +8,11 @@ from segundocerebro.index.store import Store
 from tests.falsos import chunk
 
 
-def test_mmap_windows_tem_teto_de_128_mib(monkeypatch) -> None:  # noqa: ANN001
+def test_mmap_windows_tem_teto_de_128_mib(monkeypatch) -> None:
     comandos: list[str] = []
 
     class ConexaoFake:
-        def execute(self, comando: str):  # noqa: ANN001, ANN201
+        def execute(self, comando: str):
             comandos.append(comando)
 
     monkeypatch.delenv("CI", raising=False)
@@ -24,11 +24,11 @@ def test_mmap_windows_tem_teto_de_128_mib(monkeypatch) -> None:  # noqa: ANN001
     assert "PRAGMA mmap_size=134217728" in comandos
 
 
-def test_mmap_ci_desliga_mapeamento_mesmo_com_ram_alta(monkeypatch) -> None:  # noqa: ANN001
+def test_mmap_ci_desliga_mapeamento_mesmo_com_ram_alta(monkeypatch) -> None:
     comandos: list[str] = []
 
     class ConexaoFake:
-        def execute(self, comando: str):  # noqa: ANN001, ANN201
+        def execute(self, comando: str):
             comandos.append(comando)
 
     monkeypatch.setenv("CI", "true")
@@ -42,7 +42,7 @@ def test_mmap_ci_desliga_mapeamento_mesmo_com_ram_alta(monkeypatch) -> None:  # 
     assert "PRAGMA mmap_size=134217728" not in comandos
 
 
-def test_ci_desliga_mmap_sem_depender_da_sonda_de_ram(monkeypatch) -> None:  # noqa: ANN001
+def test_ci_desliga_mmap_sem_depender_da_sonda_de_ram(monkeypatch) -> None:
     monkeypatch.setenv("CI", "true")
 
     assert fts.ambiente_de_ci() is True
@@ -59,7 +59,7 @@ def test_orcamento_sqlite_encolhe_e_tem_teto() -> None:
     assert (folgado.cache_mb, folgado.mmap_mb) == (256, 1024)
 
 
-def test_registro_novo_nasce_com_vacuum_incremental_e_pragmas(tmp_path) -> None:  # noqa: ANN001
+def test_registro_novo_nasce_com_vacuum_incremental_e_pragmas(tmp_path) -> None:
     store = Store(tmp_path / "indice", 8)
     try:
         assert store.con.execute("PRAGMA auto_vacuum").fetchone()[0] == 2
@@ -73,7 +73,7 @@ def test_registro_novo_nasce_com_vacuum_incremental_e_pragmas(tmp_path) -> None:
         store.fechar()
 
 
-def test_otimizar_fts_preserva_resultado_e_integridade(tmp_path) -> None:  # noqa: ANN001
+def test_otimizar_fts_preserva_resultado_e_integridade(tmp_path) -> None:
     store = Store(tmp_path / "indice", 8)
     try:
         store.gravar_textos(
@@ -96,7 +96,7 @@ def test_otimizar_fts_preserva_resultado_e_integridade(tmp_path) -> None:  # noq
         store.fechar()
 
 
-def test_busca_adia_hidratacao_sem_mudar_ranking(tmp_path) -> None:  # noqa: ANN001
+def test_busca_adia_hidratacao_sem_mudar_ranking(tmp_path) -> None:
     """O top-k sem o JOIN precoce é idêntico ao SQL antigo, inclusive scores."""
     store = Store(tmp_path / "indice", 8)
     try:
@@ -129,7 +129,7 @@ def test_busca_adia_hidratacao_sem_mudar_ranking(tmp_path) -> None:  # noqa: ANN
         store.fechar()
 
 
-def test_consulta_poda_so_termo_no_piso_de_idf_e_tem_fallback(tmp_path) -> None:  # noqa: ANN001
+def test_consulta_poda_so_termo_no_piso_de_idf_e_tem_fallback(tmp_path) -> None:
     store = Store(tmp_path / "indice", 8)
     try:
         store.gravar_textos(

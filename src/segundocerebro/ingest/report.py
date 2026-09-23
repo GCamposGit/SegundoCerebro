@@ -26,7 +26,7 @@ from .reader import parse_file
 log = get_logger("ingest.report")
 
 
-def amostra_estratificada(arquivos: list, alvo: int) -> list:  # noqa: ANN001
+def amostra_estratificada(arquivos: list, alvo: int) -> list:
     """Every k-th file within each extension, so rare formats still show up."""
     if alvo <= 0 or len(arquivos) <= alvo:
         return arquivos

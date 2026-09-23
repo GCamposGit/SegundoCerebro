@@ -123,7 +123,7 @@ def test_placeholder_de_nuvem_nao_e_aberto(
     monkeypatch.setattr("segundocerebro.index.watcher.is_cloud_only", lambda attrs: True)
     chamadas: list[str] = []
 
-    def recusa(*args, **kwargs):  # noqa: ANN002, ANN003
+    def recusa(*args, **kwargs):
         chamadas.append("indexar")
         return Progresso()
 
@@ -277,7 +277,7 @@ def test_cancelar_por_comando_txt_encerra(tmp_path: Path) -> None:
         def stop(self) -> None:
             return None
 
-        def join(self, timeout: float | None = None) -> None:  # noqa: ARG002
+        def join(self, timeout: float | None = None) -> None:
             return None
 
     obs.iniciar_watchdog = lambda: Dummy()  # type: ignore[method-assign]

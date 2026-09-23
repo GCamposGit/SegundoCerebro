@@ -1534,7 +1534,7 @@ do produto, é de ferramenta de teste, e já estava no repositório.
 | Q15 | OCR sumia em silêncio — **fechado em 30/08/2026**; resto declarado no `Q15.a` (status fica `vazio` depois da quarentena) | notebook (assumido) | **feito** |
 | Q16 | O que falta decompor, com as costuras levantadas (continua o `Q3`) | cada um no seu | P3 · laboratório |
 | Q17 | Conftest informal — **fechado em 30/08/2026**; eram **18 sítios em 14 arquivos**, e a guarda achou mais quatro | notebook | **feito** |
-| Q18 | 265 `noqa` inertes — **a escolha foi resolvida por medição em 30/08** e a execução é dos dois lados (ver abaixo) | **acordo** | P2 · laboratório |
+| Q18 | 265 `noqa` inertes — **a escolha foi resolvida por medição em 30/08** e executada em 23/09 com acordo do usuário | notebook | P2 · executado |
 | Q19 | Links quebrados e a cobertura obsoleta — **fechado em 30/08/2026**; eram **6** links, não 64, e a cobertura tinha **três** valores | notebook | **feito** |
 
 **Revisado em 25/08/2026 pela [regra de ouro](docs/regra-de-ouro.md).** O guia
@@ -1990,8 +1990,13 @@ rota continua sendo `per-file-ignores` — logo, **lá se apaga**.
 Fica, portanto: **ligar em `src`, apagar em `tests/` e `eval/`, e então `RUF100`
 global**, que é a classe generalizada já escrita acima e que passa a ser possível.
 
-**Por que não entrou nesta passada, e é o ponto que precisa de acordo:** as 40
-correções caem em **oito arquivos do desktop** — `index/indexer.py` (5),
+**Executado em 23/09/2026, com acordo do usuário.** As dez regras e o `RUF100`
+estão no `select` de `src`. `tests/` e `eval/` seguem em `per-file-ignores`, e
+o noqa sem regra ativa saiu. A medição de 30/08 continua o argumento; o número
+de achados novos cresceu com o código e foi fechado na mesma classe.
+
+**Por que não entrou na passada de 30/08, e precisava de acordo:** as 40
+correções caíam em **oito arquivos do desktop** — `index/indexer.py` (5),
 `index/gpu_pool.py` (7), `index/smoke_cuda.py` (2), `index/estimativa.py` (2),
 `ingest/ocr.py` (2), `ingest/parsers/ole_texto.py` (1), mais `mcp/registrar.py` e
 `painel/app.py`, que são "um de cada vez". Ligar a regra obriga o outro lado a

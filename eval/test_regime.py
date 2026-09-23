@@ -246,7 +246,7 @@ class TestRodar:
     def test_intercala_e_rotula_cada_observacao(self) -> None:
         vistos: list[str] = []
 
-        def executor(nome, mascara):  # noqa: ANN001, ANN202
+        def executor(nome, mascara):
             vistos.append(nome)
             return Observacao(
                 braco="", s_chunk=[0.2], estado_antes={}, estado_depois={}, mascara=mascara or []
@@ -259,7 +259,7 @@ class TestRodar:
     def test_contraste_ecoqos_intercala_off_on(self) -> None:
         vistos: list[str] = []
 
-        def executor(nome, mascara):  # noqa: ANN001, ANN202
+        def executor(nome, mascara):
             vistos.append(nome)
             return Observacao(
                 braco="", s_chunk=[0.2], estado_antes={}, estado_depois={}, mascara=mascara or []

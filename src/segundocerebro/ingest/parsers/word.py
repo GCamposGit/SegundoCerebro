@@ -32,7 +32,7 @@ def _nivel(estilo: str | None) -> int | None:
     return int(m.group(1)) if m else None
 
 
-def _itens_na_ordem(documento):  # noqa: ANN001 — tipos internos do python-docx
+def _itens_na_ordem(documento):  # noqa: ANN001, ANN202 — tipos internos do python-docx
     """Yield paragraphs and tables in document order."""
     from docx.oxml.ns import qn
     from docx.table import Table

@@ -104,7 +104,7 @@ class _Interrupcao:
         self._anterior = None
 
     def __enter__(self) -> "_Interrupcao":
-        def tratar(signum, frame):  # noqa: ANN001, ARG001
+        def tratar(signum, frame):  # noqa: ANN001, ARG001, ANN202
             if self.pedida:  # segundo Ctrl+C: sai na hora
                 raise KeyboardInterrupt
             self.pedida = True
@@ -116,7 +116,7 @@ class _Interrupcao:
             self._anterior = None
         return self
 
-    def __exit__(self, *exc) -> None:  # noqa: ANN002
+    def __exit__(self, *exc) -> None:
         if self._anterior is not None:
             signal.signal(signal.SIGINT, self._anterior)
 
@@ -130,13 +130,13 @@ class _FecharFila:
     def __enter__(self) -> EmbedFila | None:
         return self.fila
 
-    def __exit__(self, *exc) -> None:  # noqa: ANN002
+    def __exit__(self, *exc) -> None:
         if self.fila is not None:
             self.fila.fechar()
 
 
 
-def _parsear_um(
+def _parsear_um(  # noqa: ANN202 — retorno concreto vive no corpo, não na assinatura
     path: str,
     limite_planilha_mb: float | None,
     limites_mb: dict[str, float] | None,
@@ -228,7 +228,7 @@ def _cobertura(store: Store, model_id: str, totais: int) -> dict[str, object]:
 def indexar(
     cfg: Config,
     store: Store,
-    embedder,  # Embedder — not imported here: spawn reimports this module
+    embedder,  # Embedder — not imported here: spawn reimports this module  # noqa: ANN001 — tipo fica no chamador para não importar o módulo pesado
     *,
     chunk_cfg: ChunkConfig | None = None,
     limite: int | None = None,
@@ -548,13 +548,13 @@ def indexar(
             except Exception as erro:  # noqa: BLE001 — mapa velho é melhor que passada morta
                 log.debug("mapa não recalculado: %s", erro)
 
-        def registrar_obs(  # noqa: ANN001
-            arquivo,
-            crono,
+        def registrar_obs(
+            arquivo,  # noqa: ANN001 — tipo fica no chamador para não importar o módulo pesado
+            crono,  # noqa: ANN001 — tipo fica no chamador para não importar o módulo pesado
             *,
             situacao: str,
             status: str,
-            natureza=None,
+            natureza=None,  # noqa: ANN001 — tipo fica no chamador para não importar o módulo pesado
             n_chunks: int = 0,
             tokens: int = 0,
         ) -> None:

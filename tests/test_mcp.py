@@ -21,7 +21,7 @@ class EmbedderFalso:
     dim = 8
     model_id = "falso:8"
 
-    class spec:  # noqa: N801
+    class spec:
         id = "falso"
         prefixo_passagem = ""
         prefixo_consulta = ""
@@ -33,7 +33,7 @@ class EmbedderFalso:
         norma = float(np.linalg.norm(v))
         return v / norma if norma else v
 
-    def embed_passagens(self, textos, batch_size: int = 32):  # noqa: ANN001, ARG002
+    def embed_passagens(self, textos, batch_size: int = 32):
         return [self._vetor(t) for t in textos]
 
     def embed_consulta(self, texto: str) -> np.ndarray:
@@ -41,7 +41,7 @@ class EmbedderFalso:
 
 
 @pytest.fixture
-def servidor(tmp_path: Path):  # noqa: ANN201
+def servidor(tmp_path: Path):
     """Índice minúsculo, montado à mão, com o embedder falso já plugado."""
     from segundocerebro.index.store import Store
     from segundocerebro.ingest.chunking import Chunk
@@ -84,13 +84,13 @@ def servidor(tmp_path: Path):  # noqa: ANN201
     store.fechar()
 
 
-def ferramentas(servidor) -> dict:  # noqa: ANN001
+def ferramentas(servidor) -> dict:
     import asyncio
 
     return {t.name: t for t in asyncio.run(servidor.list_tools())}
 
 
-def chamar(servidor, nome: str, **kwargs) -> dict:  # noqa: ANN001
+def chamar(servidor, nome: str, **kwargs) -> dict:
     """Devolve o conteúdo estruturado da ferramenta, que é o que o cliente lê."""
     import asyncio
 
@@ -99,7 +99,7 @@ def chamar(servidor, nome: str, **kwargs) -> dict:  # noqa: ANN001
     return resultado.structured_content
 
 
-def chamar_erro(servidor, nome: str, **kwargs) -> dict:  # noqa: ANN001
+def chamar_erro(servidor, nome: str, **kwargs) -> dict:
     """Chama a ferramenta e garante que devolveu erro operacional com is_error=True."""
     import asyncio
 
@@ -138,12 +138,12 @@ confirmou.
 """
 
 
-def test_expoe_exatamente_as_ferramentas_previstas(servidor) -> None:  # noqa: ANN001
+def test_expoe_exatamente_as_ferramentas_previstas(servidor) -> None:
     """A superfície é fechada de propósito."""
     assert set(ferramentas(servidor)) == SUPERFICIE
 
 
-def test_nenhuma_ferramenta_gera_texto(servidor) -> None:  # noqa: ANN001
+def test_nenhuma_ferramenta_gera_texto(servidor) -> None:
     """Invariante 2 do ARCHITECTURE: nada de `answer`, `summarize`, `explain`.
 
     Uma ferramenta dessas reintroduziria custo por consulta e amarraria o projeto
@@ -159,7 +159,7 @@ def test_nenhuma_ferramenta_gera_texto(servidor) -> None:  # noqa: ANN001
         )
 
 
-def test_toda_ferramenta_descreve_quando_usar(servidor) -> None:  # noqa: ANN001
+def test_toda_ferramenta_descreve_quando_usar(servidor) -> None:
     """Sem descrição útil o cliente não escolhe a ferramenta certa."""
     for t in ferramentas(servidor).values():
         assert t.description and len(t.description) > 60, t.name
@@ -168,7 +168,7 @@ def test_toda_ferramenta_descreve_quando_usar(servidor) -> None:  # noqa: ANN001
 # --- search ------------------------------------------------------------------
 
 
-def test_search_devolve_procedencia_em_todo_trecho(servidor) -> None:  # noqa: ANN001
+def test_search_devolve_procedencia_em_todo_trecho(servidor) -> None:
     """Invariante 5: procedência e id estável em todo retorno."""
     saida = chamar(servidor, "search", consulta="governança de inteligência artificial", k=3)
 
@@ -180,19 +180,19 @@ def test_search_devolve_procedencia_em_todo_trecho(servidor) -> None:  # noqa: A
         assert trecho["texto"]
 
 
-def test_search_respeita_o_teto_de_k(servidor) -> None:  # noqa: ANN001
+def test_search_respeita_o_teto_de_k(servidor) -> None:
     saida = chamar(servidor, "search", consulta="governança", k=999)
     assert len(saida["trechos"]) <= 50
 
 
-def test_search_com_consulta_vazia_nao_explode(servidor) -> None:  # noqa: ANN001
+def test_search_com_consulta_vazia_nao_explode(servidor) -> None:
     saida = chamar_erro(servidor, "search", consulta="   ")
     assert saida["trechos"] == [] and "erro" in saida
     assert saida.get("codigo") == "consulta_vazia"
 
 
 
-def test_search_com_filtros_temporais(servidor) -> None:  # noqa: ANN001
+def test_search_com_filtros_temporais(servidor) -> None:
     """search respeita filtros depois_de e antes_de via chamada MCP."""
     saida_fora = chamar(
         servidor,
@@ -280,7 +280,7 @@ def test_search_com_familias_e_formatos(tmp_path: Path) -> None:
 # --- read_note ---------------------------------------------------------------
 
 
-def test_read_note_traz_vizinhos_e_marca_o_pedido(servidor) -> None:  # noqa: ANN001
+def test_read_note_traz_vizinhos_e_marca_o_pedido(servidor) -> None:
     saida = chamar(servidor, "read_note", id="doc1#2", janela=1)
 
     ids = [t["id"] for t in saida["trechos"]]
@@ -288,12 +288,12 @@ def test_read_note_traz_vizinhos_e_marca_o_pedido(servidor) -> None:  # noqa: AN
     assert [t["e_o_pedido"] for t in saida["trechos"]] == [False, True, False]
 
 
-def test_read_note_com_janela_zero_traz_so_o_pedido(servidor) -> None:  # noqa: ANN001
+def test_read_note_com_janela_zero_traz_so_o_pedido(servidor) -> None:
     saida = chamar(servidor, "read_note", id="doc1#2", janela=0)
     assert [t["id"] for t in saida["trechos"]] == ["doc1#2"]
 
 
-def test_read_note_de_id_inexistente_diz_o_que_houve(servidor) -> None:  # noqa: ANN001
+def test_read_note_de_id_inexistente_diz_o_que_houve(servidor) -> None:
     """Erro explícito em vez de lista vazia: lista vazia é indistinguível de 'não tem nada'."""
     saida = chamar_erro(servidor, "read_note", id="nao-existe#9")
 
@@ -303,7 +303,7 @@ def test_read_note_de_id_inexistente_diz_o_que_houve(servidor) -> None:  # noqa:
 
 
 
-def test_o_id_de_search_serve_para_read_note(servidor) -> None:  # noqa: ANN001
+def test_o_id_de_search_serve_para_read_note(servidor) -> None:
     """O laço que faz a superfície ser componível — e que quebra se o id não for estável."""
     achados = chamar(servidor, "search", consulta="governança", k=1)
     alvo = achados["trechos"][0]["id"]
@@ -330,7 +330,7 @@ def test_construir_nao_abre_o_indice(tmp_path: Path) -> None:
 # --- a base configura a superfície -------------------------------------------
 
 
-def _base(**kwargs):  # noqa: ANN002, ANN201
+def _base(**kwargs):
     from segundocerebro.config import Base
 
     return Base(**kwargs)
@@ -378,7 +378,7 @@ def test_sem_base_a_superficie_nao_muda(tmp_path: Path) -> None:
     assert set(ferramentas(servidor)) == SUPERFICIE
 
 
-def test_search_anexa_vizinhos_sem_misturar_com_o_trecho(servidor) -> None:  # noqa: ANN001
+def test_search_anexa_vizinhos_sem_misturar_com_o_trecho(servidor) -> None:
     """ "A resposta estava no parágrafo seguinte" — mas a procedência é do trecho.
 
     O vizinho vai em `antes`/`depois`, nunca dentro de `texto`: misturar faria o
@@ -393,13 +393,13 @@ def test_search_anexa_vizinhos_sem_misturar_com_o_trecho(servidor) -> None:  # n
     assert vizinhanca not in trecho["texto"]
 
 
-def test_search_sem_contexto_nao_traz_campos_vazios(servidor) -> None:  # noqa: ANN001
+def test_search_sem_contexto_nao_traz_campos_vazios(servidor) -> None:
     """Campo vazio em todo retorno é contexto do cliente gasto à toa."""
     trecho = chamar(servidor, "search", consulta="contrato", k=1, contexto=0)["trechos"][0]
     assert "antes" not in trecho and "depois" not in trecho
 
 
-def test_contexto_tem_teto(servidor) -> None:  # noqa: ANN001
+def test_contexto_tem_teto(servidor) -> None:
     """O custo do contexto é do cliente, então o servidor limita."""
     from segundocerebro.mcp.server import CONTEXTO_MAX
 
@@ -411,7 +411,7 @@ def test_contexto_tem_teto(servidor) -> None:  # noqa: ANN001
     assert generoso.get("depois", "") == no_teto.get("depois", "")
 
 
-def test_vizinho_que_ja_e_acerto_nao_se_repete(servidor) -> None:  # noqa: ANN001
+def test_vizinho_que_ja_e_acerto_nao_se_repete(servidor) -> None:
     """Repetir gastaria contexto e faria parecer que há mais fontes do que há."""
     dados = chamar(servidor, "search", consulta="contrato", k=8, contexto=1)
     textos = {t["texto"] for t in dados["trechos"]}
@@ -435,7 +435,7 @@ def test_k_e_janela_saem_da_base(tmp_path: Path) -> None:
 # --- neighbors: a aresta que a busca por texto não alcança -------------------
 
 
-def test_neighbors_avisa_quando_o_grafo_nunca_foi_construido(servidor) -> None:  # noqa: ANN001
+def test_neighbors_avisa_quando_o_grafo_nunca_foi_construido(servidor) -> None:
     """Grafo vazio e documento sem vizinho devolvem a mesma lista, e são coisas
     diferentes.
 
@@ -518,7 +518,7 @@ def test_neighbors_devolve_id_que_serve_para_read_note(tmp_path: Path) -> None:
     store.fechar()
 
 
-def test_neighbors_com_arquivo_vazio_nao_explode(servidor) -> None:  # noqa: ANN001
+def test_neighbors_com_arquivo_vazio_nao_explode(servidor) -> None:
     dados = chamar_erro(servidor, "neighbors", arquivo="   ")
     assert dados["vizinhos"] == []
     assert "erro" in dados
@@ -526,7 +526,7 @@ def test_neighbors_com_arquivo_vazio_nao_explode(servidor) -> None:  # noqa: ANN
 
 
 
-def test_neighbors_respeita_o_teto_do_limite(servidor) -> None:  # noqa: ANN001
+def test_neighbors_respeita_o_teto_do_limite(servidor) -> None:
     """Cada vizinho custa contexto do cliente."""
     ferrs = ferramentas(servidor)
     assert ferrs["neighbors"].input_schema["properties"]["limite"]["default"] == 5
@@ -537,21 +537,21 @@ def test_neighbors_respeita_o_teto_do_limite(servidor) -> None:  # noqa: ANN001
 # --- filtros e modo de auditoria do search (PR-F1) ----------------------------
 
 
-def test_search_com_filtro_de_pasta_restringe_acertos(servidor) -> None:  # noqa: ANN001
+def test_search_com_filtro_de_pasta_restringe_acertos(servidor) -> None:
     """Restringe a busca apenas aos documentos contidos no prefixo de pasta."""
     achados = chamar(servidor, "search", consulta="governança", pasta="Politica de IA")
     assert achados["encontrados"] > 0
     assert all(t["arquivo"].startswith("Politica de IA/") for t in achados["trechos"])
 
 
-def test_search_com_pasta_inexistente_devolve_vazio(servidor) -> None:  # noqa: ANN001
+def test_search_com_pasta_inexistente_devolve_vazio(servidor) -> None:
     """Pasta sem documentos devolve lista limpa e zero encontrados."""
     achados = chamar(servidor, "search", consulta="governança", pasta="Projetos/Desconhecido")
     assert achados["encontrados"] == 0
     assert achados["trechos"] == []
 
 
-def test_search_normaliza_separador_de_pasta_windows(servidor) -> None:  # noqa: ANN001
+def test_search_normaliza_separador_de_pasta_windows(servidor) -> None:
     """Barras invertidas ou barras no final são tratadas de forma transparente."""
     achados = chamar(servidor, "search", consulta="governança", pasta="Politica de IA\\")
     assert achados["encontrados"] > 0
@@ -636,7 +636,7 @@ def test_search_incluir_versoes_antigas_preserva_minutas_superadas(tmp_path: Pat
 # --- overview (R7.1) ---------------------------------------------------------
 
 
-def test_overview_retorna_resumo_completo_da_base(servidor) -> None:  # noqa: ANN001
+def test_overview_retorna_resumo_completo_da_base(servidor) -> None:
     """overview devolve documento total, chunks, formatos e pastas da base de teste."""
     dados = chamar(servidor, "overview")
     assert dados["documentos_total"] > 0
@@ -711,7 +711,7 @@ def test_overview_em_base_vazia_retorna_zeros(tmp_path: Path) -> None:
     store.fechar()
 
 
-def test_overview_nao_expoe_caminhos_absolutos(servidor) -> None:  # noqa: ANN001
+def test_overview_nao_expoe_caminhos_absolutos(servidor) -> None:
     """Nenhum caminho com barra invertida absoluta ou letra de unidade vaza."""
     dados = chamar(servidor, "overview")
     for item in dados["pastas_raiz"]:

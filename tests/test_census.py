@@ -151,7 +151,7 @@ def test_placeholders_are_counted_not_hydrated(corpus: RootSpec, monkeypatch: py
 
 
 def test_never_opens_file_content(corpus: RootSpec, monkeypatch: pytest.MonkeyPatch) -> None:
-    def forbidden(*args, **kwargs):  # noqa: ANN002, ANN003
+    def forbidden(*args, **kwargs):
         raise AssertionError(f"o censo tentou abrir conteúdo: {args!r}")
 
     monkeypatch.setattr(builtins, "open", forbidden)

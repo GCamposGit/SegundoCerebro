@@ -24,7 +24,7 @@ def descobrir_dim(diretorio: Path) -> int | None:
         campo = tabela.schema.field("vetor")
         dim = getattr(campo.type, "list_size", None)
         return int(dim) if dim else None
-    except Exception as exc:  # noqa: BLE001 — tabela ausente ou esquema ilegível
+    except Exception as exc:  # BLE001 — tabela ausente ou esquema ilegível
         raise BackupInconsistente(
             "Não foi possível ler a tabela de vetores do backup.",
             "lancedb_ilegivel",

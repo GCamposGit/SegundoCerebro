@@ -49,6 +49,20 @@ def test_ruff_e_pyright_estao_no_pyproject() -> None:
     assert "reportArgumentType = \"none\"" in texto
 
 
+def test_q18_liga_as_dez_regras_so_em_src() -> None:
+    """Sem estas regras o noqa de src volta a ser culto; em tests/ ele explode."""
+    dados = tomllib.loads((REPO / "pyproject.toml").read_text(encoding="utf-8"))
+    select = set(dados["tool"]["ruff"]["lint"]["select"])
+    dez = {
+        "ANN001", "ANN201", "ANN202", "ANN401",
+        "ARG001", "ARG002", "T201", "B007", "N801", "RET", "RUF100",
+    }
+    assert dez <= select
+    ignores = dados["tool"]["ruff"]["lint"]["per-file-ignores"]
+    for pasta in ("tests/**", "eval/**"):
+        assert {"ANN", "ARG", "T201", "B007", "N801", "RET"} <= set(ignores[pasta])
+
+
 def test_fronteira_fnd10_tem_config_focal() -> None:
     """FND-10: listed frontiers are on, globally the rest stays off."""
     comentario = "# pyright: reportReturnType=error, reportArgumentType=error"

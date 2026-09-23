@@ -182,7 +182,7 @@ def fatia(idioma_pergunta: str, idioma_fonte: str) -> str:
 # o baseline por nome usarem a fatia sem abrir base nenhuma.
 
 
-def idioma_de_documento(store, path: str, *, trecho_maximo: int = TRECHO_MAXIMO) -> str:  # noqa: ANN001
+def idioma_de_documento(store, path: str, *, trecho_maximo: int = TRECHO_MAXIMO) -> str:
     """Idioma de um documento indexado, pelos primeiros trechos.
 
     Documento sem chunk é `indefinido` e não erro: é o estado normal de um PDF
@@ -198,13 +198,13 @@ def idioma_de_documento(store, path: str, *, trecho_maximo: int = TRECHO_MAXIMO)
     return detectar(" ".join(texto), trecho_maximo=trecho_maximo)
 
 
-def idiomas_das_fontes(store, perguntas) -> dict[str, str]:  # noqa: ANN001
+def idiomas_das_fontes(store, perguntas) -> dict[str, str]:
     """Um idioma por caminho citado no conjunto dourado."""
     caminhos = {f for p in perguntas for f in p.fontes}
     return {c: idioma_de_documento(store, c) for c in sorted(caminhos)}
 
 
-def idioma_do_conjunto(fontes, idiomas: dict[str, str]) -> str:  # noqa: ANN001
+def idioma_do_conjunto(fontes, idiomas: dict[str, str]) -> str:
     """O idioma de um par pergunta→fontes, quando ela tem mais de uma.
 
     Fontes que discordam viram `misto`, e `misto` não entra em fatia. Escolher a
@@ -229,7 +229,7 @@ class DivergenciaDeIdioma:
     detalhe: str
 
 
-def conferir(perguntas, idiomas: dict[str, str]) -> list[DivergenciaDeIdioma]:  # noqa: ANN001
+def conferir(perguntas, idiomas: dict[str, str]) -> list[DivergenciaDeIdioma]:
     """Anotação estática contra o índice de agora — o par de `verificar_escopo`.
 
     A anotação ser estática é o que dá comparabilidade entre fases; o preço é
@@ -274,7 +274,7 @@ def _atualizar_linha(linha: str, idioma: str, idioma_fonte: str) -> str:
     return _json.dumps(d, ensure_ascii=False)
 
 
-def main(argv: list[str] | None = None) -> int:  # noqa: C901
+def main(argv: list[str] | None = None) -> int:
     """Anota `idioma_fonte` no conjunto dourado a partir do índice da base.
 
         py -m eval.idioma --base padrao              # só relata
@@ -347,7 +347,7 @@ def main(argv: list[str] | None = None) -> int:  # noqa: C901
         propostas[p.id] = (do_texto, das_fontes)
 
     resumo: dict[str, int] = {}
-    for pid, (q, f) in propostas.items():  # noqa: B007
+    for pid, (q, f) in propostas.items():
         resumo[fatia(q, f)] = resumo.get(fatia(q, f), 0) + 1
     log.info(
         "%d perguntas | %s",

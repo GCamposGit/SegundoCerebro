@@ -433,9 +433,9 @@ class Store:
             )
         }
 
-    def gravar_medicao(  # noqa: ANN001
+    def gravar_medicao(
         self,
-        obs,
+        obs,  # noqa: ANN001 — tipo fica no chamador para não importar o módulo pesado
         *,
         execucao: int = 0,
         fingerprint: str = "",
@@ -834,7 +834,7 @@ class Store:
             ]
         try:
             self.tabela.add(registros)
-        except Exception as exc:  # noqa: BLE001 — old LanceDB schema may lack the owner column
+        except Exception as exc:  # BLE001 — old LanceDB schema may lack the owner column
             # An index made before FND-01b has no occurrence column. It is
             # still readable; migration is the operation that upgrades it.
             if "ocorrencia_id" not in str(exc).lower():

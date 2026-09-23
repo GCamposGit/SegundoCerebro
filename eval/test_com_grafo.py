@@ -27,12 +27,12 @@ class BuscaFalsa:
     caminhos: list[str]
     nome: str = "falsa"
 
-    def search(self, consulta: str, k: int) -> list[Hit]:  # noqa: ARG002
+    def search(self, consulta: str, k: int) -> list[Hit]:
         return [Hit(path=p, score=1.0 - i / 100) for i, p in enumerate(self.caminhos)][:k]
 
 
 @pytest.fixture
-def indice(tmp_path: Path):  # noqa: ANN201
+def indice(tmp_path: Path):
     store = Store(tmp_path / "indice", DIM)
     emb = EmbedderFalso()
     textos = {
@@ -50,7 +50,7 @@ def indice(tmp_path: Path):  # noqa: ANN201
     store.fechar()
 
 
-def test_vizinho_entra_dentro_do_k_pedido(indice) -> None:  # noqa: ANN001
+def test_vizinho_entra_dentro_do_k_pedido(indice) -> None:
     """O defeito que motivou o arquivo: no fim da lista, o vizinho é invisível.
 
     Com a busca já devolvendo `k` resultados, anexar depois põe o vizinho na
@@ -66,7 +66,7 @@ def test_vizinho_entra_dentro_do_k_pedido(indice) -> None:  # noqa: ANN001
     assert caminhos.index("norma.md") < 4
 
 
-def test_as_tres_primeiras_posicoes_ficam_intactas(indice) -> None:  # noqa: ANN001
+def test_as_tres_primeiras_posicoes_ficam_intactas(indice) -> None:
     """É o que torna a leitura honesta: recall@1 e recall@3 não podem mudar.
 
     Se mudarem, o ganho medido veio de reordenação e não de alcance — e as duas
@@ -80,7 +80,7 @@ def test_as_tres_primeiras_posicoes_ficam_intactas(indice) -> None:  # noqa: ANN
     assert caminhos[:3] == originais[:3]
 
 
-def test_vizinho_que_ja_esta_no_resultado_nao_se_repete(indice) -> None:  # noqa: ANN001
+def test_vizinho_que_ja_esta_no_resultado_nao_se_repete(indice) -> None:
     """Repetir inflaria o recall sem achar nada de novo."""
     com = ComSaltoNoGrafo(interno=BuscaFalsa(["plano.md", "norma.md"]), store=indice)
 
@@ -89,7 +89,7 @@ def test_vizinho_que_ja_esta_no_resultado_nao_se_repete(indice) -> None:  # noqa
     assert caminhos.count("norma.md") == 1
 
 
-def test_o_trecho_diz_por_que_o_vizinho_entrou(indice) -> None:  # noqa: ANN001
+def test_o_trecho_diz_por_que_o_vizinho_entrou(indice) -> None:
     """Relatório de ablação que diz só "veio do grafo" não permite conferir."""
     com = ComSaltoNoGrafo(interno=BuscaFalsa(["plano.md"]), store=indice)
 
@@ -100,14 +100,14 @@ def test_o_trecho_diz_por_que_o_vizinho_entrou(indice) -> None:  # noqa: ANN001
     assert "plano.md" in vizinho.trecho
 
 
-def test_sem_vizinho_a_lista_nao_muda(indice) -> None:  # noqa: ANN001
+def test_sem_vizinho_a_lista_nao_muda(indice) -> None:
     originais = ["ruido1.md", "ruido2.md"]
     com = ComSaltoNoGrafo(interno=BuscaFalsa(originais), store=indice)
 
     assert [h.path for h in com.search("q", k=8)] == originais
 
 
-def test_o_salto_parte_so_dos_primeiros(indice) -> None:  # noqa: ANN001
+def test_o_salto_parte_so_dos_primeiros(indice) -> None:
     """Um cliente não chama `neighbors` em cinquenta documentos.
 
     Com `expandir=1`, um `plano.md` na quarta posição não origina salto — e o
@@ -119,7 +119,7 @@ def test_o_salto_parte_so_dos_primeiros(indice) -> None:  # noqa: ANN001
     assert "norma.md" not in [h.path for h in com.search("q", k=8)]
 
 
-def test_o_nome_do_recuperador_declara_o_salto(indice) -> None:  # noqa: ANN001
+def test_o_nome_do_recuperador_declara_o_salto(indice) -> None:
     """O relatório imprime o nome; um relatório que omite o salto descreve outro
     experimento — foi assim que uma medição de 17/08 passou por confirmação sem
     confirmar nada."""

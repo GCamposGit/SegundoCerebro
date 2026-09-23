@@ -82,7 +82,7 @@ def _coletar_sqlite(store: Store) -> dict[str, str]:
     return {row[0]: row[1] for row in store.con.execute(consulta).fetchall()}
 
 
-def _tabelas_no_db(db: Any) -> list[str]:
+def _tabelas_no_db(db: Any) -> list[str]:  # noqa: ANN401 — fronteira dinâmica ainda sem protocolo
     """Descobre tabelas existentes no LanceDB de forma compatível."""
     try:
         res = db.list_tables()
@@ -99,7 +99,7 @@ def _tabelas_no_db(db: Any) -> list[str]:
 
 
 def _escanear_vetores(
-    tbl: Any,
+    tbl: Any,  # noqa: ANN401 — fronteira dinâmica ainda sem protocolo
     sqlite_map: dict[str, str],
     lote: int,
     *,

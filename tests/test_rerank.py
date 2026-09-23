@@ -16,11 +16,11 @@ from segundocerebro.retrieve.rerank import CANDIDATOS_PARA_RERANK, Reranker
 class RerankerFalso(Reranker):
     """Pontua pelo tamanho do texto — determinístico e sem modelo."""
 
-    def __init__(self, **kwargs) -> None:  # noqa: ANN003
+    def __init__(self, **kwargs) -> None:
         super().__init__(lazy=True, **kwargs)
         self.chamadas: list[list[str]] = []
 
-    def pontuar(self, consulta: str, textos):  # noqa: ANN001, ANN201
+    def pontuar(self, consulta: str, textos):
         self.chamadas.append(list(textos))
         return [float(len(t)) for t in textos]
 

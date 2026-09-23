@@ -202,7 +202,7 @@ class _EmbedderFalso:
         self.atraso = atraso
         self.chamadas = 0
 
-    def embed_passagens(self, textos, batch_size=32):  # noqa: ANN001, ARG002
+    def embed_passagens(self, textos, batch_size=32):
         self.chamadas += 1
         time.sleep(self.atraso)
         return [object()] * len(textos)

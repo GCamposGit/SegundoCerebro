@@ -132,7 +132,7 @@ class FonteWin32:
             return None
         k32 = self._kernel32()
 
-        class USN_JOURNAL_DATA_V0(ctypes.Structure):
+        class USN_JOURNAL_DATA_V0(ctypes.Structure):  # noqa: N801 — nome da struct Win32
             _fields_ = [
                 ("UsnJournalID", ctypes.c_uint64),
                 ("FirstUsn", ctypes.c_int64),
@@ -179,7 +179,7 @@ class FonteWin32:
             return [], start_usn
         k32 = self._kernel32()
 
-        class READ_USN_JOURNAL_DATA_V1(ctypes.Structure):
+        class READ_USN_JOURNAL_DATA_V1(ctypes.Structure):  # noqa: N801 — nome da struct Win32
             _fields_ = [
                 ("StartUsn", ctypes.c_int64),
                 ("ReasonMask", wintypes.DWORD),
@@ -246,7 +246,7 @@ class FonteWin32:
             return None
         k32 = self._kernel32()
 
-        class FILE_ID_DESCRIPTOR(ctypes.Structure):
+        class FILE_ID_DESCRIPTOR(ctypes.Structure):  # noqa: N801 — nome da struct Win32
             _fields_ = [
                 ("dwSize", wintypes.DWORD),
                 ("Type", wintypes.DWORD),

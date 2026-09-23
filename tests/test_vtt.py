@@ -47,7 +47,7 @@ O contrato NN-VCE-003 entra na proxima pauta.
 """
 
 
-def texto_de(doc) -> str:  # noqa: ANN001
+def texto_de(doc) -> str:
     return "\n".join(b.text for b in doc.blocks)
 
 

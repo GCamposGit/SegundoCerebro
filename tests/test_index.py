@@ -223,19 +223,19 @@ def test_pipeline_duas_gpus_grava_via_fila(tmp_path: Path, monkeypatch: pytest.M
     """The GPU pool is a transport. Vectors that land in the store must match."""
 
     class FilaFalsa:
-        def __init__(self, n: int, *, modelo: str, cache: Path) -> None:  # noqa: ARG002
+        def __init__(self, n: int, *, modelo: str, cache: Path) -> None:
             self._jobs: dict[int, list[str]] = {}
             self._ordem: list[int] = []
             self._n = 0
             self.fechou = False
 
-        def submit(self, textos: list[str], batch_size: int = 32) -> int:  # noqa: ARG002
+        def submit(self, textos: list[str], batch_size: int = 32) -> int:
             self._n += 1
             self._jobs[self._n] = list(textos)
             self._ordem.append(self._n)
             return self._n
 
-        def receber(self, timeout: float | None = None) -> tuple[int, list] | None:  # noqa: ARG002
+        def receber(self, timeout: float | None = None) -> tuple[int, list] | None:
             if not self._ordem:
                 return None
             jid = self._ordem.pop(0)
@@ -356,7 +356,7 @@ def test_passada_global_faz_manutencao_fts_e_ann_automaticamente(
     conferidos: list[int] = []
     fts_otimizado: list[bool] = []
 
-    def conferir(_store: Store, n_vetores: int):  # noqa: ANN202
+    def conferir(_store: Store, n_vetores: int):
         conferidos.append(n_vetores)
         return SimpleNamespace(criar=False)
 

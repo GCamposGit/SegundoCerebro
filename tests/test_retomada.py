@@ -20,7 +20,7 @@ from segundocerebro.index.retomada import INACABADOS, linha_da_tarefa, main, pen
 from segundocerebro.index import retomada
 
 
-def base_com_progresso(tmp_path: Path, status: str, **extra) -> Base:  # noqa: ANN003
+def base_com_progresso(tmp_path: Path, status: str, **extra) -> Base:
     indice = tmp_path / "indice"
     indice.mkdir(exist_ok=True)
     dados = {"status": status, "documentos": {"feitos": 40, "totais": 100},
@@ -129,7 +129,7 @@ def test_retoma_chamando_o_indexador(tmp_path: Path, monkeypatch) -> None:
     base_com_progresso(tmp_path, "indexando")
     comandos = []
 
-    def falso(comando, **k):  # noqa: ANN001, ANN003, ANN202
+    def falso(comando, **k):
         comandos.append(comando)
         return type("R", (), {"returncode": 0})()
 
@@ -150,7 +150,7 @@ def test_retoma_com_o_perfil_salvo_na_maquina(tmp_path: Path, monkeypatch) -> No
     base_com_progresso(tmp_path, "indexando")
     comandos = []
 
-    def falso(comando, **k):  # noqa: ANN001, ANN003, ANN202
+    def falso(comando, **k):
         comandos.append(comando)
         return type("R", (), {"returncode": 0})()
 

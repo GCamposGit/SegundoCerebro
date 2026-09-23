@@ -125,7 +125,7 @@ def _do_ocr_e_nao_deste_laco(estado, arquivo, em_ocr) -> bool:  # noqa: ANN001
     return bool(em_ocr) and estado.status == ParseStatus.ERROR.value and arquivo.rel in em_ocr
 
 
-def _precisa_indexar(estado, arquivo, model_id: str, parser: str, em_ocr=frozenset()) -> bool:  # noqa: ANN001, B008
+def _precisa_indexar(estado, arquivo, model_id: str, parser: str, em_ocr=frozenset()) -> bool:  # noqa: ANN001
     if estado is None:
         return True
     if estado.status in STATUS_PARA_REPESCAR and not _do_ocr_e_nao_deste_laco(

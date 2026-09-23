@@ -17,7 +17,7 @@ DESCRICAO_OVERVIEW = (
 )
 
 
-def registrar(servidor: Any, recursos: Any) -> None:
+def registrar(servidor: Any, recursos: Any) -> None:  # noqa: ANN401 — fronteira dinâmica ainda sem protocolo
     """Registra a ferramenta overview no servidor MCP."""
     base = getattr(recursos, "base", None)
     base_id = getattr(base, "id", "") or ""

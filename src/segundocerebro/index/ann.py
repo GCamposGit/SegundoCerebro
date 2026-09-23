@@ -90,7 +90,7 @@ def _subvetores(dim: int) -> int:
 
 
 def planejar_ann(
-    tabela,
+    tabela,  # noqa: ANN001 — tipo fica no chamador para não importar o módulo pesado
     dim: int,
     n_vetores: int,
     *,
@@ -122,7 +122,7 @@ def planejar_ann(
 
 
 def garantir_ann(
-    tabela,
+    tabela,  # noqa: ANN001 — tipo fica no chamador para não importar o módulo pesado
     dim: int,
     n_vetores: int | None = None,
     *,
@@ -173,8 +173,8 @@ def _ativo(store) -> bool:  # noqa: ANN001
     return store._ann_ativo
 
 
-def buscar_denso(  # noqa: ANN001
-    store,
+def buscar_denso(
+    store,  # noqa: ANN001 — tipo fica no chamador para não importar o módulo pesado
     vetor: np.ndarray,
     k: int,
     filtro: str | None = None,

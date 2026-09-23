@@ -444,7 +444,7 @@ def _extension_of(path: str) -> str:
 
 def _year_of(mtime: float) -> str:
     try:
-        # noqa DTZ006: hora local ingênua é o certo aqui. `mtime` é do sistema de
+
         # arquivos do usuário e o relatório é lido por ele; converter para UTC
         # mudaria o ano de arquivos criados na virada, sem ninguém pedir.
         return datetime.fromtimestamp(mtime).strftime("%Y")  # noqa: DTZ006
@@ -718,7 +718,7 @@ def _fmt_date(ts: float | None) -> str:
     if ts is None:
         return "—"
     try:
-        # noqa DTZ006: mesma razão de `_year_of` — data local, para leitura humana.
+
         return datetime.fromtimestamp(ts).strftime("%Y-%m-%d")  # noqa: DTZ006
     except (OSError, OverflowError, ValueError):
         return "(inválida)"
