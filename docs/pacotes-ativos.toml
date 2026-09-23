@@ -259,7 +259,7 @@ proxima_acao = ""
 
 [[pacote]]
 id = "LANCE-TIPO-VETOR"
-estado = "em_execucao"
+estado = "entregue"
 dono = "notebook"
 paths = [
     "src/segundocerebro/index/vetores_tipo.py",
@@ -273,8 +273,8 @@ paths = [
 ]
 dependencias = ["FND-01b"]
 aceite = "coluna Lance vetor vira FixedSizeList float32 da dim do modelo; buscar_denso funciona sem reparsear documentos; SQLite intacto"
-evidencia = ""
-proxima_acao = "regravar a tabela Lance no tipo certo a partir das linhas já gravadas"
+evidencia = { pr = 120, sha = "89d27e6f57b464ea6480a1f13b803cb454d71604" }
+proxima_acao = ""
 
 [[pacote]]
 id = "CI-PYTEST-RUNNER"

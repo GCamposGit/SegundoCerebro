@@ -143,7 +143,10 @@ def test_fila_real_carrega_sem_erro() -> None:
     assert por_id["FND-01b-int"].dono == "notebook"
     assert (REPO / "docs" / "fnd-01b-identidade-interna.md").is_file()
     abertos = [p for p in pacotes if p.estado in {"proposto", "pronto", "em_execucao", "bloqueado"}]
-    assert any(p.id == "LANCE-TIPO-VETOR" and p.estado == "em_execucao" for p in abertos)
+    assert not abertos, "fila real ainda contém pacote aberto após LANCE-TIPO-VETOR"
+    assert por_id["LANCE-TIPO-VETOR"].estado == "entregue"
+    assert por_id["LANCE-TIPO-VETOR"].evidencia["pr"] == 120
+    assert por_id["LANCE-TIPO-VETOR"].evidencia["sha"] == "89d27e6f57b464ea6480a1f13b803cb454d71604"
     assert por_id["PARSER-TEXTO-OCULTO"].estado == "entregue"
     assert por_id["PARSER-TEXTO-OCULTO"].evidencia["pr"] == 119
     assert por_id["INDEXAR-RAIZ"].estado == "entregue"
