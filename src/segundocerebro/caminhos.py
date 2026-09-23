@@ -1,8 +1,19 @@
 """Forma única para comparar caminhos reais, inclusive durante mkdir no Windows."""
 
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 from .census import caminho_normal
+
+
+def caminho_ja_absoluto(caminho: Path) -> bool:
+    """Drive e UNC do Windows continuam absolutos no pytest do Ubuntu.
+
+    `Path.is_absolute` no POSIX não vê `C:\\...` nem `\\\\servidor\\pasta`.
+    Sem isto o leitor cola a raiz debaixo do `config.toml`.
+    """
+    if caminho.is_absolute():
+        return True
+    return PureWindowsPath(str(caminho)).is_absolute()
 
 
 def resolver_caminho(caminho: Path) -> Path:

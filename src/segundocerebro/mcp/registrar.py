@@ -22,6 +22,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -128,10 +129,22 @@ def argumentos_do_registro(conf, args) -> dict[str, Any]:  # noqa: ANN001
     )
 
 
+_VAR_PERCENT = re.compile(r"%([^%]+)%")
+
+
+def expandir_variaveis(modelo: str) -> str:
+    """`%APPDATA%` é a forma do Windows. No POSIX, expandvars deixa o literal."""
+
+    def trocar(achado: re.Match[str]) -> str:
+        return os.environ.get(achado.group(1), achado.group(0))
+
+    return os.path.expandvars(_VAR_PERCENT.sub(trocar, modelo))
+
+
 def destino_de(cliente: str) -> Path | None:
     """Onde grava a configuração daquele cliente, ou `None` se não se sabe."""
     modelo = DESTINOS.get(cliente)
-    return Path(os.path.expandvars(modelo)) if modelo else None
+    return Path(expandir_variaveis(modelo)) if modelo else None
 
 
 def entrada_de(

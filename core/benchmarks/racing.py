@@ -51,7 +51,7 @@ class EmpiricalBenchmarkLedger:
 
             for rdata in data.get("recent_races", []):
                 self.history.append(SpeculativeRaceResult(**rdata))
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — an unreadable empirical ledger starts empty
             logger.warning(f"Failed to load empirical ledger from {self.file_path}: {e}")
 
     def save(self) -> None:
@@ -66,7 +66,7 @@ class EmpiricalBenchmarkLedger:
             }
             with open(self.file_path, "w", encoding="utf-8") as f:
                 json.dump(payload, f, indent=2)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — save failure must not abort the race
             logger.error(f"Failed to save empirical ledger to {self.file_path}: {e}")
 
     def get_or_create_stats(self, model_id: str) -> EmpiricalModelStats:

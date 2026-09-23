@@ -53,7 +53,7 @@ class ContentEngine:
                 import winreg
                 with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Environment") as k:
                     key, _ = winreg.QueryValueEx(k, "OPENROUTER_API_KEY")
-            except Exception:
+            except Exception:  # noqa: BLE001 — the registry key is optional
                 pass
         return key if key and key.strip() else None
 
@@ -64,7 +64,7 @@ class ContentEngine:
             req = urllib.request.Request("http://localhost:11434/api/tags")
             with urllib.request.urlopen(req, timeout=1.5) as resp:
                 return resp.status == 200
-        except Exception:
+        except Exception:  # noqa: BLE001 — the localhost probe is a boolean
             return False
 
     def generate(self, request: ContentRequest) -> ContentResponse:
@@ -150,7 +150,7 @@ class ContentEngine:
                 content = self._call_ollama(request, preset, tone)
                 if content and len(content.strip()) > 30:
                     return content, "ollama", "qwen-code-deep"
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 — Ollama failure falls back
                 logger.warning("Ollama generation failed, falling back: %s", exc)
 
         # Try OpenRouter if key is present
@@ -160,7 +160,7 @@ class ContentEngine:
                 content = self._call_openrouter(openrouter_key, model, request, preset, tone)
                 if content and len(content.strip()) > 30:
                     return content, "openrouter", model
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 — OpenRouter failure falls back
                 logger.warning("OpenRouter generation failed, falling back: %s", exc)
 
         # Robust procedural fallback
@@ -372,7 +372,7 @@ class ContentEngine:
                         "provider": data.get("provider"),
                         "created_at": data.get("created_at"),
                     })
-            except Exception:
+            except Exception:  # noqa: BLE001 — one bad catalog file is skipped
                 continue
         return items
 

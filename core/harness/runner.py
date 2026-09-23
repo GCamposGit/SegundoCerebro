@@ -86,7 +86,7 @@ def run_step(step: Dict[str, Any]) -> bool:
     except subprocess.TimeoutExpired:
         print(f"{MARKER_STEP_FAIL} {name} (timeout exceeded)")
         return False
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — a step error is a failed step
         print(f"{MARKER_STEP_FAIL} {name} (error: {e})")
         return False
 
@@ -107,7 +107,7 @@ def main():
             with open(config_path, "r", encoding="utf-8") as f:
                 cfg = json.load(f)
                 steps = cfg.get("steps", steps)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — a bad harness config uses the fallback
             print(f"[WARN] Failed to read {config_path}, using fallback: {e}")
 
     failed_any = False

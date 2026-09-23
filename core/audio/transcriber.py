@@ -19,7 +19,7 @@ try:
     _torch_lib = os.path.join(os.path.dirname(torch.__file__), "lib")
     if os.path.exists(_torch_lib) and hasattr(os, "add_dll_directory"):
         os.add_dll_directory(_torch_lib)
-except Exception:
+except Exception:  # noqa: BLE001 — torch is optional at import
     pass
 
 import numpy as np

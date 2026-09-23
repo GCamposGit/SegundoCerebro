@@ -46,8 +46,8 @@ from .census import DEFAULT_EXCLUDE_DIRS, DEFAULT_EXCLUDE_GLOBS
 from .census import Config as CensoConfig
 from .census import DeclaredExclusions, RoleExclusion, RootSpec
 from .config_leitura import booleano
+from .caminhos import caminho_ja_absoluto
 from .logger import get_logger
-
 log = get_logger("config")
 
 ARQUIVO_PADRAO = Path("config.toml")
@@ -983,7 +983,7 @@ def _resolver(base: Base, raiz: Path) -> Base:
     def ancorar(p: Path | None) -> Path | None:
         if p is None:
             return None
-        return p if p.is_absolute() else raiz / p
+        return p if caminho_ja_absoluto(p) else raiz / p
 
     return replace(
         base,

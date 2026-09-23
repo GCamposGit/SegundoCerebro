@@ -292,3 +292,45 @@ dependencias = ["CI-SQLITE-OPEN"]
 aceite = "job pytest exigido conclui a suíte com coverage no Ubuntu; install-smoke Windows permanece; sem retry"
 evidencia = { pr = 116, sha = "75aa2125121abc5eb50408d5d5c00327557c2549" }
 proxima_acao = ""
+
+[[pacote]]
+id = "CI-PYTEST-UBUNTU"
+estado = "em_execucao"
+dono = "notebook"
+paths = [
+    "src/segundocerebro/caminhos.py",
+    "src/segundocerebro/config.py",
+    "src/segundocerebro/mcp/registrar.py",
+    "tests/indice_legado.py",
+    "tests/test_ativar_identidade.py",
+    "tests/test_config.py",
+    "tests/test_get_document.py",
+    "tests/test_migrar_identidade.py",
+    "tests/test_registrar.py",
+    "tests/test_pacotes_ativos.py",
+    "docs/pacotes-ativos.toml",
+    "core/audio/transcriber.py",
+    "core/benchmarks/fetcher.py",
+    "core/benchmarks/racing.py",
+    "core/content/engine.py",
+    "core/harness/runner.py",
+    "core/learning/benchmark.py",
+    "core/learning/cli.py",
+    "core/learning/tracker.py",
+    "core/learning_pack/analyzer.py",
+    "core/learning_pack/storage.py",
+    "core/orchestrator/guard.py",
+    "core/orchestrator/state.py",
+    "core/research/arxiv_client.py",
+    "core/research/github_scout.py",
+    "core/research/ledger.py",
+    "core/research/trends_scout.py",
+    "core/router/model_router.py",
+    "core/visual/cloud_engine.py",
+    "core/visual/procedural_engine.py",
+    "core/visual/studio.py",
+]
+dependencias = ["CI-PYTEST-RUNNER"]
+aceite = "os oito testes que falham no pytest Ubuntu passam sem skip e continuam passando no Windows"
+evidencia = ""
+proxima_acao = ""

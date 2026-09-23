@@ -47,7 +47,7 @@ class ExpertTrendsScout:
                 data = json.loads(resp.read().decode("utf-8"))
                 hits = data.get("hits", [])
                 return self._process_trend_hits(hits, limit=limit)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — a trends search failure returns empty
             print(f"[WARN] Trends scout search failed for '{query}': {e}")
             return []
 

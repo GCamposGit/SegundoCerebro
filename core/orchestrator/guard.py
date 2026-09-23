@@ -55,7 +55,7 @@ def get_modified_files(base_ref: str = "HEAD") -> List[str]:
         )
         files.extend(res_cached.stdout.strip().splitlines())
         return list(set(f.strip() for f in files if f.strip()))
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — git diff failure returns no paths
         print(f"[ERROR] Failed to query git diff: {e}", file=sys.stderr)
         return []
 

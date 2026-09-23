@@ -44,7 +44,7 @@ def load_state() -> Dict[str, Any]:
         try:
             with open(STATE_FILE, "r", encoding="utf-8") as f:
                 return json.load(f)
-        except Exception:
+        except Exception:  # noqa: BLE001 — a corrupt state file uses the empty state
             pass
     return {"tasks": {}, "history": []}
 
@@ -72,7 +72,7 @@ def get_next_dispatchable_task() -> Optional[Dict[str, Any]]:
     # Ensure daily benchmark is up to date (<1ms if already run today)
     try:
         ensure_daily_benchmark()
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 — the daily benchmark must not block dispatch
         print(f"[WARN] Daily benchmark check skipped: {exc}")
 
     state = load_state()
