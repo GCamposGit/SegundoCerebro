@@ -62,7 +62,7 @@ produto — o padrão é desligado —, e o `Q12` aceita as duas saídas, "cada 
 num lugar só **ou** amarrado por teste"."""
 
 
-def _montar(args, cfg):  # noqa: ANN001
+def _montar(args, cfg):
     """Build the retriever, its document universe, and the line describing it."""
     if args.retriever == "baseline":
         retriever = BuscaPorNomeDeArquivo.a_partir_de(cfg.roots, cfg, prefixo=args.prefixo)
@@ -179,7 +179,7 @@ def _montar(args, cfg):  # noqa: ANN001
     return retriever, f"Métricas F1 — {retriever.nome}", contexto, store, set(universo)
 
 
-def _conferir_idioma(perguntas, store) -> None:  # noqa: ANN001
+def _conferir_idioma(perguntas, store) -> None:
     """A anotação de idioma contra o índice, quando há índice.
 
     As duas espécies são tratadas de forma diferente de propósito. `divergente`

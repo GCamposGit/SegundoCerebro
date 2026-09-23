@@ -255,7 +255,7 @@ class BuscaHibrida:
         return Glossario.de_arquivo(caminho) if caminho else Glossario.vazio()
 
     @staticmethod
-    def reranker_de(base):  # noqa: ANN001, ANN205
+    def reranker_de(base):  # noqa: ANN001
         """Cross-encoder como quarto ranqueador, quando a base o pede.
 
         Construir é de graça — o modelo abre na primeira consulta, não aqui. É o

@@ -465,7 +465,7 @@ def _arvore_digests(pasta: Path) -> dict[str, str]:
     return saida
 
 
-def _linhas_vetores(pasta: Path) -> dict[str, dict]:  # noqa: ANN001
+def _linhas_vetores(pasta: Path) -> dict[str, dict]:
     import lancedb
 
     db = lancedb.connect(str(pasta))
@@ -558,10 +558,10 @@ def main(argv: list[str] | None = None) -> int:
         origem = args.indice if args.indice is not None else _indice_da_base(args.base, args.config)
         migrar(origem, args.destino)
     except (MigracaoRecusada, ErroDeConfig) as exc:
-        print(str(exc), file=sys.stderr)
+        print(str(exc), file=sys.stderr)  # noqa: T201 — saída da CLI
         acao = getattr(exc, "acao", "")
         if acao:
-            print(acao, file=sys.stderr)
+            print(acao, file=sys.stderr)  # noqa: T201 — saída da CLI
         return 2
     return 0
 

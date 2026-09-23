@@ -69,7 +69,7 @@ def test_ram_justa_encolhe_o_lote_mesmo_em_maquina_grande() -> None:
     assert orc.lote_embed == 8
 
 
-def test_config_aceita_presets_do_leigo(tmp_path) -> None:  # noqa: ANN001
+def test_config_aceita_presets_do_leigo(tmp_path) -> None:
     caminho = tmp_path / "config.toml"
     caminho.write_text('[maquina]\nperfil = "automatico"\n[[base]]\nid = "a"\n', encoding="utf-8")
     assert carregar(caminho, ambiente=SEM_AMBIENTE).maquina.perfil == "automatico"

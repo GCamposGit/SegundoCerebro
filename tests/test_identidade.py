@@ -109,7 +109,7 @@ DUPLICATAS = {
 
 
 @pytest.mark.parametrize("ordem", [list(DUPLICATAS), sorted(DUPLICATAS, reverse=True)])
-def test_o_preferido_nao_depende_da_ordem_de_indexacao(tmp_path, ordem) -> None:  # noqa: ANN001
+def test_o_preferido_nao_depende_da_ordem_de_indexacao(tmp_path, ordem) -> None:
     """A classe: workflow que devolve outro documento porque a passada foi outra.
 
     Duas ordens de inserção, o mesmo conteúdo, e a resposta tem de ser a mesma.
@@ -203,18 +203,18 @@ def test_o_indice_de_sha256_existe(store: Store) -> None:
 class _ConContada:
     """Envelope que conta `execute()` e o tamanho de cada lista de parâmetros."""
 
-    def __init__(self, con) -> None:  # noqa: ANN001
+    def __init__(self, con) -> None:
         self._con = con
         self.total = 0
         self.maior_lote = 0
 
-    def execute(self, sql, *args, **kwargs):  # noqa: ANN001, ANN201
+    def execute(self, sql, *args, **kwargs):
         self.total += 1
         if args and isinstance(args[0], (tuple, list)):
             self.maior_lote = max(self.maior_lote, len(args[0]))
         return self._con.execute(sql, *args, **kwargs)
 
-    def __getattr__(self, nome: str):  # noqa: ANN204
+    def __getattr__(self, nome: str):
         return getattr(self._con, nome)
 
 

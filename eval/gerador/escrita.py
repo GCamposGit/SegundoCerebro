@@ -45,7 +45,7 @@ esses formatos, e um arquivo de prosa com extensao `.srt` volta vazio do parser.
 
 def _abrir(destino: Path, modo: str):
     """`open` que sobrevive a caminho acima de 260 caracteres."""
-    return open(caminho_estendido(destino), modo)  # noqa: SIM115, PTH123
+    return open(caminho_estendido(destino), modo)
 
 
 def _preparar(destino: Path) -> None:
@@ -138,7 +138,7 @@ def _marcar_placeholder(destino: Path) -> bool:
     return bool(ctypes.windll.kernel32.SetFileAttributesW(caminho_estendido(destino), 0x1000))
 
 
-def escrever(doc, raiz):  # noqa: ANN001
+def escrever(doc, raiz):
     """Um documento no disco, no formato que ele declara."""
     destino = raiz / doc.caminho
     _preparar(destino)

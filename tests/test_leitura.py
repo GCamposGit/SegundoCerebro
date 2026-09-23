@@ -86,8 +86,8 @@ class _Espiao:
     def __init__(self) -> None:
         self.tools: dict[str, Any] = {}
 
-    def tool(self, description: str = "", **_k):  # noqa: ANN201, ANN003
-        def registrar(fn):  # noqa: ANN001, ANN202
+    def tool(self, description: str = "", **_k):
+        def registrar(fn):
             fn.description = description
             self.tools[fn.__name__] = fn
             return fn
@@ -220,7 +220,7 @@ def test_manifesto_inclui_arquivo_so_no_censo_sem_abrir_conteudo(
     cfg = CensoConfig(roots=[RootSpec(name="acervo", path=raiz)])
     registro_antes = list(indice.con.iterdump())
 
-    def leitura_proibida(*_args, **_kwargs):  # noqa: ANN002, ANN003, ANN202
+    def leitura_proibida(*_args, **_kwargs):
         raise AssertionError("list_folder abriu conteúdo do acervo")
 
     with monkeypatch.context() as portao:
@@ -530,7 +530,7 @@ def _doc(store: Store, caminho: str, sha: str, mtime: float, status: str = "ok")
     )
 
 
-def _paginar_opaco(tool, pasta: str, max_itens: int) -> list[Any]:  # noqa: ANN001
+def _paginar_opaco(tool, pasta: str, max_itens: int) -> list[Any]:
     colhidos: list[Any] = []
     cursor: int | str = 0
     for _ in range(50):
@@ -629,7 +629,7 @@ def test_permissao_negada_nao_finge_completude(
     cfg = CensoConfig(roots=[RootSpec(name="acervo", path=raiz)])
     real = os.scandir
 
-    def recusa(path):  # noqa: ANN001, ANN202
+    def recusa(path):
         texto = str(path).replace("\\", "/")
         if "Projetos/Alfa" in texto or texto.endswith("Alfa"):
             raise PermissionError("acesso negado")

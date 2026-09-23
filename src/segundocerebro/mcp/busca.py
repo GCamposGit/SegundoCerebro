@@ -37,7 +37,7 @@ DESCRICAO_SEARCH = (
 )
 
 
-def _procedencia(chunk: Any) -> dict[str, Any]:
+def _procedencia(chunk: Any) -> dict[str, Any]:  # noqa: ANN401 — fronteira dinâmica ainda sem protocolo
     """Identidade estável e procedência do trecho."""
     return {
         "id": chunk.id if hasattr(chunk, "id") else chunk.chunk_id,
@@ -49,7 +49,7 @@ def _procedencia(chunk: Any) -> dict[str, Any]:
     }
 
 
-def _resumo_item(caminho: str, recursos: Any) -> dict[str, str]:
+def _resumo_item(caminho: str, recursos: Any) -> dict[str, str]:  # noqa: ANN401 — fronteira dinâmica ainda sem protocolo
     """Procedência de versão anterior ou formato alternativo para `read_note`/`neighbors`."""
     data = ""
     busca = getattr(recursos, "busca", None)
@@ -75,7 +75,7 @@ def _resumo_item(caminho: str, recursos: Any) -> dict[str, str]:
     }
 
 
-def _registrar_search(servidor: Any, recursos: Any, limites: Any) -> None:
+def _registrar_search(servidor: Any, recursos: Any, limites: Any) -> None:  # noqa: ANN401 — fronteira dinâmica ainda sem protocolo
     k_padrao = limites.k if limites else K_PADRAO
     k_max = limites.k_max if limites else K_MAX
     contexto_padrao = getattr(limites, "contexto", CONTEXTO_PADRAO) if limites else CONTEXTO_PADRAO
@@ -137,7 +137,7 @@ def _registrar_search(servidor: Any, recursos: Any, limites: Any) -> None:
 
 
 
-def _registrar_read_note(servidor: Any, recursos: Any, limites: Any) -> None:
+def _registrar_read_note(servidor: Any, recursos: Any, limites: Any) -> None:  # noqa: ANN401 — fronteira dinâmica ainda sem protocolo
     janela_padrao = limites.janela if limites else JANELA_PADRAO
     janela_max = limites.janela_max if limites else JANELA_MAX
 
@@ -168,7 +168,7 @@ def _registrar_read_note(servidor: Any, recursos: Any, limites: Any) -> None:
         })
 
 
-def _registrar_neighbors(servidor: Any, recursos: Any) -> None:
+def _registrar_neighbors(servidor: Any, recursos: Any) -> None:  # noqa: ANN401 — fronteira dinâmica ainda sem protocolo
     @servidor.tool(
         description=(
             "Documentos ligados a um arquivo por identificador citado em comum — norma "
@@ -224,7 +224,7 @@ def _registrar_neighbors(servidor: Any, recursos: Any) -> None:
         })
 
 
-def registrar(servidor: Any, recursos: Any, limites: Any = None) -> None:
+def registrar(servidor: Any, recursos: Any, limites: Any = None) -> None:  # noqa: ANN401 — fronteira dinâmica ainda sem protocolo
     """Registra as ferramentas de busca e grafo no servidor MCP."""
     _registrar_search(servidor, recursos, limites)
     _registrar_read_note(servidor, recursos, limites)

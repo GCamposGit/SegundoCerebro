@@ -25,7 +25,7 @@ def rota_salvar(
     config_de: Callable[[], Any],
     base_de: Callable[..., Any],
     ajuste_de: Callable[..., Any],
-    medicoes: Any,
+    medicoes: Any,  # noqa: ANN401 — fronteira dinâmica ainda sem protocolo
     caminho_config: Path,
 ) -> Callable[[Request], Any]:
     async def salvar(request: Request) -> JSONResponse:

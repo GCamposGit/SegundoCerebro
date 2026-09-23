@@ -172,12 +172,12 @@ def main(argv: list[str] | None = None) -> int:
     try:
         anterior = ativar(args.config, args.destino, base_id=args.base)
     except (FalhaDeBackup, ErroDeConfig) as exc:
-        print(str(exc), file=sys.stderr)
+        print(str(exc), file=sys.stderr)  # noqa: T201 — saída da CLI
         acao = getattr(exc, "acao", "")
         if acao:
-            print(acao, file=sys.stderr)
+            print(acao, file=sys.stderr)  # noqa: T201 — saída da CLI
         return 2
-    print(f"indice anterior: {anterior}")
+    print(f"indice anterior: {anterior}")  # noqa: T201 — saída da CLI
     return 0
 
 

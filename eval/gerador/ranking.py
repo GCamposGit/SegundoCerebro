@@ -23,7 +23,7 @@ from .nucleo import mkdoc, moeda, perg
 PASTA_NORMAS = "12. Normas"
 
 
-def f_grafias(rng, n, ext):  # noqa: ANN001
+def f_grafias(rng, n, ext):
     """O mesmo identificador escrito de várias formas — e o par que **não** é o mesmo.
 
     A classe de defeito mais insidiosa que este projeto encontrou: cada grafia
@@ -110,7 +110,7 @@ EXPANSOES = (
 """Pares genéricos, vocabulário da VCE. A sigla nunca é a de nenhum acervo real."""
 
 
-def f_glossario(rng, n, ext):  # noqa: ANN001
+def f_glossario(rng, n, ext):
     """Pergunta pela sigla × documento por extenso, **e o inverso**.
 
     O glossário é o segundo maior ganho da F2 (+0,033, custo zero por consulta), e
@@ -162,7 +162,7 @@ def f_glossario(rng, n, ext):  # noqa: ANN001
 PASTA_POLITICAS = "14. Politicas vigentes"
 
 
-def f_familia_sem_numero(rng, n, ext):  # noqa: ANN001
+def f_familia_sem_numero(rng, n, ext):
     """A vigente **não** declara `_vN` e é mais nova que a `_v6`.
 
     É o caso que fez a regra de família existir, e o corpus não o tinha: a fatia
@@ -211,7 +211,7 @@ def f_familia_sem_numero(rng, n, ext):  # noqa: ANN001
 PASTA_BILINGUE = "15. Bilingue"
 
 
-def f_idioma_indeciso(rng, n, ext):  # noqa: ANN001
+def f_idioma_indeciso(rng, n, ext):
     """`misto` e `indefinido` — os dois códigos que o corpus nunca emitia.
 
     `IDIOMAS_ACEITOS` tem quatro valores e o gerador usava dois. Não é
@@ -283,7 +283,7 @@ O maior chunk do índice MiniLM tinha **40.880 tokens** contra uma janela de 128
 planilha — atravessavam inteiros. A resposta fica no fim de propósito."""
 
 
-def f_chunk_hostil(rng, n, ext):  # noqa: ANN001
+def f_chunk_hostil(rng, n, ext):
     """A truncagem silenciosa de 13/08, em forma de corpus.
 
     Dois documentos por `i`, e os dois põem a resposta **longe do começo**:

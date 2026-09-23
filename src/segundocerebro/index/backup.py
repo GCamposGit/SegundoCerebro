@@ -242,8 +242,8 @@ def main(argv: list[str] | None = None) -> int:
     try:
         if args.comando == "criar":
             manifesto = _criar_via_cli(args)
-            print(json.dumps(manifesto.para_dict(), indent=2, ensure_ascii=False))
-            print(
+            print(json.dumps(manifesto.para_dict(), indent=2, ensure_ascii=False))  # noqa: T201 — saída da CLI
+            print(  # noqa: T201 — saída da CLI
                 "Backup pronto. Os documentos originais não foram copiados. "
                 "Para restaurar: py -m segundocerebro.index.backup restaurar "
                 f"--origem {args.destino} --destino <pasta-nova>",
@@ -251,20 +251,20 @@ def main(argv: list[str] | None = None) -> int:
             )
             return 0
         manifesto = restaurar_backup(args.origem, args.destino)
-        print(json.dumps(manifesto.para_dict(), indent=2, ensure_ascii=False))
-        print(
+        print(json.dumps(manifesto.para_dict(), indent=2, ensure_ascii=False))  # noqa: T201 — saída da CLI
+        print(  # noqa: T201 — saída da CLI
             f"Restaurado em {args.destino}. O índice original não foi alterado. "
             "Para usar esta cópia, aponte 'indice' no config.toml para essa pasta.",
             file=sys.stderr,
         )
         return 0
     except (BackupRecusado, BackupInconsistente, FalhaDeBackup) as exc:
-        print(f"erro: {exc}", file=sys.stderr)
+        print(f"erro: {exc}", file=sys.stderr)  # noqa: T201 — saída da CLI
         if exc.acao:
-            print(f"ação: {exc.acao}", file=sys.stderr)
+            print(f"ação: {exc.acao}", file=sys.stderr)  # noqa: T201 — saída da CLI
         return 1
     except ErroDeConfig as exc:
-        print(f"erro: {exc}", file=sys.stderr)
+        print(f"erro: {exc}", file=sys.stderr)  # noqa: T201 — saída da CLI
         return 1
 
 

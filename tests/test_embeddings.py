@@ -48,7 +48,7 @@ def test_minilm_no_cuda_recusa_antes_de_carregar(monkeypatch: pytest.MonkeyPatch
     """Maxwell + MiniLM-Q = NaN. Falhar na carga, não na hora de gravar o índice."""
     monkeypatch.setenv("SEGUNDOCEREBRO_PROVIDER", "cuda")
 
-    def nao_devia(*_a, **_k):  # noqa: ANN002, ANN003
+    def nao_devia(*_a, **_k):
         raise AssertionError("TextEmbedding não deveria ser chamado")
 
     monkeypatch.setattr("fastembed.TextEmbedding", nao_devia, raising=False)
@@ -76,7 +76,7 @@ def test_provider_vazio_forca_cpu(monkeypatch: pytest.MonkeyPatch) -> None:
     visto: dict = {}
 
     class Fake:
-        def __init__(self, nome: str, **kwargs: object) -> None:  # noqa: ARG002
+        def __init__(self, nome: str, **kwargs: object) -> None:
             visto.update(kwargs)
 
     monkeypatch.setattr("fastembed.TextEmbedding", Fake)

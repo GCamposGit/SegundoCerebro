@@ -62,7 +62,7 @@ def regime_da_maquina() -> str:
     )
 
 
-def ocr_produziu_texto_ou_declarou_recurso(store: Store, rel: str, progresso) -> bool:  # noqa: ANN001
+def ocr_produziu_texto_ou_declarou_recurso(store: Store, rel: str, progresso) -> bool:
     """True if OCR committed chunks. False if the child died of resource/timeout.
 
     Any other status fails the test: silent EMPTY or missing row would be the
@@ -122,7 +122,7 @@ def test_parse_sem_ocr_continua_vazio_no_digitalizado(tmp_path: Path) -> None:
     assert resultado.natureza.digitalizado
 
 
-def test_parse_com_ocr_falso_vira_trechos(tmp_path: Path, monkeypatch) -> None:  # noqa: ANN001
+def test_parse_com_ocr_falso_vira_trechos(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setenv("SEGUNDOCEREBRO_OCR_FAKE", TEXTO_VCE)
     alvo = tmp_path / "escaneado.pdf"
     alvo.write_bytes(bytes_pdf(texto=None, com_imagem=True))
@@ -135,7 +135,7 @@ def test_parse_com_ocr_falso_vira_trechos(tmp_path: Path, monkeypatch) -> None: 
     assert any(b.locator.startswith("p. ") for b in resultado.doc.blocks)
 
 
-def test_pdf_com_texto_nao_entra_no_ocr(tmp_path: Path, monkeypatch) -> None:  # noqa: ANN001
+def test_pdf_com_texto_nao_entra_no_ocr(tmp_path: Path, monkeypatch) -> None:
     chamou = []
     monkeypatch.setenv("SEGUNDOCEREBRO_OCR_FAKE", TEXTO_VCE)
     monkeypatch.setattr(
@@ -155,7 +155,7 @@ def test_timeout_ocr_soma_no_teto() -> None:
     assert timeout_para(0, "x.pdf", ocr=True) == 180.0
 
 
-def test_indexar_ocr_depois_do_texto(tmp_path: Path, monkeypatch) -> None:  # noqa: ANN001
+def test_indexar_ocr_depois_do_texto(tmp_path: Path, monkeypatch) -> None:
     """Acceptance: text files are searchable before the scan is OCRed.
 
     The OCR phase runs after the parse loop. A .md next to a scan is committed
@@ -211,11 +211,11 @@ def test_indexar_sem_ocr_nao_mexe_no_digitalizado(tmp_path: Path) -> None:
     store.fechar()
 
 
-def test_pdf_misto_nativa_nao_passa_pelo_ocr(tmp_path: Path, monkeypatch) -> None:  # noqa: ANN001
+def test_pdf_misto_nativa_nao_passa_pelo_ocr(tmp_path: Path, monkeypatch) -> None:
     """O.2a: photo page becomes a chunk; native page never hits the engine."""
     chamadas: list[int] = []
 
-    def fake(imagem) -> str:  # noqa: ANN001
+    def fake(imagem) -> str:
         chamadas.append(1)
         return "SCAN-VCE-001"
 
@@ -258,7 +258,7 @@ def test_indexar_misto_entra_na_fila_ocr(tmp_path: Path) -> None:
     store.fechar()
 
 
-def test_ocr_rasteriza_uma_pagina_por_vez(monkeypatch) -> None:  # noqa: ANN001
+def test_ocr_rasteriza_uma_pagina_por_vez(monkeypatch) -> None:
     """O.2c: N scan pages, at most one pixmap alive."""
     import pymupdf
 
@@ -280,7 +280,7 @@ def test_ocr_rasteriza_uma_pagina_por_vez(monkeypatch) -> None:  # noqa: ANN001
 
     original = mod._iter_rasters
 
-    def envolto(dados_pdf, *, teto_mb=None):  # noqa: ANN001
+    def envolto(dados_pdf, *, teto_mb=None):
         for item in original(dados_pdf, teto_mb=teto_mb):
             vivo.append(item)
             pico[0] = max(pico[0], len(vivo))
@@ -309,7 +309,7 @@ def test_dpi_ocr_respeita_teto_de_ram() -> None:
         doc.close()
 
 
-def test_indexar_misto_com_ocr_junta_as_paginas(tmp_path: Path, monkeypatch) -> None:  # noqa: ANN001
+def test_indexar_misto_com_ocr_junta_as_paginas(tmp_path: Path, monkeypatch) -> None:
     # parse_isolado runs in a child: a monkeypatch of motor_imagem does not
     # survive spawn. The env var does — same contract as the O.0 suite.
     monkeypatch.setenv("SEGUNDOCEREBRO_OCR_FAKE", "SCAN-VCE-001")

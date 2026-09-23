@@ -88,7 +88,7 @@ class Mapa:
 
     # -- construção
 
-    def declarar(self, arquivos: Iterable) -> None:  # noqa: ANN001
+    def declarar(self, arquivos: Iterable) -> None:
         """Aceita `(rel, tamanho)` ou `(rel, tamanho, mtime)`.
 
         O `mtime` só serve para a rederivação — é o que `_precisa_indexar`

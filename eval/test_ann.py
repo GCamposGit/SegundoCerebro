@@ -67,7 +67,7 @@ def test_medicao_usa_flat_como_referencia_e_varre_as_sondas() -> None:
                 tuple[bool | None, int | None, int | None, str | None]
             ] = []
 
-        def buscar_denso(  # noqa: ANN201
+        def buscar_denso(
             self,
             _vetor,
             _k,

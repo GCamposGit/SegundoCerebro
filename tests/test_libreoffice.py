@@ -31,13 +31,13 @@ def test_timeout_mata_a_arvore_do_processo(monkeypatch) -> None:
             self.pid = 4242
             self.returncode = None
 
-        def communicate(self, timeout=None):  # noqa: ANN001
+        def communicate(self, timeout=None):
             raise subprocess.TimeoutExpired(cmd="soffice", timeout=timeout)
 
         def poll(self):
             return None
 
-        def wait(self, timeout=None):  # noqa: ANN001
+        def wait(self, timeout=None):
             return None
 
         def kill(self) -> None:
@@ -92,7 +92,7 @@ def test_converter_extensao_desconhecida_devolve_none() -> None:
 def test_recalcular_xlsx_e_o_convert_de_xlsx(monkeypatch) -> None:
     vistos: list[str] = []
 
-    def falso(dados: bytes, origem: str, *, timeout: float = 90.0) -> bytes:  # noqa: ARG001
+    def falso(dados: bytes, origem: str, *, timeout: float = 90.0) -> bytes:
         vistos.append(origem)
         return b"xlsx"
 
@@ -109,13 +109,13 @@ def test_converter_timeout_mata_a_arvore(monkeypatch) -> None:
             self.pid = 7
             self.returncode = None
 
-        def communicate(self, timeout=None):  # noqa: ANN001
+        def communicate(self, timeout=None):
             raise subprocess.TimeoutExpired(cmd="soffice", timeout=timeout)
 
         def poll(self):
             return None
 
-        def wait(self, timeout=None):  # noqa: ANN001
+        def wait(self, timeout=None):
             return None
 
         def kill(self) -> None:

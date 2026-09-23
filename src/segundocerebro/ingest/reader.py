@@ -191,7 +191,7 @@ def parse_file(
     return resultado
 
 
-def _interpretar(path, dados, nome, extensao, parser, sha, *, ocr: bool):  # noqa: ANN001
+def _interpretar(path, dados, nome, extensao, parser, sha, *, ocr: bool):  # noqa: ANN001, ANN202
     """Executa as rotas caras depois que o parse store confirmou o miss."""
     doc = _parse_inicial(path, dados, nome, extensao, parser, sha)
     if isinstance(doc, ParseResult):
@@ -230,7 +230,7 @@ def _interpretar(path, dados, nome, extensao, parser, sha, *, ocr: bool):  # noq
     return ParseResult(path=path, status=ParseStatus.OK, doc=doc, sha256=sha, natureza=natureza)
 
 
-def _parse_inicial(path, dados, nome, extensao, parser, sha):  # noqa: ANN001
+def _parse_inicial(path, dados, nome, extensao, parser, sha):  # noqa: ANN001, ANN202
     """Parser nativo, fallback legado e reinterpretação da extensão mentirosa."""
     try:
         doc = parser(dados, nome)

@@ -333,7 +333,7 @@ def render(
     return "\n".join(linhas)
 
 
-def _montar(nome: str, args, cfg, papel: str = "depois"):  # noqa: ANN001
+def _montar(nome: str, args, cfg, papel: str = "depois"):
     """Um recuperador a partir do nome curto usado na linha de comando.
 
     O arremedo de `Args` tem de carregar **todos** os campos que `rodar._montar`

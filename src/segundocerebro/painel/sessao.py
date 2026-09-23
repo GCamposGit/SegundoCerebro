@@ -61,7 +61,7 @@ def painel_responde(porta: int, token: str, host: str = "127.0.0.1", timeout: fl
         method="GET",
     )
     try:
-        with urlopen(pedido, timeout=timeout) as resp:  # noqa: S310 — loopback, token obrigatório
+        with urlopen(pedido, timeout=timeout) as resp:
             return 200 <= getattr(resp, "status", 200) < 300
     except (URLError, TimeoutError, OSError):
         return False

@@ -87,14 +87,14 @@ def apagar_vetores_do_path(
         try:
             tabela.delete(f"ocorrencia_id = '{chave.replace(chr(39), chr(39) * 2)}'")
             return
-        except Exception as exc:  # noqa: BLE001 — old LanceDB schema may lack the owner column
+        except Exception as exc:  # BLE001 — old LanceDB schema may lack the owner column
             if "ocorrencia_id" not in str(exc).lower():
                 raise
     escapado = path.replace("'", "''")
     tabela.delete(f"path = '{escapado}'")
 
 
-def _tabela_existente(store: Store) -> Any:
+def _tabela_existente(store: Store) -> Any:  # noqa: ANN401 — fronteira dinâmica ainda sem protocolo
     if store._tabela is not None:
         return store._tabela
     import lancedb
@@ -105,7 +105,7 @@ def _tabela_existente(store: Store) -> Any:
     try:
         db = lancedb.connect(str(lance))
         tabela = db.open_table(TABELA_VETORES)
-    except Exception as exc:  # noqa: BLE001 — only absence is a no-op
+    except Exception as exc:  # BLE001 — only absence is a no-op
         if _e_tabela_ausente(exc):
             return None
         raise
@@ -148,7 +148,7 @@ def _ids_lance(
     escapado = valor.replace("'", "''")
     try:
         lote = tabela.search().where(f"{campo} = '{escapado}'").select(["id"]).limit(10000).to_arrow()
-    except Exception as exc:  # noqa: BLE001 — empty/missing table means no vectors
+    except Exception as exc:  # BLE001 — empty/missing table means no vectors
         if campo == "ocorrencia_id" and "ocorrencia_id" in str(exc).lower():
             lote = tabela.search().where(f"path = '{path.replace(chr(39), chr(39) * 2)}'").select(["id"]).limit(10000).to_arrow()
         elif _e_tabela_ausente(exc):

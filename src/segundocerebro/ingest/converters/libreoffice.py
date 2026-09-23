@@ -134,7 +134,7 @@ def converter(
             str(saida_dir),
             str(entrada),
         ]
-        # noqa S603: lista de argumentos, nunca shell. O caminho do documento entra
+
         # como argv e não é interpretado — é o que impede que um nome de arquivo
         # hostil vire comando.
         proc = subprocess.Popen(  # noqa: S603

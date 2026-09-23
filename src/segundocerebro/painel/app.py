@@ -135,7 +135,7 @@ def _limites_do_corpo(corpo: dict[str, Any]) -> LimitesDeIndexacao:
     return limites
 
 
-def criar_app(
+def criar_app(  # noqa: ANN201 — retorno concreto vive no corpo, não na assinatura
     caminho_config: Path,
     *,
     medidor: Callable[[Any, Pesos, Busca], dict[str, Any]],
@@ -922,7 +922,7 @@ def gerar_token() -> str:
     return secrets.token_urlsafe(24)
 
 
-async def pagina(request) -> Any:  # noqa: ANN001 — Starlette Request, importado dentro de criar_app
+async def pagina(request) -> Any:  # noqa: ANN001, ANN401, ARG001 — Starlette Request, importado dentro de criar_app
     """A tela. O token vem na URL e o JavaScript o repassa em cada chamada."""
     from starlette.responses import HTMLResponse
 

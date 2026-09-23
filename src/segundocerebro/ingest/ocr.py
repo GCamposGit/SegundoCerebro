@@ -47,7 +47,7 @@ def _probe(modulo: str) -> bool:
     """
     try:
         __import__(modulo)
-    except Exception as exc:  # noqa: BLE001 — probe: qualquer falha que não seja ausência
+    except Exception as exc:  # BLE001 — probe: qualquer falha que não seja ausência
         if ausencia_declarada(exc, modulo):
             return False
         raise FalhaDeAmbiente(f"{modulo} está instalado e não carregou: {exc}") from exc
@@ -104,7 +104,7 @@ def _dpi_cabivel(pagina, teto_mb: int, dpi_alvo: float = DPI_OCR) -> float:  # n
     return max(72.0, min(float(dpi_alvo), max_dpi))
 
 
-def _iter_rasters(dados: bytes, *, teto_mb: int | None = None):
+def _iter_rasters(dados: bytes, *, teto_mb: int | None = None):  # noqa: ANN202 — retorno concreto vive no corpo, não na assinatura
     """Yield `(page_number, rgb_array)` for pages that need OCR, one at a time.
 
     The list form copied every pixmap; an 80-page scan at 200 dpi is ~1 GB.
@@ -130,7 +130,7 @@ def _iter_rasters(dados: bytes, *, teto_mb: int | None = None):
         documento.close()
 
 
-def _imagens_das_paginas(dados: bytes):
+def _imagens_das_paginas(dados: bytes):  # noqa: ANN202 — retorno concreto vive no corpo, não na assinatura
     """Materialise rasters. One-page tests still use this; production iterates."""
     return [arr for _, arr in _iter_rasters(dados)]
 
@@ -280,7 +280,7 @@ def ocr_pdf(dados: bytes, *, teto_mb: int | None = None) -> list[PaginaTexto] | 
         # `import pymupdf` levanta `ModuleNotFoundError: No module named 'mupdf'`,
         # e o documento terminava `vazio` sem linha de quarentena (`Q15`).
         raise FalhaDeAmbiente(f"OCR não pôde carregar suas dependências: {exc}") from exc
-    except Exception as exc:  # noqa: BLE001 — a bad scan must not kill the wave
+    except Exception as exc:  # BLE001 — a bad scan must not kill the wave
         if falha_de_memoria(exc):
             raise FalhaDeAmbiente(f"OCR ficou sem memória ao rasterizar: {exc}") from exc
         log.warning("OCR não rasterizou o PDF: %s", exc)

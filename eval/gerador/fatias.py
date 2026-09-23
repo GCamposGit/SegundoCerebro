@@ -278,7 +278,7 @@ nao desconta a intersecao.
 """
 
 
-def _vtt(rng, falas):  # noqa: ANN001, ARG001
+def _vtt(rng, falas):
     """WebVTT com marca de tempo. `eval.fonte` classifica por extensao.
 
     Delega para `transcricao.vtt_de`: desde o `F4-T` a fatia de **cobertura de

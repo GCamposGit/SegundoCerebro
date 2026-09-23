@@ -23,5 +23,5 @@ class RecuperadorFixo:
     def __init__(self, caminhos: list[str]) -> None:
         self.caminhos = caminhos
 
-    def search(self, consulta: str, k: int) -> list[Hit]:  # noqa: ARG002
+    def search(self, consulta: str, k: int) -> list[Hit]:
         return [Hit(path=p, score=1.0 / (i + 1)) for i, p in enumerate(self.caminhos[:k])]

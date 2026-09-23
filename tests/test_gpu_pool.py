@@ -10,7 +10,7 @@ from segundocerebro.index.gpu_pool import EmbedFila, _worker_eco, contar_gpus
 
 
 def test_contar_gpus_sem_nvidia_smi(monkeypatch: pytest.MonkeyPatch) -> None:
-    def some(*_a, **_k):  # noqa: ANN002, ANN003
+    def some(*_a, **_k):
         raise FileNotFoundError
 
     monkeypatch.setattr("segundocerebro.index.gpu_pool.subprocess.run", some)

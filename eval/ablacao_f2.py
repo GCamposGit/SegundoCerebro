@@ -56,10 +56,10 @@ class Braco:
     montar: Callable[..., BuscaHibrida]
 
 
-def _hibrido(**extra):  # noqa: ANN003, ANN202
+def _hibrido(**extra):
     """Fecha sobre os pesos da base, para o número medido ser o que o servidor roda."""
 
-    def montar(store, embedder, base, threads):  # noqa: ANN001, ANN202
+    def montar(store, embedder, base, threads):
         pesos = base.pesos
         argumentos = {
             "candidatos": base.busca.candidatos,
@@ -184,7 +184,7 @@ class Medida:
         return Resultado.mrr_de(itens) if itens else None
 
 
-def medir(store, embedder, base, perguntas, threads: int) -> list[Medida]:  # noqa: ANN001
+def medir(store, embedder, base, perguntas, threads: int) -> list[Medida]:
     medidas: list[Medida] = []
     for i, braco in enumerate(BRACOS, start=1):
         retriever = braco.montar(store, embedder, base, threads)

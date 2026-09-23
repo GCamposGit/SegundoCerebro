@@ -164,7 +164,7 @@ def _limitar_ram_windows(pid: int, ram_bytes: int) -> None:
     JOB_OBJECT_LIMIT_PROCESS_MEMORY = 0x100
     PROCESS_ALL_ACCESS = 0x1F0FFF
 
-    class JOBOBJECT_BASIC_LIMIT_INFORMATION(ctypes.Structure):
+    class JOBOBJECT_BASIC_LIMIT_INFORMATION(ctypes.Structure):  # noqa: N801 — nome da struct Win32
         _fields_ = [
             ("PerProcessUserTimeLimit", wintypes.LARGE_INTEGER),
             ("PerJobUserTimeLimit", wintypes.LARGE_INTEGER),
@@ -177,7 +177,7 @@ def _limitar_ram_windows(pid: int, ram_bytes: int) -> None:
             ("SchedulingClass", wintypes.DWORD),
         ]
 
-    class IO_COUNTERS(ctypes.Structure):
+    class IO_COUNTERS(ctypes.Structure):  # noqa: N801 — nome da struct Win32
         _fields_ = [
             ("ReadOperationCount", ctypes.c_uint64),
             ("WriteOperationCount", ctypes.c_uint64),
@@ -187,7 +187,7 @@ def _limitar_ram_windows(pid: int, ram_bytes: int) -> None:
             ("OtherTransferCount", ctypes.c_uint64),
         ]
 
-    class JOBOBJECT_EXTENDED_LIMIT_INFORMATION(ctypes.Structure):
+    class JOBOBJECT_EXTENDED_LIMIT_INFORMATION(ctypes.Structure):  # noqa: N801 — nome da struct Win32
         _fields_ = [
             ("BasicLimitInformation", JOBOBJECT_BASIC_LIMIT_INFORMATION),
             ("IoInfo", IO_COUNTERS),

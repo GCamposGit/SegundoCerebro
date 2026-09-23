@@ -105,7 +105,7 @@ def _ambiente() -> dict[str, str]:
     return env
 
 
-def conversar(params: StdioServerParameters, roteiro) -> Any:  # noqa: ANN001
+def conversar(params: StdioServerParameters, roteiro) -> Any:
     """Sobe o servidor, faz o handshake, roda o roteiro e desliga."""
 
     async def _falar() -> Any:
@@ -119,7 +119,7 @@ def conversar(params: StdioServerParameters, roteiro) -> Any:  # noqa: ANN001
     return asyncio.run(_falar())
 
 
-def carga(resultado, espera_erro: bool = False) -> dict[str, Any]:  # noqa: ANN001
+def carga(resultado, espera_erro: bool = False) -> dict[str, Any]:
     """O que o cliente lê — e os dois caminhos por onde ele pode ler.
 
     Cliente antigo lê `content[0].text`; cliente novo lê `structured_content`. Os
@@ -136,7 +136,7 @@ def carga(resultado, espera_erro: bool = False) -> dict[str, Any]:  # noqa: ANN0
 
 
 
-def _id_do_topo(resultado) -> str:  # noqa: ANN001
+def _id_do_topo(resultado) -> str:
     """O id do primeiro trecho, ou um id impossível quando a busca não deu nada.
 
     Tolerante de propósito. A fixture faz as chamadas e **não** as confere: quem
@@ -190,7 +190,7 @@ def do_produto(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Any]:
         cwd=_cwd_neutro(raiz),
     )
 
-    async def roteiro(sessao, inicio):  # noqa: ANN001
+    async def roteiro(sessao, inicio):
         return {
             "inicio": inicio,
             "ferramentas": {f.name: f for f in (await sessao.list_tools()).tools},
@@ -299,7 +299,7 @@ def do_servidor_falso(tmp_path_factory: pytest.TempPathFactory) -> dict[str, Any
         cwd=_cwd_neutro(raiz),
     )
 
-    async def roteiro(sessao, inicio):  # noqa: ANN001, ARG001
+    async def roteiro(sessao, inicio):
         alvo = await sessao.call_tool("search", {"consulta": "uso aceitável", "k": 1})
         id_do_alvo = _id_do_topo(alvo)
         primeira = await sessao.call_tool("get_document", {"documento": POLITICA, "max_chars": 9})
@@ -639,7 +639,7 @@ def test_no_checkout_o_pythonpath_continua(monkeypatch, tmp_path):
     assert entrada["env"]["PYTHONPATH"] == str(registrar.RAIZ / "src")
 
 
-def _chaves_do_dicionario(arvore, nome: str) -> set[str]:  # noqa: ANN001
+def _chaves_do_dicionario(arvore, nome: str) -> set[str]:
     """As chaves de `nome = dict(a=..., b=...)`, para seguir um `**nome`."""
     import ast as _ast
 

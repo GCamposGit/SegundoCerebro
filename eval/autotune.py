@@ -289,7 +289,7 @@ def autotunar(
 
     grade = [
         PontoGrade(d, l, n, *_avaliar_ponto(cands, d, l, n))
-        for d, l, n in grade_rrf()  # noqa: E741
+        for d, l, n in grade_rrf()
     ]
 
     amplitude = max(p.mrr for p in grade) - min(p.mrr for p in grade)

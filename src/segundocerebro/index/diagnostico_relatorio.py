@@ -96,7 +96,7 @@ _SEGREDO = re.compile(
 )
 
 
-def _higienizar(valor: Any, chave: str = "") -> Any:
+def _higienizar(valor: Any, chave: str = "") -> Any:  # noqa: ANN401 — fronteira dinâmica ainda sem protocolo
     if _CHAVE_SENSIVEL.search(chave):
         return "<REMOVIDO>"
     if isinstance(valor, Mapping):

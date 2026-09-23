@@ -21,12 +21,12 @@ from mcp.types import CallToolResult, TextContent
 class ResultadoTool(CallToolResult):
     """CallToolResult compatível com o wire MCP e acessível como dict para clientes/testes."""
 
-    def __getitem__(self, item: str) -> Any:
+    def __getitem__(self, item: str) -> Any:  # noqa: ANN401 — fronteira dinâmica ainda sem protocolo
         if self.structured_content is not None and item in self.structured_content:
             return self.structured_content[item]
         raise KeyError(item)
 
-    def get(self, item: str, default: Any = None) -> Any:
+    def get(self, item: str, default: Any = None) -> Any:  # noqa: ANN401 — fronteira dinâmica ainda sem protocolo
         if self.structured_content is not None and item in self.structured_content:
             return self.structured_content[item]
         return default

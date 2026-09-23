@@ -158,8 +158,8 @@ def otimizar_fts(con: sqlite3.Connection) -> bool:
     return incremental
 
 
-def _buscar_lexical_com_filtros(  # noqa: ANN001
-    store,
+def _buscar_lexical_com_filtros(
+    store,  # noqa: ANN001 — tipo fica no chamador para não importar o módulo pesado
     expressao: str,
     k: int,
     pesos_colunas: tuple[float, float, float] | None,
@@ -207,8 +207,8 @@ def _buscar_lexical_com_filtros(  # noqa: ANN001
     ).fetchall()
 
 
-def buscar_lexical(  # noqa: ANN001
-    store,
+def buscar_lexical(
+    store,  # noqa: ANN001 — tipo fica no chamador para não importar o módulo pesado
     texto: str,
     k: int,
     pesos_colunas: tuple[float, float, float] | None = None,

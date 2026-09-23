@@ -139,7 +139,7 @@ class BuscaSoPeloCaminhoEntregue(BuscaHibrida):
     dia em que cair, o teste de protocolo fica vermelho no mesmo commit.
     """
 
-    def search(self, consulta: str, k: int) -> list:  # noqa: ARG002
+    def search(self, consulta: str, k: int) -> list:
         raise AssertionError(
             "a ferramenta MCP `search` chamou BuscaHibrida.search — o caminho "
             "entregue ao cliente é buscar_chunks (F4-P.0)"

@@ -137,7 +137,7 @@ def _topo(path: str) -> str:
     return cabeca if sep else RAIZ
 
 
-def medir(universo: Iterable[str], perguntas: Sequence, *, de_conteudo: bool = True) -> Cobertura:  # noqa: ANN001
+def medir(universo: Iterable[str], perguntas: Sequence, *, de_conteudo: bool = True) -> Cobertura:
     """Cobertura de um conjunto dourado sobre um universo de documentos.
 
     `perguntas` é qualquer sequência de objetos com `.fontes` — as `Pergunta` do

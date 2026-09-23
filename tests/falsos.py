@@ -58,7 +58,7 @@ class EmbedderFalso:
     def contar_tokens(self, texto: str) -> int:
         return len(texto) // 4
 
-    def embed_passagens(self, textos, batch_size: int = 32, ao_progresso=None) -> list[np.ndarray]:  # noqa: ANN001, ARG002
+    def embed_passagens(self, textos, batch_size: int = 32, ao_progresso=None) -> list[np.ndarray]:
         self.chamadas += len(textos)
         saida = []
         for t in textos:
@@ -155,18 +155,18 @@ class FonteFalsa:
     volume: str = "C:\\"
     expirado: bool = False
 
-    def volume_de(self, path: Path) -> str | None:  # noqa: ARG002
+    def volume_de(self, path: Path) -> str | None:
         return self.volume
 
-    def consultar(self, volume: str) -> Journal | None:  # noqa: ARG002
+    def consultar(self, volume: str) -> Journal | None:
         return self.journal
 
     def ler(
-        self, volume: str, journal_id: int, start_usn: int  # noqa: ARG002
+        self, volume: str, journal_id: int, start_usn: int
     ) -> tuple[list[Registro], int]:
         if self.expirado:
             raise JournalExpirado(f"journal USN de {volume} recuou")
         return list(self.registros), self.journal.next_usn
 
-    def caminho_de(self, volume: str, frn: int) -> Path | None:  # noqa: ARG002
+    def caminho_de(self, volume: str, frn: int) -> Path | None:
         return self.caminhos.get(frn)

@@ -107,7 +107,7 @@ class TravaDeObservador:
             fh.write(self.marca())
         return self
 
-    def __exit__(self, *exc) -> None:  # noqa: ANN002
+    def __exit__(self, *exc) -> None:
         self.caminho.unlink(missing_ok=True)
 
 

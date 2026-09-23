@@ -69,7 +69,7 @@ segunda implementação parecida com ela.
 """
 
 
-def percentil(valores, p: float) -> float:  # noqa: ANN001
+def percentil(valores, p: float) -> float:
     """Percentil por posto mais próximo (*nearest-rank*), 1-indexado.
 
     Escolhido em vez do interpolado porque **o valor devolvido é uma medição que
@@ -175,7 +175,7 @@ def limites_de(secao: dict) -> dict:
     return {k: v for k, v in p95.items() if isinstance(v, (int, float))}
 
 
-def conferir(amostras, portas: dict, maquina: str = "") -> list[Violacao]:  # noqa: ANN001
+def conferir(amostras, portas: dict, maquina: str = "") -> list[Violacao]:
     """As duas portas, marcadas por espécie.
 
     `produto` sai como violação mesmo sendo esperada hoje: o relatório tem que
@@ -200,7 +200,7 @@ def conferir(amostras, portas: dict, maquina: str = "") -> list[Violacao]:  # no
 # --- medição ----------------------------------------------------------------
 
 
-def _cronometrar(chamada) -> float:  # noqa: ANN001
+def _cronometrar(chamada) -> float:
     """Milissegundos de uma chamada. `perf_counter` porque é monotônico e fino."""
     comecou = time.perf_counter()
     chamada()
@@ -215,7 +215,7 @@ class _DecompositorSearch:
     repetiria o defeito que fez o primeiro R9.3 rotular outro braço de `search`.
     """
 
-    def __init__(self, busca, *, relogio=time.perf_counter) -> None:  # noqa: ANN001
+    def __init__(self, busca, *, relogio=time.perf_counter) -> None:
         self.busca = busca
         self.relogio = relogio
         self._atual: dict[str, float] | None = None
@@ -228,7 +228,7 @@ class _DecompositorSearch:
         proprio = vars(objeto).get(atributo) if hasattr(objeto, "__dict__") else None
         self._restauracoes.append((objeto, atributo, tinha_proprio, proprio))
 
-        def cronometrado(*args, **kwargs):  # noqa: ANN002, ANN003, ANN202
+        def cronometrado(*args, **kwargs):
             comecou = self.relogio()
             try:
                 return original(*args, **kwargs)
@@ -246,7 +246,7 @@ class _DecompositorSearch:
         self._envolver(self.busca, "_nome_por_chunk", "nome")
         return self
 
-    def __exit__(self, *_exc) -> None:  # noqa: ANN002
+    def __exit__(self, *_exc) -> None:
         for objeto, atributo, tinha_proprio, proprio in reversed(self._restauracoes):
             if tinha_proprio:
                 setattr(objeto, atributo, proprio)
@@ -319,7 +319,7 @@ class Medicao:
         ]
 
 
-def medir(  # noqa: ANN001
+def medir(
     recursos,
     consultas,
     *,
@@ -444,7 +444,7 @@ def num(valor: float, casas: int | None = None) -> str:
     return f"{valor:,.{casas}f}".replace(",", " ").replace(".", ",")
 
 
-def render(  # noqa: ANN001
+def render(
     medicao: Medicao, ambiente: Ambiente, violacoes, portas: dict, maquina: str, candidatos: int = 0
 ) -> str:
     amostras = medicao.amostras
@@ -581,7 +581,7 @@ def render(  # noqa: ANN001
 # --- CLI --------------------------------------------------------------------
 
 
-def main(argv: list[str] | None = None) -> int:  # noqa: C901
+def main(argv: list[str] | None = None) -> int:
     """Mede a latência das operações e confere as portas.
 
         py -m eval.latencia --base padrao --maquina notebook-15w

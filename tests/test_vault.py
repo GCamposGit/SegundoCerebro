@@ -237,11 +237,11 @@ def test_cli_recusa_destino_no_acervo(store, tmp_path: Path, monkeypatch: pytest
         indice = store.diretorio
         glossario = None
 
-        def censo(self):  # noqa: ANN202
+        def censo(self):
             return config_de_raiz(raiz, "acervo")
 
     class _Conf:
-        def base(self, _id=None, **_k):  # noqa: ANN001, ANN202
+        def base(self, _id=None, **_k):
             return _Base()
 
     monkeypatch.setattr("segundocerebro.acesso.exportar.carregar", lambda *_a, **_k: _Conf())

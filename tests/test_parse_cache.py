@@ -25,7 +25,7 @@ from tests.falsos import DIM, EmbedderFalso, bytes_pdf, corpus
 TEXTO = "Política de IA\n\nO contrato 4600009999 continua vigente."
 
 
-def _parser_que_nao_pode_rodar(*args, **kwargs):  # noqa: ANN002, ANN003, ARG001
+def _parser_que_nao_pode_rodar(*args, **kwargs):
     raise AssertionError("o parser foi chamado apesar do hit no parse store")
 
 
@@ -168,7 +168,7 @@ def test_falha_ao_gravar_cache_nao_invalida_parse(
     alvo = tmp_path / "ata.txt"
     alvo.write_text(TEXTO, encoding="utf-8")
 
-    def sem_disco(*args, **kwargs):  # noqa: ANN002, ANN003, ARG001
+    def sem_disco(*args, **kwargs):
         raise OSError("disco indisponível")
 
     monkeypatch.setattr(ParseStore, "gravar", sem_disco)

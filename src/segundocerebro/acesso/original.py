@@ -33,7 +33,7 @@ def caminho_relativo(caminho: str) -> str:
     return normal
 
 
-def configuracao(base: Any) -> Config | None:
+def configuracao(base: Any) -> Config | None:  # noqa: ANN401 — fronteira dinâmica ainda sem protocolo
     return base.censo() if callable(getattr(base, "censo", None)) else None
 
 

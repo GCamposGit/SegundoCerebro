@@ -74,7 +74,7 @@ class ErroDeConfig(ValueError):
 
 
 def _conferir_tipos(
-    alvo: Any, onde: str, rotulo: str, *, campos: tuple[str, ...] = (),
+    alvo: Any, onde: str, rotulo: str, *, campos: tuple[str, ...] = (),  # noqa: ANN401 — fronteira dinâmica ainda sem protocolo
     opcionais: tuple[str, ...] = (), sufixo: str = "",
 ) -> None:
     """Tipo errado vira `ErroDeConfig`, não `TypeError` cru (`Q11`, 29/08/2026).
@@ -663,7 +663,7 @@ CHAVES_DE_RAIZ = ("caminho", "nome")
 """O dialeto de `[[base.raizes]]`. O censo legado fala `path`/`nome` — ver `_raizes`."""
 
 
-def _raizes(dados: Any, onde: str) -> tuple[RootSpec, ...]:
+def _raizes(dados: Any, onde: str) -> tuple[RootSpec, ...]:  # noqa: ANN401 — fronteira dinâmica ainda sem protocolo
     if dados is None:
         return ()
     if not isinstance(dados, list):

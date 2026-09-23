@@ -46,11 +46,11 @@ def medicoes_feitas() -> list:
 def cliente(caminho: Path, medicoes_feitas: list, monkeypatch: pytest.MonkeyPatch):
     from starlette.testclient import TestClient
 
-    def medidor(base, pesos, busca):  # noqa: ANN001, ANN202
+    def medidor(base, pesos, busca):
         medicoes_feitas.append((base.id, pesos, busca))
         return {"recall@1": 0.644, "mrr": 0.742, "armadilhas": 4}
 
-    def diagnosticador(base, pesos, busca, consulta):  # noqa: ANN001, ANN202
+    def diagnosticador(base, pesos, busca, consulta):
         return {"trechos": [{"arquivo": "a.pdf", "texto": consulta, "achado_por": "denso"}]}
 
     monkeypatch.setattr("segundocerebro.index.retomada.instalada", lambda: False)
@@ -279,7 +279,7 @@ def test_resumo_traz_o_movimento_por_pergunta() -> None:
 
     from eval.harness import Pergunta, Resultado, ResultadoPergunta
 
-    def item(id_: str, posicao: int | None, tipo: str = "exato", armadilha: bool = False):  # noqa: ANN202
+    def item(id_: str, posicao: int | None, tipo: str = "exato", armadilha: bool = False):
         acertou = posicao is not None
         return ResultadoPergunta(
             pergunta=Pergunta(id=id_, tipo=tipo, pergunta="?", fontes=("a.pdf",), armadilha=armadilha),
@@ -476,7 +476,7 @@ def test_configuracao_ruim_nao_derruba_a_barra(tmp_path: Path) -> None:
 # --- estágio 0: criar uma base sem editar TOML --------------------------------
 
 
-def corpo_de_base(tmp_path: Path, **extra) -> dict:  # noqa: ANN003
+def corpo_de_base(tmp_path: Path, **extra) -> dict:
     pasta = tmp_path / "acervo"
     pasta.mkdir(exist_ok=True)
     (pasta / "nota.md").write_text("# Nota\nConteúdo qualquer.\n", encoding="utf-8")
@@ -630,7 +630,7 @@ def test_observar_dispara_processo_independente(
     class Dummy:
         pid = 4242
 
-    def fake_popen(cmd, **kwargs):  # noqa: ANN001, ANN003
+    def fake_popen(cmd, **kwargs):
         vistos.append(list(cmd))
         assert kwargs.get("stdout") is not None
         return Dummy()
@@ -1036,10 +1036,10 @@ def test_o_painel_nao_carrega_o_encoder_so_para_abrir() -> None:
 
 
 class _BloqueiaPainel:
-    def find_module(self, nome, caminho=None):  # noqa: ANN001, ANN201 - protocolo antigo
+    def find_module(self, nome, caminho=None):
         return None
 
-    def find_spec(self, nome, caminho=None, alvo=None):  # noqa: ANN001, ANN201
+    def find_spec(self, nome, caminho=None, alvo=None):
         if nome.startswith("segundocerebro.painel"):
             raise ImportError(f"painel desinstalado: {nome}")
         return None
@@ -1199,13 +1199,13 @@ def test_a_tela_recarrega_no_conflito_de_config() -> None:
 # --- FND-05: painel responsivo durante operação longa -------------------------
 
 
-def _app_async(caminho: Path, monkeypatch: pytest.MonkeyPatch, medidor=None):  # noqa: ANN001, ANN202
+def _app_async(caminho: Path, monkeypatch: pytest.MonkeyPatch, medidor=None):
     monkeypatch.setattr("segundocerebro.index.retomada.instalada", lambda: False)
     fn = medidor or (lambda *_a, **_k: {"recall@1": 0.5})
     return criar_app(caminho, medidor=fn, token=TOKEN)
 
 
-def _cliente_asgi(app):  # noqa: ANN001, ANN202
+def _cliente_asgi(app):
     from httpx import ASGITransport, AsyncClient
 
     return AsyncClient(transport=ASGITransport(app=app), base_url="http://painel")
@@ -1219,7 +1219,7 @@ def test_estado_completa_antes_de_liberar_evento_do_export(caminho: Path, monkey
     trava = threading.Event()
     entrou = threading.Event()
 
-    def gerar_bloqueado(*_a, **_k):  # noqa: ANN202
+    def gerar_bloqueado(*_a, **_k):
         entrou.set()
         assert trava.wait(timeout=5)
         return {"arquivos": 1, "destino": "D:/vault"}
@@ -1254,7 +1254,7 @@ def test_segundo_export_paralelo_na_mesma_base_recusa(caminho: Path, monkeypatch
     trava = threading.Event()
     entrou = threading.Event()
 
-    def gerar_bloqueado(*_a, **_k):  # noqa: ANN202
+    def gerar_bloqueado(*_a, **_k):
         entrou.set()
         trava.wait(timeout=5)
         return {"arquivos": 1}
@@ -1294,7 +1294,7 @@ def test_excecao_do_worker_libera_o_slot(caminho: Path, monkeypatch: pytest.Monk
 
     trab.TRABALHO.soltar("trabalho")
 
-    def gerar_quebra(*_a, **_k):  # noqa: ANN202
+    def gerar_quebra(*_a, **_k):
         raise RuntimeError("falha nativa do export")
 
     monkeypatch.setattr("segundocerebro.painel.exportar._gerar", gerar_quebra)
@@ -1322,7 +1322,7 @@ def test_token_invalido_nao_ocupa_slot(caminho: Path, monkeypatch: pytest.Monkey
     trab.TRABALHO.soltar("trabalho")
     chamou = []
 
-    def gerar(*_a, **_k):  # noqa: ANN202
+    def gerar(*_a, **_k):
         chamou.append(1)
         return {}
 
@@ -1346,7 +1346,7 @@ def test_medir_bloqueado_nao_segura_o_estado(caminho: Path, monkeypatch: pytest.
     trava = threading.Event()
     entrou = threading.Event()
 
-    def medidor_bloqueado(*_a, **_k):  # noqa: ANN202
+    def medidor_bloqueado(*_a, **_k):
         entrou.set()
         trava.wait(timeout=5)
         return {"recall@1": 0.1}
@@ -1380,7 +1380,7 @@ def test_cancelar_request_nao_mente_que_o_trabalho_parou(
     entrou = threading.Event()
     acabou = threading.Event()
 
-    def gerar_bloqueado(*_a, **_k):  # noqa: ANN202
+    def gerar_bloqueado(*_a, **_k):
         entrou.set()
         trava.wait(timeout=5)
         acabou.set()

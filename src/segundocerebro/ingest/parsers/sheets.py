@@ -227,8 +227,8 @@ def _e_despejo_de_dados(linhas: list[tuple[int, list[str]]]) -> bool:
     return len(linhas) * min(colunas, MAX_COLUNAS) > LIMIAR_CELULAS_ABA_ENORME
 
 
-def _blocos_de_digesto(  # noqa: ANN001
-    titulo: str, linhas_formatadas, blocos: list[Block], truncadas: list[str], parciais: list[str]
+def _blocos_de_digesto(
+    titulo: str, linhas_formatadas, blocos: list[Block], truncadas: list[str], parciais: list[str]  # noqa: ANN001 — tipo fica no chamador para não importar o módulo pesado
 ) -> None:
     """Digest of distinct values in the identifying columns, covering every row.
 
@@ -382,7 +382,7 @@ def _parece_tabela_csv(linhas: list[tuple[int, list[str]]]) -> bool:
     return moda >= MIN_CELULAS_PARA_CABECALHO and larguras.count(moda) >= max(2, len(larguras) // 2)
 
 
-def _iter_csv(bruto: str, dialect: csv.Dialect):
+def _iter_csv(bruto: str, dialect: csv.Dialect):  # noqa: ANN202 — retorno concreto vive no corpo, não na assinatura
     """(1-based row, cells) for non-empty rows. Re-runnable: `bruto` stays in RAM."""
     leitor = csv.reader(io.StringIO(bruto), dialect)
     for numero, row in enumerate(leitor, start=1):
@@ -599,7 +599,7 @@ def _ole_criptografado(dados: bytes) -> bool:
         ole.close()
 
 
-def _abrir_xls(dados: bytes, nome: str):  # noqa: ANN201 — Book do xlrd
+def _abrir_xls(dados: bytes, nome: str):  # noqa: ANN202 — Book do xlrd
     import xlrd
     from xlrd import XLRDError
 
@@ -650,7 +650,7 @@ class _TabelasHtml(html.parser.HTMLParser):
         self._celula: list[str] | None = None
         self._ignorar = 0
 
-    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
+    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:  # noqa: ARG002 — argumento faz parte da assinatura compartilhada
         tag = tag.lower()
         if tag in ("script", "style"):
             self._ignorar += 1
@@ -809,7 +809,7 @@ def _formatar_xls(aba, linha: int, coluna: int) -> str:  # noqa: ANN001 — tipo
     if tipo == xlrd.XL_CELL_DATE:
         try:
             partes = xlrd.xldate_as_tuple(valor, aba.book.datemode)
-            # noqa DTZ001: data serial do Excel não carrega fuso — inventar UTC aqui
+
             # deslocaria toda data de planilha em algumas horas.
             dt = datetime(*partes[:6])  # noqa: DTZ001
             return _formatar(dt)

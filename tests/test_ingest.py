@@ -590,7 +590,7 @@ def test_nenhum_parser_abre_arquivo(monkeypatch: pytest.MonkeyPatch) -> None:
         bytes_pdf(),
     )
 
-    def proibido(*args, **kwargs):  # noqa: ANN002, ANN003
+    def proibido(*args, **kwargs):
         raise AssertionError(f"parser tentou abrir arquivo: {args!r}")
 
     monkeypatch.setattr(builtins, "open", proibido)
@@ -634,7 +634,7 @@ def test_arquivo_travado_vira_status_nao_excecao(tmp_path: Path, monkeypatch: py
 
     real = builtins.open
 
-    def travado(caminho, *args, **kwargs):  # noqa: ANN001, ANN002, ANN003
+    def travado(caminho, *args, **kwargs):
         if str(caminho).endswith("plano.docx"):
             raise PermissionError(13, "usado por outro processo")
         return real(caminho, *args, **kwargs)
@@ -658,7 +658,7 @@ def test_travamento_transitorio_e_superado_na_segunda_tentativa(
     real = builtins.open
     chamadas = {"n": 0}
 
-    def as_vezes(caminho, *args, **kwargs):  # noqa: ANN001, ANN002, ANN003
+    def as_vezes(caminho, *args, **kwargs):
         if str(caminho).endswith("nota.md"):
             chamadas["n"] += 1
             if chamadas["n"] == 1:
@@ -1017,7 +1017,7 @@ def test_xls_assertionerror_sem_mensagem_vira_erro_com_detalhe(
     """Achado do notebook: xlrd levanta AssertionError vazio num .xls real."""
     import xlrd
 
-    def recusa(*args, **kwargs):  # noqa: ANN002, ANN003
+    def recusa(*args, **kwargs):
         raise AssertionError()
 
     monkeypatch.setattr(xlrd, "open_workbook", recusa)

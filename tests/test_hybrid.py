@@ -39,7 +39,7 @@ def test_rrf_nao_depende_da_escala_dos_scores() -> None:
 
 
 @pytest.fixture
-def indice(tmp_path: Path):  # noqa: ANN201
+def indice(tmp_path: Path):
     store = Store(tmp_path / "indice", DIM)
     emb = EmbedderFalso()
     chunks = [
@@ -59,7 +59,7 @@ def indice(tmp_path: Path):  # noqa: ANN201
     store.fechar()
 
 
-def test_lexical_sozinho_acha_codigo(indice) -> None:  # noqa: ANN001
+def test_lexical_sozinho_acha_codigo(indice) -> None:
     store, emb = indice
     busca = BuscaHibrida(store, emb, usar_denso=False)
 
@@ -69,7 +69,7 @@ def test_lexical_sozinho_acha_codigo(indice) -> None:  # noqa: ANN001
     assert acertos[0].origem == "lexical"
 
 
-def test_hibrido_marca_a_origem_de_cada_acerto(indice) -> None:  # noqa: ANN001
+def test_hibrido_marca_a_origem_de_cada_acerto(indice) -> None:
     store, emb = indice
     busca = BuscaHibrida(store, emb)
 
@@ -80,7 +80,7 @@ def test_hibrido_marca_a_origem_de_cada_acerto(indice) -> None:  # noqa: ANN001
     assert all(o for o in origens.values())
 
 
-def test_search_colapsa_para_documento(indice) -> None:  # noqa: ANN001
+def test_search_colapsa_para_documento(indice) -> None:
     """O conjunto dourado aponta documentos, não chunks."""
     store, emb = indice
     busca = BuscaHibrida(store, emb, usar_denso=False)
@@ -92,7 +92,7 @@ def test_search_colapsa_para_documento(indice) -> None:  # noqa: ANN001
     assert len(paths) == len(set(paths)), "documento não pode repetir"
 
 
-def test_nome_descreve_a_configuracao(indice) -> None:  # noqa: ANN001
+def test_nome_descreve_a_configuracao(indice) -> None:
     store, emb = indice
 
     assert "RRF" in BuscaHibrida(store, emb).nome
@@ -100,14 +100,14 @@ def test_nome_descreve_a_configuracao(indice) -> None:  # noqa: ANN001
     assert BuscaHibrida(store, emb, usar_denso=False).nome.startswith("bm25")
 
 
-def test_configuracao_vazia_e_rejeitada(indice) -> None:  # noqa: ANN001
+def test_configuracao_vazia_e_rejeitada(indice) -> None:
     store, emb = indice
 
     with pytest.raises(ValueError):
         BuscaHibrida(store, emb, usar_denso=False, usar_lexical=False, usar_nome=False)
 
 
-def test_chunk_orfao_no_vetorial_nao_derruba_a_busca(indice) -> None:  # noqa: ANN001
+def test_chunk_orfao_no_vetorial_nao_derruba_a_busca(indice) -> None:
     """Registro e vetorial podem dessincronizar; a busca avisa e segue."""
     store, emb = indice
     store.con.execute("DELETE FROM chunks WHERE id = 'c1'")
@@ -164,7 +164,7 @@ def test_ranqueador_de_nome_pontua_caminho() -> None:
     assert ranking[0][0] == "Política de IA/PO-ACME-007_Política_IA_v8.docx"
 
 
-def test_nome_promove_documento_que_o_bm25_afoga(indice) -> None:  # noqa: ANN001
+def test_nome_promove_documento_que_o_bm25_afoga(indice) -> None:
     """O ranqueador de nome muda POSIÇÃO, não presença.
 
     O caminho já está indexado no FTS, então o bm25 encontra o documento de
@@ -191,7 +191,7 @@ def test_nome_promove_documento_que_o_bm25_afoga(indice) -> None:  # noqa: ANN00
     assert com_nome.search("Northline KPI", 5)[0].path == alvo
 
 
-def test_nome_entra_no_caminho_de_trecho_com_um_trecho_por_documento(indice) -> None:  # noqa: ANN001
+def test_nome_entra_no_caminho_de_trecho_com_um_trecho_por_documento(indice) -> None:
     """`F4-P`: o nome pontua documento, e no caminho de trecho entrega **um** trecho.
 
     A tradução ingênua — dar a contribuição do documento a todos os trechos dele
@@ -221,7 +221,7 @@ def test_nome_entra_no_caminho_de_trecho_com_um_trecho_por_documento(indice) -> 
     assert do_alvo[0].origem == "nome"
 
 
-def test_nome_reforca_o_trecho_que_a_fusao_ja_elegeu(indice) -> None:  # noqa: ANN001
+def test_nome_reforca_o_trecho_que_a_fusao_ja_elegeu(indice) -> None:
     """A outra metade da regra — e é o espelho do colapso que `search` faz.
 
     Lá o documento fica com a posição do seu melhor trecho; aqui o documento
@@ -248,7 +248,7 @@ def test_nome_reforca_o_trecho_que_a_fusao_ja_elegeu(indice) -> None:  # noqa: A
     assert com_nome[0].chunk_id == "m1", "o nome reforça o trecho que a fusão elegeu"
 
 
-def test_nome_do_recuperador_mostra_os_pesos(indice) -> None:  # noqa: ANN001
+def test_nome_do_recuperador_mostra_os_pesos(indice) -> None:
     store, emb = indice
 
     # Contra as constantes, não contra valores fixos: o peso é resultado de
@@ -266,7 +266,7 @@ def test_nome_do_recuperador_mostra_os_pesos(indice) -> None:  # noqa: ANN001
 # --- peso de nome por tipo de fonte — `F4-P.1` --------------------------------
 
 
-def test_a_contribuicao_de_nome_reproduz_o_rrf_que_substituiu(indice) -> None:  # noqa: ANN001
+def test_a_contribuicao_de_nome_reproduz_o_rrf_que_substituiu(indice) -> None:
     """A `F4-P.1` tirou o nome de dentro do `rrf` — e não pode ter mudado número.
 
     `search` fundia o ranking de nome como mais um ranking ponderado. Agora a
@@ -285,7 +285,7 @@ def test_a_contribuicao_de_nome_reproduz_o_rrf_que_substituiu(indice) -> None:  
     assert busca._nome_por_doc(consulta) == como_rrf
 
 
-def test_sem_a_bandeira_o_peso_do_nome_e_o_mesmo_para_todo_documento(indice) -> None:  # noqa: ANN001
+def test_sem_a_bandeira_o_peso_do_nome_e_o_mesmo_para_todo_documento(indice) -> None:
     """O braço "antes" da ablação é o padrão do produto, e ele é um número só."""
     store, emb = indice
     busca = BuscaHibrida(store, emb)
@@ -294,7 +294,7 @@ def test_sem_a_bandeira_o_peso_do_nome_e_o_mesmo_para_todo_documento(indice) -> 
     assert busca.peso_do_nome("Meetings/Gravacao_2025-03-14_0930.vtt") == busca.peso_nome
 
 
-def test_com_a_bandeira_a_transcricao_perde_o_ranqueador_de_nome(indice) -> None:  # noqa: ANN001
+def test_com_a_bandeira_a_transcricao_perde_o_ranqueador_de_nome(indice) -> None:
     """E o documento de escritório não perde — é a troca inteira do `F4-P.1`.
 
     A afirmação é de formato, não deste acervo: gravador de reunião nomeia o
@@ -312,7 +312,7 @@ def test_com_a_bandeira_a_transcricao_perde_o_ranqueador_de_nome(indice) -> None
     assert busca.peso_do_nome("Caixa/convite.msg") == busca.peso_nome
 
 
-def test_a_bandeira_tira_a_transcricao_do_topo_e_deixa_o_documento(indice) -> None:  # noqa: ANN001
+def test_a_bandeira_tira_a_transcricao_do_topo_e_deixa_o_documento(indice) -> None:
     """O efeito de ponta a ponta, nos dois caminhos — não só no `peso_do_nome`.
 
     Os dois arquivos têm o termo da consulta no **nome** e nada dele no corpo.
@@ -353,15 +353,15 @@ def test_a_bandeira_tira_a_transcricao_do_topo_e_deixa_o_documento(indice) -> No
 class _ConContada:
     """Envelope que conta `execute()` sem mudar o comportamento do SQLite."""
 
-    def __init__(self, con) -> None:  # noqa: ANN001
+    def __init__(self, con) -> None:
         self._con = con
         self.total = 0
 
-    def execute(self, sql, *args, **kwargs):  # noqa: ANN001, ANN201
+    def execute(self, sql, *args, **kwargs):
         self.total += 1
         return self._con.execute(sql, *args, **kwargs)
 
-    def __getattr__(self, nome: str):  # noqa: ANN204
+    def __getattr__(self, nome: str):
         return getattr(self._con, nome)
 
 
@@ -386,7 +386,7 @@ que ele guarda é a **forma** do acesso, e a forma não depende do tamanho.
 """
 
 
-def test_uma_consulta_nao_volta_a_custar_uma_ida_ao_banco_por_candidato(indice) -> None:  # noqa: ANN001
+def test_uma_consulta_nao_volta_a_custar_uma_ida_ao_banco_por_candidato(indice) -> None:
     store, emb = indice
     busca = BuscaHibrida(store, emb)
     busca.mtimes  # aquece o cache de mtime, que é por instância e não por consulta
@@ -407,7 +407,7 @@ def test_uma_consulta_nao_volta_a_custar_uma_ida_ao_banco_por_candidato(indice) 
     )
 
 
-def test_o_lote_devolve_o_mesmo_que_a_consulta_por_item(indice) -> None:  # noqa: ANN001
+def test_o_lote_devolve_o_mesmo_que_a_consulta_por_item(indice) -> None:
     """`chunks_por_id` e `vizinhos_de` são atalhos, não outra semântica."""
     store, _ = indice
     ids = ["c1", "c2", "c3", "c4", "inexistente"]

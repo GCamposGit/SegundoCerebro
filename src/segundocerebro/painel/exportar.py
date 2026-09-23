@@ -62,7 +62,7 @@ class _ErroDeExportacao(ValueError):
         self.codigo = codigo
 
 
-def _gerar(base: Any, corpo: dict[str, Any], destino: str) -> dict[str, Any]:
+def _gerar(base: Any, corpo: dict[str, Any], destino: str) -> dict[str, Any]:  # noqa: ANN401 — fronteira dinâmica ainda sem protocolo
     from ..acesso.documento import LeitorDocumento
     from ..acesso.original import ErroLeitura
     from ..acesso.vault import ErroVault, exportar as gerar

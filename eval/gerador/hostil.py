@@ -93,7 +93,7 @@ def _profundo(niveis: int = 4, largura: int = 80) -> str:
     return "/".join("Arquivo morto " + chr(97 + i) * largura for i in range(niveis))
 
 
-def f_pasta_hostil(rng, n, ext):  # noqa: ANN001, ARG001
+def f_pasta_hostil(rng, n, ext):
     """Um arquivo por modo de falha. Quase nenhum com pergunta — ver o módulo.
 
     Não escala com `n`, e é deliberado: uma armadilha basta para provar que o

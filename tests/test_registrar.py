@@ -29,7 +29,7 @@ from segundocerebro.mcp.registrar import (
 )
 
 
-def escrever_config(tmp_path, texto: str):  # noqa: ANN001, ANN201
+def escrever_config(tmp_path, texto: str):
     caminho = tmp_path / "config.toml"
     caminho.write_text(texto, encoding="utf-8")
     return caminho

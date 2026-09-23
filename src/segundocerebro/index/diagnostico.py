@@ -403,7 +403,7 @@ def diagnosticar_base(
 
 
 def _progresso_terminal(processados: int, total: int) -> None:
-    print(
+    print(  # noqa: T201 — saída da CLI
         f"\rIntegridade profunda: {processados}/{total} vetores",
         end="",
         file=sys.stderr,
@@ -433,13 +433,13 @@ def main(argv: list[str] | None = None) -> int:
         progresso=_progresso_terminal if args.profundo else None,
     )
     if args.profundo:
-        print(file=sys.stderr)
+        print(file=sys.stderr)  # noqa: T201 — saída da CLI
     if args.exportar_suporte:
-        print(relatorio.exportar_suporte())
+        print(relatorio.exportar_suporte())  # noqa: T201 — saída da CLI
     elif args.json:
-        print(json.dumps(relatorio.para_dict(), indent=2, ensure_ascii=False))
+        print(json.dumps(relatorio.para_dict(), indent=2, ensure_ascii=False))  # noqa: T201 — saída da CLI
     else:
-        print(relatorio.formatar_texto())
+        print(relatorio.formatar_texto())  # noqa: T201 — saída da CLI
     return 1 if relatorio.status_geral == "inoperante" else 0
 
 

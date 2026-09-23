@@ -103,7 +103,7 @@ Onde o sistema está, em cinco linhas:
 **Onde o produto não está pronto**, e é o que a régua de ouro manda olhar
 primeiro: o motor RapidOCR ainda não lê as três fontes do dossiê (`F4-O.3`);
 OCR **é** padrão de indexação neste PR (`docs/ocr-como-padrao.md`). `Q18`
-espera acordo. `F4-O.4` é futuro. O exportador de vault `J.e` e o botão no painel (`J.e.1`) estão em
+entrou em 23/09/2026. `F4-O.4` é futuro. O exportador de vault `J.e` e o botão no painel (`J.e.1`) estão em
 [`docs/je-export-vault.md`](docs/je-export-vault.md).
 `pack_folder` está em [`docs/jd-pack-folder.md`](docs/jd-pack-folder.md).
 A leitura integral `get_document` está em
@@ -176,12 +176,10 @@ ser hipótese: o percurso do leigo tem teste. O Office legado
    `eval/ocr_fila.py` (main leve; `indexer --ocr` ainda morre no teto de 1024
    MB — regra 8, desktop). Laudo: [`docs/ocr-o3-dourado.md`](docs/ocr-o3-dourado.md).
    **`F4-O.4` — FUTURO (01/09/2026):** não instalar nem trocar o motor agora.
-6. **`Q18`** — medido e resolvido, **esperando acordo, não execução**: ligar as
-   dez regras baratas do `ruff` faz 75 dos 92 `noqa` inertes de `src` valerem,
-   por 40 correções. Delas, oito arquivos são do desktop e dois são "um de cada
-   vez" — é decisão de política de repositório com efeito cruzado, e a regra 8
-   manda declarar, não fazer. O notebook recomenda ligar. Do `Q2` sobram
-   lockfile e extras.
+6. **`Q18`** — executado em 23/09/2026, com acordo do usuário. As dez regras
+   baratas e o `RUF100` ligam em `src`. `tests/` e `eval/` ficam no
+   `per-file-ignores`. A medição de 30/08 (75 de 92 `noqa` inertes por 40
+   correções) está no `ROADMAP.md`. Do `Q2` sobram lockfile e extras.
 7. **`PR-F1` — fechado em 04/09/2026:** Filtros por subpasta (`pasta`)
    e controle de versões antigas (`incluir_versoes_antigas`) no `search` MCP. Destrava
    busca focada em pastas e auditoria de minutas históricas sem conflito com o Desktop.

@@ -59,6 +59,18 @@ def versionados_py() -> list[Path]:
 
 
 def _motivo_ok(resto: str) -> bool:
+    """Aceita o noqa e o comentário sem noqa.
+
+    O ruff 0.16 deixa de acusar BLE001 quando o except relança ou registra.
+    O noqa então fica inerte e o RUF100 apaga. O motivo escrito continua
+    obrigatório: `# BLE001 — <motivo>` ou `# noqa: BLE001 — <motivo>`.
+    """
+    if "BLE001" not in resto or "—" not in resto:
+        return False
+    if not resto.split("—", 1)[1].strip():
+        return False
+    if "noqa:" not in resto:
+        return True
     achado = NOQA_BLE.search(resto)
     if achado is None:
         return False
@@ -73,6 +85,8 @@ def test_o_padrao_recusa_ble001_sem_motivo() -> None:
     assert not _motivo_ok("  # noqa: BLE001 — ")
     assert not _motivo_ok("  # a corrupt file must not stop the indexing run")
     assert _motivo_ok("  # noqa: BLE001 — borda de parse, arquivo hostil")
+    assert _motivo_ok("  # BLE001 — probe de hardware")
+    assert not _motivo_ok("  # BLE001")
     assert _motivo_ok("  # noqa: ANN001, BLE001 — probe de import")
     assert _motivo_ok("  # noqa: BLE001, ARG001 — laço de onda que não pode morrer")
 

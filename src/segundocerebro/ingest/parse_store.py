@@ -124,7 +124,7 @@ def assinatura_do_motor(rota: str) -> str:
             try:
                 st = os.stat(caminho)
                 assinatura = f"soffice:{st.st_size}:{int(st.st_mtime)}"
-            except OSError as erro:  # noqa: BLE001 — sem assinatura o miss é o padrão seguro
+            except OSError as erro:  # BLE001 — sem assinatura o miss é o padrão seguro
                 log.debug("assinatura do soffice não lida: %s", erro)
     elif rota == ROTA_OCR:
         from .ocr import VERSAO, backend_disponivel
@@ -327,7 +327,7 @@ class ParseStore:
                     continue
                 arquivo.unlink()
                 removidas += 1
-            except OSError as erro:  # noqa: BLE001 — GC não derruba passada
+            except OSError as erro:  # BLE001 — GC não derruba passada
                 log.debug("gc não removeu %s: %s", arquivo.name, erro)
         if removidas:
             log.info("gc: %d entrada(s) removida(s) do parse store", removidas)

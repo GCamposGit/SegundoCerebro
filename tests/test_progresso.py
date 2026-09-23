@@ -158,7 +158,7 @@ def test_falha_ao_publicar_nao_derruba_a_indexacao(tmp_path: Path, monkeypatch) 
     """Progresso é conveniência; indexar é o trabalho."""
     p = publicador(tmp_path)
 
-    def explode(*a, **k):  # noqa: ANN002, ANN003, ANN202
+    def explode(*a, **k):
         raise OSError("disco cheio")
 
     monkeypatch.setattr(Path, "write_text", explode)

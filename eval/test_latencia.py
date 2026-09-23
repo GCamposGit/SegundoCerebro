@@ -38,7 +38,7 @@ AMBIENTE = Ambiente(
 )
 
 
-def _medicao(*amostras: Amostra, rodadas: int = 3, **kw) -> Medicao:  # noqa: ANN003
+def _medicao(*amostras: Amostra, rodadas: int = 3, **kw) -> Medicao:
     return Medicao(amostras=amostras, rodadas=rodadas, **kw)
 
 
@@ -78,14 +78,14 @@ def test_desvio_de_uma_amostra_so_e_zero() -> None:
 
 def test_decompositor_mede_a_chamada_real_e_restaura_os_metodos() -> None:
     class Embedder:
-        def embed_consulta(self, texto):  # noqa: ANN001, ANN201
+        def embed_consulta(self, texto):
             return texto
 
     class Store:
-        def buscar_denso(self, vetor):  # noqa: ANN001, ANN201
+        def buscar_denso(self, vetor):
             return vetor
 
-        def buscar_lexical(self, texto):  # noqa: ANN001, ANN201
+        def buscar_lexical(self, texto):
             return texto
 
     class Busca:
@@ -93,7 +93,7 @@ def test_decompositor_mede_a_chamada_real_e_restaura_os_metodos() -> None:
             self.embedder = Embedder()
             self.store = Store()
 
-        def _nome_por_chunk(self, consulta, pontos):  # noqa: ANN001, ANN201
+        def _nome_por_chunk(self, consulta, pontos):
             return consulta, pontos
 
     busca = Busca()
