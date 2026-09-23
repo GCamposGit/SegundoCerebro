@@ -550,6 +550,25 @@ def test_o_doc_do_usuario_descreve_exatamente_as_ferramentas_que_existem() -> No
     assert NUMERAIS[len(FERRAMENTAS)] in secao.splitlines()[0].lower()
 
 
+def test_o_doc_nao_anuncia_contagem_nem_formato_velhos() -> None:
+    """O título da seção pode estar certo e o parágrafo de cima, mentindo.
+
+    Em 02/09 o arquivo dizia "sete ferramentas" na abertura e "email e PDF
+    digitalizado não estão indexados" enquanto o servidor já servia oito
+    ferramentas e esses formatos. O teste do título não lia o resto do arquivo.
+    """
+    texto = DOC.read_text(encoding="utf-8")
+    atual = NUMERAIS[len(FERRAMENTAS)]
+    frases = re.findall(
+        r"(?:uma|duas|três|quatro|cinco|seis|sete|oito|nove|dez) ferramentas",
+        texto.lower(),
+    )
+    assert frases, "o doc deixou de contar as ferramentas"
+    outras = sorted({frase for frase in frases if frase != atual})
+    assert not outras, f"contagem que não é a superfície: {outras}"
+    assert "não estão indexados" not in texto.lower()
+
+
 def test_a_armadilha_do_caminho_esta_armada(tmp_path: Path) -> None:
     """Guarda da guarda: uma armadilha que virou no-op é pior que nenhuma.
 

@@ -122,7 +122,7 @@ SUPERFICIE = {
     "pack_folder",
     "overview",
 }
-"""As sete ferramentas, e por que cada grupo está aqui.
+"""As oito ferramentas, e por que cada grupo está aqui.
 
 `search` e `read_note` fecham o laço de **retrieval** — "onde está X" e "me
 mostra o que tem em volta". `neighbors` entrou na F4 porque o traço de uso real

@@ -1943,7 +1943,7 @@ Outros itens da mesma passada, todos de custo baixo:
   (`py -m segundocerebro.ingest.report`), 139 linhas, sem um teste.
   `painel/__main__.py` 0%, `index/smoke_cuda.py` 16%.
 
-### `Q18` — 265 `noqa` inertes: a escolha foi resolvida por medição — **P2 · execução dos dois lados**
+### `Q18` — 265 `noqa` inertes: a escolha foi resolvida por medição — **P2 · executado em 23/09/2026 (PR #123)**
 
 Com `select = ["E","F"]` os **352** `# noqa` do repositório não suprimiam nada —
 era o culto à carga que o próprio `Q1` avisou que aconteceria. A passada ligou

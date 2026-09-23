@@ -84,7 +84,7 @@ E como a geração roda no cliente, o custo variável desaparece por completo:
 
 | Etapa | Volume | Onde roda | Custo |
 |-------|--------|-----------|-------|
-| Embeddings (indexação) | Todo o corpus, a cada reindexação | Local (BGE-M3) | $0 |
+| Embeddings (indexação) | Todo o corpus, a cada reindexação | Local (`e5-large`) | $0 |
 | Busca híbrida | Toda consulta | Local | $0 |
 | Reranking | ~50 candidatos/consulta | Local (cross-encoder) | $0 |
 | Raciocínio e geração | 1 loop/consulta | Cliente (assento) | Já pago |
@@ -302,7 +302,7 @@ de um travessão (`—`); a suíte recusa o sufixo ausente
 |------------|---------|--------|
 | Vetores | **LanceDB** | Arquivo local, sem servidor, híbrido nativo, filtro por metadado, Python-first |
 | Grafo e metadados | **SQLite** | Links, backlinks, tags, registro de documentos, linhagem de chunks |
-| Embeddings | **BGE-M3** | Ver abaixo |
+| Embeddings | **`e5-large` + BM25** | A correção de 12/08, abaixo. O plano era BGE-M3 |
 
 > ⚠️ **Correção de 12/08/2026 — o `fastembed` não suporta BGE-M3.** Ao instalar
 > (versão 0.8.0) e listar os modelos disponíveis, os densos são todos ingleses
@@ -413,7 +413,9 @@ de um travessão (`—`); a suíte recusa o sufixo ausente
 > dois dias de medições sobre um índice defeituoso. Valor redondo demais em
 > percentil é suspeito de teto, não de coincidência.
 
-**BGE-M3 é a escolha que carrega o projeto.** Um único modelo produz três
+**O plano original era o BGE-M3.** A correção de 12/08, acima, substituiu isso
+por `e5-large` denso e BM25. O parágrafo fica como o plano que não coube no
+`fastembed`. Um único modelo produziria três
 representações no mesmo forward pass:
 
 - **Dense** — semântica
@@ -421,10 +423,10 @@ representações no mesmo forward pass:
   nomes próprios, números de processo
 - **Multi-vector (ColBERT)** — reservado, se precisarmos de mais precisão
 
-Isso dá busca híbrida sem manter um índice BM25 separado. Para contexto
-corporativo com siglas e códigos — onde busca puramente semântica falha de forma
-previsível — a componente sparse não é opcional. 568M parâmetros, 100+ idiomas
-(incluindo português), entrada de até 8192 tokens, roda em CPU.
+O plano dava busca híbrida sem índice BM25 separado. Para contexto corporativo
+com siglas e códigos, a componente esparsa aprendida não seria opcional. 568M
+parâmetros, 100+ idiomas (incluindo português), entrada de até 8192 tokens, em
+CPU. O produto ficou com `e5-large` e BM25/FTS5, não com esse modelo.
 
 ### Camada 3 — Recuperação (onde a engenharia de R3 acontece)
 
@@ -433,9 +435,9 @@ previsível — a componente sparse não é opcional. 568M parâmetros, 100+ idi
    expande siglas via glossário; extrai filtros (data, tag, fonte)
 
 2. Recuperação híbrida
-   dense + sparse (ambos BGE-M3) → fusão RRF → top ~50
+   dense (`e5-large`) + lexical (BM25/FTS5) → fusão RRF → top ~50
 
-3. Reranking  ← maior alavanca de precisão
+3. Reranking  ← opcional, desligado por padrão
    cross-encoder local (bge-reranker-v2-m3) → top ~8
 
 4. Expansão de contexto
@@ -581,9 +583,9 @@ experimento com resultado.
 
 **Custo marginal por consulta: R$ 0,00.**
 
-Custo único: download dos modelos (~2,5 GB: BGE-M3 + reranker). BGE-M3 roda em
-CPU a alguns documentos por segundo — suficiente para indexar um vault. GPU
-acelera a indexação inicial mas não é requisito.
+Custo único: download do modelo padrão (`e5-large`, cerca de 2,1 GB). O
+reranker não entra no padrão. A indexação roda em CPU; GPU acelera a primeira
+passada e não é requisito.
 
 Comparação com a alternativa: um pipeline com embeddings e geração via API,
 para uso pessoal (~30 consultas/dia), ficaria em algo entre US$ 5 e US$ 30/mês
@@ -712,7 +714,7 @@ rodam single-user, e a fronteira de biblioteca é o que mantém a migração bar
 |--------|---------|
 | Linguagem | Python 3.12 |
 | Servidor MCP | `mcp` (SDK oficial) ou FastMCP |
-| Embeddings | BGE-M3 via `fastembed` (ONNX, CPU-friendly) ou `FlagEmbedding` |
+| Embeddings | `multilingual-e5-large` via `fastembed` (ONNX). BGE-M3 não está no catálogo |
 | Reranker | `bge-reranker-v2-m3` |
 | Vetores | `lancedb` |
 | Metadados / grafo | `sqlite3` (stdlib) |

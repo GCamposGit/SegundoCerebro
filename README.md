@@ -7,8 +7,9 @@
 
 Servidor **MCP** de recuperação de alta precisão sobre uma base de conhecimento
 pessoal e corporativa. Pastas em disco e SharePoint, com PDF, Word, Excel e
-PowerPoint. Não gera texto e não tem interface própria: ele expõe ferramentas
-de busca, o modelo de linguagem vem do cliente MCP que você já usa.
+PowerPoint. Não gera texto. Expõe ferramentas de busca e de leitura; o painel
+local só cria a base e ajusta peso, e o servidor responde com ele desligado.
+O modelo de linguagem vem do cliente MCP que você já usa.
 
 ## A ideia em um parágrafo
 
@@ -41,13 +42,15 @@ o usuário já usa.
 Cliente MCP (Claude Code, Claude Desktop, ...)
   │  modelo de linguagem, loop de agente, geração — tudo aqui
   ▼
-Servidor MCP (search · read_note · neighbors)
-  │  recuperação híbrida, reranking, expansão de contexto — tudo local
+Servidor MCP (overview, search, read_note, neighbors,
+              list_folder, outline, get_document, pack_folder)
+  │  recuperação híbrida e leitura com procedência — tudo local
   ▼
 Índice: LanceDB (vetores) + SQLite FTS5 (lexical, grafo, metadados)
   │
   ▼
-Documentos: pastas em disco + SharePoint sincronizado (PDF, DOCX, XLSX, PPTX, MD)
+Documentos: pastas em disco + SharePoint sincronizado
+            (formatos em docs/comecar.md)
 ```
 
 Decisões e justificativas completas em [ARCHITECTURE.md](ARCHITECTURE.md).
@@ -88,8 +91,9 @@ corpus cresceu para 2.156 documentos e o **reranking está desligado por custo**
 ele vale +0,011 de nDCG@5 e custa 6,9× por consulta, o que contradiz a razão de
 existir do projeto. A linha de base atual, corpus corporativo, sem rerank, é
 recall@1 **0,551** e MRR **0,680** no caminho `search`, e 0,551 / 0,696 no
-caminho que o cliente MCP executa — os números vivos ficam na §6 de
-[`docs/colaboracao.md`](docs/colaboracao.md), num lugar só.
+caminho que o cliente MCP executa. É piso de regressão desse acervo, com a
+cobertura em [`docs/dourado-cobertura.md`](docs/dourado-cobertura.md). A §6 de
+[`docs/colaboracao.md`](docs/colaboracao.md) é o diário dos dois setups.
 
 As duas tabelas medem corpora diferentes e **não são comparáveis entre si**: um
 conjunto dourado de 62 perguntas alcança 38,5% dos documentos do índice atual —
@@ -105,9 +109,9 @@ ranqueadores independentes vale mais que qualquer juiz isolado** — aconteceu
 com o BM25 e de novo com o cross-encoder, que só melhora o resultado quando
 entra como um quarto voto na fusão, nunca como substituto da ordenação.
 
-**1.288 testes automatizados** (`pytest`) em 29/08/2026, rodando em CI a cada
-push junto de `ruff` e `pyright`. A data está aí de propósito: número escrito à
-mão envelhece calado, e este envelheceu de 480 para 1.288 sem ninguém notar.
+A suíte padrão roda no CI a cada push, com `ruff` e `pyright`. Um total escrito
+aqui envelhece calado: o parágrafo anterior já viu o número ir de 480 a 1.288
+até 29/08/2026. O badge no topo é o estado do último workflow.
 
 ## Stack
 
@@ -138,21 +142,20 @@ docs/          decisões, ablações e métricas — índice em docs/README.md
 
 ## Como rodar
 
+O percurso de quem instala amanhã está em [`docs/comecar.md`](docs/comecar.md).
+No Windows os atalhos `segundocerebro-*` muitas vezes não estão no PATH; a forma
+que o PowerShell encontra é `py -m`:
+
 ```bash
-pip install -e .
+py -m pip install -e .
+py -m segundocerebro.painel
+```
 
-# 1. Censo do acervo — quantos arquivos, de que tipo, antes de indexar
-cp census.example.toml census.toml   # preencher com as raízes reais
-segundocerebro-censo --config census.toml --out docs/censo.md
+Indexar e servir uma base já criada, sem abrir o painel:
 
-# 2. Indexar
-segundocerebro-indexar
-
-# 3. Servir via MCP
-segundocerebro-mcp
-
-# 4. (opcional) Painel local para ajustar pesos sem código
-segundocerebro-painel
+```bash
+py -m segundocerebro.index.indexer --base trabalho
+py -m segundocerebro.mcp.server --base trabalho
 ```
 
 Múltiplas bases (pessoal, trabalho, ...) e pesos de recuperação são

@@ -32,7 +32,7 @@ recall@k, MRR e nDCG. É a régua de todas as fases.
 
 ## 2. Decisão estrutural: servidor MCP, não aplicação
 
-O sistema não tem UI e não gera texto. Expõe ferramentas de recuperação via
+O sistema não tem interface de chat e não gera texto. Expõe ferramentas de recuperação via
 Model Context Protocol; o cliente (Claude Code, Copilot, Antigravity) fornece
 modelo, loop de agente e interface.
 
