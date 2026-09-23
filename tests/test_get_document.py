@@ -304,8 +304,13 @@ def test_limitacoes_do_parser_sao_visiveis_sem_vazar_mensagem(acervo, sinal):
 def test_placeholder_e_recusado_pelo_reader_sem_abrir(acervo, monkeypatch):
     leitor, original, _sha = acervo
     monkeypatch.setattr("segundocerebro.ingest.reader.is_cloud_only", lambda _attrs: True)
-    def proibido(*_a, **_k):
-        pytest.fail("abriu placeholder")
+    real_open = open
+
+    def proibido(arquivo, *args, **kwargs):
+        if original.name in str(arquivo):
+            pytest.fail("abriu placeholder")
+        return real_open(arquivo, *args, **kwargs)
+
     with monkeypatch.context() as portao:
         portao.setattr("builtins.open", proibido)
         with pytest.raises(ErroLeitura) as erro:

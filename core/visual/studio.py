@@ -70,7 +70,7 @@ class VisualStudio:
             try:
                 with open(file, "r", encoding="utf-8") as f:
                     assets.append(json.load(f))
-            except Exception:
+            except Exception:  # noqa: BLE001 — one bad asset file is skipped
                 continue
         return assets
 

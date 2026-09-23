@@ -47,7 +47,7 @@ class ContinuousLearningTracker:
                     data = json.load(f)
                     ledger = LearningLedger.from_dict(data)
                     return ledger
-            except Exception as e:
+            except Exception as e:  # noqa: BLE001 — a corrupt ledger is reinitialized
                 print(f"[WARN] Failed to parse learning ledger from {self.ledger_file}: {e}. Reinitializing.")
 
         return LearningLedger(
@@ -255,7 +255,7 @@ class ContinuousLearningTracker:
         except subprocess.TimeoutExpired:
             passed = False
             output_snippet = f"Execution timed out after {timeout_sec}s"
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — a judge process error is a failed run
             passed = False
             output_snippet = f"Execution error: {e}"
 

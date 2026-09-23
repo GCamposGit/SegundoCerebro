@@ -96,7 +96,7 @@ class KnowledgeLedgerManager:
                                 "insights_count": len(data.get("insights", [])),
                                 "path": str(entry)
                             })
-                    except Exception:
+                    except Exception:  # noqa: BLE001 — one bad ledger file is skipped
                         continue
 
         results.sort(key=lambda x: x.get("created_at", ""), reverse=True)

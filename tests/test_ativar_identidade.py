@@ -13,7 +13,7 @@ from segundocerebro.index.migrar_identidade import migrar
 from segundocerebro.index.ocorrencia import usa_ocorrencia
 from segundocerebro.index.store import Store
 
-from tests.test_migrar_identidade import _legado
+from tests.indice_legado import _legado
 
 
 def _config(tmp_path: Path, indice_rel: str = "index") -> Path:

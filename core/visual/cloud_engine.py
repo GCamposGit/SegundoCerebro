@@ -47,7 +47,7 @@ class CloudVisualEngine:
                 import winreg
                 with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Environment") as k:
                     key, _ = winreg.QueryValueEx(k, "OPENROUTER_API_KEY")
-            except Exception:
+            except Exception:  # noqa: BLE001 — the registry key is optional
                 pass
         return key if key and key.strip() else None
 
@@ -60,7 +60,7 @@ class CloudVisualEngine:
                 import winreg
                 with winreg.OpenKey(winreg.HKEY_CURRENT_USER, r"Environment") as k:
                     key, _ = winreg.QueryValueEx(k, "OPENAI_API_KEY")
-            except Exception:
+            except Exception:  # noqa: BLE001 — the registry key is optional
                 pass
         return key if key and key.strip() else None
 
@@ -76,14 +76,14 @@ class CloudVisualEngine:
         if openai_key and (spec.model_override == "dall-e-3" or not openrouter_key):
             try:
                 return self._generate_dalle3(spec, openai_key)
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 — DALL-E failure tries the next provider
                 logger.warning("DALL-E 3 generation failed, trying fallback: %s", exc)
 
         # Try OpenRouter if key available
         if openrouter_key:
             try:
                 return self._generate_openrouter_image(spec, openrouter_key)
-            except Exception as exc:
+            except Exception as exc:  # noqa: BLE001 — OpenRouter image failure tries the fallback
                 logger.warning("OpenRouter image generation failed, trying fallback: %s", exc)
 
         # High-aesthetic local procedural fallback

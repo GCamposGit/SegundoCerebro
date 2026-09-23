@@ -95,7 +95,7 @@ class DailyBenchmarkService:
                 today = self.get_today_str()
                 if latest_date == today:
                     return False
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — a bad latest ledger must re-run
             logger.warning(f"Failed to inspect existing latest ledger: {exc}. Will re-run.")
             return True
 
@@ -109,7 +109,7 @@ class DailyBenchmarkService:
             with open(self.latest_file, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 return DailyBenchmarkLedger.from_dict(data)
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — an unreadable ledger is a miss
             logger.warning(f"Failed to read latest ledger from {self.latest_file}: {exc}")
             return None
 
@@ -122,7 +122,7 @@ class DailyBenchmarkService:
             with open(BASELINE_CATALOG_FILE, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 return data.get("models", [])
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — a missing baseline catalog is empty
             logger.error(f"Error loading baseline catalog: {exc}")
             return []
 
@@ -147,7 +147,7 @@ class DailyBenchmarkService:
         except urllib.error.URLError as exc:
             logger.warning(f"OpenRouter API unreachable: {exc}. Using baseline catalog.")
             return []
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — OpenRouter body is not a URL error
             logger.warning(f"OpenRouter fetch error: {exc}. Using baseline catalog.")
             return []
 
@@ -172,7 +172,7 @@ class DailyBenchmarkService:
                 data = json.loads(resp.read().decode("utf-8"))
                 logger.info(f"Artificial Analysis API returned {len(data)} models.")
                 return data if isinstance(data, list) else data.get("models", [])
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — Artificial Analysis response is unusable
             logger.warning(f"Artificial Analysis API query failed: {exc}")
             return []
 
@@ -363,7 +363,7 @@ class DailyBenchmarkService:
                 json.dump(ledger_dict, f, indent=2)
 
             logger.info(f"Saved daily benchmark ledger for {ledger.date} to {self.latest_file}")
-        except Exception as exc:
+        except Exception as exc:  # noqa: BLE001 — persist failure must not raise
             logger.error(f"Failed to persist benchmark ledger: {exc}")
 
 
@@ -392,7 +392,7 @@ def ensure_daily_benchmark(force: bool = False, workspace_root: Optional[Path] =
 
     try:
         return service.build_daily_ledger(force=force)
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 — daily benchmark falls back to cache
         logger.warning(f"ensure_daily_benchmark encountered error: {exc}. Returning fallback.")
         cached = service.load_latest_ledger()
         if cached:

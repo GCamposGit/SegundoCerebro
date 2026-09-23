@@ -45,11 +45,11 @@ def get_default_font(size: int) -> ImageFont.ImageFont:
     for candidate in font_candidates:
         try:
             return ImageFont.truetype(candidate, size)
-        except Exception:
+        except Exception:  # noqa: BLE001 — a missing font file tries the next face
             continue
     try:
         return ImageFont.load_default()
-    except Exception:
+    except Exception:  # noqa: BLE001 — the default font is the last resort
         return ImageFont.load_default()
 
 

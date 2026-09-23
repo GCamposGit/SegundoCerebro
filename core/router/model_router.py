@@ -149,7 +149,7 @@ def query_ollama(endpoint: str, data: Optional[Dict[str, Any]] = None, timeout: 
             return json.loads(resp.read().decode("utf-8"))
     except urllib.error.URLError as e:
         return {"error": f"Ollama connection failed: {e}"}
-    except Exception as e:
+    except Exception as e:  # noqa: BLE001 — a non-URL Ollama error becomes a payload
         return {"error": str(e)}
 
 def list_local_models():
@@ -202,7 +202,7 @@ def recommend_model(task_type: str, complexity: str = "medium", offline: bool = 
                 "rationale": f_reason,
                 "speculative_top3": speculative_candidates,
             }
-    except Exception as exc:
+    except Exception as exc:  # noqa: BLE001 — frontier load failure uses the fallback
         frontier_data = {"status": "benchmark_fallback", "note": str(exc)}
 
     if offline:

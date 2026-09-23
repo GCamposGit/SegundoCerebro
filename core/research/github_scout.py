@@ -29,10 +29,10 @@ def get_ssl_context():
     try:
         import certifi
         return ssl.create_default_context(cafile=certifi.where())
-    except Exception:
+    except Exception:  # noqa: BLE001 — certifi is optional for TLS
         try:
             return ssl.create_default_context()
-        except Exception:
+        except Exception:  # noqa: BLE001 — the default SSL context can fail
             return ssl._create_unverified_context()
 
 
@@ -132,7 +132,7 @@ class GitHubScout:
                 data = json.loads(resp.read().decode("utf-8"))
                 items = data.get("items", [])
                 return self._process_repo_items(items, permissive_only=permissive_only, limit=limit)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — a GitHub search failure returns empty
             print(f"[WARN] GitHub repository search failed for '{query}': {e}")
             return []
 

@@ -860,6 +860,16 @@ def test_gravar_escapa_caminho_do_windows(tmp_path):
     assert carregar(destino, ambiente=SEM_AMBIENTE).base("a").raizes[0].path == caminho
 
 
+def test_drive_windows_nao_depende_do_is_absolute_do_so(monkeypatch):
+    """No Ubuntu, `Path.is_absolute` é falso para `C:\\...`. A âncora não pode colar."""
+    from segundocerebro.caminhos import caminho_ja_absoluto
+
+    monkeypatch.setattr(Path, "is_absolute", lambda self: False)
+    assert caminho_ja_absoluto(Path(r"C:\Users\alguem"))
+    assert caminho_ja_absoluto(Path(r"\\servidor\pasta"))
+    assert not caminho_ja_absoluto(Path("index"))
+
+
 def test_gravar_omite_o_que_e_padrao(tmp_path):
     """Arquivo que repete todo padrão vira cópia congelada do dia em que nasceu."""
     destino = tmp_path / "c.toml"

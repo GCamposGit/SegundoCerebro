@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 import subprocess
 import sys
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 
 import pytest
 
@@ -178,7 +178,26 @@ def test_destino_expande_variavel_de_ambiente(monkeypatch):
     monkeypatch.setenv("APPDATA", r"C:\Users\alguem\AppData\Roaming")
     destino = destino_de("claude-desktop")
     assert destino is not None
-    assert "%" not in str(destino) and destino.is_absolute()
+    assert "%" not in str(destino)
+    assert destino.is_absolute() or PureWindowsPath(str(destino)).is_absolute()
+
+
+def test_destino_usa_separador_do_sistema(monkeypatch, tmp_path):
+    monkeypatch.setenv("APPDATA", str(tmp_path))
+    destino = destino_de("claude-desktop")
+    assert destino == tmp_path / "Claude" / "claude_desktop_config.json"
+
+
+def test_percent_expande_mesmo_sem_expandvars(monkeypatch):
+    """O POSIX não expande `%VAR%`. O destino do Claude Desktop está escrito assim."""
+    monkeypatch.setattr(
+        "segundocerebro.mcp.registrar.os.path.expandvars",
+        lambda texto: texto,
+    )
+    monkeypatch.setenv("APPDATA", r"C:\Users\alguem\AppData\Roaming")
+    destino = destino_de("claude-desktop")
+    assert destino is not None
+    assert "%" not in str(destino)
 
 
 def test_destino_desconhecido_e_none():

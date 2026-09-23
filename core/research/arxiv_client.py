@@ -21,10 +21,10 @@ def get_ssl_context():
     try:
         import certifi
         return ssl.create_default_context(cafile=certifi.where())
-    except Exception:
+    except Exception:  # noqa: BLE001 — certifi is optional for TLS
         try:
             return ssl.create_default_context()
-        except Exception:
+        except Exception:  # noqa: BLE001 — the default SSL context can fail
             return ssl._create_unverified_context()
 
 
@@ -62,7 +62,7 @@ class ArxivClient:
             with urllib.request.urlopen(req, timeout=self.timeout_sec, context=ctx) as resp:
                 xml_data = resp.read()
                 return self._parse_atom_feed(xml_data)
-        except Exception as e:
+        except Exception as e:  # noqa: BLE001 — an arXiv fetch failure returns empty
             # Resilient fallback: return empty list on network or parsing failure
             print(f"[WARN] arXiv search failed for '{query}': {e}")
             return []

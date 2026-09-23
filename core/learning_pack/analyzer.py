@@ -155,7 +155,7 @@ class CodebaseAnalyzer:
                 errors="replace",
             )
             return res_working.stdout if res_working.returncode == 0 else ""
-        except Exception:
+        except Exception:  # noqa: BLE001 — git status failure yields no diff
             return ""
 
     def get_modified_files(self) -> List[str]:
@@ -177,7 +177,7 @@ class CodebaseAnalyzer:
                     parts = line.strip().split(maxsplit=1)
                     if len(parts) == 2:
                         files.add(parts[1].strip())
-        except Exception:
+        except Exception:  # noqa: BLE001 — git name-status failure is skipped
             pass
 
         return sorted(list(files))
@@ -201,7 +201,7 @@ class CodebaseAnalyzer:
 
             try:
                 content = abs_path.read_text(encoding="utf-8", errors="replace")
-            except Exception:
+            except Exception:  # noqa: BLE001 — an unreadable file is skipped
                 continue
 
             for pattern in PATTERN_SIGNATURES:

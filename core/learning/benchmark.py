@@ -287,7 +287,7 @@ def main():
     if hasattr(sys.stdout, "reconfigure"):
         try:
             sys.stdout.reconfigure(encoding="utf-8")
-        except Exception:
+        except Exception:  # noqa: BLE001 — stdout encoding is best-effort
             pass
 
     benchmark = SelfLearningBenchmark(verbose=True)

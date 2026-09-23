@@ -36,7 +36,7 @@ class LearningPackStore:
         try:
             with open(self.index_file, "r", encoding="utf-8") as f:
                 return json.load(f)
-        except Exception:
+        except Exception:  # noqa: BLE001 — a corrupt index reads as empty
             return []
 
     def _write_index(self, index_data: List[Dict[str, Any]]) -> None:
@@ -118,7 +118,7 @@ class LearningPackStore:
             with open(json_path, "r", encoding="utf-8") as f:
                 data = json.load(f)
                 return SessionLearningPack.from_dict(data)
-        except Exception:
+        except Exception:  # noqa: BLE001 — a corrupt pack is a miss
             return None
 
     def get_latest_pack(self) -> Optional[SessionLearningPack]:
