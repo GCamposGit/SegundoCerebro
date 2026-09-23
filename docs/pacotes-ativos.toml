@@ -337,7 +337,7 @@ proxima_acao = ""
 
 [[pacote]]
 id = "Q18"
-estado = "em_execucao"
+estado = "entregue"
 dono = "notebook"
 paths = [
     "pyproject.toml",
@@ -353,5 +353,5 @@ paths = [
 ]
 dependencias = ["CI-PYTEST-UBUNTU"]
 aceite = "as dez regras do Q18 e RUF100 passam em src; tests e eval ignoram ANN/ARG/T201/B007/N801/RET; noqa sem regra ativa sai"
-evidencia = ""
+evidencia = { pr = 123, sha = "2681d7d57a11656cf9149957ebcee81a27335fdd" }
 proxima_acao = ""
