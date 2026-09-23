@@ -295,7 +295,7 @@ proxima_acao = ""
 
 [[pacote]]
 id = "CI-PYTEST-UBUNTU"
-estado = "em_execucao"
+estado = "entregue"
 dono = "notebook"
 paths = [
     "src/segundocerebro/caminhos.py",
@@ -332,5 +332,5 @@ paths = [
 ]
 dependencias = ["CI-PYTEST-RUNNER"]
 aceite = "os oito testes que falham no pytest Ubuntu passam sem skip e continuam passando no Windows"
-evidencia = ""
+evidencia = { pr = 122, sha = "b02b8c96a03e5131a4b05158480910a2c1b0afd9" }
 proxima_acao = ""

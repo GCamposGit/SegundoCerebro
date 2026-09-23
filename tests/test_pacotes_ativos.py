@@ -143,9 +143,11 @@ def test_fila_real_carrega_sem_erro() -> None:
     assert por_id["FND-01b-int"].dono == "notebook"
     assert (REPO / "docs" / "fnd-01b-identidade-interna.md").is_file()
     abertos = [p for p in pacotes if p.estado in {"proposto", "pronto", "em_execucao", "bloqueado"}]
-    assert [p.id for p in abertos] == ["CI-PYTEST-UBUNTU"]
-    assert por_id["CI-PYTEST-UBUNTU"].estado == "em_execucao"
+    assert not abertos, "fila real ainda contém pacote aberto após CI-PYTEST-UBUNTU"
+    assert por_id["CI-PYTEST-UBUNTU"].estado == "entregue"
     assert por_id["CI-PYTEST-UBUNTU"].dono == "notebook"
+    assert por_id["CI-PYTEST-UBUNTU"].evidencia["pr"] == 122
+    assert por_id["CI-PYTEST-UBUNTU"].evidencia["sha"] == "b02b8c96a03e5131a4b05158480910a2c1b0afd9"
     assert por_id["LANCE-TIPO-VETOR"].estado == "entregue"
     assert por_id["LANCE-TIPO-VETOR"].evidencia["pr"] == 120
     assert por_id["LANCE-TIPO-VETOR"].evidencia["sha"] == "89d27e6f57b464ea6480a1f13b803cb454d71604"
