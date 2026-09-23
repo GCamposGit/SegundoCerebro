@@ -1,14 +1,16 @@
 # Índice da documentação
 
-52 arquivos versionados. **Todo link daqui aponta para arquivo que o clone tem** —
-e essa é a regra do índice, não um detalhe: mais da metade de `docs/` fica fora do
-Git de propósito, porque cita nome de arquivo do acervo real, e um índice que
-prometesse esses arquivos daria 404 para quem clonou. A [seção final](#o-que-não-está-aqui)
-explica o que falta e por quê.
+**Todo link daqui aponta para arquivo que o clone tem** — e essa é a regra do
+índice, não um detalhe: mais da metade de `docs/` fica fora do Git de propósito,
+porque cita nome de arquivo do acervo real, e um índice que prometesse esses
+arquivos daria 404 para quem clonou. A [seção final](#o-que-não-está-aqui)
+explica o que falta e por quê. Quem confere os links é
+`tests/test_documentacao.py`.
 
-Comece por **[`regra-de-ouro.md`](regra-de-ouro.md)** se você vai decidir alguma
-coisa, e por **[`truncagem-silenciosa.md`](truncagem-silenciosa.md)** se quer
-entender como este projeto trabalha.
+Quem vai instalar e perguntar começa por **[`comecar.md`](comecar.md)**. Quem
+vai decidir alguma coisa começa por **[`regra-de-ouro.md`](regra-de-ouro.md)**.
+[`truncagem-silenciosa.md`](truncagem-silenciosa.md) é o post-mortem que explica
+como este projeto trabalha.
 
 ---
 
@@ -17,9 +19,9 @@ entender como este projeto trabalha.
 | Documento | O que é |
 |---|---|
 | [`regra-de-ouro.md`](regra-de-ouro.md) | **Precedência sobre tudo.** O produto é para um leigo apontando uma pasta que nunca vimos. As três perguntas que todo pacote responde antes de começar |
-| [`colaboracao.md`](colaboracao.md) | A **única** fonte das regras entre os dois setups: quem mexe em quê, as doze regras anti-retrabalho, o que nunca entra no Git, e a §6 com os números vivos |
-| [`pacotes-ativos.toml`](pacotes-ativos.toml) | Fila ativa (FND-12): o que está aberto, dono, paths, dependências e evidência de entrega. O ROADMAP não é a fila |
-| [`fnd-01b-identidade-interna.md`](fnd-01b-identidade-interna.md) | Desenho que desbloqueia o FND-01b: ocorrência vs conteúdo, `root_id`, migração para pasta nova |
+| [`colaboracao.md`](colaboracao.md) | A **única** fonte das regras entre os dois setups: quem mexe em quê, as doze regras anti-retrabalho, o que nunca entra no Git. A §6 é o diário; pacote aberto mora na fila |
+| [`pacotes-ativos.toml`](pacotes-ativos.toml) | A fila. Em 23/09/2026 não há pacote aberto: cada item está entregue, com PR e SHA. O ROADMAP não é a fila |
+| [`fnd-01b-identidade-interna.md`](fnd-01b-identidade-interna.md) | Desenho da identidade interna, entregue: ocorrência vs conteúdo, `root_id`, migração para pasta nova |
 | [`rigor-estatistico.md`](rigor-estatistico.md) | `E5`: IC bootstrap pareado obrigatório em toda métrica, e a regra de adoção |
 | [`guia-engenharia-5-estrelas.md`](guia-engenharia-5-estrelas.md) | Os pacotes `Q` de qualidade, com a régua final em duas metades — produto primeiro |
 | [`matriz-de-armadilhas.md`](matriz-de-armadilhas.md) | Fatia ↔ pacote: qual armadilha cada fatia sintética existe para pegar |
@@ -32,7 +34,7 @@ entender como este projeto trabalha.
 |---|---|
 | [`comecar.md`](comecar.md) | De zero à primeira pergunta respondida. É a `F6-D`, e é a página que o leigo lê |
 | [`backup-indice.md`](backup-indice.md) | Backup do índice e restauração para pasta nova (`FND-08b`). Originais não entram |
-| [`usar-o-mcp.md`](usar-o-mcp.md) | As ferramentas MCP, e como ligar nos dois clientes |
+| [`usar-o-mcp.md`](usar-o-mcp.md) | As oito ferramentas, e como ligar no Claude Code, no Grok e no Claude Desktop |
 | [`painel-de-ajuste.md`](painel-de-ajuste.md) | O painel local: o que ele faz, e por que está fora do caminho de consulta |
 | [`arquitetura-tecnica.md`](arquitetura-tecnica.md) | A descrição técnica corrente |
 

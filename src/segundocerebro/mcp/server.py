@@ -1,4 +1,4 @@
-"""Superfície MCP do Segundo Cérebro — sete ferramentas, nenhuma que gere texto.
+"""Superfície MCP do Segundo Cérebro — oito ferramentas, nenhuma que gere texto.
 
     py -m segundocerebro.mcp.server --indice index
 

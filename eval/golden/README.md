@@ -32,7 +32,7 @@ está falhando:
 
 | Tipo | O que testa | Quem deve resolver |
 |------|-------------|--------------------|
-| `exato` | Código de contrato, sigla, número de processo | Componente **sparse** do BGE-M3 |
+| `exato` | Código de contrato, sigla, número de processo | Busca lexical (BM25/FTS5) |
 | `semantica` | Pergunta com vocabulário diferente do documento | Componente **dense** |
 | `temporal` | Versão vigente, "depois de", recorte de período | Filtro por metadado + `mtime` |
 | `multihop` | Exige dois ou mais saltos entre documentos | `neighbors` (F4) |

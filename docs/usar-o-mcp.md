@@ -1,23 +1,26 @@
 # Usar o Segundo Cérebro pelo MCP
 
-Estado em 02/09/2026: **sete ferramentas** — três de pergunta e quatro de leitura,
-incluindo `pack_folder` (`J.d`) —, provadas ponta a ponta por stdio — contra o índice real em 13/08, e desde 25/08 também na
-suíte padrão, sem carregar modelo (`tests/test_protocolo_mcp.py`).
+Oito ferramentas — três de pergunta (`search`, `read_note`, `neighbors`),
+quatro de leitura (`list_folder`, `outline`, `get_document`, `pack_folder`) e
+`overview` para o panorama. Provadas por stdio na suíte padrão, sem carregar
+modelo (`tests/test_protocolo_mcp.py`).
 
 ## Ligar no Claude Code
 
 O `.mcp.json` na raiz do projeto já traz a configuração. Abrindo o Claude Code
 nesta pasta, ele oferece aprovar o servidor `segundocerebro` na primeira vez.
+O Grok aberto na mesma pasta lê esse arquivo.
 
-Para usar de outra pasta, ou em outro cliente, o comando é:
+Depois do `pip install`, o servidor sobe sem `PYTHONPATH`:
 
 ```bash
-py -m segundocerebro.mcp.server --indice index
+py -m segundocerebro.mcp.server --base trabalho
 ```
 
-com `PYTHONPATH=src` e o diretório de trabalho na raiz do projeto. O transporte é
+`PYTHONPATH=src` só cabe num checkout que não foi instalado. O transporte é
 stdio; não há porta de rede. A leitura integral pode consultar originais e
-reconstruir o cache dentro do índice, sem modificar o acervo.
+reconstruir o cache dentro do índice, sem modificar o acervo. Sem `config.toml`,
+`--indice index` continua valendo e o servidor se chama `segundocerebro`.
 
 ### Várias bases
 
@@ -191,7 +194,7 @@ sempre para o mesmo caminho preferido, pela mesma regra de versão vigente que a
 nuvem, formato não lido) aparece **sem** id e com o motivo escrito ao lado, em
 vez de sumir da lista.
 
-Sete, e não as cinco originalmente propostas no ROADMAP. `search` e `read_note` fecham
+Oito, e não as cinco originalmente propostas no ROADMAP. `search` e `read_note` fecham
 o laço básico e foram as duas únicas até a F3. A `neighbors` entrou na F4 por um
 motivo diferente: o traço de uso real mostrou o limite que ela rompe. Um plano
 que termina em "certificação ISO 42001" e a norma, em outra pasta, não têm nome,
@@ -212,15 +215,18 @@ no servidor reintroduziria custo por consulta e amarraria o projeto a um
 fornecedor, que é exatamente o que a arquitetura existe para evitar. Quem gera
 texto é o cliente; o servidor recupera e devolve procedência.
 
-Multi-hop também é do cliente. As sete ferramentas são primitivas componíveis, e
+Multi-hop também é do cliente. As oito ferramentas são primitivas componíveis, e
 o laço de agente é quem compõe.
 
 ## O que esperar, honestamente
 
-Medido em 18/08/2026 sobre o **corpus completo** — 1.601 documentos, 92.137
-chunks — contra o baseline de busca por nome de arquivo, em 45 perguntas do
-conjunto dourado (`docs/ablacao-f2.md`). A coluna "atual" é sem reranking, com
-famílias de versão e com um glossário de 10 siglas:
+A tabela é de **18/08/2026**, num corpus de então (1.601 documentos, 92.137
+trechos, 45 perguntas, `docs/ablacao-f2.md`). A coluna "atual" daquela medição
+é sem reranking, com famílias de versão e com um glossário de 10 siglas. Não é
+o tamanho do acervo de hoje e não se compara com o piso posterior. O reranking
+continua desligado por padrão: naquela medição, `rerank = 0.25` levava o
+recall@1 a **0,678** e a consulta ficava cerca de 8× mais lenta. Nessa
+métrica o glossário, de graça, rendia mais que o reranking.
 
 | | baseline | atual |
 |---|---:|---:|
@@ -232,29 +238,16 @@ famílias de versão e com um glossário de 10 siglas:
 | perguntas do usuário: MRR | 0,557 | **0,724** |
 | perguntas do usuário: recall@10 | 0,833 | **1,000** |
 
-Com `rerank = 0.25` na base, o recall@1 vai a **0,678** e a consulta fica ~8×
-mais lenta. É troca, não melhoria pura — e nessa métrica o glossário, que é de
-graça, rende mais que o reranking.
-
 As seis perguntas escritas de memória pelo usuário — o subconjunto sem viés de
 construção — são **todas** encontradas dentro do top-10.
 
-E o que ele **ainda erra**, para você não descobrir sozinho:
+Naquela passada, famílias de versão já traziam a vigente e citavam as anteriores
+(5 de 6 armadilhas, `ablacao-familias.md`). Juntar todas as fontes de uma
+pergunta multi-hop no top-10 só acontecia em 1 de 5.
 
-- **Famílias de versão — resolvido em 16/08/2026.** Perguntar "qual a versão
-  vigente" passou a trazer a vigente e citar as anteriores; os casos-armadilha
-  foram de 4 para **5 de 6** (`ablacao-familias.md`). O que ainda erra é
-  discriminar propostas irmãs na mesma pasta quando o nome tem erro de digitação —
-  caso nomeado, não resolvido pelo reranking.
-- **Multi-hop: 1 de 5.** Ele acha *uma* das fontes bem — o MRR saltou de 0,117
-  para 0,600 — mas juntar **todas** as fontes no top-10 só acontece numa das
-  cinco. É o ponto mais fraco e o mais sensível à escala, exatamente como
-  `escala-f0.md` previu.
-- **Email e PDF digitalizado não estão indexados**, por decisão de escopo
-  registrada. `search` nunca vai encontrá-los. A fila está no registro:
-  `SELECT path FROM documentos WHERE digitalizado = 1`.
-- **5 planilhas gigantes foram adiadas** com `--pular-planilha-acima-de 40`.
-  `SELECT path, detalhe FROM documentos WHERE status = 'adiado'` lista quais.
+Hoje o servidor indexa e-mail (`.msg`, `.eml`) e PDF com texto. PDF digitalizado
+passa pelo OCR por padrão; página que o motor não lê fica `vazio` no registro,
+visível. A lista fechada de formatos está em [`comecar.md`](comecar.md).
 
 ## Ensinar as siglas da sua casa
 

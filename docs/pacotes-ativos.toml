@@ -1,8 +1,7 @@
-# Fila ativa — FND-12.
+# Fila de pacotes. Em 23/09/2026 não há item aberto:
+# todos os blocos abaixo estão entregues. O arquivo permanece
+# porque o validador e os testes conferem a cadeia e a evidência.
 # ROADMAP.md e o plano fundamental são história e contexto.
-# Este arquivo lista o que ainda está aberto, mais as dependências já
-# entregues que esses abertos ainda nomeiam. Não é dump da crônica.
-# Autoridade plena só após reconciliação humana; até lá é proposta versionada.
 # Evidência de entrega é PR e/ou SHA. A frase "neste PR" não conta.
 
 [[pacote]]

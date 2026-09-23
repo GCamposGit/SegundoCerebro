@@ -204,12 +204,18 @@ em [`docs/portabilidade-f36.md`](portabilidade-f36.md).
 
 ## 6. O que cada lado faz nesta fase
 
-**Estado em 25/08/2026.** F1–F3.6 fechadas. F4 **em curso**, e a F6 (primeiro uso
-leigo) deixou de ser trilha paralela: virou **porta de fase** — nenhuma fase F4+
-fecha sem o teste em máquina que não é nossa. `main` = `57d6f74` (PRs #2 a #9). O que
-está aberto não se lista aqui: virou **pacote** no `ROADMAP.md` (seção
-“Pacotes”). Esta seção só diz o que cada lado **pega agora**, para as listas
-de path não se cruzarem.
+**Desde 23/09/2026 esta seção não distribui trabalho.** Não há pacote aberto em
+[`pacotes-ativos.toml`](pacotes-ativos.toml). O último entregue é o `Q18`
+(PR #123, `2681d7d`). O texto abaixo é o diário, a partir de 25/08/2026. Não
+reabrir `F4-P`, a varredura de peso de nome por fonte, nem tratar o `Q18` como
+pendente.
+
+**Estado em 25/08/2026, como estava escrito naquele dia.** F1–F3.6 fechadas. F4
+em curso naquela data, e a F6 (primeiro uso leigo) deixou de ser trilha
+paralela: virou **porta de fase** — nenhuma fase F4+ fecha sem o teste em
+máquina que não é nossa. `main` = `57d6f74` (PRs #2 a #9). O que estava aberto
+não se listava aqui: estava no `ROADMAP.md`. Naquele dia a seção dizia o que
+cada lado pegava, para as listas de path não se cruzarem.
 
 ### A regra de ouro entrou, e a fila mudou de critério (25/08/2026)
 
@@ -273,8 +279,8 @@ Onda 1 do notebook:
 Depois da onda 1: `C6` (família de versões ≠ grupo de formatos), `F4-P`+`C3.a`,
 `R6.1`. **Não começar `retrieve/*` antes** — a régua tem de existir primeiro.
 
-**O que o notebook pega agora:** `F4-P`, depois `C6` e `R6.1` — a onda 2, agora
-que a régua da onda 1 existe.
+**O que o notebook ia pegar naquele dia:** `F4-P`, depois `C6` e `R6.1`. Não é
+a fila de hoje.
 
 `C3.a` **fechado em 24/08/2026, com a hipótese refutada** —
 [`ablacao-c3a-pesos-fts.md`](ablacao-c3a-pesos-fts.md). A dupla contagem do nome
@@ -1001,10 +1007,10 @@ leiam a mensagem: ela carrega o regime da máquina, e a regra agora é *"ou o OC
 produziu texto, ou existe linha de quarentena com motivo de recurso"* — nunca
 mais um skip por janela de memória.
 
-**Uma coisa que continua sendo de vocês, e ficou mais fácil:** o `Q15.a` acima, e
-o `F6-C` (hardware). O `Q18` esperava acordo em 30/08 — a medição
+**O que naquele recado ainda estava em aberto:** o `Q15.a` e o `F6-C`
+(hardware) fecharam em seguida. O `Q18` esperava acordo em 30/08 — a medição
 (75 dos 92 `noqa` passam a valer por 40 correções) está no `ROADMAP.md`.
-O usuário autorizou a execução em 23/09/2026.
+O usuário autorizou a execução em 23/09/2026 e o pacote entrou no PR #123.
 
 ### O pacote J chegou, e a tabela de donos dele já nasce velha (30/08/2026)
 

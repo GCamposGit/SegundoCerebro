@@ -169,7 +169,7 @@ def render_markdown(r: dict) -> str:
         add("")
         add(f"- Chunks na amostra: **{total_chunks}** ({por_doc:.1f} por documento)")
         add(f"- Projeção para {r['total_corpus']} documentos: **~{projecao:,.0f} chunks**".replace(",", "."))
-        add("- Cada chunk é um forward pass do BGE-M3 em CPU — é esta a conta que domina a indexação")
+        add("- Cada chunk é um forward pass do e5-large em CPU — é esta a conta que domina a indexação")
         add("")
 
     for status, arquivos in sorted(r["exemplos"].items()):

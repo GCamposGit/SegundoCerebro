@@ -56,16 +56,22 @@ a auditoria de 20/08 mostrou, e que vale como regra e não como episódio:
 ## O que é este projeto
 
 Servidor **MCP** de recuperação sobre base de conhecimento pessoal/corporativa.
-Não gera texto, não tem UI. Ver [ARCHITECTURE.md](ARCHITECTURE.md) para as
-decisões e [ROADMAP.md](ROADMAP.md) para as fases.
+Não gera texto. O painel em `127.0.0.1` ajusta a base e não participa da
+consulta. Ver [ARCHITECTURE.md](ARCHITECTURE.md) para as decisões. A fila viva
+é [`docs/pacotes-ativos.toml`](docs/pacotes-ativos.toml); o
+[ROADMAP.md](ROADMAP.md) é história.
 
 ## Estado atual
 
-**F0–F3.6 fechadas. F4 em curso. A `F6` — primeiro uso em máquina desconhecida —
-fechou em 30/08/2026**, com a `F6-B` (estágio 0 do painel, provado ponta a ponta)
-e a `F6-C` (hardware; estava implementada e não declarada). Os números vivos ficam na §6 de
-[`docs/colaboracao.md`](docs/colaboracao.md); os pacotes, no
-[`ROADMAP.md`](ROADMAP.md).
+**Em 23/09/2026 a fila não tem pacote aberto.** Tudo o que
+[`docs/pacotes-ativos.toml`](docs/pacotes-ativos.toml) nomeia está `entregue`;
+o último é o `Q18` (PR #123, `2681d7d`). Quem for usar o produto começa por
+[`docs/comecar.md`](docs/comecar.md). A §6 de
+[`docs/colaboracao.md`](docs/colaboracao.md) é o diário dos dois setups.
+
+**F0–F3.6 e a F6 fecharam.** A F6 — primeiro uso em máquina desconhecida —
+fechou em 30/08/2026, com a `F6-B` (estágio 0 do painel, provado ponta a ponta)
+e a `F6-C` (hardware; estava implementada e não declarada).
 
 A crônica de F0 a F4 — trinta blocos de ablação, com número, data e corpus
 declarado — está inteira em
@@ -94,16 +100,19 @@ Onde o sistema está, em cinco linhas:
   `get_document` e `pack_folder` servem **leitura**: enumerar, mapear, ler e empacotar pasta.
   `search` suporta filtros de escopo (`pasta`), auditoria (`incluir_versoes_antigas`) e
   filtros temporais (`depois_de` e `antes_de` em ISO, R6.3). Toda tool de leitura
-  devolve cursor quando há mais conteúdo. Dois clientes instalados por comando
-  (Claude Code e Claude Desktop).
+  devolve cursor quando há mais conteúdo. O `.mcp.json` do projeto serve o
+  Claude Code e o Grok abertos nessa pasta. O Claude Desktop tem comando próprio
+  em [`docs/usar-o-mcp.md`](docs/usar-o-mcp.md).
 - **Painel** em `127.0.0.1`: criar base, indexar com barra, pesos, glossário,
   diagnóstico de consulta, ensinar quando erra. Fora do caminho de consulta
   (invariante 6).
 
-**Onde o produto não está pronto**, e é o que a régua de ouro manda olhar
-primeiro: o motor RapidOCR ainda não lê as três fontes do dossiê (`F4-O.3`);
-OCR **é** padrão de indexação neste PR (`docs/ocr-como-padrao.md`). `Q18`
-entrou em 23/09/2026. `F4-O.4` é futuro. O exportador de vault `J.e` e o botão no painel (`J.e.1`) estão em
+**O que a régua de ouro ainda aponta:** o RapidOCR é o padrão e ainda deixa
+scan difícil como `vazio` visível (`F4-O.3`: 22 de 37 digitalizados com trecho;
+as três fontes do dossiê continuaram vazias; o agregado do dourado empatou).
+Trocar o motor é `F4-O.4`, futuro
+([`docs/ocr-como-padrao.md`](docs/ocr-como-padrao.md)). Já estão no produto: o
+exportador de vault `J.e` e o botão no painel (`J.e.1`), em
 [`docs/je-export-vault.md`](docs/je-export-vault.md).
 `pack_folder` está em [`docs/jd-pack-folder.md`](docs/jd-pack-folder.md).
 A leitura integral `get_document` está em
@@ -118,6 +127,11 @@ ser hipótese: o percurso do leigo tem teste. O Office legado
 (`.doc` `.xls` `.ppt` `.rtf`) **é lido**, inclusive os disfarces do `F4-L`.
 
 ## Próximo passo
+
+> **23/09/2026.** Não há pacote aberto. A lista abaixo é o que saiu da fila, com
+> data. Não é trabalho pendente. OCR é o padrão de indexação. A frase antiga
+> "OCR não vira padrão" vale para o ranking medido no `F4-O.3`, não para deixar
+> o scan de fora.
 
 > **A varredura de peso de nome por tipo de fonte saiu desta lista em 27/08/2026.**
 > Ela tinha o efeito mínimo que lhe faltava — nDCG@5 de reunião
@@ -135,8 +149,8 @@ ser hipótese: o percurso do leigo tem teste. O Office legado
 > A especificação recebida é
 > [`docs/pacote-j-camada-acesso-corpus.md`](docs/pacote-j-camada-acesso-corpus.md);
 > a conferência contra o código, com as cinco premissas que não batem com esta
-> base, é [`docs/plano-pacote-j.md`](docs/plano-pacote-j.md). **Ler as duas antes
-> de tocar no resto do pacote J.**
+> base, é [`docs/plano-pacote-j.md`](docs/plano-pacote-j.md). O resto do pacote J
+> fechou depois; as duas páginas ficam como o contrato.
 
 0. **`J.f` — experimento controlado encerrado em 02/09/2026.** A meta de ≥80%
    foi refutada no mix sintético PDF/OLE/OCR; o cache preservou conteúdo e trouxe
@@ -171,15 +185,16 @@ ser hipótese: o percurso do leigo tem teste. O Office legado
 5. **`F4-O.3` — medido em 02/09/2026, neste PR.** Passada curta nos 37
    digitalizados (399 páginas), não no acervo. RapidOCR extraiu trecho em 22;
    as três fontes do dossiê (`g015`/`g025`/`g048`) continuam `vazio`. Agregado
-   n=59 Δ **+0,000 [+0,000, +0,000]** no caminho entregue. Hipótese do 2/3 no
-   top-5 não se cumpre; OCR **não** vira padrão. Instrumento:
-   `eval/ocr_fila.py` (main leve; `indexer --ocr` ainda morre no teto de 1024
-   MB — regra 8, desktop). Laudo: [`docs/ocr-o3-dourado.md`](docs/ocr-o3-dourado.md).
-   **`F4-O.4` — FUTURO (01/09/2026):** não instalar nem trocar o motor agora.
+   n=59 Δ **+0,000 [+0,000, +0,000]** no caminho entregue. A hipótese de ranking
+   não se cumpre. O OCR segue o padrão de indexação
+   ([`docs/ocr-como-padrao.md`](docs/ocr-como-padrao.md)); a passada de OCR não
+   usa o teto de 1024 MB do parse. O que o motor não lê fica `vazio` visível.
+   Laudo: [`docs/ocr-o3-dourado.md`](docs/ocr-o3-dourado.md).
+   **`F4-O.4` — futuro:** não trocar o motor agora.
 6. **`Q18`** — executado em 23/09/2026, com acordo do usuário. As dez regras
    baratas e o `RUF100` ligam em `src`. `tests/` e `eval/` ficam no
    `per-file-ignores`. A medição de 30/08 (75 de 92 `noqa` inertes por 40
-   correções) está no `ROADMAP.md`. Do `Q2` sobram lockfile e extras.
+   correções) está no `ROADMAP.md`. O `Q2` já estava fechado.
 7. **`PR-F1` — fechado em 04/09/2026:** Filtros por subpasta (`pasta`)
    e controle de versões antigas (`incluir_versoes_antigas`) no `search` MCP. Destrava
    busca focada em pastas e auditoria de minutas históricas sem conflito com o Desktop.
@@ -551,10 +566,14 @@ os índices do registro, com o motivo de cada um).
 
 ## Stack
 
-Python 3.12 · `mcp` · BGE-M3 (`fastembed`) · `bge-reranker-v2-m3` · `lancedb` ·
-`sqlite3` · `pymupdf4llm` · `watchdog` · `pytest`
+Python 3.12 · `mcp` · `fastembed` (`e5-large` por padrão; `minilm` menor) ·
+`bge-reranker-v2-m3` opcional · `lancedb` · `sqlite3` · `pymupdf4llm` ·
+`watchdog` · `pytest`
 
 ## Como rodar
+
+Quem instala para usar segue [`docs/comecar.md`](docs/comecar.md) (`py -m`).
+Os comandos daqui são os da suíte de desenvolvimento:
 
 ```bash
 pip install -e .
