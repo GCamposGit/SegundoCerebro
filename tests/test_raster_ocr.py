@@ -10,7 +10,37 @@ from segundocerebro.ingest import ocr
 from segundocerebro.ingest.parsers.slides import parse_pptx
 from segundocerebro.ingest.raster_ocr import acrescentar_rasters
 from segundocerebro.index.repesca import versao_efetiva
-from tests.test_ingest import bytes_pptx
+
+_GRAFICO_SEM_CACHE = """<?xml version="1.0" encoding="UTF-8"?>
+<c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart">
+  <c:chart><c:plotArea><c:barChart><c:ser>
+    <c:tx><c:v>Licencas</c:v></c:tx>
+    <c:val><c:numRef><c:f>Sheet1!$B$2:$B$3</c:f></c:numRef></c:val>
+  </c:ser></c:barChart></c:plotArea></c:chart>
+</c:chartSpace>
+"""
+
+_GRAFICO_COM_CACHE = """<?xml version="1.0" encoding="UTF-8"?>
+<c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart">
+  <c:chart><c:plotArea><c:barChart><c:ser>
+    <c:tx><c:v>Licencas</c:v></c:tx>
+    <c:cat><c:strCache><c:pt idx="0"><c:v>Jan</c:v></c:pt></c:strCache></c:cat>
+    <c:val><c:numCache><c:pt idx="0"><c:v>10.5</c:v></c:pt></c:numCache></c:val>
+  </c:ser></c:barChart></c:plotArea></c:chart>
+</c:chartSpace>
+"""
+
+
+def bytes_pptx() -> bytes:
+    from pptx import Presentation
+
+    apresentacao = Presentation()
+    slide = apresentacao.slides.add_slide(apresentacao.slide_layouts[1])
+    slide.shapes.title.text = "Casos de uso do Copilot"
+    slide.placeholders[1].text = "Resumir reunião\nRedigir e-mail"
+    buf = io.BytesIO()
+    apresentacao.save(buf)
+    return buf.getvalue()
 
 
 def _png(largura: int, altura: int) -> bytes:
@@ -109,13 +139,11 @@ def test_planilha_embutida_supre_grafico_sem_cache() -> None:
 
     import openpyxl
 
-    from tests.test_ingest import _GRAFICO_SEM_CACHE
-
     livro = openpyxl.Workbook()
     livro.active.append(["VCE-PLANTA-9"])
     tabela = io.BytesIO()
     livro.save(tabela)
-    base = _zip_com("ppt/charts/chart1.xml", _GRAFICO_SEM_CACHE.encode())
+    base = _zip_com("ppt/charts/chart1.xml", _GRAFICO_SEM_CACHE.encode("utf-8"))
     buf = io.BytesIO()
     with zipfile.ZipFile(io.BytesIO(base), "r") as origem, zipfile.ZipFile(buf, "w") as destino:
         for item in origem.infolist():
@@ -131,13 +159,11 @@ def test_planilha_embutida_nao_repete_valor_do_cache() -> None:
 
     import openpyxl
 
-    from tests.test_ingest import _GRAFICO_COM_CACHE
-
     livro = openpyxl.Workbook()
     livro.active.append(["10.5"])
     tabela = io.BytesIO()
     livro.save(tabela)
-    base = _zip_com("ppt/charts/chart1.xml", _GRAFICO_COM_CACHE.encode())
+    base = _zip_com("ppt/charts/chart1.xml", _GRAFICO_COM_CACHE.encode("utf-8"))
     buf = io.BytesIO()
     with zipfile.ZipFile(io.BytesIO(base), "r") as origem, zipfile.ZipFile(buf, "w") as destino:
         for item in origem.infolist():
