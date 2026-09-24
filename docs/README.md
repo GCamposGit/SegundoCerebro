@@ -20,7 +20,8 @@ como este projeto trabalha.
 |---|---|
 | [`regra-de-ouro.md`](regra-de-ouro.md) | **Precedência sobre tudo.** O produto é para um leigo apontando uma pasta que nunca vimos. As três perguntas que todo pacote responde antes de começar |
 | [`colaboracao.md`](colaboracao.md) | A **única** fonte das regras entre os dois setups: quem mexe em quê, as doze regras anti-retrabalho, o que nunca entra no Git. A §6 é o diário; pacote aberto mora na fila |
-| [`pacotes-ativos.toml`](pacotes-ativos.toml) | A fila. Em 23/09/2026 não há pacote aberto: cada item está entregue, com PR e SHA. O ROADMAP não é a fila |
+| [`pacotes-ativos.toml`](pacotes-ativos.toml) | A fila. Em 24/09/2026 `GRAFICO-CACHE` está em execução; sete pacotes seguem `proposto`. O ROADMAP não é a fila |
+| [`roadmap-extracao-canonica.md`](roadmap-extracao-canonica.md) | Contrato desses sete: canônico, buraco da busca, célula de planilha, gráfico e imagem |
 | [`fnd-01b-identidade-interna.md`](fnd-01b-identidade-interna.md) | Desenho da identidade interna, entregue: ocorrência vs conteúdo, `root_id`, migração para pasta nova |
 | [`rigor-estatistico.md`](rigor-estatistico.md) | `E5`: IC bootstrap pareado obrigatório em toda métrica, e a regra de adoção |
 | [`guia-engenharia-5-estrelas.md`](guia-engenharia-5-estrelas.md) | Os pacotes `Q` de qualidade, com a régua final em duas metades — produto primeiro |

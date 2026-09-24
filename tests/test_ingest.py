@@ -853,6 +853,74 @@ def _pptx_com_diagrama() -> bytes:
     return buf.getvalue()
 
 
+def _pptx_com_parte(nome: str, xml: str) -> bytes:
+    import zipfile
+
+    base = bytes_pptx()
+    buf = io.BytesIO()
+    with zipfile.ZipFile(io.BytesIO(base), "r") as origem, zipfile.ZipFile(buf, "w") as destino:
+        for item in origem.infolist():
+            destino.writestr(item, origem.read(item.filename))
+        destino.writestr(nome, xml)
+    return buf.getvalue()
+
+
+_GRAFICO_COM_CACHE = """<?xml version="1.0" encoding="UTF-8"?>
+<c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart"
+              xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+  <c:chart>
+    <c:title><c:tx><c:rich><a:p><a:r><a:t>Receita VCE</a:t></a:r></a:p></c:rich></c:tx></c:title>
+    <c:plotArea><c:barChart><c:ser>
+      <c:tx><c:v>Licencas</c:v></c:tx>
+      <c:cat><c:strCache>
+        <c:pt idx="1"><c:v>Fev</c:v></c:pt>
+        <c:pt idx="0"><c:v>Jan</c:v></c:pt>
+      </c:strCache></c:cat>
+      <c:val><c:numCache>
+        <c:pt idx="1"><c:v>12</c:v></c:pt>
+        <c:pt idx="0"><c:v>10.5</c:v></c:pt>
+      </c:numCache></c:val>
+    </c:ser></c:barChart></c:plotArea>
+  </c:chart>
+</c:chartSpace>
+"""
+
+_GRAFICO_SEM_CACHE = """<?xml version="1.0" encoding="UTF-8"?>
+<c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart">
+  <c:chart><c:plotArea><c:barChart><c:ser>
+    <c:tx><c:v>Licencas</c:v></c:tx>
+    <c:val><c:numRef><c:f>Sheet1!$B$2:$B$3</c:f></c:numRef></c:val>
+  </c:ser></c:barChart></c:plotArea></c:chart>
+</c:chartSpace>
+"""
+
+
+def test_pptx_grafico_com_cache_entra_no_indice() -> None:
+    """Número de gráfico mora em c:v. text_frame e a colheita de a:t não o veem."""
+    doc = parse_pptx(_pptx_com_parte("ppt/charts/chart1.xml", _GRAFICO_COM_CACHE), "receita.pptx")
+    blocos = [b for b in doc.blocks if b.locator == "grafico" and "10.5" in b.text]
+    assert len(blocos) == 1
+    texto = blocos[0].text
+    assert "Licencas" in texto
+    assert "Receita VCE" in texto
+    assert texto.index("Jan") < texto.index("Fev")
+    assert "Licencas | Jan | 10.5" in texto
+    assert "Licencas | Fev | 12" in texto
+
+
+def test_pptx_sem_grafico_nao_ganha_bloco_de_grafico() -> None:
+    doc = parse_pptx(bytes_pptx(), "deck.pptx")
+    assert all(b.locator != "grafico" for b in doc.blocks)
+
+
+def test_pptx_grafico_sem_cache_nao_inventa_valor() -> None:
+    doc = parse_pptx(_pptx_com_parte("ppt/charts/chart1.xml", _GRAFICO_SEM_CACHE), "receita.pptx")
+    texto = "\n".join(b.text for b in doc.blocks)
+    assert "10.5" not in texto
+    assert "Sheet1" not in texto
+    assert all("|" not in b.text for b in doc.blocks if b.locator == "grafico")
+
+
 def test_pptx_smartart_entra_no_indice() -> None:
     """Organograma em diagrama: python-pptx não visita `ppt/diagrams` (#83)."""
     doc = parse_pptx(_pptx_com_diagrama(), "Organização_v2.pptx")

@@ -124,9 +124,11 @@ def _finalizar_docx(dados: bytes, nome: str, blocos: list[Block], documento) -> 
             meta["titulo"] = propriedades.title
         if propriedades.author:
             meta["autor"] = propriedades.author
+    from ..raster_ocr import acrescentar_rasters
     from .ooxml_texto import completar
 
     completar(dados, blocos)
+    meta.update(acrescentar_rasters(dados, blocos))
     return ParsedDoc(name=nome, blocks=tuple(blocos), meta=meta)
 
 

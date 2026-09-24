@@ -1,6 +1,9 @@
-# Fila de pacotes. Em 23/09/2026 não há item aberto:
-# todos os blocos abaixo estão entregues. O arquivo permanece
-# porque o validador e os testes conferem a cadeia e a evidência.
+# Fila de pacotes. Em 24/09/2026 GRAFICO-CACHE está em_execucao.
+# Os outros sete da extração canônica seguem proposto.
+# HARDWARE-INICIO é o diagnóstico para qualquer máquina, ainda sem código.
+# IMAGEM-RASTER não começa sem a medição de tempo no contrato.
+# O contrato está em docs/roadmap-extracao-canonica.md.
+# Os blocos entregues permanecem: o validador confere a cadeia e a evidência.
 # ROADMAP.md e o plano fundamental são história e contexto.
 # Evidência de entrega é PR e/ou SHA. A frase "neste PR" não conta.
 
@@ -354,3 +357,110 @@ dependencias = ["CI-PYTEST-UBUNTU"]
 aceite = "as dez regras do Q18 e RUF100 passam em src; tests e eval ignoram ANN/ARG/T201/B007/N801/RET; noqa sem regra ativa sai"
 evidencia = { pr = 123, sha = "2681d7d57a11656cf9149957ebcee81a27335fdd" }
 proxima_acao = ""
+
+[[pacote]]
+id = "GRAFICO-CACHE"
+estado = "em_execucao"
+dono = "notebook"
+paths = [
+    "src/segundocerebro/ingest/parsers/ooxml_texto.py",
+    "src/segundocerebro/ingest/parsers/slides.py",
+    "tests/test_ingest.py",
+    "tests/test_index.py",
+]
+dependencias = []
+aceite = "PPTX sintetico com c:v devolve serie, categoria e valor em locator grafico; arquivo sem chart nao muda; w:del continua de fora; pptx/pptm sobem para parser 3 e ppt para 4"
+evidencia = ""
+proxima_acao = "Ler docs/roadmap-extracao-canonica.md secao GRAFICO-CACHE. Nao marcar em_execucao junto com GRAFICO-EMBED ou IMAGEM-RASTER."
+
+[[pacote]]
+id = "BUSCA-BURACO"
+estado = "proposto"
+dono = "notebook"
+paths = [
+    "src/segundocerebro/mcp/busca.py",
+    "src/segundocerebro/mcp/overview.py",
+    "src/segundocerebro/acesso/overview.py",
+]
+dependencias = []
+aceite = "hit de digesto, placeholder ou vazio traz a limitacao; overview conta ok sem canonico sem abrir o original; a ordem dos ids numa busca sintetica permanece"
+evidencia = ""
+proxima_acao = "Pode seguir em paralelo com GRAFICO-CACHE. Nao alterar peso nem chunker."
+
+[[pacote]]
+id = "GRAFICO-EMBED"
+estado = "proposto"
+dono = "notebook"
+paths = [
+    "src/segundocerebro/ingest/parsers/slides.py",
+    "tests/test_ingest.py",
+]
+dependencias = ["GRAFICO-CACHE"]
+aceite = "chart sem c:v e com xlsx embutido devolve o valor plantado uma vez; chart que ja tem c:v nao duplica"
+evidencia = ""
+proxima_acao = "So depois de GRAFICO-CACHE entregue. Mesmo slides.py: nao sobrepor escritor."
+
+[[pacote]]
+id = "IMAGEM-RASTER"
+estado = "proposto"
+dono = "notebook"
+paths = [
+    "src/segundocerebro/ingest/ocr.py",
+    "src/segundocerebro/ingest/parsers/slides.py",
+    "src/segundocerebro/ingest/parsers/word.py",
+]
+dependencias = ["GRAFICO-EMBED"]
+aceite = "suspenso: CPU mediana 8,8 s e 5,4 h nos 2202; a mesma amostra na 4070 deu mediana 0,85 s e cerca de 31 min, mas o produto nao escolhe a placa. So reabre depois de HARDWARE-INICIO e de um teto por arquivo"
+evidencia = ""
+proxima_acao = "Codigo na branch codex/grafico-cache: OCR de PNG/JPEG so com kernel CUDA, piso 100 px e teto de 2 Mpx. Falta PR, passada --so-extensao e os 431 rasters grandes. Nao abrir segundo escritor em slides.py."
+
+[[pacote]]
+id = "PLANILHA-CELULA"
+estado = "proposto"
+dono = "desktop"
+paths = [
+    "src/segundocerebro/ingest/parsers/sheets.py",
+    "src/segundocerebro/index/esquema.py",
+]
+dependencias = []
+aceite = "aba acima do limiar guarda aba linha coluna e o valor de medida; a contagem de blocos embedaveis continua a do digesto"
+evidencia = ""
+proxima_acao = "Nao emitir um vetor por linha. A tool de leitura e PLANILHA-LEITURA."
+
+[[pacote]]
+id = "PLANILHA-LEITURA"
+estado = "proposto"
+dono = "notebook"
+paths = [
+    "src/segundocerebro/mcp/server.py",
+]
+dependencias = ["PLANILHA-CELULA"]
+aceite = "a leitura devolve o valor plantado com arquivo e locator, e cursor quando excede o orcamento; uma chamada nao devolve a aba inteira"
+evidencia = ""
+proxima_acao = "So depois de PLANILHA-CELULA. Paths de mcp/ novos entram no PR sem segundo escritor em server.py."
+
+[[pacote]]
+id = "CANONICO-BACKFILL"
+estado = "proposto"
+dono = "desktop"
+paths = [
+    "src/segundocerebro/index/cli.py",
+]
+dependencias = []
+aceite = "TXT indexado com store apagado volta a ter canonico sem mudar a contagem de vetores; extensao com parser do registro diferente do codigo nao entra; PPTX nao entra"
+evidencia = ""
+proxima_acao = "O comando pode ser escrito ja. A passada viva espera os bumps de parser e usa so extensao cujo parser gravado ja e o atual."
+
+[[pacote]]
+id = "HARDWARE-INICIO"
+estado = "proposto"
+dono = "desktop"
+paths = [
+    "src/segundocerebro/index/cuda_runtime.py",
+    "src/segundocerebro/index/embeddings.py",
+    "src/segundocerebro/ingest/ocr.py",
+]
+dependencias = []
+aceite = "diagnostico na arranque; OCR e embedding usam CUDA so se um kernel minimo rodou; so-CPU fica em CPU e declara o motivo; hardware injetado, sem pin de uma placa no pyproject"
+evidencia = ""
+proxima_acao = "A sonda de kernel e o sufixo +raster ja estao na branch. Falta o embedding usar a mesma sonda, o teste com hardware injetado nos dois setups, e nao promover o wheel 1.29 nem o pin 1.18."

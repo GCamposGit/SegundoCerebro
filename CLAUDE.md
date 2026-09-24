@@ -63,10 +63,11 @@ consulta. Ver [ARCHITECTURE.md](ARCHITECTURE.md) para as decisões. A fila viva
 
 ## Estado atual
 
-**Em 23/09/2026 a fila não tem pacote aberto.** Tudo o que
-[`docs/pacotes-ativos.toml`](docs/pacotes-ativos.toml) nomeia está `entregue`;
-o último é o `Q18` (PR #123, `2681d7d`). Quem for usar o produto começa por
-[`docs/comecar.md`](docs/comecar.md). A §6 de
+**Em 24/09/2026 `GRAFICO-CACHE` está em execução e os outros sete seguem `proposto`.**
+`IMAGEM-RASTER` não começa sem a medição de tempo de OCR no contrato.
+O contrato está em [`docs/roadmap-extracao-canonica.md`](docs/roadmap-extracao-canonica.md).
+O último entregue continua o `Q18` (PR #123, `2681d7d`). Quem for usar o produto
+começa por [`docs/comecar.md`](docs/comecar.md). A §6 de
 [`docs/colaboracao.md`](docs/colaboracao.md) é o diário dos dois setups.
 
 **F0–F3.6 e a F6 fecharam.** A F6 — primeiro uso em máquina desconhecida —
@@ -128,8 +129,10 @@ ser hipótese: o percurso do leigo tem teste. O Office legado
 
 ## Próximo passo
 
-> **23/09/2026.** Não há pacote aberto. A lista abaixo é o que saiu da fila, com
-> data. Não é trabalho pendente. OCR é o padrão de indexação. A frase antiga
+> **24/09/2026.** `GRAFICO-CACHE` está em execução. Os outros sete seguem
+> `proposto` em [`docs/roadmap-extracao-canonica.md`](docs/roadmap-extracao-canonica.md).
+> `IMAGEM-RASTER` espera medição de tempo. A lista abaixo é o que saiu da fila, com data.
+> Não é trabalho pendente. OCR é o padrão de indexação. A frase antiga
 > "OCR não vira padrão" vale para o ranking medido no `F4-O.3`, não para deixar
 > o scan de fora.
 

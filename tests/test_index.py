@@ -738,8 +738,9 @@ def test_versao_de_parser_vem_do_registro_de_extensoes() -> None:
     assert parser_version_for(".csv") == "2"
     assert parser_version_for(".xlsx") == "2"
     assert parser_version_for(".doc") == parser_version_for(".xls") == "2"
-    assert parser_version_for(".ppt") == "3"
-    assert parser_version_for(".pdf") == parser_version_for(".pptx") == "2"
+    assert parser_version_for(".ppt") == "4"
+    assert parser_version_for(".pptx") == "3"
+    assert parser_version_for(".pdf") == "2"
     assert parser_version_for(".docx") == "2"
     assert parser_version_for(".xyz") == VERSAO_INICIAL, "sem parser é repescado por status"
 

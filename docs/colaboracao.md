@@ -204,11 +204,14 @@ em [`docs/portabilidade-f36.md`](portabilidade-f36.md).
 
 ## 6. O que cada lado faz nesta fase
 
-**Desde 23/09/2026 esta seção não distribui trabalho.** Não há pacote aberto em
-[`pacotes-ativos.toml`](pacotes-ativos.toml). O último entregue é o `Q18`
-(PR #123, `2681d7d`). O texto abaixo é o diário, a partir de 25/08/2026. Não
-reabrir `F4-P`, a varredura de peso de nome por fonte, nem tratar o `Q18` como
-pendente.
+**Desde 24/09/2026 o trabalho aberto está nomeado.** `GRAFICO-CACHE` está em
+execução; os outros sete seguem `proposto` em
+[`pacotes-ativos.toml`](pacotes-ativos.toml). O contrato é
+[`roadmap-extracao-canonica.md`](roadmap-extracao-canonica.md). `IMAGEM-RASTER`
+não começa sem a medição de tempo de OCR. O
+último entregue é o `Q18` (PR #123, `2681d7d`). O texto abaixo é o diário, a
+partir de 25/08/2026. Não reabrir `F4-P`, a varredura de peso de nome por fonte,
+nem tratar o `Q18` como pendente.
 
 **Estado em 25/08/2026, como estava escrito naquele dia.** F1–F3.6 fechadas. F4
 em curso naquela data, e a F6 (primeiro uso leigo) deixou de ser trilha
