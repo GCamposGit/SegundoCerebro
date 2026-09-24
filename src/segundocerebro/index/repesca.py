@@ -149,10 +149,31 @@ def _precisa_indexar(estado, arquivo, model_id: str, parser: str, em_ocr=frozens
     return False
 
 
+EXTENSOES_COM_RASTER = frozenset({".pptx", ".pptm", ".ppt", ".docx", ".docm"})
+
+
+def versao_efetiva(extensao: str) -> str:
+    """Base parser version, plus ``+raster`` when this process can OCR pictures.
+
+    CPU-only machines keep the plain version, so a deck already indexed there
+    is not re-embedded. A machine whose CUDA kernel runs asks for ``+raster``
+    and revisits those extensions once. The suffix is the record that the
+    text may contain picture OCR.
+    """
+    base = parser_version_for(extensao)
+    if extensao.lower() not in EXTENSOES_COM_RASTER:
+        return base
+    from ..ingest.ocr import gpu_para_ocr
+
+    if gpu_para_ocr():
+        return f"{base}+raster"
+    return base
+
+
 def _parser_gravado(resultado: ParseResult, rel: str) -> str:
     if resultado.doc is not None and resultado.doc.meta.get("fonte") == "ocr":
         return resultado.doc.meta.get("parser") or OCR_VERSAO
-    return parser_version_for(os.path.splitext(rel)[1])
+    return versao_efetiva(os.path.splitext(rel)[1])
 
 
 class _AlvoDoMapa(NamedTuple):

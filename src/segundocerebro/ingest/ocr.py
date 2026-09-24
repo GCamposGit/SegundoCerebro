@@ -136,6 +136,66 @@ def _imagens_das_paginas(dados: bytes):  # noqa: ANN202 — retorno concreto viv
 
 
 _rapid: object | None = None
+_gpu_cache: bool | None = None
+_forcar_gpu: bool | None = None
+
+
+def gpu_para_ocr() -> bool:
+    """True only when a CUDA kernel runs. A listed provider is not enough.
+
+    Under pytest the answer is false unless a test sets `_forcar_gpu`, so the
+    suite does not load the OCR models or depend on this machine's card.
+    """
+    global _gpu_cache
+    if _forcar_gpu is not None:
+        return _forcar_gpu
+    if _gpu_cache is not None:
+        return _gpu_cache
+    if os.environ.get("PYTEST_CURRENT_TEST"):
+        _gpu_cache = False
+        return False
+    _gpu_cache = _sondar_cuda()
+    return _gpu_cache
+
+
+def _sondar_cuda() -> bool:
+    """Load one shipped OCR graph on CUDA and run it. cuDNN missing fails here."""
+    from ..index.cuda_runtime import preparar
+
+    preparar()
+    try:
+        import onnxruntime as ort
+    except ImportError:
+        return False
+    if "CUDAExecutionProvider" not in ort.get_available_providers():
+        return False
+    try:
+        import numpy as np
+        from rapidocr_onnxruntime import RapidOCR
+
+        motor = RapidOCR(det_use_cuda=True, cls_use_cuda=True, rec_use_cuda=True)
+        motor(np.zeros((32, 32, 3), dtype=np.uint8))
+    except Exception as erro:  # noqa: BLE001 — probe de hardware: provider listado que não executa
+        log.warning("CUDA anunciado, mas o kernel de OCR não rodou: %s", erro)
+        return False
+    if not _sessoes_em_cuda(motor):
+        log.warning("OCR pediu CUDA e a sessão ficou na CPU. Imagens embutidas não serão lidas.")
+        return False
+    global _rapid
+    _rapid = motor
+    return True
+
+
+def _sessoes_em_cuda(motor: object) -> bool:
+    """A session that only lists CPU ran the probe on the wrong device."""
+    for nome in ("text_det", "text_cls", "text_rec"):
+        modulo = getattr(motor, nome, None)
+        sessao = getattr(getattr(modulo, "session", None), "session", None)
+        if sessao is None:
+            return False
+        if "CUDAExecutionProvider" not in sessao.get_providers():
+            return False
+    return True
 
 
 def _texto_rapidocr(imagem) -> str:  # noqa: ANN001
@@ -143,7 +203,10 @@ def _texto_rapidocr(imagem) -> str:  # noqa: ANN001
     from rapidocr_onnxruntime import RapidOCR
 
     if _rapid is None:
-        _rapid = RapidOCR()
+        cuda = gpu_para_ocr()
+        _rapid = RapidOCR(
+            det_use_cuda=cuda, cls_use_cuda=cuda, rec_use_cuda=cuda,
+        )
     # rapidocr-onnxruntime 1.3–1.4: (linhas, elapsed).
     # linhas = [[box, text, confidence], ...] | None. Pinned by
     # tests/test_ocr_motor.py (marker `ocr`). A v2 of the extra is out of the

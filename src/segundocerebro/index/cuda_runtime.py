@@ -14,6 +14,7 @@ from __future__ import annotations
 import os
 import site
 import subprocess
+import sysconfig
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -86,14 +87,29 @@ class DiagnosticoCuda:
     mensagem: str
 
 
-def pastas_nvidia() -> list[str]:
+def _raizes_de_site() -> list[Path]:
+    """Venv and base prefixes. `getsitepackages()` misses the venv on Windows."""
+    achadas: list[Path] = []
+    puro = sysconfig.get_paths().get("purelib")
+    if puro:
+        achadas.append(Path(puro))
+    for bruto in site.getsitepackages():
+        achadas.append(Path(bruto))
+    vistas: list[Path] = []
+    for caminho in achadas:
+        if caminho not in vistas:
+            vistas.append(caminho)
+    return vistas
+
+
+def pastas_nvidia(raizes: list[Path] | None = None) -> list[str]:
     saida: list[str] = []
-    for raiz in site.getsitepackages():
-        nvidia = Path(raiz) / "nvidia"
+    for raiz in raizes if raizes is not None else _raizes_de_site():
+        nvidia = raiz / "nvidia"
         if not nvidia.is_dir():
             continue
         for binario in nvidia.glob("*/bin"):
-            if binario.is_dir():
+            if binario.is_dir() and str(binario) not in saida:
                 saida.append(str(binario))
     return saida
 
@@ -106,6 +122,12 @@ def preparar() -> None:
     extras = pastas_nvidia()
     if extras:
         os.environ["PATH"] = os.pathsep.join(extras + [os.environ.get("PATH", "")])
+        if hasattr(os, "add_dll_directory"):
+            for pasta in extras:
+                try:
+                    os.add_dll_directory(pasta)
+                except OSError as erro:
+                    log.warning("DLL NVIDIA não entrou no processo (%s): %s", pasta, erro)
         log.info("PATH deste processo += %d pastas nvidia/*/bin", len(extras))
     try:
         import onnxruntime as ort

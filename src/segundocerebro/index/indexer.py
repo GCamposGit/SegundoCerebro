@@ -37,7 +37,7 @@ from ..census import Census, Config, FileEntry, iter_files, relatar_exclusoes
 from ..config import ErroDeConfig, carregar
 from ..ingest.chunking import CHUNKER_VERSION, Chunk, ChunkConfig, chunk_document
 from ..ingest.ocr import VERSAO as OCR_VERSAO
-from ..ingest.parsers import parser_version_for
+from .repesca import versao_efetiva as parser_version_for
 from ..ingest.document import BlockKind, ParseResult, ParseStatus
 from ..ingest.natureza import EXTENSOES_DE_TEXTO_BRUTO
 from .prioridade import ONDAS, montar_trabalho, onda_de
