@@ -1,1 +1,1 @@
-"""MCP tool surface (stdio server)."""
+"""MCP tool surface (stdio, or loopback HTTP with ``--http``)."""

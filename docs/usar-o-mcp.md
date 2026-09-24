@@ -17,10 +17,46 @@ Depois do `pip install`, o servidor sobe sem `PYTHONPATH`:
 py -m segundocerebro.mcp.server --base trabalho
 ```
 
-`PYTHONPATH=src` só cabe num checkout que não foi instalado. O transporte é
-stdio; não há porta de rede. A leitura integral pode consultar originais e
+`PYTHONPATH=src` só cabe num checkout que não foi instalado. O transporte
+padrão é stdio: o cliente sobe um processo e o encerra junto com a sessão.
+A leitura integral pode consultar originais e
 reconstruir o cache dentro do índice, sem modificar o acervo. Sem `config.toml`,
 `--indice index` continua valendo e o servidor se chama `segundocerebro`.
+
+### Um processo para vários agentes
+
+`--http` escuta só em `127.0.0.1`, com token Bearer. Vários agentes desta
+máquina — e, por Tailscale Serve, as outras máquinas da tailnet — usam o mesmo
+processo. O modelo carrega uma vez. A porta não abre na internet.
+
+```bash
+py -m segundocerebro.mcp.server --base trabalho --http
+```
+
+A porta padrão é **18788**. O token fica em `.mcp-http.json`, ao lado do
+`config.toml`, e não entra na URL. O cliente manda `Authorization: Bearer …`.
+Sem o token, ou com `Host` que não seja loopback nem um nome passado em
+`--host-publico`, o servidor recusa. Se o comando achar o `tailscale` no
+`PATH`, o DNSName desta máquina entra sozinho na lista de Host.
+
+Para as outras máquinas da tailnet, na mesma máquina que escuta:
+
+```bash
+tailscale serve --bg --https=443 http://127.0.0.1:18788
+```
+
+O endereço passa a ser `https://<nome>.ts.net/mcp`, só para nós da tailnet.
+`tailscale funnel` publica essa porta na internet; para as suas máquinas o
+comando é `serve`. O mesmo token vale nos dois endereços.
+
+Cada aplicativo registra a URL uma vez, no escopo do usuário:
+
+| Agente | Onde | Campo |
+|---|---|---|
+| Grok | `~/.grok/config.toml` | `url` e `headers` |
+| Claude Code | `claude mcp add --scope user --transport http` | URL e `--header` |
+| Codex | `codex mcp add --url` | `--bearer-token-env-var` |
+| Antigravity | `~/.gemini/config/mcp_config.json` | `serverUrl` e `headers` |
 
 ### Várias bases
 

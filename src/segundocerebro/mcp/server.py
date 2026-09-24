@@ -1,6 +1,7 @@
 """Superfície MCP do Segundo Cérebro — oito ferramentas, nenhuma que gere texto.
 
     py -m segundocerebro.mcp.server --indice index
+    py -m segundocerebro.mcp.server --base trabalho --http
 
 O servidor **recupera e devolve procedência**. Quem gera texto é o cliente, e é
 por isso que o custo marginal por consulta é zero: embedding e busca rodam
@@ -46,6 +47,7 @@ from ..index.store import Store
 from ..logger import get_logger
 from ..retrieve.hybrid import BuscaHibrida
 from .busca import registrar as registrar_busca
+from .http_local import PORTA_PADRAO
 from .leitura import registrar as registrar_leitura
 from .overview import registrar as registrar_overview
 
@@ -189,14 +191,34 @@ def construir(recursos: Recursos) -> MCPServer:
     return servidor
 
 
-def main(argv: list[str] | None = None) -> int:
+def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="segundocerebro.mcp.server")
     parser.add_argument("--base", help="qual base servir (ver config.toml)")
     parser.add_argument("--config", type=Path, help="arquivo de configuração")
     parser.add_argument("--indice", type=Path, help="sobrepõe o índice da base")
     parser.add_argument("--modelo", help="sobrepõe o modelo da base")
     parser.add_argument("--threads", type=int, help="sobrepõe as threads da máquina")
-    args = parser.parse_args(argv)
+    parser.add_argument(
+        "--http",
+        action="store_true",
+        help="escuta em 127.0.0.1 com token, em vez de stdio",
+    )
+    parser.add_argument("--porta", type=int, help=f"porta do --http (padrão: {PORTA_PADRAO})")
+    parser.add_argument(
+        "--token",
+        help="Bearer do --http; sem isto, reutiliza .mcp-http.json ao lado do config",
+    )
+    parser.add_argument(
+        "--host-publico",
+        action="append",
+        default=None,
+        help="hostname adicional aceito no Host, repetível (ex.: o nome MagicDNS)",
+    )
+    return parser
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = _parser().parse_args(argv)
 
     # A flag vence o arquivo, que vence o padrão do código — a ordem declarada
     # em `config.py`. Sem config.toml, a base sintética preserva o que já rodava.
@@ -215,14 +237,26 @@ def main(argv: list[str] | None = None) -> int:
     threads = args.threads if args.threads is not None else cfg.maquina.threads_efetivos()
     log.info("base '%s' (%s) | índice %s", base.id, base.titulo, indice)
 
-    construir(
+    servidor = construir(
         Recursos(
             indice=indice,
             modelo=args.modelo or base.modelo,
             threads=threads,
             base=base,
         )
-    ).run("stdio")
+    )
+    if args.http:
+        from .http_local import correr
+
+        return correr(
+            servidor,
+            porta=args.porta,
+            token=args.token,
+            hosts=list(args.host_publico or []),
+            config=cfg.caminho,
+            indice=indice,
+        )
+    servidor.run("stdio")
     return 0
 
 
