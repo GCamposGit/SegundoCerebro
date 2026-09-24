@@ -249,17 +249,45 @@ def _esperar(porta: int, proc: subprocess.Popen[str], erro: Path) -> None:
 
 
 def _escutando(porta: int) -> list[str]:
-    saida = subprocess.check_output(["netstat", "-ano", "-p", "tcp"], text=True, errors="replace")
+    """Endereços em escuta nesta porta.
+
+    No Linux o CI lê ``/proc/net/tcp``: o ``netstat`` de lá troca coluna e
+    escreve ``LISTEN``, e o parser do Windows devolvia lista vazia. No
+    Windows continua sendo ``netstat -an``.
+    """
+    proc = Path("/proc/net/tcp")
+    if proc.exists():
+        return _do_proc_tcp(proc, porta)
+    return _do_netstat(porta)
+
+
+def _do_proc_tcp(caminho: Path, porta: int) -> list[str]:
+    locais: list[str] = []
+    for linha in caminho.read_text(encoding="utf-8").splitlines()[1:]:
+        partes = linha.split()
+        if len(partes) < 4 or partes[3] != "0A":
+            continue
+        ip_hex, porta_hex = partes[1].split(":")
+        if int(porta_hex, 16) != porta:
+            continue
+        octetos = bytes.fromhex(ip_hex)
+        endereco = ".".join(str(octeto) for octeto in reversed(octetos))
+        locais.append(f"{endereco}:{porta}")
+    return locais
+
+
+def _do_netstat(porta: int) -> list[str]:
+    saida = subprocess.check_output(["netstat", "-an"], text=True, errors="replace")
+    sufixo = f":{porta}"
     locais: list[str] = []
     for linha in saida.splitlines():
-        partes = linha.split()
-        if len(partes) < 4 or partes[0] != "TCP":
+        alta = linha.upper()
+        if "LISTENING" not in alta and "ESCUTANDO" not in alta and "LISTEN" not in alta:
             continue
-        if not partes[1].endswith(f":{porta}"):
-            continue
-        if "LISTENING" not in linha.upper() and "ESCUTANDO" not in linha.upper():
-            continue
-        locais.append(partes[1])
+        for parte in linha.split():
+            if parte.endswith(sufixo):
+                locais.append(parte)
+                break
     return locais
 
 
