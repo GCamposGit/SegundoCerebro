@@ -67,7 +67,7 @@ flowchart LR
         O["Markdown / Obsidian<br/>opcional, futuro"]
     end
 
-    M <-->|"stdio / MCP"| T
+    M <-->|"stdio ou HTTP em loopback / MCP"| T
     T --> R --> I
     V --> I
     D --> I
@@ -682,12 +682,15 @@ O núcleo de recuperação é uma **biblioteca**; MCP é apenas a primeira porta
 entrada. A fase empresarial adiciona uma segunda porta sem reescrever nada:
 
 ```
-                  ┌─ servidor MCP (stdio) ──── uso pessoal, assento
+                  ┌─ servidor MCP (stdio ou HTTP em loopback) ── uso pessoal, assento
 núcleo de         │
 recuperação ──────┤
 (biblioteca)      │
                   └─ serviço HTTP + API key ── uso empresarial, ToS comercial
 ```
+
+O `--http` pessoal permanece em `127.0.0.1`, com um usuário e token Bearer.
+A porta de baixo é a de vários usuários, com API key.
 
 O que muda na fase empresarial:
 

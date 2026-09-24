@@ -43,6 +43,7 @@ config.local.*
 census.toml.*
 config.toml.*
 .painel.json
+.mcp-http.json
 
 # Índices de bases além da padrão (/index/ já está coberto acima)
 /index-*/
