@@ -17,6 +17,7 @@ import os
 import tempfile
 import time
 from collections.abc import Mapping
+from dataclasses import replace
 from pathlib import Path
 
 from ..ingest.converters.libreoffice import EXTENSOES_LEGADO
@@ -143,6 +144,9 @@ def _cauda_stderr(caminho: str) -> str:
 
 
 def _despachar(nome: str, conn, path: str, kwargs: dict, stderr_path: str = "") -> None:  # noqa: ANN001
+    # CUDA no filho aborta o processo e o pai apaga o documento. O OCR de
+    # imagem roda no pai, depois que o texto estruturado já voltou.
+    os.environ["SEGUNDOCEREBRO_SEM_OCR_RASTER"] = "1"
     if stderr_path:
         try:
             _redirigir_stderr(stderr_path)
@@ -255,6 +259,29 @@ def _sem_isolar(path: str, kwargs: dict) -> ParseResult:
         return _erro_de_recurso(path, exc)
 
 
+_EXTENSOES_RASTER = frozenset({".pptx", ".pptm", ".ppt", ".docx", ".docm"})
+
+
+def _raster_no_pai(path: str, resultado: ParseResult) -> ParseResult:
+    """Picture OCR after the child. A failure here keeps the structured text."""
+    if resultado.doc is None or resultado.status is not ParseStatus.OK:
+        return resultado
+    if os.path.splitext(path)[1].lower() not in _EXTENSOES_RASTER:
+        return resultado
+    from ..ingest.raster_ocr import acrescentar_rasters
+
+    try:
+        dados = Path(path).read_bytes()
+        blocos = list(resultado.doc.blocks)
+        meta = dict(resultado.doc.meta)
+        meta.update(acrescentar_rasters(dados, blocos))
+    except OSError as erro:
+        log.warning("OCR de imagem no pai não abriu %s: %s", path, erro)
+        return resultado
+    doc = replace(resultado.doc, blocks=tuple(blocos), meta=meta)
+    return replace(resultado, doc=doc)
+
+
 def parse_isolado(
     path: str,
     *,
@@ -349,7 +376,7 @@ def parse_isolado(
         return ParseResult(path=path, status=ParseStatus.ERROR, detail=detalhe)
 
     if resultado is not None:
-        return resultado
+        return _raster_no_pai(path, resultado)
 
     sinal = proc.exitcode
     detalhe = _detalhe_com_stderr(f"subprocesso morreu (código {sinal})", cauda)

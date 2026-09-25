@@ -186,14 +186,21 @@ def _sondar_cuda() -> bool:
     return True
 
 
+def _sessao_de(modulo: object) -> object | None:
+    """Detector keeps the engine on ``infer``; recognizer keeps it on ``session``."""
+    for nome in ("session", "infer"):
+        recipiente = getattr(modulo, nome, None)
+        sessao = getattr(recipiente, "session", None)
+        if sessao is not None and hasattr(sessao, "get_providers"):
+            return sessao
+    return None
+
+
 def _sessoes_em_cuda(motor: object) -> bool:
     """A session that only lists CPU ran the probe on the wrong device."""
     for nome in ("text_det", "text_cls", "text_rec"):
-        modulo = getattr(motor, nome, None)
-        sessao = getattr(getattr(modulo, "session", None), "session", None)
-        if sessao is None:
-            return False
-        if "CUDAExecutionProvider" not in sessao.get_providers():
+        sessao = _sessao_de(getattr(motor, nome, None))
+        if sessao is None or "CUDAExecutionProvider" not in sessao.get_providers():
             return False
     return True
 

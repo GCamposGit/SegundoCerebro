@@ -10,6 +10,7 @@ emitted.
 from __future__ import annotations
 
 import io
+import os
 import zipfile
 from pathlib import Path
 
@@ -80,7 +81,14 @@ def _motor() -> object | None:
 
 
 def acrescentar_rasters(dados: bytes, blocos: list[Block]) -> dict[str, str]:
-    """Append picture text. Returns meta; never removes blocks already present."""
+    """Append picture text. Returns meta; never removes blocks already present.
+
+    The isolated parse child sets ``SEGUNDOCEREBRO_SEM_OCR_RASTER``. Loading
+    CUDA there aborted the process and the parent then deleted the document.
+    The parent applies this function after the child returns.
+    """
+    if os.environ.get("SEGUNDOCEREBRO_SEM_OCR_RASTER") == "1":
+        return {}
     if not dados.startswith(b"PK"):
         return {}
     nomes, ignorados = _partes(dados)
