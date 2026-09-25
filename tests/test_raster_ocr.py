@@ -104,6 +104,39 @@ def test_icone_nao_chama_o_motor(motor: list[int]) -> None:
     assert motor == []
 
 
+def test_filho_nao_dispara_ocr_de_imagem(monkeypatch) -> None:
+    """O subprocesso não carrega CUDA. Sem isso a apresentação grande morre e sai do índice."""
+    monkeypatch.setenv("SEGUNDOCEREBRO_SEM_OCR_RASTER", "1")
+    monkeypatch.setattr(ocr, "motor_imagem", lambda _img: "SCAN-VCE-001")
+    monkeypatch.setattr(ocr, "_forcar_gpu", True)
+    meta = acrescentar_rasters(_zip_com("ppt/media/figura.png", _png(320, 180)), [])
+    assert meta == {}
+    ocr.motor_imagem = None
+    ocr._forcar_gpu = None
+
+
+def test_pai_acrescenta_o_raster_depois_do_filho(tmp_path, monkeypatch) -> None:
+    from segundocerebro.ingest.document import ParseResult, ParseStatus
+    from segundocerebro.index.isolamento import _raster_no_pai
+
+    monkeypatch.setenv("SEGUNDOCEREBRO_SEM_OCR_RASTER", "1")
+    doc = parse_pptx(_zip_com("ppt/media/figura.png", _png(320, 180)), "deck.pptx")
+    assert all(b.locator != "imagem" for b in doc.blocks)
+    caminho = tmp_path / "deck.pptx"
+    caminho.write_bytes(_zip_com("ppt/media/figura.png", _png(320, 180)))
+    monkeypatch.delenv("SEGUNDOCEREBRO_SEM_OCR_RASTER")
+    monkeypatch.setattr(ocr, "motor_imagem", lambda _img: "SCAN-VCE-001")
+    monkeypatch.setattr(ocr, "_forcar_gpu", True)
+    saida = _raster_no_pai(
+        str(caminho),
+        ParseResult(path=str(caminho), status=ParseStatus.OK, doc=doc),
+    )
+    assert saida.doc is not None
+    assert any(b.locator == "imagem" and b.text == "SCAN-VCE-001" for b in saida.doc.blocks)
+    ocr.motor_imagem = None
+    ocr._forcar_gpu = None
+
+
 def test_sem_gpu_nao_chama_o_motor(monkeypatch) -> None:
     chamadas: list[int] = []
     monkeypatch.setattr(ocr, "motor_imagem", None)

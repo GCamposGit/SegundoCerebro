@@ -184,6 +184,9 @@ def aplicar_provider(provider: str | None) -> str:
 
     Quem só precisa saber a resposta chama `resolver_provider`, que não escreve.
     """
+    # DLLs da venv têm de entrar antes do primeiro import do onnxruntime.
+    # Sem isso o provider CUDA já nasce sem cuDNN e o OCR cai na CPU.
+    preparar()
     p = resolver_provider(provider)
     # Publica o provedor efetivo (arquivo, env ou auto-CUDA) para os filhos de
     # embed herdarem. Env já preenchido continua mandando.
