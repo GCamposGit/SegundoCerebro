@@ -144,8 +144,6 @@ def test_fila_real_carrega_sem_erro() -> None:
     assert (REPO / "docs" / "fnd-01b-identidade-interna.md").is_file()
     abertos = [p for p in pacotes if p.estado in {"proposto", "pronto", "em_execucao", "bloqueado"}]
     assert {p.id for p in abertos} == {
-        "GRAFICO-CACHE",
-        "BUSCA-BURACO",
         "GRAFICO-EMBED",
         "IMAGEM-RASTER",
         "PLANILHA-CELULA",
@@ -153,13 +151,13 @@ def test_fila_real_carrega_sem_erro() -> None:
         "CANONICO-BACKFILL",
         "HARDWARE-INICIO",
     }
-    assert por_id["GRAFICO-CACHE"].estado == "em_execucao"
-    assert por_id["BUSCA-BURACO"].estado == "em_execucao"
-    assert all(
-        p.estado == "proposto"
-        for p in abertos
-        if p.id not in {"GRAFICO-CACHE", "BUSCA-BURACO"}
-    )
+    assert por_id["GRAFICO-CACHE"].estado == "entregue"
+    assert por_id["GRAFICO-CACHE"].evidencia["pr"] == 126
+    assert por_id["GRAFICO-CACHE"].evidencia["sha"] == "76463036ea118d01b6c595e10e434172ed5a8be0"
+    assert por_id["BUSCA-BURACO"].estado == "entregue"
+    assert por_id["BUSCA-BURACO"].evidencia["pr"] == 128
+    assert por_id["BUSCA-BURACO"].evidencia["sha"] == "562b6828973c3d675c8cb1c97a8146af5bfbfe0b"
+    assert all(p.estado == "proposto" for p in abertos)
     assert por_id["Q18"].estado == "entregue"
     assert por_id["Q18"].evidencia["pr"] == 123
     assert por_id["Q18"].evidencia["sha"] == "2681d7d57a11656cf9149957ebcee81a27335fdd"

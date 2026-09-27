@@ -63,10 +63,10 @@ consulta. Ver [ARCHITECTURE.md](ARCHITECTURE.md) para as decisões. A fila viva
 
 ## Estado atual
 
-**Em 24/09/2026 `GRAFICO-CACHE` entrou no main pelo PR #126 e `BUSCA-BURACO` está em execução. Os outros seis seguem `proposto`.**
+**Em 28/09/2026 `GRAFICO-CACHE` foi entregue no PR #126 e `BUSCA-BURACO` no PR #128. Os outros seis seguem `proposto`.**
 `IMAGEM-RASTER` não começa sem a medição de tempo de OCR no contrato.
 O contrato está em [`docs/roadmap-extracao-canonica.md`](docs/roadmap-extracao-canonica.md).
-O último entregue continua o `Q18` (PR #123, `2681d7d`). Quem for usar o produto
+A última entrega é `BUSCA-BURACO` (PR #128, `562b682`). Quem for usar o produto
 começa por [`docs/comecar.md`](docs/comecar.md). A §6 de
 [`docs/colaboracao.md`](docs/colaboracao.md) é o diário dos dois setups.
 
@@ -129,9 +129,9 @@ ser hipótese: o percurso do leigo tem teste. O Office legado
 
 ## Próximo passo
 
-> **24/09/2026.** `GRAFICO-CACHE` entrou no main pelo PR #126. `BUSCA-BURACO` está em
-> execução na branch `codex/busca-buraco`. Os outros seis seguem `proposto`
-> em [`docs/roadmap-extracao-canonica.md`](docs/roadmap-extracao-canonica.md).
+> **28/09/2026.** `GRAFICO-CACHE` foi entregue no PR #126; `BUSCA-BURACO`, no PR #128.
+> `GRAFICO-EMBED` é o próximo ticket, agora que sua dependência está entregue.
+> Os outros seis seguem `proposto` em [`docs/roadmap-extracao-canonica.md`](docs/roadmap-extracao-canonica.md).
 > `IMAGEM-RASTER` espera medição de tempo. A lista abaixo é o que saiu da fila, com data.
 > Não é trabalho pendente. OCR é o padrão de indexação. A frase antiga
 > "OCR não vira padrão" vale para o ranking medido no `F4-O.3`, não para deixar

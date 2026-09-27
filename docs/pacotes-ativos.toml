@@ -1,5 +1,5 @@
-# Fila de pacotes. Em 24/09/2026 GRAFICO-CACHE está em_execucao.
-# Os outros sete da extração canônica seguem proposto.
+# Fila de pacotes. Em 28/09/2026 GRAFICO-CACHE (#126) e BUSCA-BURACO (#128) foram entregues.
+# Os outros seis da extração canônica seguem proposto.
 # HARDWARE-INICIO é o diagnóstico para qualquer máquina, ainda sem código.
 # IMAGEM-RASTER não começa sem a medição de tempo no contrato.
 # O contrato está em docs/roadmap-extracao-canonica.md.
@@ -360,34 +360,41 @@ proxima_acao = ""
 
 [[pacote]]
 id = "GRAFICO-CACHE"
-estado = "em_execucao"
+estado = "entregue"
 dono = "notebook"
 paths = [
     "src/segundocerebro/ingest/parsers/ooxml_texto.py",
     "src/segundocerebro/ingest/parsers/slides.py",
     "tests/test_ingest.py",
     "tests/test_index.py",
+    "tests/test_pacotes_ativos.py",
+    "docs/roadmap-extracao-canonica.md",
+    "docs/pacotes-ativos.toml",
 ]
 dependencias = []
 aceite = "PPTX sintetico com c:v devolve serie, categoria e valor em locator grafico; arquivo sem chart nao muda; w:del continua de fora; pptx/pptm sobem para parser 3 e ppt para 4"
-evidencia = ""
-proxima_acao = "Ler docs/roadmap-extracao-canonica.md secao GRAFICO-CACHE. Nao marcar em_execucao junto com GRAFICO-EMBED ou IMAGEM-RASTER."
+evidencia = { pr = 126, sha = "76463036ea118d01b6c595e10e434172ed5a8be0" }
+proxima_acao = ""
 
 [[pacote]]
 id = "BUSCA-BURACO"
-estado = "em_execucao"
+estado = "entregue"
 dono = "notebook"
 paths = [
+    "CLAUDE.md",
+    "docs/pacotes-ativos.toml",
+    "docs/roadmap-extracao-canonica.md",
     "src/segundocerebro/mcp/busca.py",
     "src/segundocerebro/mcp/overview.py",
     "src/segundocerebro/acesso/overview.py",
     "src/segundocerebro/ingest/parse_cache.py",
     "tests/test_busca_buraco.py",
+    "tests/test_pacotes_ativos.py",
 ]
 dependencias = []
 aceite = "hit de digesto, placeholder ou vazio traz a limitacao; overview conta ok sem canonico sem abrir o original; a ordem dos ids numa busca sintetica permanece"
-evidencia = ""
-proxima_acao = "Branch codex/busca-buraco. Nao alterar peso, chunker nem slides.py."
+evidencia = { pr = 128, sha = "562b6828973c3d675c8cb1c97a8146af5bfbfe0b" }
+proxima_acao = ""
 
 [[pacote]]
 id = "GRAFICO-EMBED"
