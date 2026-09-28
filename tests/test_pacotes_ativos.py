@@ -154,8 +154,11 @@ def test_fila_real_carrega_sem_erro() -> None:
         "HARDWARE-INICIO",
     }
     assert por_id["GRAFICO-CACHE"].estado == "em_execucao"
+    assert por_id["BUSCA-BURACO"].estado == "em_execucao"
     assert all(
-        p.estado == "proposto" for p in abertos if p.id != "GRAFICO-CACHE"
+        p.estado == "proposto"
+        for p in abertos
+        if p.id not in {"GRAFICO-CACHE", "BUSCA-BURACO"}
     )
     assert por_id["Q18"].estado == "entregue"
     assert por_id["Q18"].evidencia["pr"] == 123

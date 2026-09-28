@@ -375,17 +375,19 @@ proxima_acao = "Ler docs/roadmap-extracao-canonica.md secao GRAFICO-CACHE. Nao m
 
 [[pacote]]
 id = "BUSCA-BURACO"
-estado = "proposto"
+estado = "em_execucao"
 dono = "notebook"
 paths = [
     "src/segundocerebro/mcp/busca.py",
     "src/segundocerebro/mcp/overview.py",
     "src/segundocerebro/acesso/overview.py",
+    "src/segundocerebro/ingest/parse_cache.py",
+    "tests/test_busca_buraco.py",
 ]
 dependencias = []
 aceite = "hit de digesto, placeholder ou vazio traz a limitacao; overview conta ok sem canonico sem abrir o original; a ordem dos ids numa busca sintetica permanece"
 evidencia = ""
-proxima_acao = "Pode seguir em paralelo com GRAFICO-CACHE. Nao alterar peso nem chunker."
+proxima_acao = "Branch codex/busca-buraco. Nao alterar peso, chunker nem slides.py."
 
 [[pacote]]
 id = "GRAFICO-EMBED"

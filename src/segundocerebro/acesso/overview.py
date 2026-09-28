@@ -14,6 +14,7 @@ from __future__ import annotations
 
 import sqlite3
 from datetime import datetime, timezone
+from pathlib import Path
 from typing import Any
 
 from ..index.store import Store
@@ -73,6 +74,27 @@ def _distribuicao_formatos_e_pastas(
     return top_formatos, top_pastas
 
 
+def contar_ok_sem_canonico(store: Store) -> int:
+    """Documentos `ok` cuja chave atual não acha arquivo no Parse Store.
+
+    A chave é a do código de agora, não a versão gravada na linha. Documento
+    sem hash também entra: sem hash não há chave. Não abre o original.
+    """
+    from ..ingest.parse_cache import tem_entrada_atual
+
+    faltam = 0
+    indice = store.diretorio
+    for row in store.con.execute(
+        "SELECT path, sha256, parser FROM documentos WHERE status = 'ok'"
+    ):
+        ocr = str(row["parser"] or "").startswith("ocr:")
+        extensao = Path(str(row["path"])).suffix.lower()
+        sha = str(row["sha256"] or "")
+        if not tem_entrada_atual(indice, sha, extensao, ocr=ocr):
+            faltam += 1
+    return faltam
+
+
 def resumo_base(store: Store, base_id: str = "") -> dict[str, Any]:
     """Gera o resumo estruturado dos documentos presentes no registro."""
     cur = store.con.execute(
@@ -118,6 +140,7 @@ def resumo_base(store: Store, base_id: str = "") -> dict[str, Any]:
             "erro": erro,
             "quarentena": _contar_quarentena(store),
             "taxa_indexacao": taxa,
+            "ok_sem_canonico": contar_ok_sem_canonico(store),
         },
         "formatos": top_formatos,
         "pastas_raiz": top_pastas,

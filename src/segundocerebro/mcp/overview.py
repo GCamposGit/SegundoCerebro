@@ -13,7 +13,9 @@ DESCRICAO_OVERVIEW = (
     "Panorama estatístico da base de conhecimento: total de documentos e trechos indexados, "
     "período coberto (datas mais antiga e mais recente), formatos mais comuns, pastas "
     "principais, taxa de sucesso da indexação e documentos digitalizados pendentes de OCR. "
-    "Use no início de uma sessão para orientar o plano de busca ou leitura da base."
+    "Use no início de uma sessão para orientar o plano de busca ou leitura da base. "
+    "`status.ok_sem_canonico` conta documentos ok cuja chave atual não acha canônico "
+    "no índice. Esse número não autoriza abrir o original."
 )
 
 

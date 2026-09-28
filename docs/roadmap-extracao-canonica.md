@@ -1,7 +1,9 @@
 # Extração canônica, gráficos e imagens
 
-**24/09/2026.** `GRAFICO-CACHE` está em execução na branch `codex/grafico-cache`.
-Os outros sete seguem propostos. `IMAGEM-RASTER` continua bloqueado. A escolha
+**24/09/2026.** `GRAFICO-CACHE` entrou no main pelo PR #126 (`cad5501`). A passada que
+grava `+raster` é operacional e não abre outro escritor em `slides.py`.
+`BUSCA-BURACO` está em execução na branch `codex/busca-buraco`. Os outros
+seis seguem propostos. `IMAGEM-RASTER` continua bloqueado. A escolha
 de CPU ou GPU em máquina desconhecida é `HARDWARE-INICIO`, ainda sem código. O ticket que um agente pega
 é o bloco `[[pacote]]` em [`pacotes-ativos.toml`](pacotes-ativos.toml); este
 arquivo é o contrato. [`ROADMAP.md`](../ROADMAP.md) continua história.
@@ -13,9 +15,10 @@ depois do merge, com `--so-extensao`, nunca reindexação da árvore inteira.
 
 ## Como pegar um ticket
 
-1. Escolha o primeiro da ordem cujo `dependencias` já está `entregue`. Hoje o
-   único sem dependência de código que destrava o sintoma de gráfico é
-   `GRAFICO-CACHE`. `BUSCA-BURACO` pode andar em paralelo: não toca parser.
+1. Escolha o primeiro da ordem cujo `dependencias` já está `entregue` e cujo
+   path não tem outro escritor. `GRAFICO-CACHE` já está no `main`. `BUSCA-BURACO`
+   está em execução e não toca parser. O próximo sem dependência de código e
+   sem `slides.py` é `PLANILHA-CELULA` (desktop) ou `CANONICO-BACKFILL` (desktop).
 2. No máximo um pacote `em_execucao` por path. `GRAFICO-CACHE`,
    `GRAFICO-EMBED` e `IMAGEM-RASTER` dividem `slides.py`. Não marque dois como
    `pronto` ou `em_execucao` ao mesmo tempo.
