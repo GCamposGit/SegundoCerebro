@@ -52,6 +52,26 @@ def _candidatas(sha256: str, extensao: str, *, ocr: bool) -> tuple[Chave, ...]:
     return tuple(chaves)
 
 
+def tem_entrada_atual(
+    indice: Path, sha256: str, extensao: str, *, ocr: bool = False
+) -> bool:
+    """A chave que o código usaria agora aponta para um arquivo do store.
+
+    Só faz stat no índice. Não abre o original e não decodifica o canônico:
+    decodificar apaga entrada ilegível, e o panorama é contagem só de leitura.
+    """
+    if not sha256:
+        return False
+    store = ParseStore(indice)
+    for chave in _candidatas(sha256, extensao, ocr=ocr):
+        try:
+            if store.caminho(chave).is_file():
+                return True
+        except OSError:
+            continue
+    return False
+
+
 def _nativo_superado_por_libreoffice(
     chave: Chave,
     *,
