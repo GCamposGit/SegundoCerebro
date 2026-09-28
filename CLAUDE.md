@@ -63,7 +63,7 @@ consulta. Ver [ARCHITECTURE.md](ARCHITECTURE.md) para as decisões. A fila viva
 
 ## Estado atual
 
-**Em 28/09/2026 `GRAFICO-CACHE` foi entregue no PR #126 e `BUSCA-BURACO` no PR #128. Os outros seis seguem `proposto`.**
+**Em 28/09/2026 `GRAFICO-CACHE` foi entregue no PR #126, `BUSCA-BURACO` no PR #128 e `GRAFICO-EMBED` está em execução na branch `codex/grafico-embed`. Os outros cinco seguem `proposto`.**
 `IMAGEM-RASTER` não começa sem a medição de tempo de OCR no contrato.
 O contrato está em [`docs/roadmap-extracao-canonica.md`](docs/roadmap-extracao-canonica.md).
 A última entrega é `BUSCA-BURACO` (PR #128, `562b682`). Quem for usar o produto
@@ -130,8 +130,8 @@ ser hipótese: o percurso do leigo tem teste. O Office legado
 ## Próximo passo
 
 > **28/09/2026.** `GRAFICO-CACHE` foi entregue no PR #126; `BUSCA-BURACO`, no PR #128.
-> `GRAFICO-EMBED` é o próximo ticket, agora que sua dependência está entregue.
-> Os outros seis seguem `proposto` em [`docs/roadmap-extracao-canonica.md`](docs/roadmap-extracao-canonica.md).
+> `GRAFICO-EMBED` está em execução na branch `codex/grafico-embed`, após a entrega da dependência.
+> Os outros cinco seguem `proposto` em [`docs/roadmap-extracao-canonica.md`](docs/roadmap-extracao-canonica.md).
 > `IMAGEM-RASTER` espera medição de tempo. A lista abaixo é o que saiu da fila, com data.
 > Não é trabalho pendente. OCR é o padrão de indexação. A frase antiga
 > "OCR não vira padrão" vale para o ranking medido no `F4-O.3`, não para deixar

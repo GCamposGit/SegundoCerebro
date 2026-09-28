@@ -182,7 +182,9 @@ def _texto_do_grafico(raiz: ET.Element) -> str:
     return "\n".join(linhas)
 
 
-def blocos_de_embeddings(dados: bytes, ja_extraido: str) -> list[Block]:
+def blocos_de_embeddings(
+    dados: bytes, ja_extraido: str, meta: dict[str, str] | None = None
+) -> list[Block]:
     """Chart workbook embedded in the package, when the cache did not keep it.
 
     A chart with only `c:f` stores the grid under `embeddings/*.xlsx`. Lines
@@ -202,7 +204,7 @@ def blocos_de_embeddings(dados: bytes, ja_extraido: str) -> list[Block]:
             if "/embeddings/" in n.replace("\\", "/").lower() and n.lower().endswith(".xlsx")
         )
         for nome in nomes:
-            bloco = _bloco_da_planilha(pacote, nome, coberto)
+            bloco = _bloco_da_planilha(pacote, nome, coberto, meta)
             if bloco is None:
                 continue
             blocos.append(bloco)
@@ -210,13 +212,32 @@ def blocos_de_embeddings(dados: bytes, ja_extraido: str) -> list[Block]:
     return blocos
 
 
-def _bloco_da_planilha(pacote: zipfile.ZipFile, nome: str, coberto: str) -> Block | None:
+def _mesclar_meta_embutida(destino: dict[str, str], origem: dict[str, str]) -> None:
+    """Preserve sheet limitations so document overview can expose them."""
+    for chave in ("abas_em_digesto", "digesto_parcial", "truncadas", "sem_valor_em_cache", "aviso"):
+        valor = origem.get(chave)
+        if not valor:
+            continue
+        partes = [
+            parte
+            for texto in (destino.get(chave, ""), valor)
+            for parte in texto.split("; ")
+            if parte
+        ]
+        destino[chave] = "; ".join(dict.fromkeys(partes))
+
+
+def _bloco_da_planilha(
+    pacote: zipfile.ZipFile, nome: str, coberto: str, meta: dict[str, str] | None
+) -> Block | None:
     from .sheets import parse_xlsx
 
     try:
         doc = parse_xlsx(pacote.read(nome), nome.replace("\\", "/").rsplit("/", 1)[-1])
     except (OSError, zipfile.BadZipFile):
         return None
+    if meta is not None:
+        _mesclar_meta_embutida(meta, doc.meta)
     linhas: list[str] = []
     for bloco in doc.blocks:
         for linha in bloco.text.splitlines():

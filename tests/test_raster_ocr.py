@@ -209,8 +209,8 @@ def test_planilha_embutida_nao_repete_valor_do_cache() -> None:
 
 def test_versao_efetiva_so_marca_raster_com_gpu(monkeypatch) -> None:
     monkeypatch.setattr(ocr, "gpu_para_ocr", lambda: False)
-    assert versao_efetiva(".pptx") == "3"
+    assert versao_efetiva(".pptx") == "4"
     assert versao_efetiva(".docx") == "2"
     monkeypatch.setattr(ocr, "gpu_para_ocr", lambda: True)
-    assert versao_efetiva(".pptx") == "3+raster"
+    assert versao_efetiva(".pptx") == "4+raster"
     assert versao_efetiva(".pdf") == "2"

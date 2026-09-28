@@ -19,7 +19,7 @@ import pytest
 
 from segundocerebro.ingest import reader as reader_mod
 from segundocerebro.ingest.document import BlockKind, ParseStatus
-from segundocerebro.ingest.parsers import parser_for, supported_extensions
+from segundocerebro.ingest.parsers import parser_for, parser_version_for, supported_extensions
 from segundocerebro.ingest.parsers.pdf import parse_pdf
 from segundocerebro.ingest.parsers.sheets import parse_csv, parse_xls, parse_xlsx
 from segundocerebro.ingest.parsers.slides import parse_ppt, parse_pptx
@@ -73,6 +73,20 @@ def bytes_xlsx(linhas: int = 70) -> bytes:
     aba.append(["Usuário", "Área", "Licença"])
     for i in range(linhas):
         aba.append([f"pessoa{i}", "Inovação", "Copilot M365"])
+    buf = io.BytesIO()
+    livro.save(buf)
+    return buf.getvalue()
+
+
+def bytes_xlsx_grafico() -> bytes:
+    import openpyxl
+
+    livro = openpyxl.Workbook()
+    aba = livro.active
+    aba.title = "Sheet1"
+    aba.append(["Categoria", "Licencas"])
+    aba.append(["Jan", 10.5])
+    aba.append(["Fev", 12])
     buf = io.BytesIO()
     livro.save(buf)
     return buf.getvalue()
@@ -865,9 +879,32 @@ def _pptx_com_parte(nome: str, xml: str) -> bytes:
     return buf.getvalue()
 
 
+def _pptx_com_grafico_e_embedding(chart_xml: str, workbook: bytes) -> bytes:
+    import zipfile
+
+    base = bytes_pptx()
+    buf = io.BytesIO()
+    with zipfile.ZipFile(io.BytesIO(base), "r") as origem, zipfile.ZipFile(buf, "w") as destino:
+        for item in origem.infolist():
+            destino.writestr(item, origem.read(item.filename))
+        destino.writestr("ppt/charts/chart1.xml", chart_xml)
+        destino.writestr(
+            "ppt/charts/_rels/chart1.xml.rels",
+            """<?xml version="1.0" encoding="UTF-8"?>
+<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">
+  <Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/package"
+    Target="../embeddings/Microsoft_Excel_Worksheet1.xlsx"/>
+</Relationships>
+""",
+        )
+        destino.writestr("ppt/embeddings/Microsoft_Excel_Worksheet1.xlsx", workbook)
+    return buf.getvalue()
+
+
 _GRAFICO_COM_CACHE = """<?xml version="1.0" encoding="UTF-8"?>
 <c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart"
-              xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main">
+              xmlns:a="http://schemas.openxmlformats.org/drawingml/2006/main"
+              xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
   <c:chart>
     <c:title><c:tx><c:rich><a:p><a:r><a:t>Receita VCE</a:t></a:r></a:p></c:rich></c:tx></c:title>
     <c:plotArea><c:barChart><c:ser>
@@ -882,15 +919,18 @@ _GRAFICO_COM_CACHE = """<?xml version="1.0" encoding="UTF-8"?>
       </c:numCache></c:val>
     </c:ser></c:barChart></c:plotArea>
   </c:chart>
+  <c:externalData r:id="rId1"><c:autoUpdate val="0"/></c:externalData>
 </c:chartSpace>
 """
 
 _GRAFICO_SEM_CACHE = """<?xml version="1.0" encoding="UTF-8"?>
-<c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart">
+<c:chartSpace xmlns:c="http://schemas.openxmlformats.org/drawingml/2006/chart"
+              xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">
   <c:chart><c:plotArea><c:barChart><c:ser>
     <c:tx><c:v>Licencas</c:v></c:tx>
     <c:val><c:numRef><c:f>Sheet1!$B$2:$B$3</c:f></c:numRef></c:val>
   </c:ser></c:barChart></c:plotArea></c:chart>
+  <c:externalData r:id="rId1"><c:autoUpdate val="0"/></c:externalData>
 </c:chartSpace>
 """
 
@@ -919,6 +959,41 @@ def test_pptx_grafico_sem_cache_nao_inventa_valor() -> None:
     assert "10.5" not in texto
     assert "Sheet1" not in texto
     assert all("|" not in b.text for b in doc.blocks if b.locator == "grafico")
+
+
+def test_pptx_grafico_sem_cache_le_xlsx_embutido() -> None:
+    doc = parse_pptx(
+        _pptx_com_grafico_e_embedding(_GRAFICO_SEM_CACHE, bytes_xlsx_grafico()),
+        "receita.pptx",
+    )
+
+    assert sum(bloco.text.count("10.5") for bloco in doc.blocks) == 1
+    assert any(bloco.locator == "grafico" and "10.5" in bloco.text for bloco in doc.blocks)
+
+
+def test_pptx_grafico_com_cache_nao_duplica_valor_do_xlsx_embutido() -> None:
+    doc = parse_pptx(
+        _pptx_com_grafico_e_embedding(_GRAFICO_COM_CACHE, bytes_xlsx_grafico()),
+        "receita.pptx",
+    )
+
+    assert sum(bloco.text.count("10.5") for bloco in doc.blocks) == 1
+
+
+def test_pptx_xlsx_embutido_preserva_aviso_de_digesto() -> None:
+    doc = parse_pptx(
+        _pptx_com_grafico_e_embedding(_GRAFICO_SEM_CACHE, bytes_xlsx_enorme(9000)),
+        "receita.pptx",
+    )
+
+    assert doc.meta.get("abas_em_digesto") == "Export"
+    assert "Export!B" in doc.meta.get("digesto_parcial", "")
+
+
+def test_pptx_parser_version_refresca_meta_do_xlsx_embutido() -> None:
+    assert parser_version_for(".pptx") == "4"
+    assert parser_version_for(".pptm") == "4"
+    assert parser_version_for(".ppt") == "5"
 
 
 def test_pptx_smartart_entra_no_indice() -> None:
