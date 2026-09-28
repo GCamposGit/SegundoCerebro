@@ -1,7 +1,7 @@
 # Extração canônica, gráficos e imagens
 
 **28/09/2026.** `GRAFICO-CACHE` foi entregue no PR #126 (commit `7646303`).
-`BUSCA-BURACO` foi entregue no PR #128 (merge `562b682`). `GRAFICO-EMBED` está em execução na branch `codex/grafico-embed`; os outros cinco seguem propostos.
+`BUSCA-BURACO` foi entregue no PR #128 (merge `562b682`). `GRAFICO-EMBED` foi entregue no PR #130 (merge `83397b5`). Os outros cinco seguem propostos.
 `IMAGEM-RASTER` continua bloqueado. A escolha
 de CPU ou GPU em máquina desconhecida é `HARDWARE-INICIO`, ainda sem código. O ticket que um agente pega
 é o bloco `[[pacote]]` em [`pacotes-ativos.toml`](pacotes-ativos.toml); este
@@ -16,7 +16,7 @@ depois do merge, com `--so-extensao`, nunca reindexação da árvore inteira.
 
 1. Escolha o primeiro da ordem cujo `dependencias` já está `entregue` e cujo
    path não tem outro escritor. `GRAFICO-CACHE` está entregue. `BUSCA-BURACO`
-   também está entregue e não toca parser. `GRAFICO-EMBED` está em execução na branch `codex/grafico-embed`.
+   também está entregue e não toca parser. `GRAFICO-EMBED` está entregue no PR #130.
 2. No máximo um pacote `em_execucao` por path. `GRAFICO-EMBED` e
    `IMAGEM-RASTER` dividem `slides.py`; não marque ambos como `pronto` ou
    `em_execucao` ao mesmo tempo.
@@ -84,7 +84,7 @@ buraco novo é o PPTX. Coluna de medida em aba grande continua de fora do
 |---|---|---|---|
 | 1 | `GRAFICO-CACHE` | entregue no PR #126 | O número do gráfico nativo entra no texto |
 | 1 | `BUSCA-BURACO` | entregue no PR #128 | A busca declara quando o índice não representa o documento completo |
-| 2 | `GRAFICO-EMBED` | em execução na branch `codex/grafico-embed` | Chart sem `c:v`, lendo o xlsx embutido e preservando o aviso de digesto |
+| 2 | `GRAFICO-EMBED` | entregue no PR #130 (`83397b5`) | Chart sem `c:v`, lendo o xlsx embutido e preservando o aviso de digesto |
 | — | `HARDWARE-INICIO` | proposto, antes de ligar OCR na placa | Diagnóstico na arranque e dispositivo por etapa, sem pin desta máquina |
 | 3 | `IMAGEM-RASTER` | bloqueado | Na CPU, 5,4 h. Na 4070, cerca de 31 min para os 2.202 rasters, e o produto ainda não escolhe a placa |
 | 2 | `PLANILHA-CELULA` | em paralelo com 2–3, sem mexer em `slides.py` | Guarda a célula que o digesto descarta, sem novo vetor |
