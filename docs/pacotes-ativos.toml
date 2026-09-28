@@ -1,5 +1,5 @@
-# Fila de pacotes. Em 28/09/2026 GRAFICO-CACHE (#126) e BUSCA-BURACO (#128) foram entregues.
-# GRAFICO-EMBED está em execução; os outros cinco da extração canônica seguem proposto.
+# Fila de pacotes. Em 28/09/2026 GRAFICO-CACHE (#126), BUSCA-BURACO (#128) e GRAFICO-EMBED (#130) foram entregues.
+# Os outros cinco da extração canônica seguem proposto.
 # HARDWARE-INICIO é o diagnóstico para qualquer máquina, ainda sem código.
 # IMAGEM-RASTER não começa sem a medição de tempo no contrato.
 # O contrato está em docs/roadmap-extracao-canonica.md.
@@ -398,7 +398,7 @@ proxima_acao = ""
 
 [[pacote]]
 id = "GRAFICO-EMBED"
-estado = "em_execucao"
+estado = "entregue"
 dono = "notebook"
 paths = [
     "CLAUDE.md",
@@ -411,8 +411,8 @@ paths = [
 ]
 dependencias = ["GRAFICO-CACHE"]
 aceite = "chart sem c:v e com xlsx embutido devolve o valor plantado uma vez; chart que ja tem c:v nao duplica; aba embutida em digesto preserva o aviso"
-evidencia = ""
-proxima_acao = "Branch codex/grafico-embed: cobrir chart sem cache, duplicacao e meta de digesto."
+evidencia = { pr = 130, sha = "83397b55752d89ea40ee82ff358474d15091e0d4" }
+proxima_acao = ""
 
 [[pacote]]
 id = "IMAGEM-RASTER"

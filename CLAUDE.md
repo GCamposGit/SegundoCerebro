@@ -63,10 +63,10 @@ consulta. Ver [ARCHITECTURE.md](ARCHITECTURE.md) para as decisões. A fila viva
 
 ## Estado atual
 
-**Em 28/09/2026 `GRAFICO-CACHE` foi entregue no PR #126, `BUSCA-BURACO` no PR #128 e `GRAFICO-EMBED` está em execução na branch `codex/grafico-embed`. Os outros cinco seguem `proposto`.**
+**Em 28/09/2026 `GRAFICO-CACHE` foi entregue no PR #126, `BUSCA-BURACO` no PR #128 e `GRAFICO-EMBED` no PR #130 (merge `83397b5`). Os outros cinco seguem `proposto`.**
 `IMAGEM-RASTER` não começa sem a medição de tempo de OCR no contrato.
 O contrato está em [`docs/roadmap-extracao-canonica.md`](docs/roadmap-extracao-canonica.md).
-A última entrega é `BUSCA-BURACO` (PR #128, `562b682`). Quem for usar o produto
+A última entrega é `GRAFICO-EMBED` (PR #130, `83397b5`). Quem for usar o produto
 começa por [`docs/comecar.md`](docs/comecar.md). A §6 de
 [`docs/colaboracao.md`](docs/colaboracao.md) é o diário dos dois setups.
 
@@ -129,8 +129,8 @@ ser hipótese: o percurso do leigo tem teste. O Office legado
 
 ## Próximo passo
 
-> **28/09/2026.** `GRAFICO-CACHE` foi entregue no PR #126; `BUSCA-BURACO`, no PR #128.
-> `GRAFICO-EMBED` está em execução na branch `codex/grafico-embed`, após a entrega da dependência.
+> **28/09/2026.** `GRAFICO-CACHE` foi entregue no PR #126; `BUSCA-BURACO`, no PR #128; `GRAFICO-EMBED`, no PR #130 (`83397b5`).
+> `HARDWARE-INICIO` segue antes da escolha de dispositivo para OCR.
 > Os outros cinco seguem `proposto` em [`docs/roadmap-extracao-canonica.md`](docs/roadmap-extracao-canonica.md).
 > `IMAGEM-RASTER` espera medição de tempo. A lista abaixo é o que saiu da fila, com data.
 > Não é trabalho pendente. OCR é o padrão de indexação. A frase antiga
