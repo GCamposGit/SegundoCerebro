@@ -1,7 +1,7 @@
 # Extração canônica, gráficos e imagens
 
 **28/09/2026.** `GRAFICO-CACHE` foi entregue no PR #126 (commit `7646303`).
-`BUSCA-BURACO` foi entregue no PR #128 (merge `562b682`). Os outros seis seguem propostos.
+`BUSCA-BURACO` foi entregue no PR #128 (merge `562b682`). `GRAFICO-EMBED` está em execução na branch `codex/grafico-embed`; os outros cinco seguem propostos.
 `IMAGEM-RASTER` continua bloqueado. A escolha
 de CPU ou GPU em máquina desconhecida é `HARDWARE-INICIO`, ainda sem código. O ticket que um agente pega
 é o bloco `[[pacote]]` em [`pacotes-ativos.toml`](pacotes-ativos.toml); este
@@ -16,14 +16,15 @@ depois do merge, com `--so-extensao`, nunca reindexação da árvore inteira.
 
 1. Escolha o primeiro da ordem cujo `dependencias` já está `entregue` e cujo
    path não tem outro escritor. `GRAFICO-CACHE` está entregue. `BUSCA-BURACO`
-   também está entregue e não toca parser. O próximo ticket é `GRAFICO-EMBED`.
+   também está entregue e não toca parser. `GRAFICO-EMBED` está em execução na branch `codex/grafico-embed`.
 2. No máximo um pacote `em_execucao` por path. `GRAFICO-EMBED` e
    `IMAGEM-RASTER` dividem `slides.py`; não marque ambos como `pronto` ou
    `em_execucao` ao mesmo tempo.
 3. Branch `codex/<id>` a partir de `main`. Não commitar em `main`.
 4. O teste novo tem de falhar com o código antigo e passar com o novo.
-5. Subir a versão do parser se o texto emitido mudar. `.pptx`/`.pptm` estão em
-   `3` e `.ppt` em `4` desde o `GRAFICO-CACHE`. Refatoração que não muda texto
+5. Subir a versão do parser se o texto emitido ou os metadados persistidos mudarem.
+   `.pptx`/`.pptm` sobem para `4` e `.ppt` para `5` em `GRAFICO-EMBED`, pois o
+   Parse Store mantém metadados junto ao texto. Refatoração sem mudança persistida
    não sobe versão.
 
 ## O que já está no produto
@@ -83,7 +84,7 @@ buraco novo é o PPTX. Coluna de medida em aba grande continua de fora do
 |---|---|---|---|
 | 1 | `GRAFICO-CACHE` | entregue no PR #126 | O número do gráfico nativo entra no texto |
 | 1 | `BUSCA-BURACO` | entregue no PR #128 | A busca declara quando o índice não representa o documento completo |
-| 2 | `GRAFICO-EMBED` | depois de `GRAFICO-CACHE` | Chart sem `c:v`, lendo o xlsx já embutido com o parser de planilha |
+| 2 | `GRAFICO-EMBED` | em execução na branch `codex/grafico-embed` | Chart sem `c:v`, lendo o xlsx embutido e preservando o aviso de digesto |
 | — | `HARDWARE-INICIO` | proposto, antes de ligar OCR na placa | Diagnóstico na arranque e dispositivo por etapa, sem pin desta máquina |
 | 3 | `IMAGEM-RASTER` | bloqueado | Na CPU, 5,4 h. Na 4070, cerca de 31 min para os 2.202 rasters, e o produto ainda não escolhe a placa |
 | 2 | `PLANILHA-CELULA` | em paralelo com 2–3, sem mexer em `slides.py` | Guarda a célula que o digesto descarta, sem novo vetor |
@@ -118,14 +119,14 @@ Problema: chart com fórmula `c:f` e sem `c:v` guarda a grade em
 `ppt/embeddings/*.xlsx`. O parser de planilha já sabe ler esses bytes; ninguém
 os entrega.
 
-Paths: `ingest/parsers/slides.py`, teste em `tests/test_ingest.py`. Pode nascer
-um módulo novo se `slides.py` não couber no teto. Dono: notebook. Depende de
-`GRAFICO-CACHE`.
+Paths: `ingest/parsers/slides.py`, `ingest/parsers/ooxml_texto.py` e teste em
+`tests/test_ingest.py`. Dono: notebook. Depende de `GRAFICO-CACHE`.
 
 Aceite: fixture com chart sem cache e um xlsx embutido devolve o valor
 plantado, com locator `grafico`. Fixture que já tem `c:v` não duplica o
 número. Aba embutida acima do limiar de digesto declara a mesma limitação que
-a planilha solta.
+a planilha solta. `.pptx`/`.pptm` passam de parser 3 para 4 e `.ppt` de 4 para 5
+para invalidar metadados persistidos antes desta mudança.
 
 Fora: OCR da figura do gráfico. Objeto OLE que não é xlsx.
 

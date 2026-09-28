@@ -157,7 +157,8 @@ def test_fila_real_carrega_sem_erro() -> None:
     assert por_id["BUSCA-BURACO"].estado == "entregue"
     assert por_id["BUSCA-BURACO"].evidencia["pr"] == 128
     assert por_id["BUSCA-BURACO"].evidencia["sha"] == "562b6828973c3d675c8cb1c97a8146af5bfbfe0b"
-    assert all(p.estado == "proposto" for p in abertos)
+    assert por_id["GRAFICO-EMBED"].estado == "em_execucao"
+    assert all(p.estado == "proposto" for p in abertos if p.id != "GRAFICO-EMBED")
     assert por_id["Q18"].estado == "entregue"
     assert por_id["Q18"].evidencia["pr"] == 123
     assert por_id["Q18"].evidencia["sha"] == "2681d7d57a11656cf9149957ebcee81a27335fdd"

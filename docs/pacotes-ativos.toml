@@ -1,5 +1,5 @@
 # Fila de pacotes. Em 28/09/2026 GRAFICO-CACHE (#126) e BUSCA-BURACO (#128) foram entregues.
-# Os outros seis da extração canônica seguem proposto.
+# GRAFICO-EMBED está em execução; os outros cinco da extração canônica seguem proposto.
 # HARDWARE-INICIO é o diagnóstico para qualquer máquina, ainda sem código.
 # IMAGEM-RASTER não começa sem a medição de tempo no contrato.
 # O contrato está em docs/roadmap-extracao-canonica.md.
@@ -398,16 +398,21 @@ proxima_acao = ""
 
 [[pacote]]
 id = "GRAFICO-EMBED"
-estado = "proposto"
+estado = "em_execucao"
 dono = "notebook"
 paths = [
+    "CLAUDE.md",
+    "docs/pacotes-ativos.toml",
+    "docs/roadmap-extracao-canonica.md",
+    "src/segundocerebro/ingest/parsers/ooxml_texto.py",
     "src/segundocerebro/ingest/parsers/slides.py",
     "tests/test_ingest.py",
+    "tests/test_pacotes_ativos.py",
 ]
 dependencias = ["GRAFICO-CACHE"]
-aceite = "chart sem c:v e com xlsx embutido devolve o valor plantado uma vez; chart que ja tem c:v nao duplica"
+aceite = "chart sem c:v e com xlsx embutido devolve o valor plantado uma vez; chart que ja tem c:v nao duplica; aba embutida em digesto preserva o aviso"
 evidencia = ""
-proxima_acao = "So depois de GRAFICO-CACHE entregue. Mesmo slides.py: nao sobrepor escritor."
+proxima_acao = "Branch codex/grafico-embed: cobrir chart sem cache, duplicacao e meta de digesto."
 
 [[pacote]]
 id = "IMAGEM-RASTER"

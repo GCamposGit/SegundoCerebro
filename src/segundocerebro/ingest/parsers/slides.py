@@ -53,7 +53,7 @@ def _texto_de_forma(forma) -> list[str]:  # noqa: ANN001 — tipos internos do p
     return partes
 
 
-@register(".pptx", ".pptm", version="3")
+@register(".pptx", ".pptm", version="4")
 def parse_pptx(dados: bytes, nome: str) -> ParsedDoc:
     from pptx import Presentation
 
@@ -103,13 +103,13 @@ def parse_pptx(dados: bytes, nome: str) -> ParsedDoc:
 
     completar(dados, blocos)
     blocos.extend(blocos_de_grafico(dados))
-    blocos.extend(blocos_de_embeddings(dados, "\n".join(b.text for b in blocos)))
     meta = {"formato": "pptx", "slides": str(len(apresentacao.slides))}
+    blocos.extend(blocos_de_embeddings(dados, "\n".join(b.text for b in blocos), meta))
     meta.update(acrescentar_rasters(dados, blocos))
     return ParsedDoc(name=nome, blocks=tuple(blocos), meta=meta)
 
 
-@register(".ppt", version="4")
+@register(".ppt", version="5")
 def parse_ppt(dados: bytes, nome: str) -> ParsedDoc:
     """PowerPoint 97-2003. Bytes only — no COM, no temp file.
 
