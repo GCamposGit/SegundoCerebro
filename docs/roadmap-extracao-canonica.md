@@ -1,9 +1,8 @@
 # Extração canônica, gráficos e imagens
 
-**24/09/2026.** `GRAFICO-CACHE` entrou no main pelo PR #126 (`cad5501`). A passada que
-grava `+raster` é operacional e não abre outro escritor em `slides.py`.
-`BUSCA-BURACO` está em execução na branch `codex/busca-buraco`. Os outros
-seis seguem propostos. `IMAGEM-RASTER` continua bloqueado. A escolha
+**28/09/2026.** `GRAFICO-CACHE` foi entregue no PR #126 (commit `7646303`).
+`BUSCA-BURACO` foi entregue no PR #128 (merge `562b682`). Os outros seis seguem propostos.
+`IMAGEM-RASTER` continua bloqueado. A escolha
 de CPU ou GPU em máquina desconhecida é `HARDWARE-INICIO`, ainda sem código. O ticket que um agente pega
 é o bloco `[[pacote]]` em [`pacotes-ativos.toml`](pacotes-ativos.toml); este
 arquivo é o contrato. [`ROADMAP.md`](../ROADMAP.md) continua história.
@@ -16,12 +15,11 @@ depois do merge, com `--so-extensao`, nunca reindexação da árvore inteira.
 ## Como pegar um ticket
 
 1. Escolha o primeiro da ordem cujo `dependencias` já está `entregue` e cujo
-   path não tem outro escritor. `GRAFICO-CACHE` já está no `main`. `BUSCA-BURACO`
-   está em execução e não toca parser. O próximo sem dependência de código e
-   sem `slides.py` é `PLANILHA-CELULA` (desktop) ou `CANONICO-BACKFILL` (desktop).
-2. No máximo um pacote `em_execucao` por path. `GRAFICO-CACHE`,
-   `GRAFICO-EMBED` e `IMAGEM-RASTER` dividem `slides.py`. Não marque dois como
-   `pronto` ou `em_execucao` ao mesmo tempo.
+   path não tem outro escritor. `GRAFICO-CACHE` está entregue. `BUSCA-BURACO`
+   também está entregue e não toca parser. O próximo ticket é `GRAFICO-EMBED`.
+2. No máximo um pacote `em_execucao` por path. `GRAFICO-EMBED` e
+   `IMAGEM-RASTER` dividem `slides.py`; não marque ambos como `pronto` ou
+   `em_execucao` ao mesmo tempo.
 3. Branch `codex/<id>` a partir de `main`. Não commitar em `main`.
 4. O teste novo tem de falhar com o código antigo e passar com o novo.
 5. Subir a versão do parser se o texto emitido mudar. `.pptx`/`.pptm` estão em
@@ -83,8 +81,8 @@ buraco novo é o PPTX. Coluna de medida em aba grande continua de fora do
 
 | Ordem | Id | Pode começar | Por quê nesta posição |
 |---|---|---|---|
-| 1 | `GRAFICO-CACHE` | agora | Único diff que faz o número do gráfico nativo existir no texto |
-| 1 | `BUSCA-BURACO` | agora, em paralelo | Outros paths. Evita o agente abrir o original quando o índice declara o buraco |
+| 1 | `GRAFICO-CACHE` | entregue no PR #126 | O número do gráfico nativo entra no texto |
+| 1 | `BUSCA-BURACO` | entregue no PR #128 | A busca declara quando o índice não representa o documento completo |
 | 2 | `GRAFICO-EMBED` | depois de `GRAFICO-CACHE` | Chart sem `c:v`, lendo o xlsx já embutido com o parser de planilha |
 | — | `HARDWARE-INICIO` | proposto, antes de ligar OCR na placa | Diagnóstico na arranque e dispositivo por etapa, sem pin desta máquina |
 | 3 | `IMAGEM-RASTER` | bloqueado | Na CPU, 5,4 h. Na 4070, cerca de 31 min para os 2.202 rasters, e o produto ainda não escolhe a placa |
@@ -295,12 +293,12 @@ Fora: gravar `onnxruntime-gpu==1.29` ou o cuDNN desta venv no `pyproject`.
 Trocar o `model_id` do embedding por causa da placa. Ligar CUDA no clone que
 só tem CPU.
 
-## Estado da branch `codex/grafico-cache` — 24/09/2026
+## Entrega de `GRAFICO-CACHE` — 26/09/2026
 
-Ainda sem commit e sem PR. `.mcp.json` não entra. A venv desta máquina está
-com `onnxruntime-gpu` 1.29.0 e os pacotes `nvidia` de cuDNN/cuBLAS 12. Isso
-não está no Git. O clone padrão continua em CPU. O extra `[gpu]` continua
-o pin Maxwell 1.18.
+Entregue no PR #126 (commit `76463036ea118d01b6c595e10e434172ed5a8be0`).
+`.mcp.json` não entra no Git. A venv usada na validação da branch em 24/09
+tinha `onnxruntime-gpu` 1.29.0 e os pacotes `nvidia` de cuDNN/cuBLAS 12.
+O clone padrão continua em CPU e o extra `[gpu]` continua com o pin Maxwell 1.18.
 
 Já no código, coberto por teste sintético:
 
@@ -320,9 +318,9 @@ Já no código, coberto por teste sintético:
   `site-packages` da venv. A sonda desta máquina, pelo código novo, deu
   verdadeiro em 24 s, com as três sessões em CUDA.
 
-Ainda não rodou passada no índice vivo. O próximo passo operacional, depois
-do merge, é `--so-extensao .pptx,.pptm,.docx,.docm` nesta máquina, com
-`PYTHONPATH=src`, porque a instalação da venv não é um checkout editável.
+A passada no índice vivo ainda não foi executada. Trata-se de operação
+posterior ao merge, separada do aceite do pacote; se executada, usar
+`--so-extensao .pptx,.pptm,.docx,.docm` e `PYTHONPATH=src`.
 Os 431 rasters acima do teto continuam de fora. PDF que já tem parágrafo e
 uma figura continua sem OCR. Embedding ainda decide a placa pelo diagnóstico
 antigo (`diagnosticar`), não por esta sonda de kernel.
