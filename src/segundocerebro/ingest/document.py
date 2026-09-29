@@ -46,10 +46,20 @@ class Block:
 
 
 @dataclass(frozen=True)
+class LinhaPlanilha:
+    """A row retained for exact cell lookup without becoming an embed block."""
+
+    aba: str
+    linha: int
+    valores: tuple[str, ...]
+
+
+@dataclass(frozen=True)
 class ParsedDoc:
     name: str
     blocks: tuple[Block, ...] = ()
     meta: dict[str, str] = field(default_factory=dict)
+    linhas_planilha: tuple[LinhaPlanilha, ...] = ()
 
     @property
     def total_chars(self) -> int:

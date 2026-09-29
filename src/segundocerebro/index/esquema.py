@@ -173,6 +173,17 @@ CREATE TABLE IF NOT EXISTS chunks (
 CREATE INDEX IF NOT EXISTS idx_chunks_path ON chunks(path);
 CREATE INDEX IF NOT EXISTS idx_chunks_ocorrencia ON chunks(ocorrencia_id);
 
+-- Retém as linhas das abas grandes para leitura exata sem criar vetores por célula.
+-- A chave por hash compartilha os dados de cópias idênticas e desacopla a tabela do arquivo original.
+CREATE TABLE IF NOT EXISTS planilha_celulas (
+    sha256 TEXT NOT NULL,
+    aba    TEXT NOT NULL,
+    linha  INTEGER NOT NULL,
+    coluna TEXT NOT NULL,
+    valor  TEXT NOT NULL,
+    PRIMARY KEY (sha256, aba, linha, coluna)
+);
+
 -- `caminho` é o path com separadores virados em espaço, para o tokenizador
 -- quebrar em palavras. Sem ele o índice lexical ignora o nome do arquivo, que é
 -- o sinal mais forte deste acervo: o baseline por nome tira recall@1 = 0,55.

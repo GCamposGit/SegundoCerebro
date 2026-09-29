@@ -24,6 +24,7 @@ import numpy as np
 
 from ..ingest.chunking import Chunk
 from ..logger import get_logger
+from .planilha_celulas import persistir_linhas
 from .store import TABELA_VETORES, agora
 from .trava import TravaDeIndice, TravaOcupada
 
@@ -349,6 +350,7 @@ def publicar_completo(
     _deletar(store, path, apagar_textos=True, root_id=root_id, ocorrencia_id=ocorrencia_id)
     _marcar(store, op_id, "deletar")
     store.gravar_textos(chunks)
+    persistir_linhas(store, str(documento.get("sha256") or ""), documento.get("linhas_planilha", ()))
     store.con.commit()
     _marcar(store, op_id, "textos")
     store.gravar_vetores(chunks, vetores, mtime, model_id)
@@ -381,6 +383,7 @@ def publicar_lexical(
     _deletar(store, path, apagar_textos=True, root_id=root_id, ocorrencia_id=ocorrencia_id)
     _marcar(store, op_id, "deletar")
     store.gravar_textos(chunks)
+    persistir_linhas(store, str(documento.get("sha256") or ""), documento.get("linhas_planilha", ()))
     store.con.commit()
     _marcar(store, op_id, "textos")
     _registrar(store, documento)

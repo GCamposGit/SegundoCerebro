@@ -23,6 +23,7 @@ from pathlib import Path
 
 from ...logger import get_logger
 from ..document import Block, BlockKind, ParsedDoc
+from .planilha_captura import BlocosPlanilha, coluna_excel, linhas_numeradas, linhas_sequenciais
 from . import register
 
 log = get_logger("ingest.parsers.sheets")
@@ -107,15 +108,6 @@ def _linha_util(valores: list[str]) -> bool:
     return sum(1 for v in valores if v) > 0
 
 
-def _coluna(indice: int) -> str:
-    """1 -> A, 27 -> AA."""
-    nome = ""
-    while indice > 0:
-        indice, resto = divmod(indice - 1, 26)
-        nome = chr(65 + resto) + nome
-    return nome
-
-
 def _parece_medida(valores: list[str]) -> bool:
     """True for a money/percentage/index column — not an identifier."""
     if not valores:
@@ -147,7 +139,7 @@ def _emitir_linhas_de_aba(
     """Turn already-formatted rows into sheet blocks. Shared by xlsx and xls."""
     if _e_despejo_de_dados(linhas):
         abas_em_digesto.append(titulo)
-        _blocos_de_digesto(titulo, (v for _, v in linhas), blocos, truncadas, parciais)
+        _blocos_de_digesto(titulo, linhas_numeradas(titulo, linhas, blocos), blocos, truncadas, parciais)
         return
 
     indice_cabecalho = next(
@@ -162,7 +154,7 @@ def _emitir_linhas_de_aba(
         corpo = linhas[indice_cabecalho + 1 :]
 
     titulo_cabecalho = " | ".join(cabecalho)
-    largura = _coluna(max((len(v) for _, v in linhas), default=1))
+    largura = coluna_excel(max((len(v) for _, v in linhas), default=1))
 
     if not corpo and cabecalho:
         blocos.append(
@@ -282,12 +274,12 @@ def _blocos_de_digesto(
     for indice, valores in distintos.items():
         if not valores:
             continue
-        rotulo = cabecalho[indice] or _coluna(indice + 1)
+        rotulo = cabecalho[indice] or coluna_excel(indice + 1)
         lista = list(valores)
         if _parece_medida(lista[:200]):
             continue
         if len(lista) >= MAX_VALORES_DISTINTOS:
-            parciais.append(f"{titulo}!{_coluna(indice + 1)} ({MAX_VALORES_DISTINTOS} de {linhas_uteis}+)")
+            parciais.append(f"{titulo}!{coluna_excel(indice + 1)} ({MAX_VALORES_DISTINTOS} de {linhas_uteis}+)")
         pedacos: list[list[str]] = [[]]
         tamanho = 0
         for valor in lista:
@@ -303,10 +295,10 @@ def _blocos_de_digesto(
                     heading_path=(titulo, rotulo),
                     text=(
                         f"Valores distintos na coluna '{rotulo}' "
-                        f"(coluna {_coluna(indice + 1)}, {len(lista)} valores):\n"
+                        f"(coluna {coluna_excel(indice + 1)}, {len(lista)} valores):\n"
                         + " · ".join(pedaco)
                     ),
-                    locator=f"{titulo}!{_coluna(indice + 1)} (valores distintos{sufixo})",
+                    locator=f"{titulo}!{coluna_excel(indice + 1)} (valores distintos{sufixo})",
                     kind=BlockKind.SHEET,
                 )
             )
@@ -391,7 +383,7 @@ def _iter_csv(bruto: str, dialect: csv.Dialect):  # noqa: ANN202 — retorno con
             yield numero, valores
 
 
-@register(".csv", version="2")
+@register(".csv", version="3")
 def parse_csv(dados: bytes, nome: str) -> ParsedDoc:
     """CSV/TSV on the spreadsheet path — header in every window, digest when huge.
 
@@ -427,7 +419,7 @@ def parse_csv(dados: bytes, nome: str) -> ParsedDoc:
             meta=meta,
         )
 
-    blocos: list[Block] = []
+    blocos = BlocosPlanilha()
     truncadas: list[str] = []
     parciais: list[str] = []
     abas_em_digesto: list[str] = []
@@ -435,7 +427,7 @@ def parse_csv(dados: bytes, nome: str) -> ParsedDoc:
         abas_em_digesto.append(titulo)
         _blocos_de_digesto(
             titulo,
-            (v for _, v in _iter_csv(bruto, dialect)),
+            linhas_numeradas(titulo, _iter_csv(bruto, dialect), blocos),
             blocos,
             truncadas,
             parciais,
@@ -451,7 +443,7 @@ def parse_csv(dados: bytes, nome: str) -> ParsedDoc:
         meta["digesto_parcial"] = ", ".join(parciais)
     if truncadas:
         meta["truncadas"] = ", ".join(truncadas)
-    return ParsedDoc(name=nome, blocks=tuple(blocos), meta=meta)
+    return ParsedDoc(name=nome, blocks=tuple(blocos), meta=meta, linhas_planilha=tuple(blocos.linhas_planilha))
 
 
 def _tem_formula_sem_cache(dados: bytes) -> bool:
@@ -494,7 +486,7 @@ def _tem_formula_sem_cache(dados: bytes) -> bool:
     return False
 
 
-@register(".xlsx", ".xlsm", version="2")
+@register(".xlsx", ".xlsm", version="3")
 def parse_xlsx(dados: bytes, nome: str) -> ParsedDoc:
     """Uma nova tentativa sem validações, e só para a falha que ela resolve."""
     try:
@@ -513,7 +505,7 @@ def _parse_xlsx(dados: bytes, nome: str) -> ParsedDoc:
     import openpyxl
 
     livro = openpyxl.load_workbook(io.BytesIO(dados), read_only=True, data_only=True)
-    blocos: list[Block] = []
+    blocos = BlocosPlanilha()
     abas_truncadas: list[str] = []
     abas_em_digesto: list[str] = []
     digestos_parciais: list[str] = []
@@ -524,7 +516,7 @@ def _parse_xlsx(dados: bytes, nome: str) -> ParsedDoc:
                 abas_em_digesto.append(aba.title)
                 _blocos_de_digesto(
                     aba.title,
-                    ([_formatar(c) for c in linha[:MAX_COLUNAS]] for linha in aba.iter_rows(values_only=True)),
+                    linhas_sequenciais(aba.title, ([_formatar(c) for c in linha[:MAX_COLUNAS]] for linha in aba.iter_rows(values_only=True)), blocos),
                     blocos,
                     abas_truncadas,
                     digestos_parciais,
@@ -559,7 +551,7 @@ def _parse_xlsx(dados: bytes, nome: str) -> ParsedDoc:
         meta["aviso"] = "fórmulas sem valor calculado em cache"
     elif not blocos:
         meta["aviso"] = "nenhum valor calculado em cache"
-    return ParsedDoc(name=nome, blocks=tuple(blocos), meta=meta)
+    return ParsedDoc(name=nome, blocks=tuple(blocos), meta=meta, linhas_planilha=tuple(blocos.linhas_planilha))
 
 
 _MARCAS_DE_PLANILHA = (b"<html", b"<!doctype", b"<table", b"<?xml", b"<workbook")
@@ -746,7 +738,7 @@ def _parse_xls_marcacao(dados: bytes, nome: str) -> ParsedDoc:
     else:
         texto = decode(dados)
 
-    blocos: list[Block] = []
+    blocos = BlocosPlanilha()
     abas_truncadas: list[str] = []
     abas_em_digesto: list[str] = []
     digestos_parciais: list[str] = []
@@ -796,7 +788,7 @@ def _parse_xls_marcacao(dados: bytes, nome: str) -> ParsedDoc:
         meta["digesto_parcial"] = ", ".join(sorted(set(digestos_parciais)))
     if abas_truncadas:
         meta["truncadas"] = ", ".join(sorted(set(abas_truncadas)))
-    return ParsedDoc(name=nome, blocks=tuple(blocos), meta=meta)
+    return ParsedDoc(name=nome, blocks=tuple(blocos), meta=meta, linhas_planilha=tuple(blocos.linhas_planilha))
 
 
 def _formatar_xls(aba, linha: int, coluna: int) -> str:  # noqa: ANN001 — tipos do xlrd
@@ -820,7 +812,7 @@ def _formatar_xls(aba, linha: int, coluna: int) -> str:  # noqa: ANN001 — tipo
     return _formatar(valor)
 
 
-@register(".xls", version="2")
+@register(".xls", version="3")
 def parse_xls(dados: bytes, nome: str) -> ParsedDoc:
     """Excel 97-2003. Same block rules as xlsx — one row is not one chunk.
 
@@ -835,7 +827,7 @@ def parse_xls(dados: bytes, nome: str) -> ParsedDoc:
     if _ole_criptografado(dados):
         raise ValueError("planilha criptografada; sem senha o conteúdo não é extraível")
     livro = _abrir_xls(dados, nome)
-    blocos: list[Block] = []
+    blocos = BlocosPlanilha()
     abas_truncadas: list[str] = []
     abas_em_digesto: list[str] = []
     digestos_parciais: list[str] = []
@@ -847,7 +839,7 @@ def parse_xls(dados: bytes, nome: str) -> ParsedDoc:
                 [_formatar_xls(aba, i, j) for j in range(min(aba.ncols, MAX_COLUNAS))]
                 for i in range(min(aba.nrows, MAX_LINHAS_VARREDURA + 1))
             )
-            _blocos_de_digesto(aba.name, linhas_fmt, blocos, abas_truncadas, digestos_parciais)
+            _blocos_de_digesto(aba.name, linhas_sequenciais(aba.name, linhas_fmt, blocos), blocos, abas_truncadas, digestos_parciais)
             continue
         linhas: list[tuple[int, list[str]]] = []
         for i in range(aba.nrows):
@@ -867,4 +859,4 @@ def parse_xls(dados: bytes, nome: str) -> ParsedDoc:
         meta["digesto_parcial"] = ", ".join(sorted(set(digestos_parciais)))
     if abas_truncadas:
         meta["truncadas"] = ", ".join(sorted(set(abas_truncadas)))
-    return ParsedDoc(name=nome, blocks=tuple(blocos), meta=meta)
+    return ParsedDoc(name=nome, blocks=tuple(blocos), meta=meta, linhas_planilha=tuple(blocos.linhas_planilha))
