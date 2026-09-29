@@ -8,6 +8,7 @@ import pytest
 
 from segundocerebro.ingest import ocr
 from segundocerebro.ingest.parsers.slides import parse_pptx
+from segundocerebro.ingest.parsers.word import parse_docx
 from segundocerebro.ingest.raster_ocr import acrescentar_rasters
 from segundocerebro.index.repesca import versao_efetiva
 
@@ -63,6 +64,26 @@ def _zip_com(nome: str, bruto: bytes) -> bytes:
     return buf.getvalue()
 
 
+def _jpeg(largura: int, altura: int) -> bytes:
+    from PIL import Image
+
+    buf = io.BytesIO()
+    Image.new("RGB", (largura, altura), (240, 240, 240)).save(buf, format="JPEG")
+    return buf.getvalue()
+
+
+def _zip_com_rasters(quantidade: int) -> bytes:
+    import zipfile
+
+    buf = io.BytesIO()
+    with zipfile.ZipFile(io.BytesIO(bytes_pptx()), "r") as origem, zipfile.ZipFile(buf, "w") as destino:
+        for item in origem.infolist():
+            destino.writestr(item, origem.read(item.filename))
+        for numero in range(quantidade):
+            destino.writestr(f"ppt/media/figura-{numero}.png", _png(320, 180))
+    return buf.getvalue()
+
+
 @pytest.fixture
 def motor(monkeypatch):
     chamadas: list[int] = []
@@ -89,6 +110,27 @@ def test_raster_entra_quando_o_gancho_esta_ligado(motor: list[int]) -> None:
     assert motor
 
 
+def test_jpeg_embutido_entra_quando_o_gancho_esta_ligado(motor: list[int]) -> None:
+    doc = parse_pptx(_zip_com("ppt/media/figura.jpeg", _jpeg(320, 180)), "deck.pptx")
+    assert any(bloco.locator == "imagem" and bloco.text == "SCAN-VCE-001" for bloco in doc.blocks)
+    assert doc.meta.get("ocr_raster") == "gpu"
+    assert motor
+
+
+def test_png_embutido_em_docx_entra_quando_o_gancho_esta_ligado(motor: list[int]) -> None:
+    from docx import Document
+    from docx.shared import Inches
+
+    origem = Document()
+    origem.add_picture(io.BytesIO(_png(320, 180)), width=Inches(1))
+    buf = io.BytesIO()
+    origem.save(buf)
+    doc = parse_docx(buf.getvalue(), "scan.docx")
+    assert any(bloco.locator == "imagem" and bloco.text == "SCAN-VCE-001" for bloco in doc.blocks)
+    assert doc.meta.get("ocr_raster") == "gpu"
+    assert motor
+
+
 def test_raster_nao_repete_texto_que_o_slide_ja_tem(monkeypatch) -> None:
     monkeypatch.setattr(ocr, "motor_imagem", lambda _img: "Resumir reunião")
     monkeypatch.setattr(ocr, "_forcar_gpu", True)
@@ -102,6 +144,58 @@ def test_icone_nao_chama_o_motor(motor: list[int]) -> None:
     doc = parse_pptx(_zip_com("ppt/media/icone.png", _png(16, 16)), "deck.pptx")
     assert doc.meta.get("ocr_raster") != "gpu"
     assert motor == []
+
+
+def test_icone_nao_inicia_sonda_cuda(monkeypatch) -> None:
+    sondas: list[int] = []
+    monkeypatch.setattr(ocr, "motor_imagem", None)
+    monkeypatch.setattr(ocr, "gpu_para_ocr", lambda: sondas.append(1) or True)
+    doc = parse_pptx(_zip_com("ppt/media/icone.png", _png(16, 16)), "deck.pptx")
+    assert doc.meta.get("ocr_raster") != "gpu"
+    assert sondas == []
+
+
+def test_teto_de_pixels_inclui_limite_e_recusa_acima(motor: list[int]) -> None:
+    no_limite = parse_pptx(_zip_com("ppt/media/limite.png", _png(2000, 1000)), "limite.pptx")
+    acima = parse_pptx(_zip_com("ppt/media/acima.png", _png(2001, 1000)), "acima.pptx")
+    assert motor == [1]
+    assert no_limite.meta.get("ocr_raster") == "gpu"
+    assert acima.meta.get("ocr_raster") != "gpu"
+
+
+def test_teto_de_imagens_por_arquivo_e_declarado(motor: list[int]) -> None:
+    doc = parse_pptx(_zip_com_rasters(13), "deck-grande.pptx")
+    assert len(motor) == 12
+    assert doc.meta.get("ocr_raster") == "gpu"
+    assert doc.meta.get("ocr_raster_limite") == "12"
+
+
+@pytest.mark.cuda
+def test_raster_ocr_com_kernel_cuda_em_png_sintetico(monkeypatch) -> None:
+    pymupdf = pytest.importorskip("pymupdf")
+
+    monkeypatch.setattr(ocr, "motor_imagem", None)
+    monkeypatch.setattr(ocr, "_forcar_gpu", None)
+    monkeypatch.setattr(ocr, "_gpu_cache", None)
+    monkeypatch.setattr(ocr, "_rapid", None)
+    # Explicit `-m cuda` opts into the real kernel probe. The ordinary helper
+    # deliberately disables hardware probing under pytest.
+    if not ocr._sondar_cuda():
+        pytest.skip("OCR CUDA indisponível nesta máquina")
+    monkeypatch.setattr(ocr, "_forcar_gpu", True)
+
+    origem = pymupdf.open()
+    pagina = origem.new_page(width=595, height=200)
+    pagina.insert_text((36, 100), "SCAN-VCE-001", fontsize=32, fontname="helv")
+    png = pagina.get_pixmap(matrix=pymupdf.Matrix(2, 2), alpha=False).tobytes("png")
+    origem.close()
+
+    doc = parse_pptx(_zip_com("ppt/media/scan.png", png), "deck-sintetico.pptx")
+    assert doc.meta.get("ocr_raster") == "gpu"
+    assert any(
+        bloco.locator == "imagem" and "SCAN-VCE-001" in bloco.text
+        for bloco in doc.blocks
+    )
 
 
 def test_filho_nao_dispara_ocr_de_imagem(monkeypatch) -> None:
@@ -209,8 +303,8 @@ def test_planilha_embutida_nao_repete_valor_do_cache() -> None:
 
 def test_versao_efetiva_so_marca_raster_com_gpu(monkeypatch) -> None:
     monkeypatch.setattr(ocr, "gpu_para_ocr", lambda: False)
-    assert versao_efetiva(".pptx") == "4"
-    assert versao_efetiva(".docx") == "2"
+    assert versao_efetiva(".pptx") == "5"
+    assert versao_efetiva(".docx") == "3"
     monkeypatch.setattr(ocr, "gpu_para_ocr", lambda: True)
-    assert versao_efetiva(".pptx") == "4+raster"
+    assert versao_efetiva(".pptx") == "5+raster"
     assert versao_efetiva(".pdf") == "2"

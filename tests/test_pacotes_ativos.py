@@ -159,7 +159,10 @@ def test_fila_real_carrega_sem_erro() -> None:
     assert por_id["GRAFICO-EMBED"].estado == "entregue"
     assert por_id["GRAFICO-EMBED"].evidencia["pr"] == 130
     assert por_id["GRAFICO-EMBED"].evidencia["sha"] == "83397b55752d89ea40ee82ff358474d15091e0d4"
-    assert all(p.estado == "proposto" for p in abertos)
+    assert por_id["IMAGEM-RASTER"].estado in {"em_execucao", "entregue"}
+    assert all(
+        p.estado == "proposto" for p in abertos if p.id != "IMAGEM-RASTER"
+    )
     assert por_id["Q18"].estado == "entregue"
     assert por_id["Q18"].evidencia["pr"] == 123
     assert por_id["Q18"].evidencia["sha"] == "2681d7d57a11656cf9149957ebcee81a27335fdd"
