@@ -2,8 +2,9 @@
 
 **29/09/2026.** `GRAFICO-CACHE` foi entregue no PR #126 (commit `7646303`).
 `BUSCA-BURACO` foi entregue no PR #128 (merge `562b682`). `GRAFICO-EMBED` foi entregue no PR #130 (merge `83397b5`).
-`IMAGEM-RASTER` foi entregue no PR #132 e `PLANILHA-CELULA` no PR #133.
-`HARDWARE-INICIO`, `PLANILHA-LEITURA` e `CANONICO-BACKFILL` continuam propostos.
+`IMAGEM-RASTER` foi entregue no PR #132, `PLANILHA-CELULA` no PR #133 e
+`PLANILHA-LEITURA` no PR #134 (merge `748808d`). `CANONICO-BACKFILL` está em execução;
+`HARDWARE-INICIO` continua proposto.
 O OCR de imagens segue condicionado a um kernel CUDA executado; sem prova, não lê imagens.
 O diagnóstico compartilhado de hardware e embedding segue em
 `HARDWARE-INICIO`. O ticket que um agente pega é o bloco `[[pacote]]` em
@@ -91,8 +92,8 @@ buraco novo é o PPTX. Coluna de medida em aba grande continua de fora do
 | — | `HARDWARE-INICIO` | proposto | Diagnóstico compartilhado para embedding e etapas sem sonda local, sem pin desta máquina |
 | 3 | `IMAGEM-RASTER` | entregue no PR #132 | OCR só com kernel CUDA, até 12 imagens válidas por arquivo e 2 Mpx por imagem |
 | 2 | `PLANILHA-CELULA` | entregue no PR #133 | Guarda a célula que o digesto descarta, sem novo vetor |
-| 3 | `PLANILHA-LEITURA` | depois de `PLANILHA-CELULA` | Tool MCP com cursor sobre essa tabela |
-| último operacional | `CANONICO-BACKFILL` | código em paralelo; a passada só depois dos bumps de parser | Preenche o store do que já está nos trechos. Rodar antes congela texto velho |
+| 3 | `PLANILHA-LEITURA` | entregue no PR #134 (`748808d`) | Tool MCP com cursor sobre essa tabela |
+| último operacional | `CANONICO-BACKFILL` | em execução; a passada só depois dos bumps de parser | Preenche o store do que já está nos trechos. Rodar antes congela texto velho |
 
 `CANONICO-BACKFILL` não inclui PPTX. PPTX só volta ao índice na passada
 operacional posterior ao bump, restrita a `.pptx,.pptm`.
@@ -244,7 +245,14 @@ nenhuma. A passada viva espera os bumps de parser acima.
 
 Aceite: fixture TXT indexado, store apagado, comando regrava o `.canon.zz` e
 não muda a contagem de vetores. Extensão cujo `documentos.parser` difere do
-código não entra nessa passada. PPTX não entra.
+código não entra nessa passada. `.ppt`, `.pptx` e `.pptm` ficam explicitamente
+fora.
+
+Uso: `segundocerebro-backfill-canonico --base <id>` (ou `--config` e `--indice`
+para sobrepor os caminhos). O registro `registro.db` é aberto somente para
+leitura; a única escrita é no Parse Store. O comando não inicia embedding, não
+altera chunks/vetores e não hidrata placeholders de nuvem. A passada real fica
+para depois dos bumps de parser; a fixture valida o fluxo agora.
 
 ### `HARDWARE-INICIO`
 

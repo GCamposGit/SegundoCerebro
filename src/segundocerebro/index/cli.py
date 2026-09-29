@@ -181,3 +181,22 @@ def construir_parser() -> argparse.ArgumentParser:
         "use só depois de conferir que a raiz e o prefixo estão certos",
     )
     return parser
+
+
+def construir_parser_backfill_canonico() -> argparse.ArgumentParser:
+    """CLI isolada: reconstitui o Parse Store sem iniciar a indexação."""
+    parser = argparse.ArgumentParser(
+        prog="segundocerebro-backfill-canonico",
+        description=(
+            "Reconstrói o Parse Store para documentos ainda indexados cujo parser "
+            "registrado é a versão atual. Não grava chunks nem vetores."
+        ),
+    )
+    parser.add_argument("--base", help="base configurada; pode ser omitida se houver uma só")
+    parser.add_argument(
+        "--config",
+        type=Path,
+        help="arquivo de configuração; aceita config.toml e o census.toml legado",
+    )
+    parser.add_argument("--indice", type=Path, help="sobrepõe o índice da base")
+    return parser
