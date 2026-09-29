@@ -60,7 +60,7 @@ def _texto_da_tabela(tabela) -> str:  # noqa: ANN001
     return "\n".join(linhas)
 
 
-@register(".docx", ".docm", version="2")
+@register(".docx", ".docm", version="3")
 def parse_docx(dados: bytes, nome: str) -> ParsedDoc:
     import docx
 

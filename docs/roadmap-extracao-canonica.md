@@ -1,11 +1,13 @@
 # Extração canônica, gráficos e imagens
 
-**28/09/2026.** `GRAFICO-CACHE` foi entregue no PR #126 (commit `7646303`).
-`BUSCA-BURACO` foi entregue no PR #128 (merge `562b682`). `GRAFICO-EMBED` foi entregue no PR #130 (merge `83397b5`). Os outros cinco seguem propostos.
-`IMAGEM-RASTER` continua bloqueado. A escolha
-de CPU ou GPU em máquina desconhecida é `HARDWARE-INICIO`, ainda sem código. O ticket que um agente pega
-é o bloco `[[pacote]]` em [`pacotes-ativos.toml`](pacotes-ativos.toml); este
-arquivo é o contrato. [`ROADMAP.md`](../ROADMAP.md) continua história.
+**29/09/2026.** `GRAFICO-CACHE` foi entregue no PR #126 (commit `7646303`).
+`BUSCA-BURACO` foi entregue no PR #128 (merge `562b682`). `GRAFICO-EMBED` foi entregue no PR #130 (merge `83397b5`). Os outros quatro seguem propostos.
+`IMAGEM-RASTER` foi reaberto para implementação limitada em 29/09/2026. O OCR
+continua condicionado a um kernel CUDA executado; sem prova, não lê imagens.
+O diagnóstico compartilhado de hardware e embedding segue em
+`HARDWARE-INICIO`. O ticket que um agente pega é o bloco `[[pacote]]` em
+[`pacotes-ativos.toml`](pacotes-ativos.toml); este arquivo é o contrato.
+[`ROADMAP.md`](../ROADMAP.md) continua história.
 
 Não há mudança de peso, de chunker nem de `[padrao]`. Aceite é fixture
 sintética (vocabulário VCE). Índice e pastas reais não entram no Git e não são
@@ -38,10 +40,11 @@ canônico mais blocos, comprimido dentro do índice. `get_document` e
 SmartArt (`ppt/diagrams`, tag `a:t`), caixas, cabeçalho e o título de gráfico
 quando ele também está numa tag `t`. O locator `grafico` já existe.
 
-OCR é de página de PDF. Entra página com menos de 15 caracteres e uma imagem,
-ou com menos de 100 caracteres e uma imagem (`pagina_precisa_ocr`). Página com
-título e uma figura fica de fora. PNG, JPEG, EMF e SVG soltos não têm parser.
-Nada em `ppt/media` ou `word/media` passa pelo RapidOCR.
+OCR de página de PDF entra quando há pouco texto e uma imagem
+(`pagina_precisa_ocr`). PNG/JPEG embutidos em PPTX e DOCX passam pelo RapidOCR
+somente quando a sonda roda um kernel CUDA; o pacote `IMAGEM-RASTER` limita o
+custo e declara o corte. Arquivos de imagem soltos e EMF/WMF/WDP/SVG continuam
+fora.
 
 ## Gráficos e imagens — o que falta
 
@@ -85,8 +88,8 @@ buraco novo é o PPTX. Coluna de medida em aba grande continua de fora do
 | 1 | `GRAFICO-CACHE` | entregue no PR #126 | O número do gráfico nativo entra no texto |
 | 1 | `BUSCA-BURACO` | entregue no PR #128 | A busca declara quando o índice não representa o documento completo |
 | 2 | `GRAFICO-EMBED` | entregue no PR #130 (`83397b5`) | Chart sem `c:v`, lendo o xlsx embutido e preservando o aviso de digesto |
-| — | `HARDWARE-INICIO` | proposto, antes de ligar OCR na placa | Diagnóstico na arranque e dispositivo por etapa, sem pin desta máquina |
-| 3 | `IMAGEM-RASTER` | bloqueado | Na CPU, 5,4 h. Na 4070, cerca de 31 min para os 2.202 rasters, e o produto ainda não escolhe a placa |
+| — | `HARDWARE-INICIO` | proposto | Diagnóstico compartilhado para embedding e etapas sem sonda local, sem pin desta máquina |
+| 3 | `IMAGEM-RASTER` | em execução | OCR só com kernel CUDA, até 12 imagens válidas por arquivo e 2 Mpx por imagem |
 | 2 | `PLANILHA-CELULA` | em paralelo com 2–3, sem mexer em `slides.py` | Guarda a célula que o digesto descarta, sem novo vetor |
 | 3 | `PLANILHA-LEITURA` | depois de `PLANILHA-CELULA` | Tool MCP com cursor sobre essa tabela |
 | último operacional | `CANONICO-BACKFILL` | código em paralelo; a passada só depois dos bumps de parser | Preenche o store do que já está nos trechos. Rodar antes congela texto velho |
@@ -135,9 +138,9 @@ Fora: OCR da figura do gráfico. Objeto OLE que não é xlsx.
 Problema: print e gráfico colado como PNG/JPEG não têm XML de texto. OCR hoje
 só rasteriza página de PDF pobre em texto.
 
-**Não aprovado para implementação.** Medição real em 24/09/2026, RapidOCR do
-ambiente, sem gravar texto e sem abrir placeholder. Inventário dos PPTX/DOCX
-locais com status `ok`: 2.756 PNG/JPEG/JPG em `media/`. 543 ficam abaixo de
+Medição real em 24/09/2026, RapidOCR do ambiente, sem gravar texto e sem abrir
+placeholder. Inventário dos PPTX/DOCX locais com status `ok`: 2.756
+PNG/JPEG/JPG em `media/`. 543 ficam abaixo de
 100 px no lado menor. 2.202 passam desse piso. 431 desses passam de 2 milhões
 de pixels ou de 1,5 MB e ficaram fora da amostra cronometrada.
 
@@ -156,31 +159,27 @@ texto. A mediana da CPU era 10 vezes essa. Os 2.202 rasters do piso, por
 essa mediana, caberiam em cerca de **31 min** nesta placa, ainda antes de
 reembedar, e os 431 grandes continuam de fora da conta.
 
-Isso não aprova o pacote. O wheel de GPU e o cuDNN estão só na venv desta
-máquina. O `pip install` padrão continua no `onnxruntime` de CPU, e o extra
-`[gpu]` do repositório continua o pin Maxwell 1.18 do Desktop. Sem a pasta
-`nvidia/cudnn/bin` no caminho das DLLs, o Conv da 1.29 falha pedindo
-`cudnn64_9.dll`. O produto chama `RapidOCR()` sem `use_cuda`, então esta
-venv, mesmo com a placa visível, segue o OCR na CPU até o `HARDWARE-INICIO`
-escolher o dispositivo. OCR dos 2.202 continua fora.
+O `pip install` padrão continua em CPU e o extra `[gpu]` segue no pin Maxwell
+1.18 do Desktop. O lote GPU já medido de 12 imagens levou 13,4 s no total, com
+máximo observado de 3,0 s por imagem. A implementação limita cada documento a 12 imagens válidas: esse
+limite é o tamanho do lote já medido e não uma afirmação de latência máxima de
+qualquer arquivo real. Cada imagem também fica abaixo de 2 milhões de pixels e
+1,5 MB; os ícones menores que 100 px continuam fora. O teste sintético marcado
+`cuda` valida o kernel e reconhece o identificador plantado na máquina que tem
+GPU. Nenhuma passada em índice ou acervo real faz parte do aceite do código.
 
-O próximo corte, ainda sem código de produto, é contar e cronometrar só a
-imagem que está num slide sem texto de forma e sem `c:v`, com teto por
-arquivo. Se essa fatia couber em minutos e não em horas, o aceite abaixo
-volta a valer. Se não couber, o pacote encerra sem ligar o motor.
+Paths: `ingest/ocr.py`, `ingest/raster_ocr.py`, `ingest/parsers/slides.py`,
+`ingest/parsers/word.py` e `tests/test_raster_ocr.py`. Dono: notebook. Depende
+de `GRAFICO-EMBED`.
 
-Paths, quando o teto existir: `ingest/ocr.py`, `ingest/parsers/slides.py`,
-`ingest/parsers/word.py`, teste com motor falso (`SEGUNDOCEREBRO_OCR_FAKE`)
-mais um teste marcado `ocr` com RapidOCR real num PNG pequeno gerado no
-teste. Dono: notebook. Depende de `GRAFICO-EMBED`.
-
-Aceite, suspenso até o teto: slide cujo único conteúdo é um PNG com
-identificador VCE ganha bloco com esse identificador e locator `imagem`.
-Slide que já tem o mesmo texto no frame não ganha segunda cópia. Imagem
-abaixo do piso de pixels não chama o motor. EMF, WMF, WDP e SVG ficam
-declarados como não lidos. Falha de memória do OCR não apaga o texto do
-frame já extraído. O número de imagens que o parser manda ao motor por
-arquivo fica no teto que a medição seguinte aprovar.
+Aceite: slide cujo único conteúdo é um PNG com identificador VCE ganha bloco
+com esse identificador e locator `imagem`. PNG e JPEG passam pelo mesmo caminho;
+slide que já tem o mesmo texto no frame não ganha segunda cópia. Imagem abaixo
+do piso de pixels não chama nem carrega o motor. Só imagens com até 2 Mpx e
+1,5 MB são candidatas, e no máximo 12 imagens válidas por arquivo chegam ao
+motor; quando há mais, `ocr_raster_limite` declara o corte. EMF, WMF, WDP e SVG
+ficam declarados como não lidos. Falha de uma imagem não apaga texto já extraído.
+Máquina sem kernel CUDA declara `sem_gpu` e não tenta OCR em CPU.
 
 Fora: página de PDF que já tem parágrafo e também uma figura. Arquivo de
 imagem solto (`.png` na pasta). Troca de motor. OCR dos 2.202 rasters.
@@ -262,8 +261,8 @@ diagnóstico. Nome de provider na lista não é prova de que o kernel roda: a
 1.29 anunciou `CUDAExecutionProvider` e o primeiro Conv falhou até o cuDNN 9
 estar carregável.
 
-Contrato, para revisitar antes de aprovar `IMAGEM-RASTER` e antes de qualquer
-passada que ligue placa:
+Contrato de inicialização compartilhada, para uso de CUDA pelo embedding e por
+qualquer etapa que não tenha uma sonda local própria:
 
 - Um diagnóstico na inicialização do indexador e do servidor, compartilhado
   por parse, OCR e embedding. Relata CPU, GPU (nome, compute, VRAM), build do
@@ -286,9 +285,9 @@ passada que ligue placa:
 
 Paths previstos: `index/cuda_runtime.py`, `index/embeddings.py`,
 `ingest/ocr.py`. Dono: desktop, com o notebook repetindo o teste na máquina
-sem o pin Maxwell. Dependências de código: nenhuma. `IMAGEM-RASTER` espera
-este pacote e um teto de imagens medido no dispositivo que o diagnóstico
-realmente escolher.
+sem o pin Maxwell. Dependências de código: nenhuma. `IMAGEM-RASTER` mantém uma
+sonda limitada ao motor de OCR e ao teto registrado acima; este pacote continua
+necessário para unificar diagnóstico e seleção de dispositivo com embedding.
 
 Fora: gravar `onnxruntime-gpu==1.29` ou o cuDNN desta venv no `pyproject`.
 Trocar o `model_id` do embedding por causa da placa. Ligar CUDA no clone que

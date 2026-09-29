@@ -416,17 +416,18 @@ proxima_acao = ""
 
 [[pacote]]
 id = "IMAGEM-RASTER"
-estado = "proposto"
+estado = "em_execucao"
 dono = "notebook"
 paths = [
     "src/segundocerebro/ingest/ocr.py",
+    "src/segundocerebro/ingest/raster_ocr.py",
     "src/segundocerebro/ingest/parsers/slides.py",
     "src/segundocerebro/ingest/parsers/word.py",
 ]
 dependencias = ["GRAFICO-EMBED"]
-aceite = "suspenso: CPU mediana 8,8 s e 5,4 h nos 2202; a mesma amostra na 4070 deu mediana 0,85 s e cerca de 31 min, mas o produto nao escolhe a placa. So reabre depois de HARDWARE-INICIO e de um teto por arquivo"
+aceite = "PNG/JPEG so com kernel CUDA executado; piso 100 px; teto de 2 Mpx e 1,5 MB por imagem e 12 imagens validas por arquivo; declara corte, sem_gpu e formatos nao lidos; nao duplica texto nem apaga texto preexistente"
 evidencia = ""
-proxima_acao = "Codigo na branch codex/grafico-cache: OCR de PNG/JPEG so com kernel CUDA, piso 100 px e teto de 2 Mpx. Falta PR, passada --so-extensao e os 431 rasters grandes. Nao abrir segundo escritor em slides.py."
+proxima_acao = "Branch codex/imagem-raster: abrir PR, aguardar CI e merge; passada restrita no indice e posterior ao merge."
 
 [[pacote]]
 id = "PLANILHA-CELULA"

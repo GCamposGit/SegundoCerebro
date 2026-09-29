@@ -991,9 +991,9 @@ def test_pptx_xlsx_embutido_preserva_aviso_de_digesto() -> None:
 
 
 def test_pptx_parser_version_refresca_meta_do_xlsx_embutido() -> None:
-    assert parser_version_for(".pptx") == "4"
-    assert parser_version_for(".pptm") == "4"
-    assert parser_version_for(".ppt") == "5"
+    assert parser_version_for(".pptx") == "5"
+    assert parser_version_for(".pptm") == "5"
+    assert parser_version_for(".ppt") == "6"
 
 
 def test_pptx_smartart_entra_no_indice() -> None:
