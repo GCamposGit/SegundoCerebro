@@ -3,7 +3,7 @@
 **29/09/2026.** `GRAFICO-CACHE` foi entregue no PR #126 (commit `7646303`).
 `BUSCA-BURACO` foi entregue no PR #128 (merge `562b682`). `GRAFICO-EMBED` foi entregue no PR #130 (merge `83397b5`).
 `IMAGEM-RASTER` foi entregue no PR #132, `PLANILHA-CELULA` no PR #133 e
-`PLANILHA-LEITURA` no PR #134 (merge `748808d`). `CANONICO-BACKFILL` está em execução;
+`PLANILHA-LEITURA` no PR #134 (merge `748808d`) e `CANONICO-BACKFILL` no PR #135;
 `HARDWARE-INICIO` continua proposto.
 O OCR de imagens segue condicionado a um kernel CUDA executado; sem prova, não lê imagens.
 O diagnóstico compartilhado de hardware e embedding segue em
@@ -93,7 +93,7 @@ buraco novo é o PPTX. Coluna de medida em aba grande continua de fora do
 | 3 | `IMAGEM-RASTER` | entregue no PR #132 | OCR só com kernel CUDA, até 12 imagens válidas por arquivo e 2 Mpx por imagem |
 | 2 | `PLANILHA-CELULA` | entregue no PR #133 | Guarda a célula que o digesto descarta, sem novo vetor |
 | 3 | `PLANILHA-LEITURA` | entregue no PR #134 (`748808d`) | Tool MCP com cursor sobre essa tabela |
-| último operacional | `CANONICO-BACKFILL` | em execução; a passada só depois dos bumps de parser | Preenche o store do que já está nos trechos. Rodar antes congela texto velho |
+| último operacional | `CANONICO-BACKFILL` | entregue no PR #135; a passada só depois dos bumps de parser | Preenche o store do que já está nos trechos. Rodar antes congela texto velho |
 
 `CANONICO-BACKFILL` não inclui PPTX. PPTX só volta ao índice na passada
 operacional posterior ao bump, restrita a `.pptx,.pptm`.

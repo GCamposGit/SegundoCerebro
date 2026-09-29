@@ -1,7 +1,7 @@
 # Fila de pacotes. Em 29/09/2026 PLANILHA-LEITURA (#134, merge 748808d),
 # IMAGEM-RASTER (#132) e PLANILHA-CELULA (#133)
 # também foram entregues, junto de GRAFICO-CACHE (#126), BUSCA-BURACO (#128) e GRAFICO-EMBED (#130).
-# CANONICO-BACKFILL está em execução; HARDWARE-INICIO segue proposto.
+# CANONICO-BACKFILL foi entregue no PR #135; HARDWARE-INICIO segue proposto.
 # O contrato está em docs/roadmap-extracao-canonica.md.
 # Os blocos entregues permanecem: o validador confere a cadeia e a evidência.
 # ROADMAP.md e o plano fundamental são história e contexto.
@@ -478,7 +478,7 @@ proxima_acao = ""
 
 [[pacote]]
 id = "CANONICO-BACKFILL"
-estado = "em_execucao"
+estado = "entregue"
 dono = "desktop"
 paths = [
     "src/segundocerebro/index/cli.py",
@@ -492,8 +492,8 @@ paths = [
 ]
 dependencias = []
 aceite = "TXT indexado com store apagado volta a ter canonico sem mudar a contagem de vetores; extensao com parser do registro diferente do codigo nao entra; PPTX nao entra"
-evidencia = ""
-proxima_acao = "Entregar o comando isolado com fixtures sintéticas. A passada viva continua condicionada aos bumps de parser e só usa registros na versão atual."
+evidencia = { pr = 135 }
+proxima_acao = ""
 
 [[pacote]]
 id = "HARDWARE-INICIO"
