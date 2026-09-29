@@ -431,11 +431,18 @@ proxima_acao = "Branch codex/imagem-raster: abrir PR, aguardar CI e merge; passa
 
 [[pacote]]
 id = "PLANILHA-CELULA"
-estado = "proposto"
+estado = "em_execucao"
 dono = "desktop"
 paths = [
+    "src/segundocerebro/ingest/document.py",
     "src/segundocerebro/ingest/parsers/sheets.py",
+    "src/segundocerebro/ingest/parsers/planilha_captura.py",
     "src/segundocerebro/index/esquema.py",
+    "src/segundocerebro/index/operacoes.py",
+    "src/segundocerebro/index/planilha_celulas.py",
+    "src/segundocerebro/index/indexer.py",
+    "tests/test_planilha_celula.py",
+    "tests/test_index.py",
 ]
 dependencias = []
 aceite = "aba acima do limiar guarda aba linha coluna e o valor de medida; a contagem de blocos embedaveis continua a do digesto"

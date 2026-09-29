@@ -92,7 +92,7 @@ def _documento_ok(root, arquivo, resultado, chunks, model_id: str) -> dict:  # n
         "model_id": model_id,
         "chunker": CHUNKER_VERSION,
         "parser": _parser_gravado(resultado, arquivo.rel),
-        "natureza": resultado.natureza,
+        "natureza": resultado.natureza, "linhas_planilha": resultado.doc.linhas_planilha if resultado.doc else (),
     }
 
 
