@@ -163,10 +163,11 @@ def test_fila_real_carrega_sem_erro() -> None:
     assert por_id["PLANILHA-CELULA"].estado == "entregue"
     assert por_id["PLANILHA-CELULA"].evidencia["pr"] == 133
     assert por_id["PLANILHA-CELULA"].evidencia["sha"] == "b138b1e89cb819cb4e9322d15a5ae1c86907caa4"
+    assert por_id["PLANILHA-LEITURA"].estado == "em_execucao"
     assert all(
         p.estado == "proposto"
         for p in abertos
-        if p.id not in {"IMAGEM-RASTER", "PLANILHA-CELULA"}
+        if p.id not in {"IMAGEM-RASTER", "PLANILHA-CELULA", "PLANILHA-LEITURA"}
     )
     assert por_id["Q18"].estado == "entregue"
     assert por_id["Q18"].evidencia["pr"] == 123

@@ -1,4 +1,4 @@
-"""Superfície MCP do Segundo Cérebro — oito ferramentas, nenhuma que gere texto.
+"""Superfície MCP do Segundo Cérebro — nove ferramentas, nenhuma que gere texto.
 
     py -m segundocerebro.mcp.server --indice index
     py -m segundocerebro.mcp.server --base trabalho --http
@@ -13,13 +13,12 @@ localmente, sem nenhuma chamada a API paga. Ver as invariantes em
 - **Multi-hop é do cliente.** Estas ferramentas são primitivas componíveis; o
   laço de agente é quem compõe. Não há orquestrador de recuperação aqui.
 
-Sete ferramentas, em dois grupos. `search`, `read_note` e `neighbors` servem o
-modo **pergunta**, e são as que este arquivo registra. `list_folder`, `outline`,
-`get_document` e `pack_folder` servem o modo **leitura** — enumerar, mapear, ler
-e empacotar. As duas primeiras entraram em 30/08/2026 pelo `J.c-mapa`; a terceira
-em 02/09/2026 pelo `J.c-conteúdo`; `pack_folder` em 02/09/2026 pelo `J.d`. O
-registro deste grupo mora em `mcp/leitura.py`, porque `construir` está no teto
-de tamanho e superfície nova não empurra função que a tabela só deixa descer.
+Nove ferramentas, em três grupos. `search`, `read_note` e `neighbors` servem o
+modo **pergunta**. `list_folder`, `outline`, `get_document` e `pack_folder`
+servem o modo **leitura** — enumerar, mapear, ler e empacotar. `overview` dá o
+panorama, e `read_spreadsheet_cells` pagina valores estruturados de planilhas. O
+registro fica em módulos MCP próprios porque `construir` está no teto de tamanho
+e superfície nova não empurra função que a tabela só deixa descer.
 
 `list_recent` e `glossary` continuam de fora: são hipóteses que o uso real não
 confirmou.
@@ -50,6 +49,7 @@ from .busca import registrar as registrar_busca
 from .http_local import PORTA_PADRAO
 from .leitura import registrar as registrar_leitura
 from .overview import registrar as registrar_overview
+from .planilha import registrar as registrar_planilha
 
 log = get_logger("mcp.server")
 
@@ -188,6 +188,7 @@ def construir(recursos: Recursos) -> MCPServer:
     registrar_busca(servidor, recursos, limites)
     registrar_leitura(servidor, recursos, limites)
     registrar_overview(servidor, recursos)
+    registrar_planilha(servidor, recursos)
     return servidor
 
 

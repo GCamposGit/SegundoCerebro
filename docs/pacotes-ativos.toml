@@ -454,15 +454,25 @@ proxima_acao = "A tool de leitura é PLANILHA-LEITURA."
 
 [[pacote]]
 id = "PLANILHA-LEITURA"
-estado = "proposto"
+estado = "em_execucao"
 dono = "notebook"
 paths = [
+    "src/segundocerebro/acesso/planilha.py",
+    "src/segundocerebro/mcp/planilha.py",
     "src/segundocerebro/mcp/server.py",
+    "src/segundocerebro/mcp/busca.py",
+    "tests/test_planilha_leitura.py",
+    "tests/test_mcp.py",
+    "tests/test_protocolo_mcp.py",
+    "tests/test_pacotes_ativos.py",
+    "docs/pacotes-ativos.toml",
+    "docs/roadmap-extracao-canonica.md",
+    "docs/usar-o-mcp.md",
 ]
 dependencias = ["PLANILHA-CELULA"]
-aceite = "a leitura devolve o valor plantado com arquivo e locator, e cursor quando excede o orcamento; uma chamada nao devolve a aba inteira"
+aceite = "a leitura devolve valores ja estruturados com arquivo e locator; pagina por cursor limitado a 200 celulas, sem abrir o original"
 evidencia = ""
-proxima_acao = "So depois de PLANILHA-CELULA. Paths de mcp/ novos entram no PR sem segundo escritor em server.py."
+proxima_acao = "Implementar a leitura MCP em módulos novos, registrar a tool e validar com fixture sintética; nunca abrir planilha original."
 
 [[pacote]]
 id = "CANONICO-BACKFILL"

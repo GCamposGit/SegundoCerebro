@@ -42,7 +42,9 @@ DESCRICAO_SEARCH = (
     "Use incluir_versoes_antigas para auditoria da minuta antiga. "
     "Ausência de trecho não autoriza ler o arquivo por fora do índice. "
     "O retorno traz `limitacoes` quando o documento está em digesto, "
-    "placeholder de nuvem ou sem texto extraível."
+    "placeholder de nuvem ou sem texto extraível. Quando houver digesto de "
+    "planilha, use `read_spreadsheet_cells` para consultar valores persistidos; "
+    "essa leitura não abre o arquivo original."
 )
 
 LIMITE_DIGESTO = "Há abas representadas por digesto de valores, não por todas as células."
