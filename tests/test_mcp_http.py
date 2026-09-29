@@ -37,6 +37,7 @@ FERRAMENTAS = {
     "list_folder",
     "outline",
     "get_document",
+    "read_spreadsheet_cells",
     "pack_folder",
     "overview",
 }

@@ -1,9 +1,9 @@
 # Usar o Segundo Cérebro pelo MCP
 
-Oito ferramentas — três de pergunta (`search`, `read_note`, `neighbors`),
-quatro de leitura (`list_folder`, `outline`, `get_document`, `pack_folder`) e
-`overview` para o panorama. Provadas por stdio na suíte padrão, sem carregar
-modelo (`tests/test_protocolo_mcp.py`).
+Nove ferramentas — três de pergunta (`search`, `read_note`, `neighbors`),
+cinco de leitura (`list_folder`, `outline`, `get_document`,
+`read_spreadsheet_cells`, `pack_folder`) e `overview` para o panorama. Provadas
+por stdio na suíte padrão, sem carregar modelo (`tests/test_protocolo_mcp.py`).
 
 ## Ligar no Claude Code
 
@@ -126,7 +126,7 @@ Sobre o `--instalar`: ele só existe para cliente cujo caminho **e** formato for
 conferidos. O VS Code fica fora de propósito — o `mcp.json` dele chama a seção
 `servers`, não `mcpServers`, e o trecho gerado aqui não serve para ele.
 
-## As oito ferramentas
+## As nove ferramentas
 
 **`overview()`** — panorama estatístico da base de conhecimento: total de documentos e trechos indexados, período temporal coberto (datas mais antiga e mais recente), formatos mais comuns, principais pastas de primeiro nível, taxa de sucesso da indexação e documentos digitalizados pendentes de OCR. Boa para chamar no início de uma sessão para orientar buscas ou planos de leitura.
 
@@ -175,6 +175,16 @@ está (página, slide ou aba) e quanto ocupa. É o que transforma "ler 50 arquiv
 em plano viável — o agente vê a estrutura, escolhe o que vale ler, e só então
 gasta contexto. Aceita o caminho, o `id` de `list_folder` ou uma URI `sc://`.
 
+**`read_spreadsheet_cells(documento, aba="", cursor="", max_celulas=100, root_id="")`** —
+valores exatos que já foram persistidos como células estruturadas. Use quando
+`search` apontar que uma aba está em digesto ou quando precisar de um endereço
+individual: cada item traz `aba`, `linha`, `coluna`, `valor` e `onde` (por
+exemplo, `Medições!V1201`), junto com `arquivo`. A resposta inclui `total`,
+`restante`, `completo` e `cursor_proximo`. Cada chamada retorna no máximo 200
+células; copie o cursor na chamada seguinte. Se não houver células estruturadas,
+retorna uma lista vazia e um aviso. Consulta somente o SQLite do índice: não abre,
+reparseia ou baixa o arquivo original.
+
 **`get_document(documento, cursor=null, max_chars=8000)`** — todo o Markdown
 canônico extraído, paginado sem sobreposição dos chunks. Aceita caminho relativo,
 id ou URI `sc://` da própria base. Copie `cursor_proximo` na chamada seguinte
@@ -220,7 +230,8 @@ separador, nunca o cache.
 
 O padrão de uso: **`list_folder` para saber o que existe → `outline` para mapear
 → `pack_folder` para cobrir a pasta sob orçamento, ou `get_document` para um
-arquivo. `search` para perguntas pontuais.**
+arquivo. `search` para perguntas pontuais; `read_spreadsheet_cells` para consultar
+valores de células quando `search` sinalizar digesto.**
 
 O `id` merece uma linha: ele vem do **conteúdo** do arquivo, não do caminho.
 Renomear ou mover não muda o id; editar muda. Quando o mesmo conteúdo está em
@@ -230,7 +241,7 @@ sempre para o mesmo caminho preferido, pela mesma regra de versão vigente que a
 nuvem, formato não lido) aparece **sem** id e com o motivo escrito ao lado, em
 vez de sumir da lista.
 
-Oito, e não as cinco originalmente propostas no ROADMAP. `search` e `read_note` fecham
+Nove, e não as cinco originalmente propostas no ROADMAP. `search` e `read_note` fecham
 o laço básico e foram as duas únicas até a F3. A `neighbors` entrou na F4 por um
 motivo diferente: o traço de uso real mostrou o limite que ela rompe. Um plano
 que termina em "certificação ISO 42001" e a norma, em outra pasta, não têm nome,
@@ -251,7 +262,7 @@ no servidor reintroduziria custo por consulta e amarraria o projeto a um
 fornecedor, que é exatamente o que a arquitetura existe para evitar. Quem gera
 texto é o cliente; o servidor recupera e devolve procedência.
 
-Multi-hop também é do cliente. As oito ferramentas são primitivas componíveis, e
+Multi-hop também é do cliente. As nove ferramentas são primitivas componíveis, e
 o laço de agente é quem compõe.
 
 ## O que esperar, honestamente

@@ -119,10 +119,11 @@ SUPERFICIE = {
     "list_folder",
     "outline",
     "get_document",
+    "read_spreadsheet_cells",
     "pack_folder",
     "overview",
 }
-"""As oito ferramentas, e por que cada grupo está aqui.
+"""As nove ferramentas, e por que cada grupo está aqui.
 
 `search` e `read_note` fecham o laço de **retrieval** — "onde está X" e "me
 mostra o que tem em volta". `neighbors` entrou na F4 porque o traço de uso real
@@ -131,7 +132,8 @@ mostrou o limite concreto que ela rompe.
 `list_folder` e `outline` entraram em 30/08/2026 pelo `J.c-mapa`, e não são mais
 recuperação: são o **segundo modo de consumo** — enumerar e mapear, para o agente
 que vai ler uma pasta inteira e precisa saber o que existe antes de gastar
-contexto. `get_document` lê um; `pack_folder` cobre a pasta. Elas não ranqueiam.
+contexto. `get_document` lê um; `pack_folder` cobre a pasta; `read_spreadsheet_cells`
+pagina células estruturadas de abas grandes. Elas não ranqueiam.
 
 `list_recent` e `glossary` continuam de fora: são hipóteses que o uso real não
 confirmou.

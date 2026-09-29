@@ -61,7 +61,8 @@ REPO = Path(__file__).resolve().parents[1]
 DRIVER = REPO / "tests" / "servidor_falso.py"
 
 FERRAMENTAS = {
-    "search", "read_note", "neighbors", "list_folder", "outline", "get_document", "pack_folder", "overview",
+    "search", "read_note", "neighbors", "list_folder", "outline", "get_document",
+    "read_spreadsheet_cells", "pack_folder", "overview",
 }
 """A superfície inteira, declarada aqui de novo e de propósito.
 
@@ -267,6 +268,11 @@ def test_o_esquema_diz_ao_cliente_como_chamar(do_produto: dict[str, Any]) -> Non
     assert esquemas["get_document"]["required"] == ["documento"]
     assert set(esquemas["get_document"]["properties"]) == {"documento", "cursor", "max_chars", "root_id"}
     assert do_produto["ferramentas"]["get_document"].annotations.read_only_hint is True
+    assert esquemas["read_spreadsheet_cells"]["required"] == ["documento"]
+    assert set(esquemas["read_spreadsheet_cells"]["properties"]) == {
+        "documento", "aba", "cursor", "max_celulas", "root_id",
+    }
+    assert do_produto["ferramentas"]["read_spreadsheet_cells"].annotations.read_only_hint is True
     assert set(esquemas["list_folder"]["properties"]) == {
         "pasta", "recursivo", "cursor", "max_itens", "cursor_opaco",
     }
@@ -516,6 +522,7 @@ NUMERAIS = {
     6: "seis ferramentas",
     7: "sete ferramentas",
     8: "oito ferramentas",
+    9: "nove ferramentas",
 }
 """Como o título da seção conta as ferramentas. Só os casos que podem existir."""
 
