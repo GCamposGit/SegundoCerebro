@@ -443,6 +443,7 @@ paths = [
     "src/segundocerebro/index/indexer.py",
     "tests/test_planilha_celula.py",
     "tests/test_index.py",
+    "tests/test_pacotes_ativos.py",
 ]
 dependencias = []
 aceite = "aba acima do limiar guarda aba linha coluna e o valor de medida; a contagem de blocos embedaveis continua a do digesto"
