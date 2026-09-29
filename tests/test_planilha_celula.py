@@ -76,6 +76,9 @@ def test_indexacao_persiste_celulas_fora_dos_chunks_e_nao_apaga_original(tmp_pat
         (digest,),
     ).fetchone()
     assert tuple(celula) == ("Medições", 1201, "V", "12345.67")
+    assert store.con.execute(
+        "SELECT count(*) FROM planilha_celulas WHERE sha256 = ?", (digest,)
+    ).fetchone()[0] == 1201 * 22
     assert store.con.execute("SELECT count(*) FROM chunks").fetchone()[0] == len(doc.blocks)
 
     store.con.execute("DELETE FROM planilha_celulas WHERE sha256 = ?", (digest,))
