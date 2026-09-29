@@ -1,9 +1,10 @@
 # Extração canônica, gráficos e imagens
 
 **29/09/2026.** `GRAFICO-CACHE` foi entregue no PR #126 (commit `7646303`).
-`BUSCA-BURACO` foi entregue no PR #128 (merge `562b682`). `GRAFICO-EMBED` foi entregue no PR #130 (merge `83397b5`). Os outros quatro seguem propostos.
-`IMAGEM-RASTER` foi reaberto para implementação limitada em 29/09/2026. O OCR
-continua condicionado a um kernel CUDA executado; sem prova, não lê imagens.
+`BUSCA-BURACO` foi entregue no PR #128 (merge `562b682`). `GRAFICO-EMBED` foi entregue no PR #130 (merge `83397b5`).
+`IMAGEM-RASTER` foi entregue no PR #132 e `PLANILHA-CELULA` no PR #133.
+`HARDWARE-INICIO`, `PLANILHA-LEITURA` e `CANONICO-BACKFILL` continuam propostos.
+O OCR de imagens segue condicionado a um kernel CUDA executado; sem prova, não lê imagens.
 O diagnóstico compartilhado de hardware e embedding segue em
 `HARDWARE-INICIO`. O ticket que um agente pega é o bloco `[[pacote]]` em
 [`pacotes-ativos.toml`](pacotes-ativos.toml); este arquivo é o contrato.
@@ -19,9 +20,8 @@ depois do merge, com `--so-extensao`, nunca reindexação da árvore inteira.
 1. Escolha o primeiro da ordem cujo `dependencias` já está `entregue` e cujo
    path não tem outro escritor. `GRAFICO-CACHE` está entregue. `BUSCA-BURACO`
    também está entregue e não toca parser. `GRAFICO-EMBED` está entregue no PR #130.
-2. No máximo um pacote `em_execucao` por path. `GRAFICO-EMBED` e
-   `IMAGEM-RASTER` dividem `slides.py`; não marque ambos como `pronto` ou
-   `em_execucao` ao mesmo tempo.
+2. No máximo um pacote `em_execucao` por path; só um escritor pode editar um
+   path compartilhado por vez.
 3. Branch `codex/<id>` a partir de `main`. Não commitar em `main`.
 4. O teste novo tem de falhar com o código antigo e passar com o novo.
 5. Subir a versão do parser se o texto emitido ou os metadados persistidos mudarem.
@@ -89,8 +89,8 @@ buraco novo é o PPTX. Coluna de medida em aba grande continua de fora do
 | 1 | `BUSCA-BURACO` | entregue no PR #128 | A busca declara quando o índice não representa o documento completo |
 | 2 | `GRAFICO-EMBED` | entregue no PR #130 (`83397b5`) | Chart sem `c:v`, lendo o xlsx embutido e preservando o aviso de digesto |
 | — | `HARDWARE-INICIO` | proposto | Diagnóstico compartilhado para embedding e etapas sem sonda local, sem pin desta máquina |
-| 3 | `IMAGEM-RASTER` | em execução | OCR só com kernel CUDA, até 12 imagens válidas por arquivo e 2 Mpx por imagem |
-| 2 | `PLANILHA-CELULA` | em paralelo com 2–3, sem mexer em `slides.py` | Guarda a célula que o digesto descarta, sem novo vetor |
+| 3 | `IMAGEM-RASTER` | entregue no PR #132 | OCR só com kernel CUDA, até 12 imagens válidas por arquivo e 2 Mpx por imagem |
+| 2 | `PLANILHA-CELULA` | entregue no PR #133 | Guarda a célula que o digesto descarta, sem novo vetor |
 | 3 | `PLANILHA-LEITURA` | depois de `PLANILHA-CELULA` | Tool MCP com cursor sobre essa tabela |
 | último operacional | `CANONICO-BACKFILL` | código em paralelo; a passada só depois dos bumps de parser | Preenche o store do que já está nos trechos. Rodar antes congela texto velho |
 
@@ -324,6 +324,21 @@ posterior ao merge, separada do aceite do pacote; se executada, usar
 Os 431 rasters acima do teto continuam de fora. PDF que já tem parágrafo e
 uma figura continua sem OCR. Embedding ainda decide a placa pelo diagnóstico
 antigo (`diagnosticar`), não por esta sonda de kernel.
+
+## Entregas de `IMAGEM-RASTER` e `PLANILHA-CELULA` — 29/09/2026
+
+`IMAGEM-RASTER` foi entregue no PR #132 (head `6a6cb8034bf4bb808964296fe8d315838eff99d3`).
+Os testes e a CI do PR passaram. Esta instalação Windows não conseguiu provar
+execução real do kernel CUDA porque o ONNX Runtime não carregou a DLL local;
+por isso o código continua exigindo a sonda positiva e não executa OCR em CPU.
+Não houve passada em índice ou acervo real. O limite de 12 imagens por arquivo,
+2 Mpx e 1,5 MB por imagem permanece parte do contrato.
+
+`PLANILHA-CELULA` foi entregue no PR #133 (head
+`b138b1e89cb819cb4e9322d15a5ae1c86907caa4`). A CI passou em 8 de 8 verificações.
+Na fixture sintética de 1.201 × 22, o índice guarda 26.422 células, inclusive
+`Medições!V1201 = 12345.67`, e mantém os mesmos cinco blocos/chunks. Células
+ficam no SQLite, sem vetor por célula; nenhuma tabela ou acervo real foi lido.
 
 ## O que esta fila não reabre
 
