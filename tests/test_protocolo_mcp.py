@@ -273,11 +273,6 @@ def test_o_esquema_diz_ao_cliente_como_chamar(do_produto: dict[str, Any]) -> Non
         "documento", "aba", "cursor", "max_celulas", "root_id",
     }
     assert do_produto["ferramentas"]["read_spreadsheet_cells"].annotations.read_only_hint is True
-    assert esquemas["read_spreadsheet_cells"]["required"] == ["documento"]
-    assert set(esquemas["read_spreadsheet_cells"]["properties"]) == {
-        "documento", "aba", "cursor", "max_celulas", "root_id",
-    }
-    assert do_produto["ferramentas"]["read_spreadsheet_cells"].annotations.read_only_hint is True
     assert set(esquemas["list_folder"]["properties"]) == {
         "pasta", "recursivo", "cursor", "max_itens", "cursor_opaco",
     }

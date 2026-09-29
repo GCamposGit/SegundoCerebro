@@ -463,6 +463,7 @@ paths = [
     "src/segundocerebro/mcp/busca.py",
     "tests/test_planilha_leitura.py",
     "tests/test_mcp.py",
+    "tests/test_mcp_http.py",
     "tests/test_protocolo_mcp.py",
     "tests/test_pacotes_ativos.py",
     "docs/pacotes-ativos.toml",
