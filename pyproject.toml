@@ -81,6 +81,7 @@ dev = [
 segundocerebro-censo = "segundocerebro.census:main"
 segundocerebro-mcp = "segundocerebro.mcp.server:main"
 segundocerebro-painel = "segundocerebro.painel.__main__:main"
+segundocerebro-backfill-canonico = "segundocerebro.index.canonico_backfill:main"
 segundocerebro-indexar = "segundocerebro.index.indexer:main"
 segundocerebro-observar = "segundocerebro.index.watcher:main"
 segundocerebro-exportar = "segundocerebro.acesso.exportar:main"

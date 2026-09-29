@@ -88,6 +88,7 @@ def test_pyproject_e_fonte_unica_das_dependencias() -> None:
     assert scripts["segundocerebro-painel"].endswith("painel.__main__:main")
     assert scripts["segundocerebro-indexar"].endswith("index.indexer:main")
     assert scripts["segundocerebro-observar"].endswith("index.watcher:main")
+    assert scripts["segundocerebro-backfill-canonico"].endswith("index.canonico_backfill:main")
     extras = project["optional-dependencies"]
     assert "gpu" in extras
     assert "ocr" in extras
