@@ -167,6 +167,17 @@ def test_aplicar_provider_publica_para_os_filhos(monkeypatch: pytest.MonkeyPatch
     de `tests/conftest.py` fecha a classe mesmo quando alguém esquecer.
     """
     monkeypatch.setenv("SEGUNDOCEREBRO_PROVIDER", "")
+    from segundocerebro.index.cuda_runtime import OK, DiagnosticoCuda, DispositivoCuda
+
+    monkeypatch.setattr(
+        "segundocerebro.index.cuda_runtime.diagnosticar_inicializacao",
+        lambda: DiagnosticoCuda(
+            True,
+            OK,
+            "kernel sintético executado",
+            dispositivos=(DispositivoCuda(0, "GPU sintética", "8.9", 8192, 7000, True),),
+        ),
+    )
     assert aplicar_provider("cuda") == "cuda"
     assert os.environ["SEGUNDOCEREBRO_PROVIDER"] == "cuda"
 

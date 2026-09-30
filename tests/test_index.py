@@ -265,6 +265,20 @@ def test_pipeline_duas_gpus_grava_via_fila(tmp_path: Path, monkeypatch: pytest.M
         "segundocerebro.index.cuda_runtime._listar_providers",
         lambda: ["CUDAExecutionProvider", "CPUExecutionProvider"],
     )
+    from segundocerebro.index.cuda_runtime import OK, DiagnosticoCuda, DispositivoCuda
+
+    monkeypatch.setattr(
+        "segundocerebro.index.cuda_runtime.diagnosticar_inicializacao",
+        lambda: DiagnosticoCuda(
+            True,
+            OK,
+            "kernel sintético executado",
+            dispositivos=(
+                DispositivoCuda(0, "GPU falsa 0", "8.9", 8192, 7000, True, id_fisico="0"),
+                DispositivoCuda(1, "GPU falsa 1", "8.9", 8192, 6500, True, id_fisico="1"),
+            ),
+        ),
+    )
     monkeypatch.setattr("segundocerebro.index.gpu_pool.contar_gpus", lambda: 2)
     monkeypatch.setattr(
         "segundocerebro.index.indexer.dispositivos_embed", lambda **k: ["0", "1"]

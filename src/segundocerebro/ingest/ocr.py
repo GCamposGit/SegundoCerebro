@@ -160,7 +160,32 @@ def gpu_para_ocr() -> bool:
 
 def _sondar_cuda() -> bool:
     """Load one shipped OCR graph on CUDA and run it. cuDNN missing fails here."""
-    from ..index.cuda_runtime import preparar
+    from ..index.cuda_runtime import (
+        MEMORIA_OCR_MINIMA_MB,
+        diagnosticar_inicializacao,
+        preparar,
+        provider_pedido,
+        selecionar_dispositivo,
+        sondar_hardware,
+    )
+
+    if not os.environ.get("PYTEST_CURRENT_TEST") and provider_pedido() != "cuda":
+        return False
+    # Only the explicit `pytest -m cuda` path bypasses the usual test guard.
+    # It still uses the shared kernel probe; normal tests never touch hardware.
+    diagnostico = (
+        sondar_hardware()
+        if os.environ.get("PYTEST_CURRENT_TEST")
+        else diagnosticar_inicializacao()
+    )
+    dispositivo = selecionar_dispositivo(
+        diagnostico,
+        memoria_minima_mb=MEMORIA_OCR_MINIMA_MB,
+        indices_permitidos={0},
+    )
+    if dispositivo is None:
+        log.info("OCR em CPU: %s", diagnostico.mensagem)
+        return False
 
     preparar()
     try:
@@ -183,6 +208,7 @@ def _sondar_cuda() -> bool:
         return False
     global _rapid
     _rapid = motor
+    log.info("OCR CUDA ativo na GPU %s após kernel mínimo compartilhado", dispositivo.indice)
     return True
 
 

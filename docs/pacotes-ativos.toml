@@ -1,7 +1,7 @@
 # Fila de pacotes. Em 29/09/2026 PLANILHA-LEITURA (#134, merge 748808d),
 # IMAGEM-RASTER (#132) e PLANILHA-CELULA (#133)
 # também foram entregues, junto de GRAFICO-CACHE (#126), BUSCA-BURACO (#128) e GRAFICO-EMBED (#130).
-# CANONICO-BACKFILL foi entregue no PR #135; HARDWARE-INICIO segue proposto.
+# CANONICO-BACKFILL foi entregue no PR #135; HARDWARE-INICIO está pronto para revisão.
 # O contrato está em docs/roadmap-extracao-canonica.md.
 # Os blocos entregues permanecem: o validador confere a cadeia e a evidência.
 # ROADMAP.md e o plano fundamental são história e contexto.
@@ -497,14 +497,25 @@ proxima_acao = ""
 
 [[pacote]]
 id = "HARDWARE-INICIO"
-estado = "proposto"
+estado = "pronto"
 dono = "desktop"
 paths = [
     "src/segundocerebro/index/cuda_runtime.py",
+    "src/segundocerebro/index/hardware_probe.py",
     "src/segundocerebro/index/embeddings.py",
+    "src/segundocerebro/index/indexer.py",
     "src/segundocerebro/ingest/ocr.py",
+    "src/segundocerebro/mcp/server.py",
+    "tests/test_cuda_runtime.py",
+    "tests/test_roadmap_integrado.py",
+    "tests/test_index.py",
+    "tests/test_smoke_cuda.py",
+    "tests/test_pacotes_ativos.py",
+    "docs/avaliacao-integrada-roadmap.md",
+    "docs/roadmap-extracao-canonica.md",
+    "docs/pacotes-ativos.toml",
 ]
 dependencias = []
-aceite = "diagnostico na arranque; OCR e embedding usam CUDA so se um kernel minimo rodou; so-CPU fica em CPU e declara o motivo; hardware injetado, sem pin de uma placa no pyproject"
+aceite = "indexador e MCP registram CPU, GPU, compute, VRAM, build ONNX e resultado do kernel minimo; OCR e embedding usam CUDA somente em GPU aprovada com VRAM livre suficiente; recusa explica fallback CPU; selecao validada com hardware injetado; nenhum pin de placa no pyproject"
 evidencia = ""
-proxima_acao = "A sonda de kernel e o sufixo +raster ja estao na branch. Falta o embedding usar a mesma sonda, o teste com hardware injetado nos dois setups, e nao promover o wheel 1.29 nem o pin 1.18."
+proxima_acao = "Repetir a matriz injetada no notebook sem overlay Maxwell; merge permanece humano conforme nível 2."

@@ -144,6 +144,7 @@ def test_fila_real_carrega_sem_erro() -> None:
     assert (REPO / "docs" / "fnd-01b-identidade-interna.md").is_file()
     abertos = [p for p in pacotes if p.estado in {"proposto", "pronto", "em_execucao", "bloqueado"}]
     assert {p.id for p in abertos} == {"HARDWARE-INICIO"}
+    assert por_id["HARDWARE-INICIO"].estado == "pronto"
     assert por_id["GRAFICO-CACHE"].estado == "entregue"
     assert por_id["GRAFICO-CACHE"].evidencia["pr"] == 126
     assert por_id["GRAFICO-CACHE"].evidencia["sha"] == "76463036ea118d01b6c595e10e434172ed5a8be0"
@@ -164,11 +165,6 @@ def test_fila_real_carrega_sem_erro() -> None:
     assert por_id["PLANILHA-LEITURA"].evidencia["sha"] == "748808d6107003a99c97812efbf750537a55c384"
     assert por_id["CANONICO-BACKFILL"].estado == "entregue"
     assert por_id["CANONICO-BACKFILL"].evidencia["pr"] == 135
-    assert all(
-        p.estado == "proposto"
-        for p in abertos
-        if p.id not in {"IMAGEM-RASTER", "PLANILHA-CELULA"}
-    )
     assert por_id["Q18"].estado == "entregue"
     assert por_id["Q18"].evidencia["pr"] == 123
     assert por_id["Q18"].evidencia["sha"] == "2681d7d57a11656cf9149957ebcee81a27335fdd"

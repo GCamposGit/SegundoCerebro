@@ -69,6 +69,9 @@ class ModelSpec:
     chunks_por_segundo: float = 0.0
     """Measured on an i7-1355U with threads=10 — used to estimate wall clock."""
 
+    memoria_cuda_minima_mb: int = 0
+    """VRAM headroom required before selecting this encoder; only a routing limit."""
+
 
 MODELOS: dict[str, ModelSpec] = {
     "minilm": ModelSpec(
@@ -77,6 +80,7 @@ MODELOS: dict[str, ModelSpec] = {
         dim=384,
         max_tokens=128,  # tokenizer_config.json: max_length 128, e não os 512 do config.json
         chunks_por_segundo=13.22,
+        memoria_cuda_minima_mb=512,
     ),
     "mpnet": ModelSpec(
         id="mpnet",
@@ -84,6 +88,7 @@ MODELOS: dict[str, ModelSpec] = {
         dim=768,
         max_tokens=512,
         chunks_por_segundo=2.10,
+        memoria_cuda_minima_mb=1024,
     ),
     "e5-large": ModelSpec(
         id="e5-large",
@@ -93,6 +98,7 @@ MODELOS: dict[str, ModelSpec] = {
         prefixo_passagem="passage: ",
         prefixo_consulta="query: ",
         chunks_por_segundo=0.63,
+        memoria_cuda_minima_mb=3072,
     ),
 }
 
@@ -169,14 +175,25 @@ class Embedder:
             # Hardware does not enter model_id. CUDA is opt-in; empty is CPU
             # (F6-C). Leaving providers unset used to let ORT pick CUDA on a
             # gpu wheel — the opposite of "CPU is the default".
-            from .cuda_runtime import diagnosticar, preparar, provider_pedido
+            from .cuda_runtime import preparar, provider_da_etapa, provider_pedido
 
             if provider_pedido() == "cuda":
-                diag = diagnosticar(modelo=self.spec.id)
-                if not diag.ok:
-                    raise RuntimeError(diag.mensagem)
-                preparar()
-                kwargs["providers"] = ["CUDAExecutionProvider"]
+                provider, dispositivo, motivo = provider_da_etapa(
+                    f"embedding/{self.spec.id}",
+                    memoria_minima_mb=self.spec.memoria_cuda_minima_mb,
+                    modelo=self.spec.id,
+                )
+                if provider == "cuda":
+                    preparar()
+                    kwargs["providers"] = [
+                        ("CUDAExecutionProvider", {"device_id": str(dispositivo or 0)}),
+                        "CPUExecutionProvider",
+                    ]
+                else:
+                    if self.spec.id == "minilm":
+                        raise RuntimeError(motivo)
+                    log.warning("embedding em CPU: %s", motivo)
+                    kwargs["providers"] = ["CPUExecutionProvider"]
             else:
                 kwargs["providers"] = ["CPUExecutionProvider"]
             try:
@@ -184,7 +201,12 @@ class Embedder:
             except RuntimeError:
                 raise
             except Exception as erro:  # BLE001 — probe de hardware: falha CUDA vira RuntimeError tipado
-                if kwargs.get("providers") == ["CUDAExecutionProvider"]:
+                if any(
+                    provider == "CUDAExecutionProvider"
+                    if isinstance(provider, str)
+                    else provider[0] == "CUDAExecutionProvider"
+                    for provider in kwargs.get("providers", [])
+                ):
                     raise RuntimeError(
                         "O CUDA não carregou neste computador. Tire "
                         "SEGUNDOCEREBRO_PROVIDER=cuda para indexar na CPU — "
