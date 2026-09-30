@@ -4,7 +4,8 @@
 `BUSCA-BURACO` foi entregue no PR #128 (merge `562b682`). `GRAFICO-EMBED` foi entregue no PR #130 (merge `83397b5`).
 `IMAGEM-RASTER` foi entregue no PR #132, `PLANILHA-CELULA` no PR #133 e
 `PLANILHA-LEITURA` no PR #134 (merge `748808d`) e `CANONICO-BACKFILL` no PR #135;
-`HARDWARE-INICIO` continua proposto.
+`HARDWARE-INICIO` está pronto para revisão, aguardando repetição da matriz injetada
+no notebook e merge humano.
 O OCR de imagens segue condicionado a um kernel CUDA executado; sem prova, não lê imagens.
 O diagnóstico compartilhado de hardware e embedding segue em
 `HARDWARE-INICIO`. O ticket que um agente pega é o bloco `[[pacote]]` em
@@ -89,7 +90,7 @@ buraco novo é o PPTX. Coluna de medida em aba grande continua de fora do
 | 1 | `GRAFICO-CACHE` | entregue no PR #126 | O número do gráfico nativo entra no texto |
 | 1 | `BUSCA-BURACO` | entregue no PR #128 | A busca declara quando o índice não representa o documento completo |
 | 2 | `GRAFICO-EMBED` | entregue no PR #130 (`83397b5`) | Chart sem `c:v`, lendo o xlsx embutido e preservando o aviso de digesto |
-| — | `HARDWARE-INICIO` | proposto | Diagnóstico compartilhado para embedding e etapas sem sonda local, sem pin desta máquina |
+| último | `HARDWARE-INICIO` | pronto para revisão | Diagnóstico compartilhado e avaliação integrada, sem pin desta máquina |
 | 3 | `IMAGEM-RASTER` | entregue no PR #132 | OCR só com kernel CUDA, até 12 imagens válidas por arquivo e 2 Mpx por imagem |
 | 2 | `PLANILHA-CELULA` | entregue no PR #133 | Guarda a célula que o digesto descarta, sem novo vetor |
 | 3 | `PLANILHA-LEITURA` | entregue no PR #134 (`748808d`) | Tool MCP com cursor sobre essa tabela |

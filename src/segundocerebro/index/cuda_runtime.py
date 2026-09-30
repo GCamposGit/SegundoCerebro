@@ -15,10 +15,37 @@ import os
 import site
 import subprocess
 import sysconfig
-from dataclasses import dataclass
 from pathlib import Path
 
 from ..logger import get_logger
+from .hardware_probe import (
+    KERNEL_FALHOU,
+    MEMORIA_OCR_MINIMA_MB,
+    MSG_KERNEL_FALHOU,
+    DiagnosticoCuda,
+    DispositivoCuda,
+    diagnosticar_inicializacao,
+    limpar_cache_sonda,
+    provider_da_etapa as _provider_da_etapa,
+    selecionar_dispositivo,
+    sondar_hardware,
+    _executar_kernel_minimo,
+    filtrar_gpus_embed as _filtrar_gpus_embed,
+    preparar_gpus_embed as _preparar_gpus_embed,
+)
+
+__all__ = [
+    "KERNEL_FALHOU",
+    "MEMORIA_OCR_MINIMA_MB",
+    "MSG_KERNEL_FALHOU",
+    "DiagnosticoCuda",
+    "DispositivoCuda",
+    "diagnosticar_inicializacao",
+    "limpar_cache_sonda",
+    "selecionar_dispositivo",
+    "sondar_hardware",
+    "_executar_kernel_minimo",
+]
 
 log = get_logger("index.cuda_runtime")
 
@@ -78,15 +105,6 @@ MSG_SEM_ORT = (
     "Não instale um pacote de GPU com CUDA 13."
 )
 MSG_OK = "CUDA visível."
-
-
-@dataclass(frozen=True)
-class DiagnosticoCuda:
-    ok: bool
-    codigo: str
-    mensagem: str
-
-
 def _raizes_de_site() -> list[Path]:
     """Venv and base prefixes. `getsitepackages()` misses the venv on Windows."""
     achadas: list[Path] = []
@@ -188,9 +206,15 @@ def aplicar_provider(provider: str | None) -> str:
     # Sem isso o provider CUDA já nasce sem cuDNN e o OCR cai na CPU.
     preparar()
     p = resolver_provider(provider)
-    # Publica o provedor efetivo (arquivo, env ou auto-CUDA) para os filhos de
-    # embed herdarem. Env já preenchido continua mandando.
-    if not (os.environ.get("SEGUNDOCEREBRO_PROVIDER") or "").strip() and p:
+    diagnostico = diagnosticar_inicializacao()
+    if p == "cuda":
+        if not diagnostico.ok:
+            log.warning("CUDA recusado na inicialização; usando CPU: %s", diagnostico.mensagem)
+            p = "cpu"
+    # Publica o provedor efetivo para os filhos; falha do kernel pode rebaixar
+    # até um pedido explícito de CUDA para CPU, sem interromper a indexação.
+    atual = (os.environ.get("SEGUNDOCEREBRO_PROVIDER") or "").strip().lower()
+    if p and (not atual or atual != p):
         os.environ["SEGUNDOCEREBRO_PROVIDER"] = p
     return p
 
@@ -201,7 +225,7 @@ def listar_gpus() -> list[dict[str, str]]:
         bruto = subprocess.run(
             [
                 "nvidia-smi",
-                "--query-gpu=name,driver_version,compute_cap,memory.total",
+                "--query-gpu=index,name,driver_version,compute_cap,memory.total,memory.free",
                 "--format=csv,noheader",
             ],
             check=False,
@@ -213,16 +237,29 @@ def listar_gpus() -> list[dict[str, str]]:
         return []
     if bruto.returncode != 0:
         return []
+    visiveis = os.environ.get("CUDA_VISIBLE_DEVICES")
+    ids_visiveis = [parte.strip() for parte in visiveis.split(",")] if visiveis else None
     saida: list[dict[str, str]] = []
     for linha in bruto.stdout.splitlines():
         partes = [p.strip() for p in linha.split(",")]
-        if len(partes) >= 3:
+        if len(partes) >= 5:
+            indice_fisico = partes[0]
+            if ids_visiveis is not None and indice_fisico not in ids_visiveis:
+                continue
+            indice_logico = (
+                str(ids_visiveis.index(indice_fisico))
+                if ids_visiveis is not None
+                else indice_fisico
+            )
             saida.append(
                 {
-                    "name": partes[0],
-                    "driver": partes[1],
-                    "compute": partes[2],
-                    "memoria": partes[3] if len(partes) > 3 else "",
+                    "indice": indice_logico,
+                    "id_fisico": indice_fisico,
+                    "name": partes[1],
+                    "driver": partes[2],
+                    "compute": partes[3],
+                    "memoria": partes[4],
+                    "memoria_livre": partes[5] if len(partes) > 5 else "",
                 }
             )
     return saida
@@ -247,6 +284,20 @@ def _versao_ort() -> str | None:
     except ImportError:
         return None
     return getattr(ort, "__version__", "") or None
+
+
+def _build_ort() -> str | None:
+    try:
+        import onnxruntime as ort
+    except ImportError:
+        return None
+    get = getattr(ort, "get_build_info", None)
+    if not callable(get):
+        return None
+    try:
+        return str(get()) or None
+    except Exception:  # noqa: BLE001 — diagnóstico best-effort
+        return None
 
 
 def _listar_providers() -> list[str] | None:
@@ -331,3 +382,45 @@ def diagnosticar(
         return DiagnosticoCuda(False, DRIVER, MSG_DRIVER)
 
     return DiagnosticoCuda(True, OK, MSG_OK)
+
+
+def provider_da_etapa(
+    etapa: str,
+    *,
+    memoria_minima_mb: int = 0,
+    indice_fixo: int | None = None,
+    modelo: str | None = None,
+) -> tuple[str, int | None, str]:
+    return _provider_da_etapa(
+        etapa,
+        memoria_minima_mb=memoria_minima_mb,
+        indice_fixo=indice_fixo,
+        modelo=modelo,
+        diagnostico=diagnosticar_inicializacao(),
+    )
+
+
+def filtrar_gpus_embed(
+    modelo: str,
+    memoria_minima_mb: int,
+    solicitadas: list[str],
+) -> tuple[list[str], str, list[str]]:
+    return _filtrar_gpus_embed(
+        modelo,
+        memoria_minima_mb,
+        solicitadas,
+        diagnosticar_inicializacao(),
+    )
+
+
+def preparar_gpus_embed(
+    modelo: str,
+    memoria_minima_mb: int,
+    solicitadas: list[str],
+) -> list[str]:
+    return _preparar_gpus_embed(
+        modelo,
+        memoria_minima_mb,
+        solicitadas,
+        diagnosticar_inicializacao(),
+    )

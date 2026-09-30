@@ -237,6 +237,10 @@ def main(argv: list[str] | None = None) -> int:
 
     threads = args.threads if args.threads is not None else cfg.maquina.threads_efetivos()
     log.info("base '%s' (%s) | índice %s", base.id, base.titulo, indice)
+    from ..index.cuda_runtime import aplicar_provider
+
+    provider_efetivo = aplicar_provider(cfg.maquina.provider)
+    log.info("sonda de hardware concluída; servidor MCP preparado em %s", provider_efetivo)
 
     servidor = construir(
         Recursos(

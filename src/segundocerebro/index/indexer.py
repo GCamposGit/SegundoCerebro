@@ -431,20 +431,20 @@ def indexar(
     n_gpus = 0
     gpus: list[str] = []
     if os.environ.get("SEGUNDOCEREBRO_PROVIDER", "").lower() == "cuda":
-        from .cuda_runtime import diagnosticar
+        from .cuda_runtime import preparar_gpus_embed
 
-        diag = diagnosticar(modelo=getattr(embedder.spec, "id", None))
-        if not diag.ok:
-            raise RuntimeError(diag.mensagem)
         if controle is not None:
-            gpus = controle.plano.gpu_ids_ativos
-            if not gpus:
-                # Perfil deixou todas de fora: cai na CPU. Não deve acontecer
-                # com 1 GPU (o plano usa essa placa em leve/normal).
-                log.warning("plano de esforço sem GPU ativa; embed na CPU")
+            solicitadas = controle.plano.gpu_ids_ativos
         else:
             perfil = str((esforco or {}).get("perfil") or "")
-            gpus = dispositivos_embed(reservar_display=perfil == "leve")
+            solicitadas = dispositivos_embed(reservar_display=perfil == "leve")
+        gpus = preparar_gpus_embed(
+            getattr(embedder.spec, "id", ""),
+            int(getattr(embedder.spec, "memoria_cuda_minima_mb", 0)),
+            solicitadas,
+        )
+        if not gpus:
+            os.environ["SEGUNDOCEREBRO_PROVIDER"] = "cpu"
         n_gpus = len(gpus)
         if n_gpus == 1:
             os.environ["CUDA_VISIBLE_DEVICES"] = gpus[0]
