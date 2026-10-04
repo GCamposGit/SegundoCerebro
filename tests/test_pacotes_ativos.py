@@ -143,8 +143,17 @@ def test_fila_real_carrega_sem_erro() -> None:
     assert por_id["FND-01b-int"].dono == "notebook"
     assert (REPO / "docs" / "fnd-01b-identidade-interna.md").is_file()
     abertos = [p for p in pacotes if p.estado in {"proposto", "pronto", "em_execucao", "bloqueado"}]
-    assert {p.id for p in abertos} == {"HARDWARE-INICIO"}
+    assert {p.id for p in abertos} == {
+        "HARDWARE-INICIO",
+        "FILA-RETOMADA",
+        "PAINEL-FASE",
+        "RELATORIO-FALHAS",
+    }
     assert por_id["HARDWARE-INICIO"].estado == "pronto"
+    assert por_id["FILA-RETOMADA"].estado == "proposto"
+    assert por_id["FILA-RETOMADA"].dono == "notebook"
+    assert por_id["PAINEL-FASE"].estado == "proposto"
+    assert por_id["RELATORIO-FALHAS"].estado == "proposto"
     assert por_id["GRAFICO-CACHE"].estado == "entregue"
     assert por_id["GRAFICO-CACHE"].evidencia["pr"] == 126
     assert por_id["GRAFICO-CACHE"].evidencia["sha"] == "76463036ea118d01b6c595e10e434172ed5a8be0"

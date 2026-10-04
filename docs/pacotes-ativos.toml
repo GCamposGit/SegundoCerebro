@@ -518,4 +518,44 @@ paths = [
 dependencias = []
 aceite = "indexador e MCP registram CPU, GPU, compute, VRAM, build ONNX e resultado do kernel minimo; OCR e embedding usam CUDA somente em GPU aprovada com VRAM livre suficiente; recusa explica fallback CPU; selecao validada com hardware injetado; nenhum pin de placa no pyproject"
 evidencia = ""
-proxima_acao = "Repetir a matriz injetada no notebook sem overlay Maxwell; merge permanece humano conforme nível 2."
+proxima_acao = "Repetir a matriz injetada no notebook sem overlay Maxwell; merge permanece humano conforme nível 2. Em 2026-10-04 o venv do notebook tinha onnxruntime-gpu 1.29.0 e test_se_gpu_instalado_nao_e_cuda13 falhou. Não reinstalar o pin por baixo do MCP diário, e não promover a roda 1.29."
+
+[[pacote]]
+id = "FILA-RETOMADA"
+estado = "proposto"
+dono = "notebook"
+paths = [
+    "src/segundocerebro/index/retomada.py",
+    "tests/test_retomada.py",
+    ".gitignore",
+]
+dependencias = []
+aceite = "fila-indexacao.json ao lado do config retoma, na ordem, base nunca iniciada e base travada, com parse-workers e dois-passes; trava em qualquer base da fila não abre outra; arquivo ilegível não cai no scan antigo"
+evidencia = ""
+proxima_acao = "Merge permanece humano. Não instalar no Desktop enquanto a passada histórica estiver viva."
+
+[[pacote]]
+id = "PAINEL-FASE"
+estado = "proposto"
+dono = "notebook"
+paths = [
+    "src/segundocerebro/painel/index.html",
+    "tests/test_painel.py",
+]
+dependencias = []
+aceite = "a tela separa fase, barra de trabalho previsto e contagem de documentos; sem calibragem local diz que ainda não há previsão de horas; o estado cego não volta a prefixar a frase com faltam"
+evidencia = ""
+proxima_acao = "Merge permanece humano. O painel do Desktop só muda na próxima instalação, não nesta passada."
+
+[[pacote]]
+id = "RELATORIO-FALHAS"
+estado = "proposto"
+dono = "notebook"
+paths = [
+    "src/segundocerebro/index/relatorio_falhas.py",
+    "tests/test_relatorio_falhas.py",
+]
+dependencias = []
+aceite = "passada concluída conta falhas por extensão em markdown sem listar caminho; passada aberta sai com código 3; --agora marca o retrato como parcial; o registro abre só para leitura"
+evidencia = ""
+proxima_acao = "Merge permanece humano. Rodar o laudo no Desktop só depois que cada base fechar, lendo o índice local."
