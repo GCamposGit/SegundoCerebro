@@ -3,7 +3,8 @@
 **29/09/2026.** `GRAFICO-CACHE` foi entregue no PR #126 (commit `7646303`).
 `BUSCA-BURACO` foi entregue no PR #128 (merge `562b682`). `GRAFICO-EMBED` foi entregue no PR #130 (merge `83397b5`).
 `IMAGEM-RASTER` foi entregue no PR #132, `PLANILHA-CELULA` no PR #133 e
-`PLANILHA-LEITURA` no PR #134 (merge `748808d`) e `CANONICO-BACKFILL` no PR #135;
+`PLANILHA-LEITURA` no PR #134 (merge `748808d`), `CANONICO-BACKFILL` no PR #135
+e `FILA-RETOMADA`, `PAINEL-FASE` e `RELATORIO-FALHAS` no PR #137 (merge `442b079`).
 `HARDWARE-INICIO` está pronto para revisão, aguardando repetição da matriz injetada
 no notebook e merge humano.
 O OCR de imagens segue condicionado a um kernel CUDA executado; sem prova, não lê imagens.

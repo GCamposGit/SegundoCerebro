@@ -143,21 +143,19 @@ def test_fila_real_carrega_sem_erro() -> None:
     assert por_id["FND-01b-int"].dono == "notebook"
     assert (REPO / "docs" / "fnd-01b-identidade-interna.md").is_file()
     abertos = [p for p in pacotes if p.estado in {"proposto", "pronto", "em_execucao", "bloqueado"}]
-    assert {p.id for p in abertos} == {
-        "HARDWARE-INICIO",
-        "FILA-RETOMADA",
-        "PAINEL-FASE",
-        "RELATORIO-FALHAS",
-        "NIVEL-3",
-    }
+    assert {p.id for p in abertos} == {"HARDWARE-INICIO", "NIVEL-3"}
     assert por_id["NIVEL-3"].estado == "proposto"
     assert por_id["NIVEL-3"].dono == "notebook"
     assert "auto_merge" in por_id["NIVEL-3"].aceite
     assert por_id["HARDWARE-INICIO"].estado == "pronto"
-    assert por_id["FILA-RETOMADA"].estado == "proposto"
+    assert por_id["FILA-RETOMADA"].estado == "entregue"
     assert por_id["FILA-RETOMADA"].dono == "notebook"
-    assert por_id["PAINEL-FASE"].estado == "proposto"
-    assert por_id["RELATORIO-FALHAS"].estado == "proposto"
+    assert por_id["FILA-RETOMADA"].evidencia["pr"] == 137
+    assert por_id["FILA-RETOMADA"].evidencia["sha"] == "442b0790feaf8bff905ed280d3d84d38a3840880"
+    assert por_id["PAINEL-FASE"].estado == "entregue"
+    assert por_id["PAINEL-FASE"].evidencia["pr"] == 137
+    assert por_id["RELATORIO-FALHAS"].estado == "entregue"
+    assert por_id["RELATORIO-FALHAS"].evidencia["pr"] == 137
     assert por_id["GRAFICO-CACHE"].estado == "entregue"
     assert por_id["GRAFICO-CACHE"].evidencia["pr"] == 126
     assert por_id["GRAFICO-CACHE"].evidencia["sha"] == "76463036ea118d01b6c595e10e434172ed5a8be0"
