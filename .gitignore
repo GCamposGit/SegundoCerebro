@@ -44,6 +44,9 @@ census.toml.*
 config.toml.*
 .painel.json
 .mcp-http.json
+# Fila declarada da retomada: mora ao lado do config e é estado desta máquina.
+fila-indexacao.json
+fila-indexacao.json.tmp
 
 # Índices de bases além da padrão (/index/ já está coberto acima)
 /index-*/

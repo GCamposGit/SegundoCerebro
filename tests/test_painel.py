@@ -1129,6 +1129,22 @@ def test_barra_nao_diz_faltam_quando_nao_ha_tempo() -> None:
     assert guarda < prefixo, "o guarda tem de vir antes do prefixo"
 
 
+def test_barra_separa_fase_contagem_e_trabalho_previsto() -> None:
+    """A contagem de documentos e a barra de trabalho previsto não são a mesma conta.
+
+    Numa passada de leitura a barra pode estar em 19% com quase todos os
+    documentos já contados, e as placas ficam quietas de propósito.
+    """
+    html = Path("src/segundocerebro/painel/index.html").read_text(encoding="utf-8")
+    assert "barra ${pct}% do trabalho previsto" in html
+    assert "de ${d.totais ?? 0} documentos" in html
+    assert "ainda sem previsão de horas" in html
+    assert "Nesta fase as placas ficam quietas" in html
+    assert 'p.etapa === "embed" ? "vetorização"' in html
+    assert 'p.etapa === "parse" ? "leitura"' in html
+    assert 'id="idxFaseNota"' in html
+
+
 # --- J.e.1: exportar vault pela tela, a mesma recusa do CLI -------------------
 
 

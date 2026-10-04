@@ -105,6 +105,7 @@ code { font-family: ui-monospace, "Cascadia Code", monospace; font-size: 12px; }
         <span id="idxResumo" class="sub" style="margin:0"></span>
         <span id="idxFalta" class="sub" style="margin:0;font-variant-numeric:tabular-nums"></span>
       </div>
+      <div id="idxFaseNota" class="via"></div>
       <div id="idxArquivo" class="via"></div>
       <div class="barra oculto" id="barraArquivoCaixa" style="height:6px;margin-top:8px"><div id="barraArquivo"></div></div>
       <div id="idxEtapa" class="via"></div>
@@ -903,12 +904,22 @@ async function atualizarIndexacao() {
   const rascunho = (cob.busca_pct != null && cob.final_pct != null && cob.busca_pct !== cob.final_pct)
     ? ` · busca em ${cob.busca_pct}% · qualidade final em ${cob.final_pct}%`
     : "";
+  const fase = p.etapa === "embed" ? "vetorização"
+    : (p.etapa === "ocr" ? "leitura por OCR"
+      : (p.etapa === "parse" ? "leitura"
+        : (rodando ? "entre arquivos" : "")));
   $("idxResumo").textContent =
-    `${ROTULO_STATUS[p.status] || p.status} · ${pct}% · ${d.feitos}/${d.totais} documentos`
+    `${ROTULO_STATUS[p.status] || p.status}`
+    + (fase ? ` · fase ${fase}` : "")
+    + ` · barra ${pct}% do trabalho previsto`
+    + ` · ${d.feitos ?? 0} de ${d.totais ?? 0} documentos`
     + (p.chunks ? ` · ${Number(p.chunks).toLocaleString("pt-BR")} trechos` : "")
     + adiados
     + quarentena
     + rascunho;
+  $("idxFaseNota").textContent = (fase === "leitura" || fase === "leitura por OCR")
+    ? "Nesta fase as placas ficam quietas. A vetorização começa depois da leitura."
+    : (fase === "vetorização" ? "Nesta fase as placas calculam os vetores." : "");
 
   // No estado `cego` — máquina sem calibragem local — `p.restante` é a frase
   // inteira ("medindo esta máquina"), não uma duração. Encaixá-la nas frases
@@ -917,7 +928,7 @@ async function atualizarIndexacao() {
   // numa frase precisam do mesmo guarda — o segundo veio com o estado `travada`.
   const semTempo = p.estimativa_estado === "cego";
   const falta = semTempo
-    ? p.restante
+    ? `ainda sem previsão de horas · ${p.restante || "medindo esta máquina"}`
     : `faltam ${p.restante}`
       + (p.decomposicao ? ` — ${p.decomposicao}` : "");
   $("idxFalta").textContent = travada

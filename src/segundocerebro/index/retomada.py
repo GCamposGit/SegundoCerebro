@@ -9,10 +9,12 @@ ROADMAP promete que isso é previsto: *"registrar status e reindexar na próxima
 passada, nunca descartar em silêncio"*. Este módulo é a metade que faltava — a
 retomada acontecer **sem alguém lembrar de mandar**.
 
-**Não há marcador novo.** O `progresso.json` já é o marcador: ele fica no disco com
-o status final, e um run que morreu sem encerrar deixa `indexando` gravado.
-Inventar um segundo arquivo criaria duas fontes de verdade que podem discordar —
-e a que discorda é sempre descoberta no pior momento.
+O `progresso.json` continua sendo o único marcador de status: um run que morreu
+sem encerrar deixa `indexando` gravado. A `fila-indexacao.json`, ao lado do
+config, não é um segundo status. Ela só guarda a ordem pedida e as flags
+(`perfil`, `parse-workers`, `dois-passes`), inclusive de base que ainda não tem
+progresso. Sem esse arquivo, o logon segue o scan antigo: só o que ficou pela
+metade e com a trava livre.
 
 Nada aqui força indexação: se outro indexador está vivo, a trava manda, e este
 módulo sai sem fazer nada. Duas passadas simultâneas duplicariam cada vetor.
@@ -21,9 +23,11 @@ módulo sai sem fazer nada. Duas passadas simultâneas duplicariam cada vetor.
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import subprocess
 import sys
+from dataclasses import dataclass
 from pathlib import Path
 
 from ..config import ErroDeConfig, carregar, normalizar_perfil
@@ -66,10 +70,88 @@ def pendentes(conf) -> list[tuple[object, dict]]:  # noqa: ANN001 — config.Con
     return [(b, p) for b in conf.bases if (p := pendente(b)) is not None]
 
 
-def comando_de_retomada(base, caminho_config: Path | None, perfil: str) -> list[str]:  # noqa: ANN001
+NOME_DA_FILA = "fila-indexacao.json"
+"""Fila declarada ao lado do config. Não é progresso: sobrevive a uma base que nunca começou."""
+
+STATUS_CONCLUIDA = "concluida"
+
+
+@dataclass(frozen=True)
+class FilaDeclarada:
+    """O que o logon deve continuar, na ordem pedida, com as mesmas flags."""
+
+    bases: tuple[str, ...]
+    perfil: str | None = None
+    parse_workers: int | None = None
+    dois_passes: bool = False
+
+
+def caminho_da_fila(config: Path) -> Path:
+    return Path(config).expanduser().resolve().parent / NOME_DA_FILA
+
+
+def ler_fila(config: Path) -> FilaDeclarada | None:
+    """`None` se ninguém gravou fila. Arquivo presente e inválido é erro, não silêncio."""
+    alvo = caminho_da_fila(config)
+    if not alvo.is_file():
+        return None
+    try:
+        dados = json.loads(alvo.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError) as erro:
+        raise ErroDeConfig(f"fila ilegível em {alvo.name}: {erro}") from erro
+    if not isinstance(dados, dict):
+        raise ErroDeConfig(f"fila ilegível em {alvo.name}")
+    bases = dados.get("bases")
+    if (
+        not isinstance(bases, list)
+        or not bases
+        or not all(isinstance(item, str) and item.strip() for item in bases)
+    ):
+        raise ErroDeConfig("fila: 'bases' precisa ser uma lista de ids")
+    ids = tuple(item.strip() for item in bases)
+    if len(ids) != len(set(ids)):
+        raise ErroDeConfig("fila: id repetido")
+    perfil = dados.get("perfil")
+    if perfil is not None and not isinstance(perfil, str):
+        raise ErroDeConfig("fila: 'perfil' precisa ser texto")
+    workers = dados.get("parse_workers")
+    if workers is not None and (isinstance(workers, bool) or not isinstance(workers, int) or workers < 1):
+        raise ErroDeConfig("fila: 'parse_workers' precisa ser inteiro >= 1")
+    dois = dados.get("dois_passes", False)
+    if not isinstance(dois, bool):
+        raise ErroDeConfig("fila: 'dois_passes' precisa ser true ou false")
+    return FilaDeclarada(ids, perfil.strip() if isinstance(perfil, str) else None, workers, dois)
+
+
+def gravar_fila(config: Path, fila: FilaDeclarada) -> Path:
+    alvo = caminho_da_fila(config)
+    payload = {
+        "bases": list(fila.bases),
+        "perfil": fila.perfil,
+        "parse_workers": fila.parse_workers,
+        "dois_passes": fila.dois_passes,
+    }
+    tmp = alvo.with_suffix(".json.tmp")
+    tmp.write_text(json.dumps(payload, ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
+    tmp.replace(alvo)
+    return alvo
+
+
+def comando_de_retomada(
+    base,  # noqa: ANN001 — config.Base
+    caminho_config: Path | None,
+    perfil: str,
+    *,
+    parse_workers: int | None = None,
+    dois_passes: bool = False,
+) -> list[str]:
     comando = [sys.executable, "-m", "segundocerebro.index.indexer", "--base", base.id]
     if caminho_config is not None:
         comando += ["--config", str(caminho_config)]
+    if parse_workers is not None:
+        comando += ["--parse-workers", str(parse_workers)]
+    if dois_passes:
+        comando.append("--dois-passes")
     return comando + ["--perfil", perfil]
 
 
@@ -210,7 +292,107 @@ def agendar(*, instalar: bool) -> int:
     return 0
 
 
-def main(argv: list[str] | None = None) -> int:
+def _perfil_efetivo(pedido: str | None, fila: FilaDeclarada | None, conf) -> str:  # noqa: ANN001
+    bruto = pedido or (fila.perfil if fila is not None else None) or conf.maquina.perfil
+    return normalizar_perfil(bruto)
+
+
+def _alguma_trava(conf, ids: tuple[str, ...]) -> str | None:  # noqa: ANN001
+    """A primeira base da fila cujo índice está com indexador vivo.
+
+    Uma trava em qualquer base da fila impede abrir outra: duas bases ao mesmo
+    tempo dividem a mesma memória. A base ocupada segue com quem já a tem.
+    """
+    for base_id in ids:
+        base = conf.base(base_id)
+        if TravaDeIndice(base.indice).ocupada():
+            return base_id
+    return None
+
+
+def _rodar_fila(conf, fila: FilaDeclarada, *, listar: bool, somente: str | None, perfil_cli: str | None) -> int:  # noqa: ANN001
+    if somente and somente not in fila.bases:
+        log.error("base '%s' não está na fila", somente)
+        return 2
+    try:
+        ocupada = _alguma_trava(conf, fila.bases)
+    except ErroDeConfig as erro:
+        log.error("%s", erro)
+        return 2
+    if ocupada:
+        log.info("base '%s' já está sendo indexada; a fila espera e não abre outra", ocupada)
+        return 0
+    perfil = _perfil_efetivo(perfil_cli, fila, conf)
+    alvos = [item for item in fila.bases if somente is None or item == somente]
+    for base_id in alvos:
+        try:
+            base = conf.base(base_id)
+        except ErroDeConfig as erro:
+            log.error("%s", erro)
+            return 2
+        progresso = ler(base.indice) or {}
+        status = progresso.get("status")
+        if status == STATUS_CONCLUIDA:
+            log.info("base '%s' já concluída", base_id)
+            continue
+        log.info("fila '%s': status '%s'", base_id, status or "nunca indexada")
+        if listar:
+            continue
+        comando = comando_de_retomada(
+            base,
+            conf.caminho,
+            perfil,
+            parse_workers=fila.parse_workers,
+            dois_passes=fila.dois_passes,
+        )
+        log.info("retomando: %s", " ".join(comando))
+        resultado = subprocess.run(comando, check=False)  # noqa: S603
+        if resultado.returncode != 0:
+            log.warning("retomada da base '%s' saiu com código %s", base_id, resultado.returncode)
+            return 0
+    return 0
+
+
+def _gravar_fila_cli(args: argparse.Namespace) -> int:
+    if not args.bases:
+        log.error("gravar a fila exige --bases")
+        return 2
+    if args.parse_workers is not None and args.parse_workers < 1:
+        log.error("parse-workers precisa ser >= 1")
+        return 2
+    try:
+        conf = carregar(args.config)
+    except ErroDeConfig as erro:
+        log.error("%s", erro)
+        return 2
+    if conf.caminho is None:
+        log.error("gravar a fila exige --config")
+        return 2
+    ids = tuple(parte.strip() for parte in args.bases.split(",") if parte.strip())
+    if not ids:
+        log.error("gravar a fila exige ao menos uma base")
+        return 2
+    if len(ids) != len(set(ids)):
+        log.error("fila: id repetido")
+        return 2
+    try:
+        for base_id in ids:
+            conf.base(base_id)
+    except ErroDeConfig as erro:
+        log.error("%s", erro)
+        return 2
+    fila = FilaDeclarada(
+        ids,
+        args.perfil,
+        args.parse_workers,
+        bool(args.dois_passes),
+    )
+    destino = gravar_fila(conf.caminho, fila)
+    log.info("fila gravada em %s", destino.name)
+    return 0
+
+
+def _analisador() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="segundocerebro.index.retomada",
         description="Retoma indexações que não terminaram",
@@ -227,26 +409,30 @@ def main(argv: list[str] | None = None) -> int:
         "--instalar", action="store_true", help="liga a retomada automática no logon"
     )
     parser.add_argument("--desinstalar", action="store_true", help="desliga a retomada no logon")
-    args = parser.parse_args(argv)
+    parser.add_argument(
+        "--gravar-fila",
+        action="store_true",
+        help="grava fila-indexacao.json ao lado do config e sai, sem indexar",
+    )
+    parser.add_argument("--bases", help="ids da fila, separados por vírgula")
+    parser.add_argument("--parse-workers", type=int, default=None)
+    parser.add_argument(
+        "--dois-passes",
+        action="store_true",
+        help="a fila gravada pede parse e só depois os vetores",
+    )
+    return parser
 
-    if args.instalar or args.desinstalar:
-        return agendar(instalar=args.instalar)
 
-    try:
-        conf = carregar(args.config)
-    except ErroDeConfig as erro:
-        log.error("%s", erro)
-        return 2
-
+def _rodar_pendentes(conf, args: argparse.Namespace) -> int:  # noqa: ANN001
+    """O scan antigo: só status inacabado, e uma falha não corta a base seguinte."""
     bases = [b for b in conf.bases if not args.base or b.id == args.base]
     lista = [(b, p) for b in bases if (p := pendente(b)) is not None]
-
     if not lista:
         # Sair em silêncio e com sucesso importa: isto roda a cada logon, e um
         # erro no caso normal treina o usuário a ignorar o aviso.
         log.info("nada a retomar")
         return 0
-
     for base, progresso in lista:
         feitos = progresso.get("documentos", {}).get("feitos", "?")
         totais = progresso.get("documentos", {}).get("totais", "?")
@@ -261,7 +447,13 @@ def main(argv: list[str] | None = None) -> int:
         if args.listar:
             continue
         perfil = normalizar_perfil(args.perfil or conf.maquina.perfil)
-        comando = comando_de_retomada(base, conf.caminho, perfil)
+        comando = comando_de_retomada(
+            base,
+            conf.caminho,
+            perfil,
+            parse_workers=args.parse_workers,
+            dois_passes=bool(args.dois_passes),
+        )
         log.info("retomando: %s", " ".join(comando))
         # Sequencial de propósito: duas bases ao mesmo tempo dividiriam a CPU que
         # o perfil `leve` já limita, e a segunda demoraria o dobro sem ninguém
@@ -270,6 +462,30 @@ def main(argv: list[str] | None = None) -> int:
         if resultado.returncode != 0:
             log.warning("retomada da base '%s' saiu com código %s", base.id, resultado.returncode)
     return 0
+
+
+def main(argv: list[str] | None = None) -> int:
+    args = _analisador().parse_args(argv)
+    if args.instalar or args.desinstalar:
+        return agendar(instalar=args.instalar)
+    if args.gravar_fila:
+        return _gravar_fila_cli(args)
+    try:
+        conf = carregar(args.config)
+    except ErroDeConfig as erro:
+        log.error("%s", erro)
+        return 2
+    if conf.caminho is not None:
+        try:
+            fila = ler_fila(conf.caminho)
+        except ErroDeConfig as erro:
+            log.error("%s", erro)
+            return 2
+        if fila is not None:
+            return _rodar_fila(
+                conf, fila, listar=args.listar, somente=args.base, perfil_cli=args.perfil
+            )
+    return _rodar_pendentes(conf, args)
 
 
 if __name__ == "__main__":

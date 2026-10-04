@@ -285,6 +285,145 @@ def test_a_tarefa_de_logon_numa_instalacao_por_pip(monkeypatch, tmp_path):
     )
 
 
+def _config_duas(tmp_path: Path) -> None:
+    (tmp_path / "config.toml").write_text(
+        '[[base]]\nid = "alfa"\nindice = "idx-alfa"\n'
+        '[[base]]\nid = "beta"\nindice = "idx-beta"\n',
+        encoding="utf-8",
+    )
+
+
+def _progresso(indice: Path, status: str) -> None:
+    indice.mkdir(parents=True, exist_ok=True)
+    caminho_de(indice).write_text(
+        json.dumps({"status": status, "documentos": {"feitos": 1, "totais": 2}}),
+        encoding="utf-8",
+    )
+
+
+def _falso_run(comandos: list):
+    def falso(comando, **k):
+        comandos.append(list(comando))
+        return type("R", (), {"returncode": 0})()
+
+    return falso
+
+
+def test_fila_grava_sem_indexar(tmp_path: Path, monkeypatch) -> None:
+    _config_duas(tmp_path)
+    chamadas = []
+    monkeypatch.setattr("segundocerebro.index.retomada.subprocess.run", _falso_run(chamadas))
+    assert main([
+        "--config", str(tmp_path / "config.toml"),
+        "--gravar-fila",
+        "--bases", "alfa,beta",
+        "--perfil", "normal",
+        "--parse-workers", "1",
+        "--dois-passes",
+    ]) == 0
+    assert chamadas == []
+    gravada = json.loads((tmp_path / "fila-indexacao.json").read_text(encoding="utf-8"))
+    assert gravada["bases"] == ["alfa", "beta"]
+    assert gravada["parse_workers"] == 1
+    assert gravada["dois_passes"] is True
+
+
+def test_fila_retoma_quem_nunca_comecou_e_quem_travou(tmp_path: Path, monkeypatch) -> None:
+    """Sem progresso não é pendente no logon antigo. Na fila declarada, é trabalho."""
+    _config_duas(tmp_path)
+    (tmp_path / "fila-indexacao.json").write_text(
+        json.dumps({
+            "bases": ["alfa", "beta"],
+            "perfil": "normal",
+            "parse_workers": 1,
+            "dois_passes": True,
+        }),
+        encoding="utf-8",
+    )
+    _progresso(tmp_path / "idx-alfa", "travada")
+    comandos = []
+    monkeypatch.setattr("segundocerebro.index.retomada.subprocess.run", _falso_run(comandos))
+    assert main(["--config", str(tmp_path / "config.toml")]) == 0
+    assert [c[c.index("--base") + 1] for c in comandos] == ["alfa", "beta"]
+    assert "--parse-workers" in comandos[0] and "1" in comandos[0]
+    assert "--dois-passes" in comandos[0]
+    assert comandos[0][-2:] == ["--perfil", "normal"]
+
+
+def test_fila_pula_concluida(tmp_path: Path, monkeypatch) -> None:
+    _config_duas(tmp_path)
+    (tmp_path / "fila-indexacao.json").write_text(
+        json.dumps({
+            "bases": ["alfa", "beta"],
+            "perfil": "normal",
+            "parse_workers": 1,
+            "dois_passes": True,
+        }),
+        encoding="utf-8",
+    )
+    _progresso(tmp_path / "idx-alfa", "concluida")
+    comandos = []
+    monkeypatch.setattr("segundocerebro.index.retomada.subprocess.run", _falso_run(comandos))
+    assert main(["--config", str(tmp_path / "config.toml")]) == 0
+    assert [c[c.index("--base") + 1] for c in comandos] == ["beta"]
+
+
+def test_fila_com_trava_nao_abre_outra_base(tmp_path: Path, monkeypatch) -> None:
+    _config_duas(tmp_path)
+    (tmp_path / "fila-indexacao.json").write_text(
+        json.dumps({"bases": ["alfa", "beta"], "dois_passes": True, "parse_workers": 1}),
+        encoding="utf-8",
+    )
+    beta = tmp_path / "idx-beta"
+    beta.mkdir()
+    import psutil
+
+    (beta / NOME_DA_TRAVA).write_text(
+        f"{os.getpid()},{psutil.Process().create_time():.3f}", encoding="utf-8"
+    )
+    comandos = []
+    monkeypatch.setattr("segundocerebro.index.retomada.subprocess.run", _falso_run(comandos))
+    assert main(["--config", str(tmp_path / "config.toml")]) == 0
+    assert comandos == []
+
+
+def test_fila_para_quando_uma_base_falha(tmp_path: Path, monkeypatch) -> None:
+    _config_duas(tmp_path)
+    (tmp_path / "fila-indexacao.json").write_text(
+        json.dumps({"bases": ["alfa", "beta"], "perfil": "normal"}),
+        encoding="utf-8",
+    )
+    comandos = []
+
+    def falso(comando, **k):
+        comandos.append(list(comando))
+        return type("R", (), {"returncode": 1})()
+
+    monkeypatch.setattr("segundocerebro.index.retomada.subprocess.run", falso)
+    assert main(["--config", str(tmp_path / "config.toml")]) == 0
+    assert len(comandos) == 1
+
+
+def test_fila_ilegivel_nao_cai_no_comportamento_antigo(tmp_path: Path, monkeypatch) -> None:
+    _config_duas(tmp_path)
+    (tmp_path / "fila-indexacao.json").write_text("{", encoding="utf-8")
+    _progresso(tmp_path / "idx-alfa", "indexando")
+    comandos = []
+    monkeypatch.setattr("segundocerebro.index.retomada.subprocess.run", _falso_run(comandos))
+    assert main(["--config", str(tmp_path / "config.toml")]) == 2
+    assert comandos == []
+
+
+def test_fila_recusa_base_desconhecida(tmp_path: Path) -> None:
+    _config_duas(tmp_path)
+    assert main([
+        "--config", str(tmp_path / "config.toml"),
+        "--gravar-fila",
+        "--bases", "fantasma",
+    ]) == 2
+    assert not (tmp_path / "fila-indexacao.json").exists()
+
+
 def test_no_checkout_a_tarefa_de_logon_continua_como_era(monkeypatch):
     """A régua do teste acima: quem roda do checkout não perde nada."""
     from segundocerebro.index import retomada
