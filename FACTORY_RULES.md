@@ -12,7 +12,7 @@ Estas regras valem para qualquer agente ou harness que opere neste repositório.
 8. Um harness só pode declarar sucesso com `[HARNESS_PASS]`, ao menos uma checagem executada e nenhum marcador de falha.
 9. Preserve domínio e I/O separados. O caminho MCP e o painel consomem serviços testáveis; regras de negócio não ficam presas a handlers de UI.
 10. `MISSION.md`, `FACTORY_RULES.md`, `AGENTS.md`, a regra de ouro, o harness e os workflows são governança protegida. Mudanças exigem pacote explícito e revisão humana.
-11. Auto-merge, agendador, deploy e gastos externos permanecem desativados durante o nível 2. Ativação exige primeira volta manual verde e autorização explícita.
+11. Nível 3 desde 2026-10-05, com volta manual verde e autorização explícita do owner: o merge de pull request interno é autônomo quando o CI está verde. Agendador, deploy e gastos externos continuam desligados até autorização própria. Mudança de governança protegida pela regra 10 continua com revisão humana e não entra por auto-merge.
 12. `.agents/skills/` é o catálogo canônico da Dark Factory. `.claude/skills/` mantém a cópia compatível, sem substituir as skills próprias do SegundoCerebro.
 13. O runtime e as skills da Dark Factory são snapshots. Atualizações só entram por novo commit revisado, atualização de `.factory/darkfac.lock.json` e validação completa; symlink ou dependência no checkout `C:\dev\DarkFac` é proibido.
 14. Operar o SegundoCerebro nunca autoriza modificar o repositório DarkFac. O commit de origem registrado no lock é somente leitura.

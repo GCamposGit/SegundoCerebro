@@ -1,6 +1,6 @@
 # Playbook de Operação da Dark Factory (Nível 3)
 
-> Snapshot pinado. Este repositório opera em **nível 2**: merge, auto-merge e agendador permanecem humanos até a primeira volta manual verde e autorização explícita.
+> Snapshot pinado. Desde 2026-10-05 este repositório opera em **nível 3**: o merge de pull request interno é autônomo com CI verde. Agendador, deploy e gasto externo continuam humanos. Mudança de governança protegida continua com revisão humana.
 
 Este manual descreve o procedimento operacional para rodar a Dark Factory no dia a dia, desde a criação de um épico até o auto-merge em produção.
 

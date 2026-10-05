@@ -148,7 +148,11 @@ def test_fila_real_carrega_sem_erro() -> None:
         "FILA-RETOMADA",
         "PAINEL-FASE",
         "RELATORIO-FALHAS",
+        "NIVEL-3",
     }
+    assert por_id["NIVEL-3"].estado == "proposto"
+    assert por_id["NIVEL-3"].dono == "notebook"
+    assert "auto_merge" in por_id["NIVEL-3"].aceite
     assert por_id["HARDWARE-INICIO"].estado == "pronto"
     assert por_id["FILA-RETOMADA"].estado == "proposto"
     assert por_id["FILA-RETOMADA"].dono == "notebook"
