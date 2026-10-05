@@ -522,7 +522,7 @@ proxima_acao = "Repetir a matriz injetada no notebook sem overlay Maxwell. Em 20
 
 [[pacote]]
 id = "FILA-RETOMADA"
-estado = "proposto"
+estado = "entregue"
 dono = "notebook"
 paths = [
     "src/segundocerebro/index/retomada.py",
@@ -531,12 +531,12 @@ paths = [
 ]
 dependencias = []
 aceite = "fila-indexacao.json ao lado do config retoma, na ordem, base nunca iniciada e base travada, com parse-workers e dois-passes; trava em qualquer base da fila não abre outra; arquivo ilegível não cai no scan antigo"
-evidencia = ""
-proxima_acao = "Merge permanece humano. Não instalar no Desktop enquanto a passada histórica estiver viva."
+evidencia = { pr = 137, sha = "442b0790feaf8bff905ed280d3d84d38a3840880" }
+proxima_acao = ""
 
 [[pacote]]
 id = "PAINEL-FASE"
-estado = "proposto"
+estado = "entregue"
 dono = "notebook"
 paths = [
     "src/segundocerebro/painel/index.html",
@@ -544,12 +544,12 @@ paths = [
 ]
 dependencias = []
 aceite = "a tela separa fase, barra de trabalho previsto e contagem de documentos; sem calibragem local diz que ainda não há previsão de horas; o estado cego não volta a prefixar a frase com faltam"
-evidencia = ""
-proxima_acao = "Merge permanece humano. O painel do Desktop só muda na próxima instalação, não nesta passada."
+evidencia = { pr = 137, sha = "442b0790feaf8bff905ed280d3d84d38a3840880" }
+proxima_acao = ""
 
 [[pacote]]
 id = "RELATORIO-FALHAS"
-estado = "proposto"
+estado = "entregue"
 dono = "notebook"
 paths = [
     "src/segundocerebro/index/relatorio_falhas.py",
@@ -557,8 +557,8 @@ paths = [
 ]
 dependencias = []
 aceite = "passada concluída conta falhas por extensão em markdown sem listar caminho; passada aberta sai com código 3; --agora marca o retrato como parcial; o registro abre só para leitura"
-evidencia = ""
-proxima_acao = "Merge permanece humano. Rodar o laudo no Desktop só depois que cada base fechar, lendo o índice local."
+evidencia = { pr = 137, sha = "442b0790feaf8bff905ed280d3d84d38a3840880" }
+proxima_acao = ""
 
 [[pacote]]
 id = "NIVEL-3"
