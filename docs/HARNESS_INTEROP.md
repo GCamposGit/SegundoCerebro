@@ -1,6 +1,6 @@
 # Interoperabilidade entre harnesses
 
-O repositório é independente do editor ou do agente. O contrato comum está em `MISSION.md`, `FACTORY_RULES.md` e `AGENTS.md`. Este repositório opera em nível 2: o harness valida; o merge continua humano.
+O repositório é independente do editor ou do agente. O contrato comum está em `MISSION.md`, `FACTORY_RULES.md` e `AGENTS.md`. Este repositório opera em nível 3: o harness valida e o merge de pull request interno é autônomo com CI verde. Agendador, deploy e gasto externo continuam humanos.
 
 ## Clone
 

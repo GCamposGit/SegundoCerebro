@@ -17,7 +17,7 @@ Entregar um servidor MCP local que permita a uma pessoa leiga recuperar document
 - Otimização para um único acervo tratada como padrão do produto.
 - Geração de texto no servidor ou API paga no caminho de consulta.
 - Mudanças de ownership entre Notebook e Desktop sem acordo explícito.
-- Deploy, merge automático, agendador autônomo ou gasto externo antes da primeira volta manual validada e de autorização explícita.
+- Deploy, agendador autônomo ou gasto externo sem autorização própria. O merge automático de pull request interno está autorizado desde 2026-10-05.
 
 ## Critério de sucesso
 
@@ -25,4 +25,4 @@ Um clone limpo instala em Python 3.12, executa a suíte padrão sem GPU, modelos
 
 ## Nível de autonomia
 
-Nível 2 durante a calibração: planejamento, implementação, validação e revisão podem ser automatizados; merge e ativação de agendador permanecem humanos. A promoção ao nível 3 exige uma primeira volta manual completamente verde.
+Nível 3 desde 2026-10-05, depois da volta manual verde e da autorização explícita do owner. Planejamento, implementação, validação, revisão e merge de pull request interno são autônomos quando o CI está verde. Agendador, deploy e gasto externo continuam desligados.

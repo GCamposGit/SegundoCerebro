@@ -518,7 +518,7 @@ paths = [
 dependencias = []
 aceite = "indexador e MCP registram CPU, GPU, compute, VRAM, build ONNX e resultado do kernel minimo; OCR e embedding usam CUDA somente em GPU aprovada com VRAM livre suficiente; recusa explica fallback CPU; selecao validada com hardware injetado; nenhum pin de placa no pyproject"
 evidencia = ""
-proxima_acao = "Repetir a matriz injetada no notebook sem overlay Maxwell; merge permanece humano conforme nível 2. Em 2026-10-04 o venv do notebook tinha onnxruntime-gpu 1.29.0 e test_se_gpu_instalado_nao_e_cuda13 falhou. Não reinstalar o pin por baixo do MCP diário, e não promover a roda 1.29."
+proxima_acao = "Repetir a matriz injetada no notebook sem overlay Maxwell. Em 2026-10-04 o venv do notebook tinha onnxruntime-gpu 1.29.0 e test_se_gpu_instalado_nao_e_cuda13 falhou. Não reinstalar o pin por baixo do MCP diário, e não promover a roda 1.29."
 
 [[pacote]]
 id = "FILA-RETOMADA"
@@ -559,3 +559,23 @@ dependencias = []
 aceite = "passada concluída conta falhas por extensão em markdown sem listar caminho; passada aberta sai com código 3; --agora marca o retrato como parcial; o registro abre só para leitura"
 evidencia = ""
 proxima_acao = "Merge permanece humano. Rodar o laudo no Desktop só depois que cada base fechar, lendo o índice local."
+
+[[pacote]]
+id = "NIVEL-3"
+estado = "proposto"
+dono = "notebook"
+paths = [
+    ".factory/darkfac.lock.json",
+    "tests/test_dark_factory_bootstrap.py",
+    "FACTORY_RULES.md",
+    "MISSION.md",
+    "AGENTS.md",
+    "docs/DARK_FACTORY_PLAYBOOK.md",
+    "docs/HARNESS_INTEROP.md",
+    "docs/pacotes-ativos.toml",
+    "tests/test_pacotes_ativos.py",
+]
+dependencias = []
+aceite = "lock em autonomy_level 3 e auto_merge true; scheduler permanece false; o teste do bootstrap acompanha o lock; agendador, deploy e gasto externo continuam desligados; governança protegida não entra por auto-merge"
+evidencia = ""
+proxima_acao = "Revisão humana deste pacote. Depois do merge, pull request interno com CI verde pode ser mergeado pelo agente."

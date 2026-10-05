@@ -5,8 +5,8 @@
   "source_commit": "de6442408427adaaf336a122c6dd7c4dbe2e9311",
   "installed_at": "2026-09-06",
   "installation_mode": "vendored_snapshot",
-  "autonomy_level": 2,
-  "auto_merge": false,
+  "autonomy_level": 3,
+  "auto_merge": true,
   "scheduler": false,
   "included": [
     ".agents/skills",

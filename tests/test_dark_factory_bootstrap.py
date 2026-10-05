@@ -26,8 +26,8 @@ def test_darkfac_snapshot_is_pinned_and_isolated() -> None:
 
     assert lock["source_commit"] == "de6442408427adaaf336a122c6dd7c4dbe2e9311"
     assert lock["installation_mode"] == "vendored_snapshot"
-    assert lock["autonomy_level"] == 2
-    assert lock["auto_merge"] is False
+    assert lock["autonomy_level"] == 3
+    assert lock["auto_merge"] is True
     assert lock["scheduler"] is False
     assert lock["source_repository"] == "DarkFac"
 
